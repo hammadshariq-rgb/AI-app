@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Jarvis</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Action flash overlay — fades in/out when Jarvis opens something -->
+  <div id="actionFlash"></div>
+
+  <div id="panel">
+
+    <!-- Splash -->
+    <div id="splash">
+      <div class="splash-ring"></div>
+      <div id="splashName">JARVIS</div>
+      <div id="splashStatus">Initializing systems...</div>
+    </div>
+
+    <!-- Auth / Setup -->
+    <div id="setup" class="hidden">
+      <div class="setup-box">
+        <div class="setup-logo">⬡</div>
+        <h2>PERSONAL AI ASSISTANT</h2>
+
+        <!-- Step 1: Name (only shown on first-ever launch) -->
+        <div id="nameStep">
+          <p>First, give your assistant a name</p>
+          <div class="setup-field">
+            <label>NAME YOUR ASSISTANT</label>
+            <input id="setupName" placeholder="e.g. JARVIS, MAX, ARIA..." autocomplete="off" />
+          </div>
+          <button id="nameNext">CONTINUE →</button>
+        </div>
+
+        <!-- Step 2: Auth (sign up or log in) -->
+        <div id="authStep" class="hidden">
+          <div id="authTabs">
+            <button class="auth-tab active" id="tabSignup">SIGN UP</button>
+            <button class="auth-tab" id="tabLogin">LOG IN</button>
+          </div>
+
+          <button id="googleBtn">
+            <svg width="18" height="18" viewBox="0 0 18 18" style="margin-right:8px;vertical-align:middle"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
+            Continue with Google
+          </button>
+
+          <div class="auth-divider"><span>or</span></div>
+
+          <div class="setup-field" id="signupEmailField">
+            <label>EMAIL</label>
+            <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+          </div>
+          <div class="setup-field">
+            <label>PASSWORD</label>
+            <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+
+          <button id="authSubmit">CREATE ACCOUNT</button>
+          <div id="authError" class="setup-error hidden"></div>
+          <p class="setup-subscribe" id="authFooter">Already have an account? <a href="#" id="switchToLogin">Log in →</a></p>
+        </div>
+
+        <!-- Step 3: Payment required -->
+        <div id="paymentStep" class="hidden">
+          <div class="payment-icon">💳</div>
+          <h3 class="payment-title">ONE LAST STEP</h3>
+          <p class="payment-desc">Subscribe to activate your assistant.<br>$10 / month — cancel anytime.</p>
+          <button id="payBtn">SUBSCRIBE NOW →</button>
+          <div id="payWaiting" class="hidden">
+            <div class="pay-spinner"></div>
+            <p class="pay-wait-text">Waiting for payment confirmation...</p>
+            <p class="pay-wait-sub">Complete payment in your browser, then return here.</p>
+            <button id="payCheckBtn" style="margin-top:16px;letter-spacing:2px;font-size:12px;">I'VE PAID — CHECK NOW</button>
+          </div>
+          <div id="payError" class="setup-error hidden"></div>
+        </div>
+
+        <!-- Re-login (7-day prompt) -->
+        <div id="reloginStep" class="hidden">
+          <p id="reloginMsg">Welcome back. Please log in to continue.</p>
+          <div class="setup-field">
+            <label>EMAIL</label>
+            <input id="reloginEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+          </div>
+          <div class="setup-field">
+            <label>PASSWORD</label>
+            <input id="reloginPassword" type="password" placeholder="••••••••" />
+          </div>
+          <button id="reloginSubmit">LOG IN</button>
+          <div id="reloginError" class="setup-error hidden"></div>
+          <button id="reloginGoogle">
+            <svg width="16" height="16" viewBox="0 0 18 18" style="margin-right:6px;vertical-align:middle"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
+            Sign in with Google
+          </button>
+          <div id="reloginError2" class="setup-error hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main interface -->
+    <div id="main" class="hidden">
+
+      <!-- History sidebar (left) -->
+      <div id="historySidebar" class="hidden">
+        <div id="historyHeader">
+          <span>CHAT HISTORY</span>
+          <button id="historyClose">✕</button>
+        </div>
+        <div id="historyList"></div>
+      </div>
+
+      <!-- Main content -->
+      <div id="mainPanel">
+        <div id="topBar">
+          <button id="historyBtn" title="Chat History">☰</button>
+          <div id="appTitle">PERSONAL AI ASSISTANT</div>
+          <div id="statusDot"></div>
+          <button id="connectorsBtn" title="Connectors">🔗</button>
+          <button id="languageBtn" title="Language">🌐</button>
+          <button id="contactsBtn" title="Contacts">👥</button>
+          <button id="profileBtn" title="My Account">👤</button>
+          <button id="closeBtn">✕</button>
+        </div>
+
+        <!-- Profile panel -->
+        <div id="profilePanel" class="hidden">
+          <div id="profileHeader">
+            <span>MY ACCOUNT</span>
+            <button id="profileClose">✕</button>
+          </div>
+          <div id="profileAvatar">👤</div>
+          <div id="profileName"></div>
+          <div id="profileEmail"></div>
+          <div class="profile-section">
+            <div class="profile-label">SUBSCRIPTION</div>
+            <div id="profileSub" class="profile-value"></div>
+          </div>
+          <div class="profile-section">
+            <div class="profile-label">MEMBER SINCE</div>
+            <div id="profileSince" class="profile-value"></div>
+          </div>
+          <div class="profile-section">
+            <div class="profile-label">CHAT HISTORY</div>
+            <div id="profileHistoryList"></div>
+          </div>
+          <button id="profileLogout">SIGN OUT</button>
+        </div>
+
+        <div id="orbContainer">
+          <div id="orb"></div>
+          <div id="aiName">JARVIS</div>
+          <div id="orbLabel">STANDBY</div>
+        </div>
+
+        <div id="chat"></div>
+
+        <div style="-webkit-app-region:no-drag; display:flex; flex-direction:column; align-items:center;">
+          <div id="controls">
+            <button id="fileBtn" title="Open a file">📁</button>
+            <button id="micBtn" title="Click to speak">🎤</button>
+            <button id="clearBtn" title="Clear chat">🗑️</button>
+          </div>
+          <div id="micLabel">CLICK TO SPEAK</div>
+          <div id="voiceSpeedRow">
+            <span class="speed-label">🔊 VOICE SPEED</span>
+            <input type="range" id="voiceSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" />
+            <span class="speed-label" id="voiceSpeedVal">0.88x</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card panel (RIGHT side) -->
+      <div id="cardPanel" class="hidden">
+        <button id="cardClose" onclick="document.getElementById('cardPanel').classList.add('hidden')">✕</button>
+        <div id="cardContent"></div>
+        <div id="cardSource"></div>
+      </div>
+
+      <!-- Connectors panel (RIGHT side) -->
+      <div id="connectorsPanel" class="hidden">
+        <div id="connectorsHeader">
+          <span>CONNECTORS</span>
+          <button id="connectorsClose">✕</button>
+        </div>
+
+        <div class="connector-section">
+          <div class="connector-row" id="gmailRow">
+            <div class="connector-icon">✉</div>
+            <div class="connector-info">
+              <div class="connector-name">GMAIL</div>
+              <div class="connector-status" id="gmailStatus">Not connected</div>
+            </div>
+            <button class="connector-btn" id="gmailBtn">CONNECT</button>
+          </div>
+
+          <div class="connector-row" id="outlookRow">
+            <div class="connector-icon">📧</div>
+            <div class="connector-info">
+              <div class="connector-name">OUTLOOK</div>
+              <div class="connector-status" id="outlookStatus">Not connected</div>
+            </div>
+            <button class="connector-btn" id="outlookBtn">CONNECT</button>
+          </div>
+        </div>
+
+        <div class="connector-section">
+          <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
+          <p class="connector-hint">Emails from these people will be read out in detail. Add their name or email address.</p>
+          <div id="vipList"></div>
+          <div class="vip-add-row">
+            <input id="vipInput" placeholder="name or email@example.com" autocomplete="off" />
+            <button id="vipAddBtn">+ ADD</button>
+          </div>
+        </div>
+
+        <div class="connector-section">
+          <div class="connector-section-title">HOW TO USE</div>
+          <p class="connector-hint">Say <em>"Give me an update"</em> or <em>"Check my emails"</em> and Jarvis will read out your unread emails — with full details for important senders.</p>
+        </div>
+
+        <!-- Music section -->
+        <div class="connector-section">
+          <div class="connector-section-title">🎵 MUSIC</div>
+          <p class="connector-hint">Connect Spotify for background playback — songs play without switching windows. Or just pick a service to open when you say "play".</p>
+
+          <!-- Spotify OAuth connect -->
+          <div class="connector-row" id="spotifyRow">
+            <div class="connector-icon">🎵</div>
+            <div class="connector-info">
+              <div class="connector-name">SPOTIFY</div>
+              <div class="connector-status" id="spotifyStatus">Not connected</div>
+            </div>
+            <button class="connector-btn" id="spotifyBtn">CONNECT</button>
+          </div>
+
+          <div class="connector-section-title" style="margin-top:14px">PREFERRED SERVICE</div>
+          <p class="connector-hint">Used when Spotify isn't connected or for other music apps.</p>
+          <div id="musicServiceList">
+            <div class="music-service-row" data-service="spotify">
+              <span class="music-service-icon">🎵</span>
+              <span class="music-service-name">Spotify</span>
+              <span class="music-service-check">✓</span>
+            </div>
+            <div class="music-service-row" data-service="youtube music">
+              <span class="music-service-icon">▶</span>
+              <span class="music-service-name">YouTube Music</span>
+              <span class="music-service-check">✓</span>
+            </div>
+            <div class="music-service-row" data-service="apple music">
+              <span class="music-service-icon">🍎</span>
+              <span class="music-service-name">Apple Music</span>
+              <span class="music-service-check">✓</span>
+            </div>
+            <div class="music-service-row" data-service="amazon music">
+              <span class="music-service-icon">📦</span>
+              <span class="music-service-name">Amazon Music</span>
+              <span class="music-service-check">✓</span>
+            </div>
+            <div class="music-service-row" data-service="deezer">
+              <span class="music-service-icon">🎶</span>
+              <span class="music-service-name">Deezer</span>
+              <span class="music-service-check">✓</span>
+            </div>
+            <div class="music-service-row" data-service="tidal">
+              <span class="music-service-icon">🌊</span>
+              <span class="music-service-name">Tidal</span>
+              <span class="music-service-check">✓</span>
+            </div>
+          </div>
+          <p class="connector-hint" style="margin-top:10px">Selected: <strong id="musicServiceSelected">None</strong></p>
+        </div>
+      </div>
+
+      <!-- Language panel (RIGHT side) -->
+      <div id="languagePanel" class="hidden">
+        <div id="languageHeader">
+          <span>LANGUAGE</span>
+          <button id="languageClose">✕</button>
+        </div>
+        <p class="connector-hint" style="margin:0 0 12px">Jarvis will always reply in the selected language.</p>
+        <input id="languageSearch" placeholder="Search languages..." autocomplete="off" />
+        <div id="languageList"></div>
+      </div>
+
+      <!-- Contacts panel (RIGHT side, overlays card panel) -->
+      <div id="contactsPanel" class="hidden">
+        <div id="contactsHeader">
+          <span>CONTACTS</span>
+          <button id="contactsClose">✕</button>
+        </div>
+        <div id="contactsList"></div>
+        <div id="addContactForm">
+          <div class="contact-form-title">ADD CONTACT</div>
+          <input id="contactNameInput" placeholder="Name (e.g. Ahmed)" autocomplete="off" />
+          <input id="contactPhoneInput" placeholder="Phone (e.g. +447911123456)" autocomplete="off" />
+          <button id="addContactBtn">+ ADD</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

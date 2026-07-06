@@ -1,0 +1,62 @@
+name: Build Jarvis
+
+on:
+  push:
+    tags:
+      - 'v*'          # triggers on version tags like v1.0.0, v1.2.3
+  workflow_dispatch:  # lets you trigger manually from GitHub website
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+          - os: ubuntu-latest
+            name: Linux
+
+    runs-on: ${{ matrix.os }}
+    name: Build for ${{ matrix.name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: app
+
+      - name: Build installer
+        run: npm run dist
+        working-directory: app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Windows
+          path: app/dist/*.exe
+
+      - name: Upload macOS installer
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-macOS
+          path: app/dist/*.dmg
+
+      - name: Upload Linux installer
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Linux
+          path: app/dist/*.AppImage

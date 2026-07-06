@@ -1,0 +1,19 @@
+{
+  "name": "jarvis-license-server",
+  "version": "0.1.0",
+  "description": "Stripe billing + license-key server for Jarvis Desktop",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "stripe": "^16.12.0"
+  }
+}
