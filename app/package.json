@@ -2,6 +2,11 @@
   "name": "jarvis-desktop",
   "version": "0.1.0",
   "description": "Desktop AI assistant - Jarvis",
+  "author": "Hammad Shariq",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hammadshariq-rgb/AI-app.git"
+  },
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
