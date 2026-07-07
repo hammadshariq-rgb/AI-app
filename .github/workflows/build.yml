@@ -3,8 +3,8 @@ name: Build Jarvis
 on:
   push:
     tags:
-      - 'v*'          # triggers on version tags like v1.0.0, v1.2.3
-  workflow_dispatch:  # lets you trigger manually from GitHub website
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,6 +29,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Resize icon to 512x512 (macOS/Linux)
+        if: matrix.os != 'windows-latest'
+        run: |
+          npm install -g jimp
+          node -e "
+          const Jimp = require('jimp');
+          Jimp.read('app/assets/icon.png').then(img => {
+            img.resize(512, 512).write('app/assets/icon.png');
+            console.log('Icon resized to 512x512');
+          });
+          "
+
+      - name: Resize icon to 512x512 (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          npm install -g jimp
+          node -e "const Jimp = require('jimp'); Jimp.read('app/assets/icon.png').then(img => { img.resize(512, 512).write('app/assets/icon.png'); console.log('done'); });"
 
       - name: Install dependencies
         run: npm install
