@@ -43,7 +43,7 @@ function saveCalendarTokens(tokens) {
 
 // ── Calendar API ──────────────────────────────────────────────────────────────
 
-// Get upcoming events for the next N days
+// Get upcoming events for the next N days across ALL calendars
 async function getUpcomingEvents(days = 7) {
   const token = await getCalendarToken();
   if (!token) return { error: 'not_connected' };
@@ -53,26 +53,52 @@ async function getUpcomingEvents(days = 7) {
   end.setDate(end.getDate() + days);
 
   try {
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      `timeMin=${encodeURIComponent(now.toISOString())}&` +
-      `timeMax=${encodeURIComponent(end.toISOString())}&` +
-      `singleEvents=true&orderBy=startTime&maxResults=20`,
+    // First get all calendars the user has
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    const data = await res.json();
-    if (data.error) return { error: data.error.message };
+    const calListData = await calListRes.json();
+    if (calListData.error) return { error: calListData.error.message };
 
-    const events = (data.items || []).map(e => ({
-      id: e.id,
-      title: e.summary || '(no title)',
-      start: e.start?.dateTime || e.start?.date,
-      end: e.end?.dateTime || e.end?.date,
-      allDay: !e.start?.dateTime,
-      location: e.location || null,
-    }));
+    const calendars = (calListData.items || []).filter(c =>
+      c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader'
+    );
 
-    return { ok: true, events };
+    // Fetch events from all calendars in parallel
+    const allEventArrays = await Promise.all(
+      calendars.map(cal =>
+        fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
+          `timeMin=${encodeURIComponent(now.toISOString())}&` +
+          `timeMax=${encodeURIComponent(end.toISOString())}&` +
+          `singleEvents=true&orderBy=startTime&maxResults=20`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        ).then(r => r.json()).catch(() => ({ items: [] }))
+      )
+    );
+
+    // Merge and sort all events by start time
+    const events = allEventArrays
+      .flatMap(data => (data.items || []).map(e => ({
+        id: e.id,
+        title: e.summary || '(no title)',
+        start: e.start?.dateTime || e.start?.date,
+        end: e.end?.dateTime || e.end?.date,
+        allDay: !e.start?.dateTime,
+        location: e.location || null,
+      })))
+      .sort((a, b) => new Date(a.start) - new Date(b.start));
+
+    // Deduplicate by id (some events appear in multiple calendars)
+    const seen = new Set();
+    const unique = events.filter(e => {
+      if (seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+
+    return { ok: true, events: unique };
   } catch (err) {
     return { error: err.message };
   }
@@ -124,7 +150,7 @@ async function addEvent({ title, date, time, duration = 60, description = '' }) 
   }
 }
 
-// Delete all events between startDate and endDate (YYYY-MM-DD strings)
+// Delete all events between startDate and endDate across ALL owned calendars
 async function clearSchedule(startDate, endDate) {
   const token = await getCalendarToken();
   if (!token) return { error: 'not_connected' };
@@ -133,28 +159,37 @@ async function clearSchedule(startDate, endDate) {
     const start = new Date(`${startDate}T00:00:00`);
     const end = new Date(`${endDate}T23:59:59`);
 
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      `timeMin=${encodeURIComponent(start.toISOString())}&` +
-      `timeMax=${encodeURIComponent(end.toISOString())}&` +
-      `singleEvents=true&maxResults=100`,
+    // Get all owned/writable calendars
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    const data = await res.json();
-    if (data.error) return { error: data.error.message };
+    const calListData = await calListRes.json();
+    const calendars = (calListData.items || []).filter(c =>
+      c.accessRole === 'owner' || c.accessRole === 'writer'
+    );
 
-    const events = data.items || [];
-    if (events.length === 0) return { ok: true, deleted: 0 };
+    let totalDeleted = 0;
+    await Promise.all(calendars.map(async cal => {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
+        `timeMin=${encodeURIComponent(start.toISOString())}&` +
+        `timeMax=${encodeURIComponent(end.toISOString())}&` +
+        `singleEvents=true&maxResults=100`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      const events = data.items || [];
+      totalDeleted += events.length;
+      await Promise.all(events.map(e =>
+        fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events/${e.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {})
+      ));
+    }));
 
-    // Delete all found events in parallel
-    await Promise.all(events.map(e =>
-      fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${e.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {})
-    ));
-
-    return { ok: true, deleted: events.length };
+    return { ok: true, deleted: totalDeleted };
   } catch (err) {
     return { error: err.message };
   }
