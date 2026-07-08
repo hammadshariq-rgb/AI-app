@@ -10,6 +10,7 @@ const tts = require('./services/tts');
 const commands = require('./services/commands');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
+const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
 app.setAsDefaultProtocolClient('jarvis');
@@ -80,6 +81,7 @@ function handleDeepLink(url) {
         const tokens = { access_token: accessToken, refresh_token: refreshToken, expires_in: Number(expiresIn) };
         if (service === 'gmail') connectors.saveGmailTokens(tokens);
         else if (service === 'outlook') connectors.saveOutlookTokens(tokens);
+        else if (service === 'calendar') connectors.saveCalendarTokens(tokens);
         if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
       }
     }
@@ -331,6 +333,78 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history }) => {
         finalAction = { type: 'open_url', arg: urlMap[platform] };
       }
     }
+  }
+
+  // Handle calendar actions
+  if (finalAction?.type === 'get_events') {
+    const days = parseInt(finalAction.arg) || 7;
+    if (!calendar.isConnected()) {
+      const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
+      const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+      return { text: spokenText, audio: audioBase64, card: null, hasAction: false };
+    }
+    const eventsResult = await calendar.getUpcomingEvents(days);
+    if (eventsResult.error) {
+      const spokenText = 'I had trouble reading your calendar. Please try again.';
+      const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+      return { text: spokenText, audio: audioBase64, card: null, hasAction: false };
+    }
+    const events = eventsResult.events;
+    let spokenText;
+    if (events.length === 0) {
+      spokenText = `You have no events in the next ${days === 1 ? 'day' : `${days} days`}.`;
+    } else {
+      const eventLines = events.slice(0, 5).map(e => {
+        const start = new Date(e.start);
+        const dateStr = start.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = e.allDay ? 'all day' : start.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return `${e.title} on ${dateStr} at ${timeStr}`;
+      });
+      spokenText = `You have ${events.length} upcoming event${events.length !== 1 ? 's' : ''}. ${eventLines.join('. ')}.`;
+      if (events.length > 5) spokenText += ` And ${events.length - 5} more.`;
+    }
+    const calendarCard = { type: 'calendar', events: events.slice(0, 10) };
+    const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+    return { text: spokenText, audio: audioBase64, card: calendarCard, hasAction: true };
+  }
+
+  if (finalAction?.type === 'add_event') {
+    if (!calendar.isConnected()) {
+      const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
+      const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+      return { text: spokenText, audio: audioBase64, card: null, hasAction: false };
+    }
+    let eventArgs;
+    try { eventArgs = JSON.parse(finalAction.arg); } catch (_) { eventArgs = { title: finalAction.arg, date: new Date().toISOString().split('T')[0] }; }
+    const addResult = await calendar.addEvent(eventArgs);
+    let spokenText;
+    if (addResult.ok) {
+      spokenText = finalText || `Done — I've added "${addResult.title}" to your calendar.`;
+    } else {
+      spokenText = 'I couldn\'t add that to your calendar. Please try again.';
+    }
+    const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+    return { text: spokenText, audio: audioBase64, card: null, hasAction: true };
+  }
+
+  if (finalAction?.type === 'clear_schedule') {
+    if (!calendar.isConnected()) {
+      const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
+      const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+      return { text: spokenText, audio: audioBase64, card: null, hasAction: false };
+    }
+    const [startDate, endDate] = finalAction.arg.split('|');
+    const clearResult = await calendar.clearSchedule(startDate, endDate || startDate);
+    let spokenText;
+    if (clearResult.ok) {
+      spokenText = clearResult.deleted === 0
+        ? 'Your schedule for that period is already clear.'
+        : finalText || `Done — I've cleared ${clearResult.deleted} event${clearResult.deleted !== 1 ? 's' : ''} from your calendar.`;
+    } else {
+      spokenText = 'I couldn\'t clear your calendar. Please try again.';
+    }
+    const audioBase64 = await tts.synthesize(spokenText).catch(() => null);
+    return { text: spokenText, audio: audioBase64, card: null, hasAction: true };
   }
 
   // Handle image generation separately (returns imageUrl, not a command result)

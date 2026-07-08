@@ -164,6 +164,14 @@ function showCard(card) {
   } else if (card.type === 'news') {
     const items = card.headlines.map(h => `<div class="news-item">${h}</div>`).join('');
     cardContent.innerHTML = `<div class="card-news"><div class="news-title">LATEST NEWS</div>${items}</div>`;
+  } else if (card.type === 'calendar') {
+    const evRows = (card.events || []).map(e => {
+      const start = new Date(e.start);
+      const dateStr = start.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+      const timeStr = e.allDay ? 'All day' : start.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
+      return `<div class="cal-event"><div class="cal-title">${e.title}</div><div class="cal-time">${dateStr} · ${timeStr}</div></div>`;
+    }).join('');
+    cardContent.innerHTML = `<div class="card-calendar"><div class="cal-header">📅 UPCOMING EVENTS</div>${evRows || '<div class="cal-empty">No events found.</div>'}</div>`;
   }
 
   const srcLink = card.sourceUrl
@@ -574,6 +582,25 @@ async function renderConnectors() {
     outlookBtn.textContent = 'CONNECT';
     outlookBtn.className = 'connector-btn';
     outlookBtn.onclick = () => window.jarvis.connectorConnect('outlook');
+  }
+
+  // Google Calendar row
+  const calendarStatus = document.getElementById('calendarStatus');
+  const calendarBtn = document.getElementById('calendarBtn');
+  if (calendarStatus && calendarBtn) {
+    if (status.calendar) {
+      calendarStatus.textContent = 'Connected';
+      calendarStatus.className = 'connector-status connected';
+      calendarBtn.textContent = 'DISCONNECT';
+      calendarBtn.className = 'connector-btn disconnect';
+      calendarBtn.onclick = async () => { await window.jarvis.connectorDisconnect('calendar'); renderConnectors(); };
+    } else {
+      calendarStatus.textContent = 'Not connected';
+      calendarStatus.className = 'connector-status';
+      calendarBtn.textContent = 'CONNECT';
+      calendarBtn.className = 'connector-btn';
+      calendarBtn.onclick = () => window.jarvis.connectorConnect('calendar');
+    }
   }
 
   // VIP list

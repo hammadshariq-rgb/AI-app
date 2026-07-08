@@ -134,6 +134,53 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_events',
+      description: 'Get the user\'s upcoming calendar events. Use when user asks what\'s on their schedule, upcoming events, what they have today/this week, or similar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'number', description: 'How many days ahead to look (default 7). Use 1 for "today", 7 for "this week", 30 for "this month".' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_event',
+      description: 'Add an event or appointment to the user\'s Google Calendar. Use when the user says "add to calendar", "schedule a meeting", "remind me on X day at Y time", "book an appointment", etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title/name of the event (e.g. "Doctor appointment", "Meeting with Ahmed")' },
+          date: { type: 'string', description: 'Date in YYYY-MM-DD format (e.g. "2026-07-15")' },
+          time: { type: 'string', description: 'Time in HH:MM 24-hour format (e.g. "14:30"). Leave empty for all-day events.' },
+          duration: { type: 'number', description: 'Duration in minutes (default 60).' },
+          description: { type: 'string', description: 'Optional notes for the event.' },
+        },
+        required: ['title', 'date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clear_schedule',
+      description: 'Delete all events from the user\'s Google Calendar between two dates. Use when user says "clear my schedule", "delete everything on X day", "cancel all my events from X to Y", etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format' },
+          end_date: { type: 'string', description: 'End date in YYYY-MM-DD format. Same as start_date for a single day.' },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English') => {
@@ -200,7 +247,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me)\b/i;
 
 async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English' }) {
   const needsTools = ACTION_KEYWORDS.test(message);
@@ -239,6 +286,9 @@ async function respond({ message, history = [], assistantName, memories = [], re
       else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
       else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
       else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+      else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
+      else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
+      else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
       text = choice.message.content || 'On it.';
     } else {
       text = choice.message.content || '';

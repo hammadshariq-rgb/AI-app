@@ -206,6 +206,7 @@ function getConnectorStatus() {
     gmail: !!store.get('connector.gmail.access_token'),
     outlook: !!store.get('connector.outlook.access_token'),
     spotify: !!store.get('connector.spotify.access_token'),
+    calendar: !!store.get('connector.calendar.access_token'),
     vipSenders: store.get('connector.vipSenders') || [],
   };
 }
@@ -330,6 +331,14 @@ function removeVipSender(emailOrName) {
   return list;
 }
 
+function saveCalendarTokens(tokens) {
+  store.set('connector.calendar', {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expires_at: Date.now() + (tokens.expires_in || 3600) * 1000,
+  });
+}
+
 async function pollForToken(service) {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
@@ -340,6 +349,7 @@ async function pollForToken(service) {
         if (service === 'gmail') saveGmailTokens(data);
         else if (service === 'outlook') saveOutlookTokens(data);
         else if (service === 'spotify') saveSpotifyTokens(data);
+        else if (service === 'calendar') saveCalendarTokens(data);
         return true;
       }
     } catch (_) {}
@@ -349,7 +359,7 @@ async function pollForToken(service) {
 
 module.exports = {
   getEmailUpdate, formatEmailUpdateForAI,
-  getConnectorStatus, saveGmailTokens, saveOutlookTokens, saveSpotifyTokens,
+  getConnectorStatus, saveGmailTokens, saveOutlookTokens, saveSpotifyTokens, saveCalendarTokens,
   playOnSpotify,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
