@@ -36,11 +36,11 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'open_url',
-      description: 'Open any website or search the web in the browser. Two simple rules: (1) If the user wants to search for ANYTHING — any topic, any question, any person, anything at all — use https://www.google.com/search?q=SEARCH+TERMS. (2) If the user wants to go to a specific website — use that site\'s URL directly. Always call this function when the user asks to look something up, search, browse, or visit a site.',
+      description: 'Open any website or search the web in the browser. Google is ALWAYS the default search engine. Rule: (1) If the user wants to search for ANYTHING — any topic, question, person, news, anything — use https://www.google.com/search?q=SEARCH+TERMS. (2) ONLY use a specific site URL if the user explicitly says "go to [website]" or "open [website]". Never use Bing, Yahoo, or any other search engine.',
       parameters: {
         type: 'object',
         properties: {
-          url: { type: 'string', description: 'For any search query: https://www.google.com/search?q=words+here (replace spaces with +). For a specific website: its full URL like https://www.youtube.com or https://www.amazon.com.' },
+          url: { type: 'string', description: 'ALWAYS use Google for searches: https://www.google.com/search?q=words+here (replace spaces with +). Only use a specific site URL if the user explicitly asks to go to that exact website.' },
         },
         required: ['url'],
       },
@@ -222,6 +222,10 @@ MUSIC RULES:
 - Whenever the user says "play", "put on", "queue", or "listen to" + any song/artist/album, ALWAYS use the play_music tool. Never just answer with text.
 - If the user says "open Spotify" / "open Apple Music" / etc., use open_app or open_chat for that app — do NOT use play_music.
 - Do not specify a service in play_music unless the user explicitly names one — the system picks the right one automatically.
+
+SEARCH & BROWSER RULES:
+- Google is ALWAYS the default search engine. Use https://www.google.com/search?q=... for every search, every time. Never use Bing, Yahoo, DuckDuckGo, or any other search engine.
+- When redirecting the user to the web for ANY reason (news, info, shopping, people, sports, anything), always open Google search — never go to other sites unless the user explicitly names one.
 
 OPENING APPS RULES:
 - When the user asks to open WhatsApp or Instagram, always use open_chat (not open_url) — this tries the desktop app first and only falls back to the browser if the app isn't installed.

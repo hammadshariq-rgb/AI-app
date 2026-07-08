@@ -533,7 +533,12 @@ async function run(action, arg) {
 
     case 'open_url': {
       let url = String(arg).trim();
-      if (!url.startsWith('http')) url = 'https://' + url;
+      // If it looks like a search query (no dots, or explicitly a search), use Google
+      if (!url.startsWith('http') && !url.includes('.')) {
+        url = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+      } else if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
       await openInChrome(url);
       return { ok: true };
     }
