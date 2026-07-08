@@ -310,6 +310,8 @@ async function sendToJarvis(text) {
 let audioQueue = [];
 let audioPlaying = false;
 
+let voiceVolume = parseFloat(localStorage.getItem('voiceVolume') || '1.5');
+
 function playAudioChunks(chunks) {
   audioQueue.push(...chunks);
   if (!audioPlaying) drainAudioQueue();
@@ -320,6 +322,15 @@ function drainAudioQueue() {
   audioPlaying = true;
   const chunk = audioQueue.shift();
   const audio = new Audio(`data:audio/mp3;base64,${chunk}`);
+  // Use Web Audio API to boost volume beyond 100%
+  try {
+    const ctx = new AudioContext();
+    const source = ctx.createMediaElementSource(audio);
+    const gain = ctx.createGain();
+    gain.gain.value = voiceVolume;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+  } catch (_) {}
   audio.onended = () => drainAudioQueue();
   audio.onerror = () => drainAudioQueue();
   audio.play().catch(() => drainAudioQueue());
@@ -903,6 +914,22 @@ voiceSpeedSlider.addEventListener('input', () => {
 voiceSpeedSlider.addEventListener('change', async () => {
   const val = parseFloat(voiceSpeedSlider.value);
   await window.jarvis.setVoiceSpeed(val);
+});
+
+// ===================== VOICE VOLUME =====================
+const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
+const voiceVolumeVal = document.getElementById('voiceVolumeVal');
+
+const savedVol = parseFloat(localStorage.getItem('voiceVolume') || '1.5');
+voiceVolumeSlider.value = savedVol;
+voiceVolumeVal.textContent = savedVol.toFixed(1) + 'x';
+voiceVolume = savedVol;
+
+voiceVolumeSlider.addEventListener('input', () => {
+  const val = parseFloat(voiceVolumeSlider.value);
+  voiceVolumeVal.textContent = val.toFixed(1) + 'x';
+  voiceVolume = val;
+  localStorage.setItem('voiceVolume', val);
 });
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile }) => {

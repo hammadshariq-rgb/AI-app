@@ -12,10 +12,10 @@ function setSpeed(speed) {
 async function synthesize(text) {
   if (!text || !text.trim()) return null;
   const res = await client.audio.speech.create({
-    model: 'tts-1',       // tts-1 is fastest; tts-1-hd is higher quality but ~2x slower
-    voice: 'echo',
+    model: 'tts-1-hd',   // HD quality — clearer, more natural
+    voice: 'fable',       // British, elegant, warm voice
     speed: currentSpeed,
-    input: text.slice(0, 4096), // OpenAI cap
+    input: text.slice(0, 4096),
   });
   const buffer = Buffer.from(await res.arrayBuffer());
   return buffer.toString('base64');

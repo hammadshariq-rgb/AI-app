@@ -264,7 +264,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 
   const createParams = {
     model: 'gpt-4o-mini',
-    max_tokens: 200,
+    max_tokens: 120,
     messages,
   };
 
@@ -338,7 +338,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
 
   const stream = await client.chat.completions.create({
     model: 'gpt-4o-mini',
-    max_tokens: 200,
+    max_tokens: 120,
     messages,
     stream: true,
   });

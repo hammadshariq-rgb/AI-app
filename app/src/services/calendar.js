@@ -49,8 +49,10 @@ async function getUpcomingEvents(days = 7) {
   if (!token) return { error: 'not_connected' };
 
   const now = new Date();
+  now.setHours(0, 0, 0, 0); // start of today so we don't miss earlier events
   const end = new Date();
   end.setDate(end.getDate() + days);
+  end.setHours(23, 59, 59, 999);
 
   try {
     // First get all calendars the user has
@@ -59,11 +61,33 @@ async function getUpcomingEvents(days = 7) {
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const calListData = await calListRes.json();
-    if (calListData.error) return { error: calListData.error.message };
+    console.log('Calendar list response:', JSON.stringify(calListData).slice(0, 500));
+    if (calListData.error) {
+      console.error('Calendar list error:', calListData.error);
+      // Fallback: try primary calendar only
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+        `timeMin=${encodeURIComponent(now.toISOString())}&` +
+        `timeMax=${encodeURIComponent(end.toISOString())}&` +
+        `singleEvents=true&orderBy=startTime&maxResults=20`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      console.log('Primary calendar fallback:', JSON.stringify(data).slice(0, 500));
+      if (data.error) return { error: data.error.message };
+      const events = (data.items || []).map(e => ({
+        id: e.id, title: e.summary || '(no title)',
+        start: e.start?.dateTime || e.start?.date,
+        end: e.end?.dateTime || e.end?.date,
+        allDay: !e.start?.dateTime, location: e.location || null,
+      }));
+      return { ok: true, events };
+    }
 
     const calendars = (calListData.items || []).filter(c =>
       c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader'
     );
+    console.log('Found calendars:', calendars.map(c => c.summary));
 
     // Fetch events from all calendars in parallel
     const allEventArrays = await Promise.all(
