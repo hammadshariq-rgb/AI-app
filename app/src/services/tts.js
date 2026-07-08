@@ -2,7 +2,7 @@ const OpenAI = require('openai');
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-let currentSpeed = 0.85;
+let currentSpeed = 0.92;
 
 function setSpeed(speed) {
   currentSpeed = Math.min(4.0, Math.max(0.25, Number(speed) || 0.88));
@@ -13,7 +13,7 @@ async function synthesize(text) {
   if (!text || !text.trim()) return null;
   const res = await client.audio.speech.create({
     model: 'tts-1-hd',
-    voice: 'onyx',        // Deep, authoritative, masculine — closest to JARVIS
+    voice: 'fable',       // British, clear, crisp — closest to Paul Bettany's JARVIS
     speed: currentSpeed,
     input: text.slice(0, 4096),
   });
