@@ -1793,11 +1793,21 @@ body {
 #micLabel {
   font-size: 11px;
   letter-spacing: 3px;
-  color: rgba(0, 200, 255, 0.35);
+  color: rgba(0, 200, 255, 0.45);
   text-transform: uppercase;
   font-family: 'Share Tech Mono', monospace;
   text-align: center;
   margin-top: 6px;
+}
+.mic-char {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(8px);
+  animation: charBlurIn 0.4s ease forwards;
+}
+@keyframes charBlurIn {
+  0%   { opacity: 0; filter: blur(10px); transform: translateY(4px); }
+  100% { opacity: 1; filter: blur(0px);  transform: translateY(0); }
 }
 
 #voiceSpeedRow {

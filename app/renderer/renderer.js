@@ -79,16 +79,27 @@ function setState(state) {
   if (state === 'idle') {
     orbLabel.textContent = 'STANDBY';
     micBtn.classList.remove('active');
-    micLabel.textContent = 'CLICK TO SPEAK';
+    animateMicLabel('CLICK TO SPEAK');
   } else if (state === 'listening') {
     orbLabel.textContent = 'LISTENING';
     micBtn.classList.add('active');
-    micLabel.textContent = 'CLICK TO STOP';
+    animateMicLabel('CLICK TO STOP');
   } else if (state === 'thinking') {
     orbLabel.textContent = 'PROCESSING';
     micBtn.classList.remove('active');
-    micLabel.textContent = 'PLEASE WAIT';
+    animateMicLabel('PLEASE WAIT');
   }
+}
+
+function animateMicLabel(text) {
+  micLabel.innerHTML = '';
+  text.split('').forEach((char, i) => {
+    const span = document.createElement('span');
+    span.textContent = char === ' ' ? ' ' : char;
+    span.className = 'mic-char';
+    span.style.animationDelay = `${i * 0.04}s`;
+    micLabel.appendChild(span);
+  });
 }
 
 // ===================== CARD PANEL =====================
