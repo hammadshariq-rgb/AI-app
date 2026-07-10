@@ -534,7 +534,7 @@ body {
   animation: fadeSlideUp 1s ease 0.3s both;
 }
 
-#enterTitle {
+#enterBtn {
   font-family: 'Rajdhani', sans-serif;
   font-size: 52px;
   font-weight: 700;
@@ -544,6 +544,16 @@ body {
   text-shadow: 0 0 20px rgba(0,200,255,0.8), 0 0 60px rgba(0,150,255,0.4);
   margin-bottom: 18px;
   animation: fadeSlideUp 1s ease 0.5s both;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: text-shadow 0.3s ease, transform 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+#enterBtn:hover {
+  text-shadow: 0 0 30px rgba(0,220,255,1), 0 0 80px rgba(0,180,255,0.7), 0 0 120px rgba(0,150,255,0.4);
+  transform: scale(1.03);
 }
 #enterAiName {
   color: #00d4ff;
@@ -555,46 +565,9 @@ body {
   color: rgba(180, 220, 255, 0.6);
   letter-spacing: 1px;
   line-height: 1.7;
-  margin-bottom: 40px;
+  margin-bottom: 0;
   animation: fadeSlideUp 1s ease 0.7s both;
 }
-
-#enterBtn {
-  background: transparent;
-  border: 1px solid rgba(0, 200, 255, 0.5);
-  color: #00d4ff;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 6px;
-  text-transform: uppercase;
-  padding: 14px 48px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 20px rgba(0, 200, 255, 0.15);
-  animation: fadeSlideUp 1s ease 0.9s both;
-  position: relative;
-  overflow: hidden;
-}
-#enterBtn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 200, 255, 0);
-  transition: background 0.3s ease;
-}
-#enterBtn:hover {
-  border-color: #00d4ff;
-  box-shadow: 0 0 40px rgba(0, 200, 255, 0.4), 0 0 80px rgba(0, 150, 255, 0.2);
-  transform: translateY(-2px);
-}
-#enterBtn:hover::before { background: rgba(0, 200, 255, 0.06); }
-.enter-arrow { font-size: 18px; transition: transform 0.3s ease; }
-#enterBtn:hover .enter-arrow { transform: translateX(6px); }
 
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(24px); }
