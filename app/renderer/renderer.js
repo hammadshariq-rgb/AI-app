@@ -684,7 +684,7 @@ async function showSplash(name) {
   splash.classList.add('hidden');
 }
 
-async function enterMain() {
+async function enterMain(skipWelcome = false) {
   profile.wasSubscribed = true;
   await window.jarvis.setProfile(profile);
 
@@ -693,24 +693,33 @@ async function enterMain() {
   document.getElementById('enterAiName').textContent = aiName;
 
   setupView.classList.add('hidden');
+
+  // Show welcome screen only on first-ever login, not on re-activations
+  const hasSeenWelcome = localStorage.getItem('hasSeenWelcome_' + (profile.email || aiName));
   const welcomeScreen = document.getElementById('welcomeScreen');
-  welcomeScreen.classList.remove('hidden');
-  initSpikySphere();
 
-  document.getElementById('enterBtn').addEventListener('click', async () => {
-    welcomeScreen.classList.add('fade-out');
-    setTimeout(() => {
-      welcomeScreen.classList.add('hidden');
-      mainView.classList.remove('hidden');
-      setState('idle');
-    }, 800);
+  if (!skipWelcome && !hasSeenWelcome) {
+    welcomeScreen.classList.remove('hidden');
+    initSpikySphere();
 
-    // Welcome greeting via TTS
-    try {
-      const greeting = `Welcome, ${profile.name || 'sir'}. All systems are online. How may I assist you?`;
-      await window.jarvis.speak(greeting);
-    } catch (_) {}
-  }, { once: true });
+    document.getElementById('enterBtn').addEventListener('click', async () => {
+      localStorage.setItem('hasSeenWelcome_' + (profile.email || aiName), '1');
+      welcomeScreen.classList.add('fade-out');
+      setTimeout(() => {
+        welcomeScreen.classList.add('hidden');
+        mainView.classList.remove('hidden');
+        setState('idle');
+      }, 800);
+      try {
+        const greeting = `Welcome, ${profile.name || 'sir'}. All systems are online. How may I assist you?`;
+        await window.jarvis.speak(greeting);
+      } catch (_) {}
+    }, { once: true });
+  } else {
+    welcomeScreen.classList.add('hidden');
+    mainView.classList.remove('hidden');
+    setState('idle');
+  }
 }
 
 function initSpikySphere() {
@@ -1278,7 +1287,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile }) => {
     // Server unreachable — only allow in if they previously had an active subscription
     if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
       await showSplash(storedProfile.name);
-      await enterMain();
+      await enterMain(true);
     } else {
       setupView.classList.remove('hidden');
       showNameStep();
@@ -1308,7 +1317,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile }) => {
   profile = { name: displayName, email: authResult.user?.email || storedProfile?.email };
   if (authResult.active) {
     await showSplash(displayName);
-    await enterMain();
+    await enterMain(true);
   } else {
     setupView.classList.remove('hidden');
     showPaymentStep();
