@@ -685,12 +685,202 @@ async function showSplash(name) {
 }
 
 async function enterMain() {
-  // Mark as subscribed so offline mode works next time
   profile.wasSubscribed = true;
   await window.jarvis.setProfile(profile);
-  mainView.classList.remove('hidden');
-  document.getElementById('aiName').textContent = (profile.name || 'JARVIS').toUpperCase();
-  setState('idle');
+
+  const aiName = (profile.name || 'JARVIS').toUpperCase();
+  document.getElementById('aiName').textContent = aiName;
+  document.getElementById('enterAiName').textContent = aiName;
+
+  setupView.classList.add('hidden');
+  const welcomeScreen = document.getElementById('welcomeScreen');
+  welcomeScreen.classList.remove('hidden');
+  initSpikySphere();
+
+  document.getElementById('enterBtn').addEventListener('click', async () => {
+    welcomeScreen.classList.add('fade-out');
+    setTimeout(() => {
+      welcomeScreen.classList.add('hidden');
+      mainView.classList.remove('hidden');
+      setState('idle');
+    }, 800);
+
+    // Welcome greeting via TTS
+    try {
+      const greeting = `Welcome, ${profile.name || 'sir'}. All systems are online. How may I assist you?`;
+      await window.jarvis.speak(greeting);
+    } catch (_) {}
+  }, { once: true });
+}
+
+function initSpikySphere() {
+  const canvas = document.getElementById('sphereCanvas');
+  if (!canvas) return;
+  const gl = canvas.getContext('webgl');
+  if (!gl) return;
+
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  const vsSource = `
+    attribute vec3 aPos;
+    attribute vec3 aNorm;
+    uniform mat4 uMVP;
+    uniform float uTime;
+    varying vec3 vNorm;
+    varying float vSpike;
+
+    float hash(float n) { return fract(sin(n) * 43758.5453); }
+    float noise(vec3 p) {
+      vec3 i = floor(p); vec3 f = fract(p);
+      f = f*f*(3.0-2.0*f);
+      float n = i.x + i.y*57.0 + i.z*113.0;
+      return mix(mix(mix(hash(n),hash(n+1.0),f.x),mix(hash(n+57.0),hash(n+58.0),f.x),f.y),
+                 mix(mix(hash(n+113.0),hash(n+114.0),f.x),mix(hash(n+170.0),hash(n+171.0),f.x),f.y),f.z);
+    }
+
+    void main() {
+      vec3 p = aPos;
+      float n = noise(aNorm * 4.0 + uTime * 0.3);
+      float spike = pow(n, 3.0) * 0.55;
+      vSpike = spike;
+      p += aNorm * spike;
+      vNorm = aNorm;
+      gl_Position = uMVP * vec4(p, 1.0);
+    }
+  `;
+
+  const fsSource = `
+    precision mediump float;
+    varying vec3 vNorm;
+    varying float vSpike;
+
+    void main() {
+      vec3 light = normalize(vec3(0.5, 1.0, 1.0));
+      float diff = max(dot(normalize(vNorm), light), 0.0);
+      vec3 base = mix(vec3(0.0, 0.35, 0.85), vec3(0.0, 0.85, 1.0), vSpike * 3.0);
+      vec3 col = base * (0.35 + 0.65 * diff);
+      col += vec3(0.0, 0.5, 1.0) * vSpike * 1.5;
+      float rim = 1.0 - max(dot(normalize(vNorm), vec3(0.0,0.0,1.0)), 0.0);
+      col += vec3(0.0, 0.7, 1.0) * pow(rim, 3.0) * 0.6;
+      gl_FragColor = vec4(col, 0.92);
+    }
+  `;
+
+  function compileShader(gl, type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s); return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl, gl.VERTEX_SHADER, vsSource));
+  gl.attachShader(prog, compileShader(gl, gl.FRAGMENT_SHADER, fsSource));
+  gl.linkProgram(prog);
+
+  // Build sphere geometry
+  const rows = 64, cols = 64;
+  const verts = [], norms = [], idx = [];
+  for (let r = 0; r <= rows; r++) {
+    const phi = Math.PI * r / rows;
+    for (let c = 0; c <= cols; c++) {
+      const theta = 2 * Math.PI * c / cols;
+      const x = Math.sin(phi) * Math.cos(theta);
+      const y = Math.cos(phi);
+      const z = Math.sin(phi) * Math.sin(theta);
+      verts.push(x, y, z);
+      norms.push(x, y, z);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const a = r*(cols+1)+c, b = a+1, d = a+(cols+1), e = d+1;
+      idx.push(a,b,d, b,e,d);
+    }
+  }
+
+  function mkBuf(data, type) {
+    const b = gl.createBuffer();
+    gl.bindBuffer(type, b);
+    gl.bufferData(type, data, gl.STATIC_DRAW);
+    return b;
+  }
+  const vBuf = mkBuf(new Float32Array(verts), gl.ARRAY_BUFFER);
+  const nBuf = mkBuf(new Float32Array(norms), gl.ARRAY_BUFFER);
+  const iBuf = mkBuf(new Uint16Array(idx), gl.ELEMENT_ARRAY_BUFFER);
+
+  const aPos  = gl.getAttribLocation(prog, 'aPos');
+  const aNorm = gl.getAttribLocation(prog, 'aNorm');
+  const uMVP  = gl.getUniformLocation(prog, 'uMVP');
+  const uTime = gl.getUniformLocation(prog, 'uTime');
+
+  function mat4mul(a, b) {
+    const r = new Float32Array(16);
+    for (let i=0;i<4;i++) for (let j=0;j<4;j++) for (let k=0;k<4;k++) r[i*4+j]+=a[i*4+k]*b[k*4+j];
+    return r;
+  }
+  function perspective(fov, asp, n, f) {
+    const t = Math.tan(fov/2), m = new Float32Array(16);
+    m[0]=1/(asp*t); m[5]=1/t; m[10]=-(f+n)/(f-n); m[11]=-1; m[14]=-2*f*n/(f-n); return m;
+  }
+  function rotY(a) {
+    const c=Math.cos(a),s=Math.sin(a),m=new Float32Array(16);
+    m[0]=c;m[2]=s;m[5]=1;m[8]=-s;m[10]=c;m[15]=1; return m;
+  }
+  function rotX(a) {
+    const c=Math.cos(a),s=Math.sin(a),m=new Float32Array(16);
+    m[0]=1;m[5]=c;m[6]=-s;m[9]=s;m[10]=c;m[15]=1; return m;
+  }
+  function trans(x,y,z) {
+    const m=new Float32Array(16);
+    m[0]=1;m[5]=1;m[10]=1;m[15]=1;m[12]=x;m[13]=y;m[14]=z; return m;
+  }
+
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = (e.clientX/window.innerWidth - 0.5) * 2;
+    mouseY = (e.clientY/window.innerHeight - 0.5) * 2;
+  });
+
+  const asp = canvas.width / canvas.height;
+  const proj = perspective(Math.PI/4, asp, 0.1, 100);
+  const t0 = Date.now();
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  let running = true;
+  const welcomeEl = document.getElementById('welcomeScreen');
+
+  function renderSphere() {
+    if (!running || welcomeEl.classList.contains('hidden')) return;
+    requestAnimationFrame(renderSphere);
+
+    const t = (Date.now() - t0) / 1000;
+    gl.clearColor(0,0,0,0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.useProgram(prog);
+    gl.uniform1f(uTime, t);
+
+    const view = trans(0, 0.12, -3.2);
+    const ry = rotY(t * 0.4 + mouseX * 0.6);
+    const rx = rotX(-mouseY * 0.4 + Math.sin(t*0.3)*0.1);
+    const mvp = mat4mul(proj, mat4mul(view, mat4mul(ry, rx)));
+    gl.uniformMatrix4fv(uMVP, false, mvp);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vBuf);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aPos);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, nBuf);
+    gl.vertexAttribPointer(aNorm, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aNorm);
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuf);
+    gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+  }
+  renderSphere();
 }
 
 // ===================== CONNECTORS PANEL =====================
