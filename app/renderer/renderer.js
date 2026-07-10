@@ -124,17 +124,17 @@ function animateMicLabel(text) {
     const float scale = 5.0;
     const vec4 lineColor = vec4(0.0, 0.72, 1.0, 1.0);
     const float minLineWidth = 0.008;
-    const float maxLineWidth = 0.12;
+    const float maxLineWidth = 0.10;
     const float lineSpeed = 1.0 * overallSpeed;
-    const float lineAmplitude = 0.8;
+    const float lineAmplitude = 0.38;
     const float lineFrequency = 0.2;
     const float warpSpeed = 0.2 * overallSpeed;
     const float warpFrequency = 0.5;
-    const float warpAmplitude = 0.8;
+    const float warpAmplitude = 0.3;
     const float offsetFrequency = 0.5;
     const float offsetSpeed = 1.33 * overallSpeed;
-    const float minOffsetSpread = 0.6;
-    const float maxOffsetSpread = 2.0;
+    const float minOffsetSpread = 0.2;
+    const float maxOffsetSpread = 0.8;
     const int linesPerGroup = 12;
 
     #define drawCircle(pos, radius, coord) smoothstep(radius + gridSmoothWidth, radius, length(coord - (pos)))
