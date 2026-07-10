@@ -43,13 +43,22 @@ body {
   }
 }
 
+/* ===================== SHADER BACKGROUND ===================== */
+#shaderBg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  display: block;
+}
+
 /* ===================== FULL SCREEN PANEL ===================== */
 #panel {
   width: 100vw;
   height: 100vh;
-  background:
-    radial-gradient(ellipse at 50% 30%, rgba(0, 60, 120, 0.18) 0%, transparent 60%),
-    radial-gradient(ellipse at center, rgba(0, 8, 20, 0.99) 0%, rgba(0, 3, 10, 1) 100%);
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -57,19 +66,30 @@ body {
   position: relative;
   -webkit-app-region: drag;
   overflow: hidden;
+  z-index: 1;
 }
 
-/* Animated grid lines background */
+/* Subtle grid overlay on top of shader */
 #panel::before {
   content: '';
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 200, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 200, 255, 0.055) 1px, transparent 1px);
+    linear-gradient(rgba(0, 200, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 200, 255, 0.035) 1px, transparent 1px);
   background-size: 50px 50px;
   animation: gridMove 25s linear infinite;
   pointer-events: none;
+  z-index: 1;
+}
+/* Dark vignette so UI elements stay readable */
+#panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(0,5,15,0.45) 0%, rgba(0,3,10,0.75) 100%);
+  pointer-events: none;
+  z-index: 0;
 }
 @keyframes gridMove {
   0% { background-position: 0 0; }
