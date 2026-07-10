@@ -863,7 +863,7 @@ function initSpikySphere() {
     gl.useProgram(prog);
     gl.uniform1f(uTime, t);
 
-    const view = trans(0, 0.12, -3.2);
+    const view = trans(0, 0.6, -3.2);
     const ry = rotY(t * 0.4 + mouseX * 0.6);
     const rx = rotX(-mouseY * 0.4 + Math.sin(t*0.3)*0.1);
     const mvp = mat4mul(proj, mat4mul(view, mat4mul(ry, rx)));
