@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
-const TIMEOUT = 8000;
+const TIMEOUT = 3500;
 
 function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();

@@ -1,30 +1,49 @@
-const fs = require('fs');
-const path = require('path');
+const { MongoClient, ObjectId } = require('mongodb');
 
-const DB = path.join(__dirname, 'users.json');
+const MONGO_URI = process.env.MONGODB_URI;
+let db = null;
 
-function load() {
-  if (!fs.existsSync(DB)) return [];
-  return JSON.parse(fs.readFileSync(DB, 'utf8'));
-}
-function save(users) {
-  fs.writeFileSync(DB, JSON.stringify(users, null, 2));
-}
-
-function findByEmail(email) {
-  return load().find(u => u.email === email.toLowerCase());
-}
-function findById(id) {
-  return load().find(u => u.id === id);
-}
-function findByGoogleId(googleId) {
-  return load().find(u => u.googleId === googleId);
+async function getDb() {
+  if (db) return db;
+  const client = new MongoClient(MONGO_URI);
+  await client.connect();
+  db = client.db('jarvis');
+  await db.collection('users').createIndex({ email: 1 }, { unique: true, sparse: true });
+  await db.collection('users').createIndex({ googleId: 1 }, { sparse: true });
+  await db.collection('users').createIndex({ stripeCustomerId: 1 }, { sparse: true });
+  return db;
 }
 
-function create({ email, passwordHash, googleId, name, avatarUrl }) {
-  const users = load();
-  const user = {
-    id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+function toUser(doc) {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return { id: _id.toString(), ...rest };
+}
+
+async function findByEmail(email) {
+  const d = await getDb();
+  return toUser(await d.collection('users').findOne({ email: email.toLowerCase() }));
+}
+
+async function findById(id) {
+  const d = await getDb();
+  try { return toUser(await d.collection('users').findOne({ _id: new ObjectId(id) })); }
+  catch { return null; }
+}
+
+async function findByGoogleId(googleId) {
+  const d = await getDb();
+  return toUser(await d.collection('users').findOne({ googleId }));
+}
+
+async function findByStripeCustomer(stripeCustomerId) {
+  const d = await getDb();
+  return toUser(await d.collection('users').findOne({ stripeCustomerId }));
+}
+
+async function create({ email, passwordHash, googleId, name, avatarUrl }) {
+  const d = await getDb();
+  const doc = {
     email: email ? email.toLowerCase() : null,
     passwordHash: passwordHash || null,
     googleId: googleId || null,
@@ -36,32 +55,28 @@ function create({ email, passwordHash, googleId, name, avatarUrl }) {
     lastActiveAt: Date.now(),
     createdAt: Date.now(),
   };
-  users.push(user);
-  save(users);
-  return user;
+  const result = await d.collection('users').insertOne(doc);
+  return toUser({ _id: result.insertedId, ...doc });
 }
 
-function update(id, fields) {
-  const users = load();
-  const idx = users.findIndex(u => u.id === id);
-  if (idx === -1) return null;
-  Object.assign(users[idx], fields);
-  save(users);
-  return users[idx];
+async function update(id, fields) {
+  const d = await getDb();
+  try {
+    const result = await d.collection('users').findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: fields },
+      { returnDocument: 'after' }
+    );
+    return toUser(result);
+  } catch { return null; }
 }
 
-function setSubscription(stripeCustomerId, subscriptionId, status) {
-  const users = load();
-  const user = users.find(u => u.stripeCustomerId === stripeCustomerId);
-  if (!user) return null;
-  user.subscriptionStatus = status;
-  user.subscriptionId = subscriptionId;
-  save(users);
-  return user;
+async function setSubscription(stripeCustomerId, subscriptionId, status) {
+  const d = await getDb();
+  await d.collection('users').updateOne(
+    { stripeCustomerId },
+    { $set: { subscriptionId, subscriptionStatus: status } }
+  );
 }
 
-function findByStripeCustomer(stripeCustomerId) {
-  return load().find(u => u.stripeCustomerId === stripeCustomerId);
-}
-
-module.exports = { findByEmail, findById, findByGoogleId, findByStripeCustomer, create, update, setSubscription };
+module.exports = { findByEmail, findById, findByGoogleId, findByStripeCustomer, create, update, setSubscription, getDb };
