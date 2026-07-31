@@ -3630,9 +3630,7 @@ async function loadSettingsPane() {
       freshSave.textContent = 'SAVED ✓';
       setTimeout(() => { freshSave.textContent = 'SAVE'; }, 1800);
 
-      // AI acknowledges the name change — close sidebar first so chat is visible
       historySidebar?.classList.add('hidden');
-      await sendToJarvis(`My name has just been updated to "${newName}". Please acknowledge this warmly in one sentence and address me by my new name.`);
     });
   }
 
@@ -3831,12 +3829,13 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   }
 
   // Token valid — check subscription before entering
-  const displayName = authResult.user?.name || storedProfile?.name || 'Your AI';
+  const displayName = storedProfile?.name || authResult.user?.name || 'Your AI';
   profile = {
     name:        displayName,
     email:       authResult.user?.email || storedProfile?.email,
     displayName: storedProfile?.displayName || null,
     title:       storedProfile?.title || null,
+    wasSubscribed: storedProfile?.wasSubscribed || false,
   };
   if (authResult.active) {
     await showSplash(displayName);

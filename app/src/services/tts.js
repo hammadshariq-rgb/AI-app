@@ -1,6 +1,21 @@
-const OpenAI = require('openai');
+const fetch = require('node-fetch');
+const Store = require('electron-store');
+const store = new Store();
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getVoice() {
+  const pref = store.get('profile.voice') || 'male';
+  return pref === 'female' ? 'nova' : 'fable';
+}
+
+const { safeStorage } = require('electron');
+const SERVER = () => process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+function getToken() {
+  const raw = store.get('authToken');
+  if (!raw) return null;
+  if (!safeStorage.isEncryptionAvailable()) return raw;
+  try { return safeStorage.decryptString(Buffer.from(raw, 'base64')); }
+  catch { return raw; }
+}
 
 let currentSpeed = 0.92;
 
@@ -8,26 +23,26 @@ function setSpeed(speed) {
   currentSpeed = Math.min(4.0, Math.max(0.25, Number(speed) || 0.88));
 }
 
-// Standard synthesis — full text to base64 mp3
 async function synthesize(text) {
   if (!text || !text.trim()) return null;
-  const res = await client.audio.speech.create({
-    model: 'tts-1-hd',
-    voice: 'fable',       // British, clear, crisp — closest to Paul Bettany's JARVIS
-    speed: currentSpeed,
-    input: text.slice(0, 4096),
-  });
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return buffer.toString('base64');
+  try {
+    const res = await fetch(`${SERVER()}/ai/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ text: text.slice(0, 4096), voice: getVoice(), speed: currentSpeed }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.audio; // base64
+  } catch (err) {
+    console.error('[TTS] error:', err.message);
+    return null;
+  }
 }
 
-// Synthesize multiple sentences in parallel, return ordered base64 array
-// Use for streaming: synthesize sentence 1 while sentence 2 is still being generated
 async function synthesizeChunks(sentences) {
   if (!sentences.length) return [];
-  const results = await Promise.all(
-    sentences.map(s => synthesize(s).catch(() => null))
-  );
+  const results = await Promise.all(sentences.map(s => synthesize(s).catch(() => null)));
   return results.filter(Boolean);
 }
 

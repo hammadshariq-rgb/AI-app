@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 // Weather via wttr.in — free, no API key
 async function getWeather(location) {
   try {
-    const res = await fetch(`https://wttr.in/${encodeURIComponent(location)}?format=j1`, { timeout: 2500 });
+    const res = await fetch(`https://wttr.in/${encodeURIComponent(location)}?format=j1`, { timeout: 1500 });
     const data = await res.json();
     const current = data.current_condition[0];
     const area = data.nearest_area[0];
@@ -21,11 +21,262 @@ async function getWeather(location) {
   }
 }
 
+// ── Periodic table element data ───────────────────────────────────────────────
+const ELEMENTS = {
+  H:{n:1,name:'Hydrogen',mass:'1.008',cat:'Nonmetal',group:1,period:1,config:'1s¹',desc:'Lightest element; makes up ~75% of the universe.'},
+  He:{n:2,name:'Helium',mass:'4.003',cat:'Noble Gas',group:18,period:1,config:'1s²',desc:'Noble gas; second most abundant in the universe.'},
+  Li:{n:3,name:'Lithium',mass:'6.941',cat:'Alkali Metal',group:1,period:2,config:'[He] 2s¹',desc:'Lightest metal; used in batteries.'},
+  Be:{n:4,name:'Beryllium',mass:'9.012',cat:'Alkaline Earth',group:2,period:2,config:'[He] 2s²',desc:'Light, stiff metal used in aerospace.'},
+  B:{n:5,name:'Boron',mass:'10.81',cat:'Metalloid',group:13,period:2,config:'[He] 2s² 2p¹',desc:'Metalloid; essential in glass & ceramics.'},
+  C:{n:6,name:'Carbon',mass:'12.011',cat:'Nonmetal',group:14,period:2,config:'[He] 2s² 2p²',desc:'Basis of all organic chemistry & life.'},
+  N:{n:7,name:'Nitrogen',mass:'14.007',cat:'Nonmetal',group:15,period:2,config:'[He] 2s² 2p³',desc:'Makes up 78% of Earth\'s atmosphere.'},
+  O:{n:8,name:'Oxygen',mass:'15.999',cat:'Nonmetal',group:16,period:2,config:'[He] 2s² 2p⁴',desc:'Essential for respiration; most abundant in Earth\'s crust.'},
+  F:{n:9,name:'Fluorine',mass:'18.998',cat:'Halogen',group:17,period:2,config:'[He] 2s² 2p⁵',desc:'Most electronegative element.'},
+  Ne:{n:10,name:'Neon',mass:'20.180',cat:'Noble Gas',group:18,period:2,config:'[He] 2s² 2p⁶',desc:'Used in signs & lasers.'},
+  Na:{n:11,name:'Sodium',mass:'22.990',cat:'Alkali Metal',group:1,period:3,config:'[Ne] 3s¹',desc:'Highly reactive; essential electrolyte in biology.'},
+  Mg:{n:12,name:'Magnesium',mass:'24.305',cat:'Alkaline Earth',group:2,period:3,config:'[Ne] 3s²',desc:'Light structural metal; essential in chlorophyll.'},
+  Al:{n:13,name:'Aluminium',mass:'26.982',cat:'Post-Transition',group:13,period:3,config:'[Ne] 3s² 3p¹',desc:'Most abundant metal in Earth\'s crust.'},
+  Si:{n:14,name:'Silicon',mass:'28.086',cat:'Metalloid',group:14,period:3,config:'[Ne] 3s² 3p²',desc:'Basis of semiconductors & computer chips.'},
+  P:{n:15,name:'Phosphorus',mass:'30.974',cat:'Nonmetal',group:15,period:3,config:'[Ne] 3s² 3p³',desc:'Essential for DNA, RNA, and ATP.'},
+  S:{n:16,name:'Sulfur',mass:'32.06',cat:'Nonmetal',group:16,period:3,config:'[Ne] 3s² 3p⁴',desc:'Used in sulfuric acid; essential for proteins.'},
+  Cl:{n:17,name:'Chlorine',mass:'35.45',cat:'Halogen',group:17,period:3,config:'[Ne] 3s² 3p⁵',desc:'Used in water purification & PVC.'},
+  Ar:{n:18,name:'Argon',mass:'39.948',cat:'Noble Gas',group:18,period:3,config:'[Ne] 3s² 3p⁶',desc:'Third most abundant gas in Earth\'s atmosphere.'},
+  K:{n:19,name:'Potassium',mass:'39.098',cat:'Alkali Metal',group:1,period:4,config:'[Ar] 4s¹',desc:'Essential mineral for nerve and muscle function.'},
+  Ca:{n:20,name:'Calcium',mass:'40.078',cat:'Alkaline Earth',group:2,period:4,config:'[Ar] 4s²',desc:'Most abundant mineral in the human body; essential for bones.'},
+  Sc:{n:21,name:'Scandium',mass:'44.956',cat:'Transition Metal',group:3,period:4,config:'[Ar] 3d¹ 4s²',desc:'Light metal used in aerospace alloys.'},
+  Ti:{n:22,name:'Titanium',mass:'47.867',cat:'Transition Metal',group:4,period:4,config:'[Ar] 3d² 4s²',desc:'Strong, corrosion-resistant metal used in aircraft.'},
+  V:{n:23,name:'Vanadium',mass:'50.942',cat:'Transition Metal',group:5,period:4,config:'[Ar] 3d³ 4s²',desc:'Used in steel alloys and batteries.'},
+  Cr:{n:24,name:'Chromium',mass:'51.996',cat:'Transition Metal',group:6,period:4,config:'[Ar] 3d⁵ 4s¹',desc:'Used in stainless steel and chrome plating.'},
+  Mn:{n:25,name:'Manganese',mass:'54.938',cat:'Transition Metal',group:7,period:4,config:'[Ar] 3d⁵ 4s²',desc:'Essential trace element; used in steel production.'},
+  Fe:{n:26,name:'Iron',mass:'55.845',cat:'Transition Metal',group:8,period:4,config:'[Ar] 3d⁶ 4s²',desc:'Most used metal; essential component of hemoglobin.'},
+  Co:{n:27,name:'Cobalt',mass:'58.933',cat:'Transition Metal',group:9,period:4,config:'[Ar] 3d⁷ 4s²',desc:'Used in batteries, magnets, and blue pigment.'},
+  Ni:{n:28,name:'Nickel',mass:'58.693',cat:'Transition Metal',group:10,period:4,config:'[Ar] 3d⁸ 4s²',desc:'Corrosion-resistant; used in stainless steel & coins.'},
+  Cu:{n:29,name:'Copper',mass:'63.546',cat:'Transition Metal',group:11,period:4,config:'[Ar] 3d¹⁰ 4s¹',desc:'Excellent conductor; used in wiring & plumbing.'},
+  Zn:{n:30,name:'Zinc',mass:'65.38',cat:'Transition Metal',group:12,period:4,config:'[Ar] 3d¹⁰ 4s²',desc:'Essential trace element; used in galvanising steel.'},
+  Ga:{n:31,name:'Gallium',mass:'69.723',cat:'Post-Transition',group:13,period:4,config:'[Ar] 3d¹⁰ 4s² 4p¹',desc:'Melts near room temperature; used in semiconductors.'},
+  Ge:{n:32,name:'Germanium',mass:'72.630',cat:'Metalloid',group:14,period:4,config:'[Ar] 3d¹⁰ 4s² 4p²',desc:'Semiconductor used in electronics.'},
+  As:{n:33,name:'Arsenic',mass:'74.922',cat:'Metalloid',group:15,period:4,config:'[Ar] 3d¹⁰ 4s² 4p³',desc:'Toxic metalloid; used in semiconductors.'},
+  Se:{n:34,name:'Selenium',mass:'78.971',cat:'Nonmetal',group:16,period:4,config:'[Ar] 3d¹⁰ 4s² 4p⁴',desc:'Essential trace element; used in photocells.'},
+  Br:{n:35,name:'Bromine',mass:'79.904',cat:'Halogen',group:17,period:4,config:'[Ar] 3d¹⁰ 4s² 4p⁵',desc:'Only liquid nonmetal at room temperature.'},
+  Kr:{n:36,name:'Krypton',mass:'83.798',cat:'Noble Gas',group:18,period:4,config:'[Ar] 3d¹⁰ 4s² 4p⁶',desc:'Noble gas used in fluorescent lights.'},
+  Rb:{n:37,name:'Rubidium',mass:'85.468',cat:'Alkali Metal',group:1,period:5,config:'[Kr] 5s¹',desc:'Highly reactive alkali metal.'},
+  Sr:{n:38,name:'Strontium',mass:'87.62',cat:'Alkaline Earth',group:2,period:5,config:'[Kr] 5s²',desc:'Used in fireworks (red colour) and CRT screens.'},
+  Ag:{n:47,name:'Silver',mass:'107.87',cat:'Transition Metal',group:11,period:5,config:'[Kr] 4d¹⁰ 5s¹',desc:'Best electrical conductor; used in jewellery & electronics.'},
+  Cd:{n:48,name:'Cadmium',mass:'112.41',cat:'Transition Metal',group:12,period:5,config:'[Kr] 4d¹⁰ 5s²',desc:'Toxic metal used in rechargeable batteries.'},
+  Sn:{n:50,name:'Tin',mass:'118.71',cat:'Post-Transition',group:14,period:5,config:'[Kr] 4d¹⁰ 5s² 5p²',desc:'Used in solder, tin cans, and bronze alloys.'},
+  I:{n:53,name:'Iodine',mass:'126.90',cat:'Halogen',group:17,period:5,config:'[Kr] 4d¹⁰ 5s² 5p⁵',desc:'Essential for thyroid hormones; used as antiseptic.'},
+  Xe:{n:54,name:'Xenon',mass:'131.29',cat:'Noble Gas',group:18,period:5,config:'[Kr] 4d¹⁰ 5s² 5p⁶',desc:'Used in high-intensity lamps and anaesthesia.'},
+  Ba:{n:56,name:'Barium',mass:'137.33',cat:'Alkaline Earth',group:2,period:6,config:'[Xe] 6s²',desc:'Used in X-ray imaging and fireworks (green).'},
+  W:{n:74,name:'Tungsten',mass:'183.84',cat:'Transition Metal',group:6,period:6,config:'[Xe] 4f¹⁴ 5d⁴ 6s²',desc:'Highest melting point of all metals; used in light bulb filaments.'},
+  Au:{n:79,name:'Gold',mass:'196.97',cat:'Transition Metal',group:11,period:6,config:'[Xe] 4f¹⁴ 5d¹⁰ 6s¹',desc:'Highly conductive, corrosion-resistant precious metal.'},
+  Hg:{n:80,name:'Mercury',mass:'200.59',cat:'Transition Metal',group:12,period:6,config:'[Xe] 4f¹⁴ 5d¹⁰ 6s²',desc:'Only liquid metal at room temperature; toxic.'},
+  Pb:{n:82,name:'Lead',mass:'207.2',cat:'Post-Transition',group:14,period:6,config:'[Xe] 4f¹⁴ 5d¹⁰ 6s² 6p²',desc:'Dense, soft, toxic metal; used in batteries.'},
+  Ra:{n:88,name:'Radium',mass:'226',cat:'Alkaline Earth',group:2,period:7,config:'[Rn] 7s²',desc:'Radioactive element discovered by Marie Curie.'},
+  U:{n:92,name:'Uranium',mass:'238.03',cat:'Actinide',group:3,period:7,config:'[Rn] 5f³ 6d¹ 7s²',desc:'Radioactive; fuel for nuclear reactors.'},
+  Pu:{n:94,name:'Plutonium',mass:'244',cat:'Actinide',group:3,period:7,config:'[Rn] 5f⁶ 7s²',desc:'Radioactive; used in nuclear weapons and reactors.'},
+};
+
+const ELEMENT_NAME_MAP = Object.fromEntries(
+  Object.entries(ELEMENTS).map(([sym, el]) => [el.name.toLowerCase(), sym])
+);
+
+function findElement(query) {
+  const q = query.toLowerCase();
+  for (const [name, sym] of Object.entries(ELEMENT_NAME_MAP)) {
+    if (q.includes(name)) return sym;
+  }
+  // Direct symbol (case-sensitive, surrounded by word boundaries)
+  for (const sym of Object.keys(ELEMENTS)) {
+    const re = new RegExp(`\\b${sym}\\b`);
+    if (re.test(query)) return sym;
+  }
+  return null;
+}
+
+const SCIENCE_REGEX = /\b(atom|atomic|molecule|element|periodic table|chemical|chemistry|photosynthesis|mitosis|meiosis|dna|rna|protein|enzyme|cell|gene|chromosome|evolution|ecosystem|organism|biology|physics|gravity|quantum|relativity|thermodynamics|electromagnetic|newton|force|energy|velocity|acceleration|momentum|circuit|voltage|current|resistance|ohm|faraday|wave|frequency|wavelength|radiation|nuclear|fission|fusion|proton|neutron|electron|quark|lepton|boson|higgs|orbit|planet|galaxy|black hole|solar system|space mission|nasa|apollo|hubble|james webb|telescope|supernova|neutron star|nebula|asteroid|comet|mars|jupiter|saturn|milky way|big bang|dark matter|dark energy|algebra|calculus|trigonometry|geometry|quadratic|derivative|integral|matrix|vector|probability|statistics|theorem|pythagoras|fibonacci|prime number|polynomial|logarithm|einstein|newton|darwin|mendel|curie|tesla|bohr|heisenberg|schrödinger|planck)\b/i;
+
+function extractConcept(query) {
+  return query
+    .replace(/\b(tell me about|what is|what are|what was|what were|explain|describe|show me|how does|how do|how is|why is|why does|define|teach me|i want to know about|can you explain|history of)\b/gi, '')
+    .replace(/\b(please|the|a|an|to|me|us|for)\b/gi, '')
+    .replace(/[?!.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function wikiCard(topic) {
+  if (!topic || topic.length < 2) return null;
+  const res = await _timedFetch(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`,
+    { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 5000
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.title || data.type === 'disambiguation') return null;
+
+  // If Wikipedia returns coordinates → it's a geographic location, show location card
+  if (data.coordinates) {
+    const { lat, lon } = data.coordinates;
+    // Fetch extra images from Wikimedia Commons for this page
+    let extraImages = [];
+    try {
+      const imgRes = await _timedFetch(
+        `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.title)}&prop=images&format=json&imlimit=8`,
+        { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 3000
+      );
+      if (imgRes.ok) {
+        const imgData = await imgRes.json();
+        const pages = Object.values(imgData?.query?.pages || {});
+        const imgTitles = (pages[0]?.images || [])
+          .map(i => i.title)
+          .filter(t => /\.(jpg|jpeg|png|webp)$/i.test(t) && !/flag|coat|logo|icon|seal|map|locator/i.test(t))
+          .slice(0, 4);
+        // Resolve image URLs
+        if (imgTitles.length) {
+          const urlRes = await _timedFetch(
+            `https://en.wikipedia.org/w/api.php?action=query&titles=${imgTitles.map(encodeURIComponent).join('|')}&prop=imageinfo&iiprop=url&format=json`,
+            { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 3000
+          );
+          if (urlRes.ok) {
+            const urlData = await urlRes.json();
+            extraImages = Object.values(urlData?.query?.pages || {})
+              .map(p => p.imageinfo?.[0]?.url)
+              .filter(Boolean);
+          }
+        }
+      }
+    } catch {}
+
+    return {
+      type: 'location',
+      title: data.title,
+      description: data.description || '',
+      summary: (data.extract || '').slice(0, 300),
+      heroImage: data.thumbnail?.source || null,
+      images: extraImages,
+      lat, lon,
+      mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent(data.title)}`,
+      sourceUrl: data.content_urls?.desktop?.page || null,
+    };
+  }
+
+  return {
+    type: 'science',
+    title: data.title,
+    subtitle: data.description || '',
+    summary: (data.extract || '').slice(0, 500),
+    imageUrl: data.thumbnail?.source || null,
+    source: 'Wikipedia',
+    sourceUrl: data.content_urls?.desktop?.page || null,
+  };
+}
+
+// ── Places / business search using Nominatim (free, no API key) ───────────────
+const PLACES_SEARCH_REGEX = /\b(best|top|nearest|closest|good|find|where('s| is| are)|recommend|great|popular|famous)\b.{0,40}\b(restaurant|pizza|burger|food|sushi|coffee|cafe|bar|pub|gym|bowling|cinema|theatre?|hotel|hospital|pharmacy|bank|atm|mall|supermarket|museum|park|beach|nightclub|club|spa|salon|dentist|doctor|mechanic|gas station|petrol|station)\b/i;
+const LOCATION_QUERY_REGEX = /\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|what('s| is).{0,20}like|tell me about|about)\b.{0,50}\b(city|country|capital|island|town|village|landmark|monument|beach|mountain|lake|river|park|region|state|province)\b|\b(in|of|from)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\s*\??\s*$/;
+
+async function getPlacesCard(query) {
+  try {
+    const searchQuery = query
+      .replace(/\b(best|top|nearest|closest|good|find me|find|where is|where are|recommend|give me|show me|tell me|great|popular|famous|i want|can you|please)\b/gi, '')
+      .replace(/\b(in|near|around|at|a|an|the|some)\b/gi, ' ')
+      .replace(/[?!.]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const res = await _timedFetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&addressdetails=1&extratags=1`,
+      { headers: { 'User-Agent': 'JarvisApp/1.0 (personal assistant)' } }, 5000
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.length) return null;
+
+    const places = data.slice(0, 5).map(p => {
+      const parts = p.display_name.split(', ');
+      return {
+        name: p.name || parts[0],
+        address: parts.slice(0, 3).join(', '),
+        type: (p.type || p.class || '').replace(/_/g, ' '),
+        lat: p.lat,
+        lon: p.lon,
+        phone: p.extratags?.phone || null,
+        website: p.extratags?.website || null,
+        mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent((p.name || parts[0]) + ' ' + parts.slice(1, 3).join(', '))}`,
+      };
+    });
+
+    return { type: 'places', query: searchQuery, places };
+  } catch { return null; }
+}
+
+async function getLocationCard(query) {
+  try {
+    const topic = query
+      .replace(/\b(show me|tell me about|pictures? of|photos? of|images? of|visit|travel to|explore|what is|what's|about|the history of|overview of|facts about|info on|information about)\b/gi, '')
+      .replace(/[?!.]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!topic || topic.length < 2) return null;
+    const card = await wikiCard(topic);
+    return card?.type === 'location' ? card : null;
+  } catch { return null; }
+}
+
+async function getScienceCard(query) {
+  try {
+    // Specific chemical element
+    const elemSym = findElement(query);
+    if (elemSym && ELEMENTS[elemSym]) {
+      const el = ELEMENTS[elemSym];
+      return {
+        type: 'element',
+        symbol: elemSym,
+        name: el.name,
+        atomicNumber: el.n,
+        mass: el.mass,
+        category: el.cat,
+        group: el.group,
+        period: el.period,
+        config: el.config,
+        desc: el.desc,
+        source: 'Periodic Table',
+        sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(el.name)}`,
+      };
+    }
+
+    // Full periodic table
+    if (/periodic table/i.test(query)) {
+      return { type: 'periodic_table', source: 'Periodic Table', sourceUrl: 'https://en.wikipedia.org/wiki/Periodic_table' };
+    }
+
+    // Extract the core concept from question-form queries
+    const concept = extractConcept(query);
+    if (!concept || concept.length < 2) return null;
+
+    // Try the exact concept first, then fallback to a 2-word sub-phrase
+    const card = await wikiCard(concept);
+    if (card) return card;
+
+    // Try just the first 2-3 significant words
+    const words = concept.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 1) {
+      const shorter = words.slice(0, 3).join(' ');
+      const card2 = await wikiCard(shorter);
+      if (card2) return card2;
+    }
+
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // DuckDuckGo Instant Answers — free, no API key
 async function ddgSearch(query) {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(url, { timeout: 2500 });
+    const res = await fetch(url, { timeout: 1500 });
     const data = await res.json();
     const parts = [];
     if (data.Answer) parts.push(data.Answer);
@@ -42,11 +293,11 @@ async function ddgSearch(query) {
 // Wikipedia summary for factual/historical queries
 async function wikiSearch(query) {
   try {
-    const search = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 2500 });
+    const search = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 1500 });
     const searchData = await search.json();
     const title = searchData?.query?.search?.[0]?.title;
     if (!title) return null;
-    const summary = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(title)}&format=json`, { timeout: 2500 });
+    const summary = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(title)}&format=json`, { timeout: 1500 });
     const sumData = await summary.json();
     const pages = sumData?.query?.pages;
     const page = pages[Object.keys(pages)[0]];
@@ -62,7 +313,7 @@ async function wikiSearch(query) {
 async function getLatestNews(topic) {
   try {
     const query = encodeURIComponent(topic);
-    const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`, { timeout: 2500 });
+    const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`, { timeout: 1500 });
     const xml = await res.text();
     // Parse titles from RSS
     const titles = [];
@@ -178,12 +429,23 @@ async function fetchRealtimeContext(query) {
     : null;
 }
 
+// AbortController-based fetch with hard timeout
+async function _timedFetch(url, opts = {}, ms = 4000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (e) { clearTimeout(timer); throw e; }
+}
+
 // Look up ticker symbol by company name using Yahoo Finance search
 async function resolveTickerSymbol(query) {
   try {
-    const res = await fetch(
+    const res = await _timedFetch(
       `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 2500 }
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }, 3000
     );
     const data = await res.json();
     const hit = data?.quotes?.[0];
@@ -195,9 +457,9 @@ async function resolveTickerSymbol(query) {
 // Stock / crypto data via Yahoo Finance (no API key needed)
 async function getStockCard(symbol) {
   try {
-    const res = await fetch(
+    const res = await _timedFetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=30d`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 6000 }
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }, 5000
     );
     const data = await res.json();
     const result = data?.chart?.result?.[0];
@@ -246,6 +508,71 @@ function formatMarketCap(n) {
   return `$${n.toLocaleString()}`;
 }
 
+// Company financial analytics card — revenue history + key metrics
+const COMPANY_FINANCE_REGEX = /\b(revenue|revenues|earnings|profit|profits|income|financial(s| data| results| report)?|annual report|quarterly (results|earnings|revenue)|how much (does|did|has)|how many (customers|users)|market share|growth|sales figures?|turnover|ebitda|net income|gross profit|operating income|cash flow|fiscal year)\b/i;
+
+async function getCompanyFinanceCard(query) {
+  try {
+    // Extract company name from query
+    const cleaned = query
+      .replace(/show me|what (is|are|was|were) (the )?|tell me (about )?|give me|how much (does|did|has)|how many/gi, '')
+      .replace(/\b(revenue|revenues|earnings|profit|profits|income|financial(s| data| results)?|annual|quarterly|last \d+ years?|in the (last|past) \d+ years?|generated by|of|for|the)\b/gi, '')
+      .trim();
+
+    const symbol = await resolveTickerSymbol(cleaned);
+    if (!symbol) return null;
+
+    // Fetch income statement history + stock quote in parallel
+    const [summaryRes, stockCard] = await Promise.all([
+      _timedFetch(
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=incomeStatementHistory,defaultKeyStatistics,summaryDetail`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }, 5000
+      ).catch(() => null),
+      getStockCard(symbol),
+    ]);
+
+    let revenues = [];
+    let peRatio = null;
+    let profitMargin = null;
+    let sector = null;
+
+    if (summaryRes && summaryRes.ok) {
+      const summaryData = await summaryRes.json().catch(() => null);
+      const history = summaryData?.quoteSummary?.result?.[0]?.incomeStatementHistory?.incomeStatementHistory || [];
+      const stats = summaryData?.quoteSummary?.result?.[0]?.defaultKeyStatistics || {};
+      const detail = summaryData?.quoteSummary?.result?.[0]?.summaryDetail || {};
+
+      revenues = history.slice(0, 4).reverse().map(s => ({
+        year: s.endDate?.fmt ? s.endDate.fmt.slice(0, 4) : null,
+        revenue: s.totalRevenue?.raw || 0,
+        netIncome: s.netIncome?.raw || 0,
+      })).filter(r => r.year && r.revenue);
+
+      peRatio = detail.trailingPE?.raw ? detail.trailingPE.raw.toFixed(1) : null;
+      profitMargin = stats.profitMargins?.raw ? (stats.profitMargins.raw * 100).toFixed(1) + '%' : null;
+    }
+
+    if (!stockCard) return null;
+
+    return {
+      type: 'company_finance',
+      symbol: stockCard.symbol,
+      name: stockCard.name,
+      price: stockCard.price,
+      change: stockCard.change,
+      changePct: stockCard.changePct,
+      positive: stockCard.positive,
+      currency: stockCard.currency,
+      marketCap: stockCard.marketCap,
+      sparkline: stockCard.sparkline,
+      revenues,
+      peRatio,
+      profitMargin,
+      sourceUrl: `https://finance.yahoo.com/quote/${stockCard.symbol}/financials`,
+    };
+  } catch (e) { return null; }
+}
+
 function formatVolume(n) {
   if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
@@ -258,64 +585,208 @@ const PERSON_REGEX = /\b(who is|who('s| is) (the )?|tell me about|show me|photo 
 
 const PERSON_QUERY_REGEX = /^(who is|who('s| is) the |tell me about |show me |biography of |about )/i;
 
+// Returns true if a Wikipedia page title looks like a position/office article, not a person
+function _isOfficeArticle(title) {
+  if (/^list of\b/i.test(title)) return true;
+  // "Prime Minister of Pakistan", "President of France", "Secretary of State of X"
+  if (/\b(prime minister|minister|president|secretary|chancellor|governor|mayor|chairman|director|head of|speaker of|chief of)\b.{0,20}\bof\b/i.test(title)) return true;
+  // "Pakistani PM", "PM of X"
+  if (/^\s*(?:the\s+)?(?:pm|cm|vp|ceo|cfo|cto)\s+of\b/i.test(title)) return true;
+  return false;
+}
+
+// Returns true if the extract text describes a living/past person (not a position/office)
+function _looksLikePerson(extract) {
+  if (!extract) return false;
+  // Person articles typically say "X is/was a [nationality] [noun]" or "born"
+  return /\b(born|is an?|was an?|is a|was a)\b/i.test(extract.slice(0, 300));
+}
+
+async function _fetchWikiPage(title) {
+  const res = await fetch(
+    `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts&exintro&explaintext&pithumbsize=400&format=json`,
+    { timeout: 2500 }
+  ).catch(() => null);
+  if (!res) return null;
+  const data = await res.json().catch(() => null);
+  return Object.values(data?.query?.pages || {})[0] || null;
+}
+
 async function getPersonCard(query) {
   try {
-    // Clean the query to get the person's name/role
-    const subject = query
-      .replace(/^(who is|who's|who are|tell me about|show me|photo of|picture of|biography of|about)\s+/i, '')
-      .replace(/\?$/, '')
-      .trim();
+    // Extract the actual subject from anywhere in the query, not just the start
+    // Handles: "Jarvis who is X", "hey who is X", "who is X", "tell me about X"
+    let subject = query;
 
-    // Search Wikipedia
+    // Try to extract subject after intent keywords wherever they appear
+    const intentMatch = query.match(/\b(?:who is|who's|who are|who was|tell me about|show me|photo of|picture of|biography of|about)\s+(?:the\s+|a\s+|an\s+)?(.+)/i);
+    if (intentMatch) {
+      subject = intentMatch[1];
+    } else {
+      // Fallback: strip leading AI name or filler words then strip known prefixes
+      subject = query
+        .replace(/^[a-z]+[,\s]+/i, '') // strip leading word like "Jarvis, " or "Hey "
+        .replace(/^(who is|who's|who are|tell me about|show me|photo of|picture of|biography of|about)\s+/i, '');
+    }
+
+    subject = subject.replace(/\?$/, '').trim();
+
+    const isRoleQuery = /\b(prime minister|president|pm|chief minister|governor|secretary|chancellor|minister|mayor|ceo|chairman|king|queen|sultan|emir)\b/i.test(subject);
+
+    // For role queries try "current X" first so Wikipedia surfaces the actual person, then plain subject
+    const searchTerms = isRoleQuery ? [`current ${subject}`, subject] : [subject];
+
+    for (const term of searchTerms) {
+      const searchRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&srlimit=8`,
+        { timeout: 3000 }
+      ).catch(() => null);
+      if (!searchRes) continue;
+      const searchData = await searchRes.json().catch(() => null);
+      const results = searchData?.query?.search || [];
+      if (!results.length) continue;
+
+      // Fetch top 5 results in parallel — each title individually encoded (no | encoding issue)
+      const pages = await Promise.all(results.slice(0, 5).map(r => _fetchWikiPage(r.title)));
+
+      // Return first result that has a photo, isn't an office article, and looks like a person
+      const personPage = pages.find(p =>
+        p?.thumbnail &&
+        !_isOfficeArticle(p.title || '') &&
+        _looksLikePerson(p.extract || '')
+      );
+      if (personPage) {
+        const extract = personPage.extract || '';
+        const firstSentence = extract.split(/\.\s/)[0]?.trim() || '';
+        const bio = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+        return {
+          type: 'person',
+          name: personPage.title,
+          imageUrl: personPage.thumbnail.source,
+          subtitle: firstSentence.length > 280 ? firstSentence.slice(0, 280) + '…' : firstSentence,
+          bio: bio.length > 500 ? bio.slice(0, 500) + '…' : bio,
+          source: 'Wikipedia',
+          sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(personPage.title)}`,
+        };
+      }
+    }
+
+    return null;
+  } catch (e) { return null; }
+}
+
+// ── Animal card ───────────────────────────────────────────────────────────────
+
+function _looksLikeAnimal(extract) {
+  if (!extract) return false;
+  return /\b(species|genus|family|order|class|mammal|bird|reptile|amphibian|fish|insect|arachnid|mollusk|crustacean|vertebrate|invertebrate|carnivore|herbivore|omnivore|predator|native to|habitat|domesticated|breed|subspecies|wild|animal|creature|fauna)\b/i.test(extract.slice(0, 500));
+}
+
+function _looksLikeCharacter(extract) {
+  if (!extract) return false;
+  return /\b(fictional character|is a character|played by|portrayed by|appears in|character in|created by|character who|superhero|supervillain|villain|protagonist|antagonist|comic book|television character|animated character|voice[d]? by)\b/i.test(extract.slice(0, 500));
+}
+
+const ANIMAL_REGEX = /\b(lion|tiger|elephant|giraffe|zebra|cheetah|leopard|jaguar|panther|gorilla|chimpanzee|orangutan|baboon|monkey|dolphin|whale|shark|octopus|jellyfish|seahorse|penguin|eagle|hawk|falcon|owl|parrot|flamingo|peacock|toucan|crocodile|alligator|iguana|python|cobra|anaconda|chameleon|bear|panda|koala|kangaroo|platypus|wolf|fox|hyena|hippo|hippopotamus|rhinoceros|rhino|antelope|gazelle|bison|buffalo|moose|deer|camel|llama|alpaca|sloth|armadillo|anteater|hedgehog|porcupine|raccoon|otter|seal|walrus|narwhal|axolotl|capybara|fennec|red panda|snow leopard|golden retriever|labrador|german shepherd|husky|bulldog|rottweiler|doberman|chihuahua|pug|corgi|dachshund|greyhound|persian cat|siamese cat|tabby|mantis shrimp|great white|blue whale|humpback|meerkat|warthog|komodo dragon|tarantula|scorpion|butterfly|dragonfly|bald eagle|hummingbird|ostrich|cassowary|kiwi bird|wolverine|badger|skunk|bison|yak|gnu|impala|springbok|okapi|tapir|dugong|manatee|sea lion|fur seal|stingray|manta ray|hammerhead|clownfish|pufferfish|piranha|anglerfish|coelacanth|axolotl|salamander|newt|gecko|monitor lizard|flying squirrel|sugar glider|echidna|quokka|wombat|tasmanian devil)\b/i;
+
+async function getAnimalCard(query) {
+  try {
+    // Extract the animal subject
+    let subject = query;
+    const intentMatch = query.match(/\b(?:what is a?n?|what are|tell me about|show me a?n?|about|facts about|information (?:on|about)|describe a?n?|how (?:big|fast|strong|smart|dangerous) (?:is|are) a?n?)\s+(?:the\s+|a\s+|an\s+)?(.+)/i);
+    if (intentMatch) subject = intentMatch[1].replace(/\?$/, '').trim();
+    else subject = query.replace(/^(what is|what are|tell me about|show me|about|facts about)\s+(a|an|the)?\s*/i, '').replace(/\?$/, '').trim();
+
+    // First try searching specifically as an animal
     const searchRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(subject)}&format=json&srlimit=3`,
-      { timeout: 2500 }
-    );
-    const searchData = await searchRes.json();
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(subject)}&format=json&srlimit=6`,
+      { timeout: 3000 }
+    ).catch(() => null);
+    if (!searchRes) return null;
+    const searchData = await searchRes.json().catch(() => null);
     const results = searchData?.query?.search || [];
     if (!results.length) return null;
 
-    // Pick the most relevant result (prefer exact title match, then first)
-    const subjectLower = subject.toLowerCase();
-    const best = results.find(r => r.title.toLowerCase().includes(subjectLower.split(' ').slice(-1)[0])) || results[0];
-    const title = best.title;
+    const pages = await Promise.all(results.slice(0, 5).map(r => _fetchWikiPage(r.title)));
+    const animalPage = pages.find(p => p?.thumbnail && _looksLikeAnimal(p.extract || ''));
+    if (!animalPage) return null;
 
-    // Fetch photo + extract + categories to confirm it's a person
-    const detailRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts|categories&exintro&explaintext&pithumbsize=400&cllimit=5&format=json`,
-      { timeout: 2500 }
-    );
-    const detailData = await detailRes.json();
-    const pages = detailData?.query?.pages;
-    const page = pages[Object.keys(pages)[0]];
-    if (!page || page.missing) return null;
-
-    const extract = page.extract || '';
-    // Extract first sentence as subtitle (usually "X is a/an ...")
-    const firstSentence = extract.split(/\.\s/)[0]?.trim() || '';
-    // Short bio — 2-3 sentences
-    const bio = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+    const extract = animalPage.extract || '';
+    const description = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+    // Pull a fun fact from later sentences
+    const sentences = extract.split(/\.\s/);
+    const funFact = sentences.find((s, i) => i > 0 && i < 6 && s.length > 30 && s.length < 180) || null;
 
     return {
-      type: 'person',
-      name: page.title,
-      imageUrl: page.thumbnail?.source || null,
-      subtitle: firstSentence.length > 120 ? firstSentence.slice(0, 120) + '…' : firstSentence,
-      bio: bio.length > 350 ? bio.slice(0, 350) + '…' : bio,
+      type: 'animal',
+      name: animalPage.title,
+      imageUrl: animalPage.thumbnail.source,
+      description: description.length > 400 ? description.slice(0, 400) + '…' : description,
+      funFact: funFact ? funFact.trim() + '.' : null,
       source: 'Wikipedia',
-      sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
+      sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(animalPage.title)}`,
     };
+  } catch (e) { return null; }
+}
+
+// ── Character card ─────────────────────────────────────────────────────────────
+
+const CHARACTER_REGEX = /\b(from|in|on)\b.{1,60}\b(movie|film|show|series|season|episode|netflix|hbo|disney|marvel|dc comics|anime|avengers|star wars|game of thrones|breaking bad|sopranos|squid game|stranger things|peaky blinders|mandalorian|dune|batman|spider.?man|iron man|harry potter|lord of the rings|the wire|succession|yellowstone|power|euphoria)\b/i;
+
+async function getCharacterCard(query) {
+  try {
+    let subject = query;
+    const intentMatch = query.match(/\b(?:who is|tell me about|show me|about|character)\s+(?:the\s+|a\s+|an\s+)?(.+)/i);
+    if (intentMatch) subject = intentMatch[1].replace(/\?$/, '').trim();
+
+    // Try "[character name] character" to surface the fictional article
+    const searchTerms = [subject, `${subject} fictional character`, `${subject} character`];
+
+    for (const term of searchTerms) {
+      const searchRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&srlimit=6`,
+        { timeout: 3000 }
+      ).catch(() => null);
+      if (!searchRes) continue;
+      const searchData = await searchRes.json().catch(() => null);
+      const results = searchData?.query?.search || [];
+      if (!results.length) continue;
+
+      const pages = await Promise.all(results.slice(0, 5).map(r => _fetchWikiPage(r.title)));
+      const charPage = pages.find(p => p?.thumbnail && _looksLikeCharacter(p.extract || ''));
+      if (!charPage) continue;
+
+      const extract = charPage.extract || '';
+      const firstSentence = extract.split(/\.\s/)[0]?.trim() || '';
+      const description = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+
+      // Try to extract the show/movie name
+      const showMatch = extract.match(/\bin\b.{1,10}([\w\s:'"-]{3,40}?)(?:,|\.|by)/i);
+      const showName = showMatch?.[1]?.trim() || null;
+
+      return {
+        type: 'character',
+        name: charPage.title,
+        imageUrl: charPage.thumbnail.source,
+        subtitle: firstSentence.length > 200 ? firstSentence.slice(0, 200) + '…' : firstSentence,
+        description: description.length > 400 ? description.slice(0, 400) + '…' : description,
+        showName,
+        source: 'Wikipedia',
+        sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(charPage.title)}`,
+      };
+    }
+    return null;
   } catch (e) { return null; }
 }
 
 // Image from Wikipedia
 async function getImageCard(query) {
   try {
-    const search = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 2500 });
+    const search = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 1500 });
     const sd = await search.json();
     const title = sd?.query?.search?.[0]?.title;
     if (!title) return null;
-    const img = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts&exintro&explaintext&pithumbsize=600&format=json`, { timeout: 2500 });
+    const img = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts&exintro&explaintext&pithumbsize=600&format=json`, { timeout: 1500 });
     const id = await img.json();
     const pages = id?.query?.pages;
     const page = pages[Object.keys(pages)[0]];
@@ -359,7 +830,7 @@ async function espnFindMatch(query, sport, league) {
   for (const date of dates) {
     try {
       const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${date}`;
-      const res = await fetch(url, { timeout: 2500 });
+      const res = await fetch(url, { timeout: 1500 });
       if (!res.ok) continue;
       const data = await res.json();
       const events = data?.events || [];
@@ -389,7 +860,7 @@ async function espnFindMatch(query, sport, league) {
         let scorers = [];
         let motm = null;
         try {
-          const sumRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/summary?event=${ev.id}`, { timeout: 2500 });
+          const sumRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/summary?event=${ev.id}`, { timeout: 1500 });
           if (sumRes.ok) {
             const sum = await sumRes.json();
             // Scoring plays
@@ -414,6 +885,8 @@ async function espnFindMatch(query, sport, league) {
           score1: String(score1),
           score2: String(score2),
           team2: away?.team?.displayName || '',
+          logo1: home?.team?.logo || home?.team?.logos?.[0]?.href || home?.team?.logoDark || null,
+          logo2: away?.team?.logo || away?.team?.logos?.[0]?.href || away?.team?.logoDark || null,
           league: data.leagues?.[0]?.name || league,
           date: comps.date?.slice(0, 10) || '',
           venue: comps.venue?.fullName || '',
@@ -525,6 +998,8 @@ async function espnSportsSearch(query) {
           score1: String(score1),
           score2: String(score2),
           team2: away?.team?.displayName || '',
+          logo1: home?.team?.logo || home?.team?.logos?.[0]?.href || home?.team?.logoDark || null,
+          logo2: away?.team?.logo || away?.team?.logos?.[0]?.href || away?.team?.logoDark || null,
           league: data.leagues?.[0]?.name || league,
           date: comps.date?.slice(0, 10) || '',
           venue: comps.venue?.fullName || '',
@@ -623,6 +1098,73 @@ async function googleMatchContext(query) {
   } catch (e) { return null; }
 }
 
+// Movie card — OMDB free API (no key needed for basic search) + TMDB fallback
+async function getMovieCard(query) {
+  try {
+    // Strip filler words to get the movie title
+    const title = query
+      .replace(/when (is|does|will)?|coming out|release date|out|movie|film|sequel|new|latest|upcoming|show me|tell me about|about the|the new|trailer/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (!title || title.length < 2) return null;
+
+    // OMDB free tier — 1000 req/day, no key needed for search endpoint
+    const omdbUrl = `https://www.omdbapi.com/?apikey=trilogy&t=${encodeURIComponent(title)}&plot=short`;
+    const omdbRes = await fetch(omdbUrl, { timeout: 3000 });
+    const omdb = await omdbRes.json();
+
+    if (omdb.Response === 'True') {
+      return {
+        type: 'movie',
+        title: omdb.Title,
+        year: omdb.Year,
+        rated: omdb.Rated,
+        released: omdb.Released,
+        runtime: omdb.Runtime,
+        genre: omdb.Genre,
+        director: omdb.Director,
+        cast: omdb.Actors,
+        plot: omdb.Plot,
+        poster: omdb.Poster !== 'N/A' ? omdb.Poster : null,
+        imdbRating: omdb.imdbRating !== 'N/A' ? omdb.imdbRating : null,
+        imdbId: omdb.imdbID,
+        sourceUrl: omdb.imdbID ? `https://www.imdb.com/title/${omdb.imdbID}/` : null,
+        source: 'IMDb / OMDB',
+      };
+    }
+
+    // Fallback: TMDB public search (no API key for search)
+    const tmdbUrl = `https://api.themoviedb.org/3/search/movie?api_key=8265bd1679663a7ea12ac168da84d2e8&query=${encodeURIComponent(title)}&language=en-US&page=1`;
+    const tmdbRes = await fetch(tmdbUrl, { timeout: 3000 });
+    const tmdb = await tmdbRes.json();
+    const hit = tmdb.results?.[0];
+    if (!hit) return null;
+
+    return {
+      type: 'movie',
+      title: hit.title,
+      year: hit.release_date ? hit.release_date.slice(0, 4) : '',
+      released: hit.release_date || '',
+      plot: hit.overview,
+      poster: hit.poster_path ? `https://image.tmdb.org/t/p/w300${hit.poster_path}` : null,
+      imdbRating: hit.vote_average ? hit.vote_average.toFixed(1) : null,
+      genre: '',
+      director: '',
+      cast: '',
+      sourceUrl: `https://www.themoviedb.org/movie/${hit.id}`,
+      source: 'TMDB',
+    };
+  } catch (e) { return null; }
+}
+
+// Private companies — explicitly null so we never try to resolve them
+const PRIVATE_COMPANIES = new Set([
+  'openai', 'open ai', 'stripe', 'klarna', 'revolut',
+  'chime', 'databricks', 'canva', 'bytedance', 'tiktok', 'shein', 'cargill',
+  'ikea', 'publix', 'mars', 'deloitte', 'mckinsey', 'bain', 'bcg',
+  'huawei', 'xiaomi', 'didi', 'grab', 'gojek', 'ola', 'swiggy', 'zomato',
+]);
+
 // Map of common names → Yahoo Finance tickers
 const TICKER_MAP = {
   // Tech
@@ -630,7 +1172,7 @@ const TICKER_MAP = {
   amazon: 'AMZN', meta: 'META', facebook: 'META', netflix: 'NFLX',
   tesla: 'TSLA', nvidia: 'NVDA', amd: 'AMD', intel: 'INTC',
   samsung: '005930.KS', sony: 'SONY', qualcomm: 'QCOM',
-  'take-two': 'TTWO', 'take two': 'TTWO', 'rockstar': 'TTWO',
+  'take-two': 'TTWO', 'take two': 'TTWO', 'rockstar': 'TTWO', 'ttwo': 'TTWO', 't two': 'TTWO',
   'electronic arts': 'EA', 'ea games': 'EA', activision: 'ATVI',
   'ubisoft': 'UBSFY', 'square enix': 'SQNNY',
   // Finance
@@ -666,6 +1208,11 @@ async function fetchCardData(query) {
 
   // Stock / crypto detection
   if (STOCK_KEYWORDS.test(q) || /\b(bitcoin|ethereum|crypto|btc|eth|sol|doge|bnb|xrp|stock|shares?|ticker)\b/i.test(q)) {
+    // Check if the user is asking about a known private company — return null immediately
+    for (const priv of PRIVATE_COMPANIES) {
+      if (q.includes(priv)) return { type: 'private_company', name: priv.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') };
+    }
+
     // 1. Check known name map first
     let symbol = null;
     for (const [name, ticker] of Object.entries(TICKER_MAP)) {
@@ -674,18 +1221,37 @@ async function fetchCardData(query) {
 
     // 2. Try to extract a ticker (ALL CAPS 1-5 letters) from the query
     if (!symbol) {
+      const hyphenSpelled = query.match(/\b([A-Z](?:-[A-Z]){1,4})\b/);
+      if (hyphenSpelled) {
+        const collapsed = hyphenSpelled[1].replace(/-/g, '');
+        if (collapsed.length >= 2 && collapsed.length <= 5) symbol = collapsed;
+      }
+    }
+    if (!symbol) {
       const tickerMatch = query.match(/\b([A-Z]{2,5}(?:-USD)?)\b/);
       if (tickerMatch) symbol = tickerMatch[1];
     }
 
     // 3. Fall back to Yahoo Finance symbol search for the full query
     if (!symbol) {
-      // Extract company name from question ("what is the price of X", "X stock price", etc.)
       const nameGuess = query
         .replace(/what (is|are|'s) (the )?(current |live )?(stock |share |crypto )?(price|value|worth|cost) (of |for )?/gi, '')
-        .replace(/\b(stock|share|shares|price|value|worth|crypto|cryptocurrency|coin|token|current|live|trading|today|how much)\b/gi, '')
+        .replace(/\b(stock|share|shares|price|value|worth|crypto|cryptocurrency|coin|token|current|live|trading|today|how much|find me|find|the|for)\b/gi, '')
         .trim();
-      if (nameGuess.length > 1) symbol = await resolveTickerSymbol(nameGuess);
+      if (nameGuess.length > 1) {
+        const resolved = await resolveTickerSymbol(nameGuess);
+        if (resolved) {
+          // Validate: fetch the card and check the company name roughly matches the query term
+          const card = await getStockCard(resolved);
+          if (card) {
+            const cardNameLower = (card.name || '').toLowerCase();
+            const queryTerms = nameGuess.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            const matches = queryTerms.some(t => cardNameLower.includes(t));
+            if (matches) return card;
+          }
+          return null;
+        }
+      }
     }
 
     if (symbol) return await getStockCard(symbol);
@@ -698,19 +1264,149 @@ async function fetchCardData(query) {
     return await googleSportsScore(query);
   }
 
-  // Person queries — show photo + bio card
-  if (/\bwho is\b|\bwho('s| is) (the |a )?\b|\btell me about\b|\bshow me\b|\bbiography of\b/i.test(q)) {
+  // Movie queries — show movie info card
+  if (/\b(movie|film|cinema|sequel|prequel|release date|coming out|when (is|does|will|does)|box office|cast|director|plot|trailer|watch)\b/i.test(q)) {
+    const card = await getMovieCard(query);
+    if (card) return card;
+  }
+
+  // Places / business search — "best pizza in Lahore", "bowling alley in LA"
+  if (PLACES_SEARCH_REGEX.test(q)) {
+    const card = await getPlacesCard(query);
+    if (card) return card;
+  }
+
+  // Company financial analytics — must run before person/image to prevent wrong Wikipedia cards
+  if (COMPANY_FINANCE_REGEX.test(q)) {
+    const card = await getCompanyFinanceCard(query);
+    if (card) return card;
+  }
+
+  // Location / city / country — "show me Paris", "pictures of Tokyo", "tell me about Dubai"
+  if (/\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about|about)\b/i.test(q) && !COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q)) {
+    const card = await getLocationCard(query);
+    if (card) return card;
+  }
+
+  // Animal queries — show species photo + description card
+  if (ANIMAL_REGEX.test(q)) {
+    const card = await getAnimalCard(query);
+    if (card) return card;
+  }
+
+  // Fictional character queries — show character photo card
+  if (!COMPANY_FINANCE_REGEX.test(q) && (CHARACTER_REGEX.test(q) || /\bwho is\b|\bwho('s| is) (the |a )?\b|\btell me about\b/i.test(q))) {
+    const charCard = await getCharacterCard(query);
+    if (charCard) return charCard;
+  }
+
+  // Person queries — show photo + bio card (exclude financial/location queries)
+  if (!COMPANY_FINANCE_REGEX.test(q) && /\bwho is\b|\bwho('s| is) (the |a )?\b|\bwho was\b|\btell me about\b|\bshow me\b|\bbiography of\b|\bphoto of\b|\bpicture of\b/i.test(q)) {
     const card = await getPersonCard(query);
     if (card) return card;
   }
 
-  // Image — car, painting, place, artwork
-  if (/car|vehicle|painting|artwork|portrait|photo|picture|image|what does|show me/i.test(q)) {
+  // Image — car, painting, place, artwork (exclude financial queries)
+  if (!COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q) && /car|vehicle|painting|artwork|portrait|photo|picture|image|what does|show me/i.test(q)) {
     const subject = query.replace(/show me|what does|photo of|picture of|image of/gi, '').trim();
     return await getImageCard(subject);
+  }
+
+  // Science keywords
+  if (SCIENCE_REGEX.test(q)) {
+    const card = await getScienceCard(query);
+    if (card) return card;
+  }
+
+  // Catch-all: any conceptual / educational question → try Wikipedia (skip financial/business queries)
+  if (!COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q) && /\b(what is|what are|what was|what were|explain|describe|how does|how do|how is|why is|why does|define|tell me about|teach me|history of)\b/i.test(q)) {
+    const card = await getScienceCard(query);
+    if (card) return card;
   }
 
   return null;
 }
 
-module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX };
+// ── Live news feed system — BBC RSS (free, no API key) ────────────────────────
+const NEWS_FEEDS = {
+  world:      'https://feeds.bbci.co.uk/news/world/rss.xml',
+  business:   'https://feeds.bbci.co.uk/news/business/rss.xml',
+  technology: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
+  science:    'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
+  sport:      'https://feeds.bbci.co.uk/sport/rss.xml',
+  politics:   'https://feeds.bbci.co.uk/news/politics/rss.xml',
+  us:         'https://feeds.bbci.co.uk/news/us_and_canada/rss.xml',
+  health:     'https://feeds.bbci.co.uk/news/health/rss.xml',
+};
+
+let _newsCache = { data: {}, ts: 0 };
+const NEWS_CACHE_TTL = 20 * 60 * 1000; // 20 minutes
+
+function _withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+
+async function _fetchRSSFeed(url) {
+  try {
+    const res = await _timedFetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 3000);
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const items = xml.split('<item>').slice(1);
+    return items.slice(0, 6).map(item => {
+      const m = item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+      return m ? m[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim() : null;
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+async function fetchNewsFeeds() {
+  const now = Date.now();
+  if (now - _newsCache.ts < NEWS_CACHE_TTL && Object.keys(_newsCache.data).length > 0) {
+    return _newsCache.data;
+  }
+  const entries = Object.entries(NEWS_FEEDS);
+  // Each feed has its own 3.5s timeout — the overall fetch never blocks longer than that
+  const results = await Promise.all(entries.map(([, url]) => _fetchRSSFeed(url)));
+  const data = {};
+  entries.forEach(([cat], i) => { data[cat] = results[i]; });
+  _newsCache = { data, ts: now };
+  return data;
+}
+
+async function getNewsContext(query) {
+  const q = (query || '').toLowerCase();
+  let data;
+  // If cache is already populated return immediately, otherwise give news fetch max 4s
+  try {
+    const feedPromise = fetchNewsFeeds();
+    data = await ((_newsCache.ts > 0) ? feedPromise : _withTimeout(feedPromise, 4000));
+  } catch { return null; }
+
+  // Pick categories relevant to the query
+  const cats = [];
+  if (/sport|football|soccer|basketball|cricket|tennis|nfl|nba|f1|formula|racing|match|score|game|player|team|league|cup|tournament/i.test(q)) cats.push('sport');
+  if (/tech|technology|ai |artificial intelligence|software|app|startup|silicon|computer|phone|robot|cyber|hack|gadget/i.test(q)) cats.push('technology');
+  if (/scienc|physic|chemist|biolog|space|nasa|research|study|discover|experiment|climate|environment|nature/i.test(q)) cats.push('science');
+  if (/stock|market|financ|economy|business|revenue|profit|company|trade|gdp|inflation|fed |bank|invest|earn|crypto|bitcoin/i.test(q)) cats.push('business');
+  if (/politic|president|prime minister|election|government|congress|senate|parliament|vote|policy|law|democrat|republican|labour|tory/i.test(q)) cats.push('politics', 'us');
+  if (/health|hospital|medicine|drug|disease|cancer|covid|flu|mental|nhs|medical/i.test(q)) cats.push('health');
+  if (/war|conflict|ukraine|russia|china|middle east|israel|iran|nato|military|attack|bomb|sanction|protest|coup/i.test(q)) cats.push('world');
+  if (/news|latest|today|yesterday|this week|right now|recently|breaking|what happened|update|current event/i.test(q)) cats.push('world', 'business', 'politics');
+
+  // Always include world as base
+  if (!cats.includes('world')) cats.push('world');
+
+  const seen = new Set();
+  const headlines = [];
+  for (const cat of [...new Set(cats)]) {
+    for (const title of (data[cat] || []).slice(0, 3)) {
+      if (!seen.has(title)) { seen.add(title); headlines.push(`[${cat.toUpperCase()}] ${title}`); }
+    }
+  }
+  if (!headlines.length) return null;
+
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return `LIVE NEWS HEADLINES — ${today}:\n${headlines.join('\n')}\n\nUse these headlines to answer questions about current events. If the user asks about something covered here, reference it accurately.`;
+}
+
+module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX };

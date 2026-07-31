@@ -220,6 +220,9 @@ function openInChrome(url) {
 // ─── LAUNCH APP ───────────────────────────────────────────────────────────────
 function launchApp(name) {
   return new Promise((resolve) => {
+    // Sanitize: allow only alphanumeric, spaces, dots, hyphens (no shell metacharacters)
+    name = (name || '').replace(/[^A-Za-z0-9\s.\-_]/g, '').slice(0, 64).trim();
+    if (!name) return resolve(false);
     const lower = name.toLowerCase().trim();
 
     // 1. Try URI scheme — works cross-platform via the OS default handler
@@ -319,6 +322,10 @@ function openFileManager(folderPath) {
 
 // ─── CONTACT LOOKUP ───────────────────────────────────────────────────────────
 function lookupSystemContact(name) {
+  // Strict allowlist — only letters, spaces, hyphens, apostrophes (max 64 chars)
+  const safeName = (name || '').replace(/[^A-Za-z\s'\-]/g, '').slice(0, 64).trim();
+  if (!safeName) return Promise.resolve(null);
+  name = safeName; // shadow original with sanitized value
   return new Promise((resolve) => {
     if (IS_WIN) {
       const ps = `
@@ -647,4 +654,4 @@ async function run(action, arg) {
   }
 }
 
-module.exports = { run, findFolder, readFileContent, makeCall, openChat };
+module.exports = { run, findFolder, readFileContent, makeCall, openChat, openInChrome };

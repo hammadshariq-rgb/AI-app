@@ -1,7 +1,14 @@
 {
   "name": "jarvis-desktop",
-  "version": "0.1.0",
-  "description": "Desktop AI assistant - Jarvis",
+  "version": "1.0.0",
+  "description": "Your Own Personal AI — a voice-powered desktop assistant",
+  "keywords": [
+    "AI",
+    "assistant",
+    "personal AI",
+    "voice assistant",
+    "jarvis"
+  ],
   "author": {
     "name": "Hammad Shariq",
     "email": "hammad.shariq@hotmail.com"
@@ -19,19 +26,45 @@
     "dist:linux": "electron-builder --linux"
   },
   "build": {
-    "appId": "com.yourcompany.jarvis",
-    "productName": "Jarvis",
+    "appId": "com.hammadshariq.yourpersonalai",
+    "productName": "Your Own Personal AI",
+    "copyright": "Copyright © 2025 Hammad Shariq",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hammadshariq-rgb",
+        "repo": "AI-app",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "src/**/*",
       "assets/**/*",
       "renderer/**/*"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64", "ia32"] }],
-      "icon": "assets/icon.png"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "Hammad Shariq"
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png",
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
@@ -40,7 +73,11 @@
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "linux": {
-      "target": ["AppImage", "deb", "rpm"],
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
       "icon": "assets/icon.png",
       "category": "Utility"
     },
@@ -48,24 +85,40 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "shortcutName": "Your Own Personal AI",
+      "menuCategory": "Your Own Personal AI",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     },
     "dmg": {
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9",
+    "form-data": "^4.0.6",
+    "mongodb": "^7.5.0",
     "node-fetch": "^2.7.0",
-    "openai": "^4.68.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "electron": "^33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2"
   },
   "allowScripts": {
     "electron@33.4.11": true

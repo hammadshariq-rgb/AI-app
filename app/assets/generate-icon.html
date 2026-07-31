@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head><title>Jarvis Icon Generator</title></head>
+<body style="background:#111;display:flex;flex-direction:column;align-items:center;padding:40px;font-family:sans-serif;color:#fff;">
+<h2 style="margin-bottom:24px;color:#00c8ff;letter-spacing:4px;">JARVIS ICON PREVIEW</h2>
+<div style="display:flex;gap:32px;align-items:flex-end;margin-bottom:32px;">
+  <div style="text-align:center">
+    <canvas id="c512" width="512" height="512"></canvas>
+    <p style="color:#888;font-size:12px;margin-top:8px;">512×512</p>
+  </div>
+  <div style="text-align:center">
+    <canvas id="c256" width="256" height="256" style="width:128px;height:128px"></canvas>
+    <p style="color:#888;font-size:12px;margin-top:8px;">256×256</p>
+  </div>
+  <div style="text-align:center">
+    <canvas id="c64" width="64" height="64" style="width:64px;height:64px"></canvas>
+    <p style="color:#888;font-size:12px;margin-top:8px;">64×64 (taskbar)</p>
+  </div>
+</div>
+<button onclick="download()" style="background:#0060ff;color:#fff;border:none;padding:14px 36px;border-radius:8px;font-size:15px;cursor:pointer;letter-spacing:2px;">DOWNLOAD icon.png (512px)</button>
+<p style="color:#555;margin-top:12px;font-size:12px;">Replace assets/icon.png with the downloaded file</p>
+
+<script>
+function drawIcon(canvas) {
+  const s = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const cx = s / 2, cy = s / 2, r = s / 2;
+
+  // ── Background: deep navy with radial ──
+  const bg = ctx.createRadialGradient(cx, cy * 0.8, 0, cx, cy, r);
+  bg.addColorStop(0,   '#0a1a3a');
+  bg.addColorStop(0.6, '#050d20');
+  bg.addColorStop(1,   '#020810');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Outer ring glow ──
+  const ring = ctx.createRadialGradient(cx, cy, r * 0.82, cx, cy, r * 0.99);
+  ring.addColorStop(0,   'rgba(0,160,255,0.0)');
+  ring.addColorStop(0.5, 'rgba(0,180,255,0.18)');
+  ring.addColorStop(1,   'rgba(0,200,255,0.06)');
+  ctx.fillStyle = ring;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Hexagon frame ──
+  const hR = s * 0.40;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i - Math.PI / 6;
+    const x = hR * Math.cos(a), y = hR * Math.sin(a);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  const hexStroke = ctx.createLinearGradient(-hR, -hR, hR, hR);
+  hexStroke.addColorStop(0,   'rgba(0,200,255,0.90)');
+  hexStroke.addColorStop(0.5, 'rgba(80,140,255,0.60)');
+  hexStroke.addColorStop(1,   'rgba(0,160,255,0.90)');
+  ctx.strokeStyle = hexStroke;
+  ctx.lineWidth = s * 0.022;
+  ctx.shadowColor = 'rgba(0,200,255,0.7)';
+  ctx.shadowBlur = s * 0.06;
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Hexagon inner fill (subtle) ──
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i - Math.PI / 6;
+    const x = hR * Math.cos(a), y = hR * Math.sin(a);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  const hexFill = ctx.createRadialGradient(0, -hR*0.2, 0, 0, 0, hR);
+  hexFill.addColorStop(0,   'rgba(10,40,120,0.55)');
+  hexFill.addColorStop(1,   'rgba(2,10,40,0.10)');
+  ctx.fillStyle = hexFill;
+  ctx.fill();
+  ctx.restore();
+
+  // ── Neural dots on hex corners ──
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(0,220,255,0.9)';
+  ctx.shadowBlur = s * 0.04;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i - Math.PI / 6;
+    const x = hR * Math.cos(a), y = hR * Math.sin(a);
+    ctx.beginPath();
+    ctx.arc(x, y, s * 0.018, 0, Math.PI * 2);
+    ctx.fillStyle = '#00e0ff';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // ── "J" letter — bold, centered ──
+  ctx.save();
+  ctx.translate(cx, cy);
+  const fontSize = s * 0.38;
+  ctx.font = `900 ${fontSize}px "Arial Black", Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // J glow layers
+  ctx.shadowColor = 'rgba(0,180,255,1)';
+  ctx.shadowBlur = s * 0.10;
+  const jGrad = ctx.createLinearGradient(0, -fontSize/2, 0, fontSize/2);
+  jGrad.addColorStop(0,   '#ffffff');
+  jGrad.addColorStop(0.35, '#a0d8ff');
+  jGrad.addColorStop(0.7,  '#3090ff');
+  jGrad.addColorStop(1,    '#0050dd');
+  ctx.fillStyle = jGrad;
+  ctx.fillText('J', s * 0.02, s * 0.01);
+
+  // Inner highlight on J
+  ctx.shadowBlur = 0;
+  const jHighlight = ctx.createLinearGradient(0, -fontSize/2, 0, 0);
+  jHighlight.addColorStop(0,   'rgba(255,255,255,0.55)');
+  jHighlight.addColorStop(1,   'rgba(255,255,255,0.0)');
+  ctx.fillStyle = jHighlight;
+  ctx.fillText('J', s * 0.02, s * 0.01);
+  ctx.restore();
+
+  // ── Circuit lines radiating from center ──
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = 'rgba(0,180,255,0.18)';
+  ctx.lineWidth = s * 0.008;
+  const lineAngles = [30, 90, 150, 210, 270, 330];
+  lineAngles.forEach(deg => {
+    const a = deg * Math.PI / 180;
+    const x1 = Math.cos(a) * hR * 0.52, y1 = Math.sin(a) * hR * 0.52;
+    const x2 = Math.cos(a) * hR * 0.88, y2 = Math.sin(a) * hR * 0.88;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  // ── Center glow pulse ──
+  const pulse = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 0.22);
+  pulse.addColorStop(0,   'rgba(80,160,255,0.18)');
+  pulse.addColorStop(1,   'rgba(0,100,255,0.0)');
+  ctx.fillStyle = pulse;
+  ctx.beginPath();
+  ctx.arc(cx, cy, s * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Draw on all canvases
+['c512','c256','c64'].forEach(id => drawIcon(document.getElementById(id)));
+
+function download() {
+  const canvas = document.getElementById('c512');
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'icon.png';
+  a.click();
+}
+</script>
+</body>
+</html>

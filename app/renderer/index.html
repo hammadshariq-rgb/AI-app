@@ -1,29 +1,1041 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Jarvis</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Your Personal AI</title>
+  <link rel="stylesheet" href="style.css?v=63" />
+  <style>
+    /* ── GLASS SIDEBAR ── */
+    #historySidebar {
+      background: rgba(12, 16, 30, 0.45) !important;
+      backdrop-filter: blur(32px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+      border-right: 1px solid rgba(255,255,255,0.07) !important;
+      box-shadow: 4px 0 48px rgba(0,0,0,0.40) !important;
+    }
+
+    /* ── NAV TAB CONTAINER ── */
+    #lnavTabs {
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 6px 0 16px !important;
+      gap: 6px !important;
+    }
+
+    /* ── BASE LIQUID GLASS BUTTON ── */
+    .lnav-tab {
+      position: relative !important;
+      margin: 0 12px !important;
+      width: calc(100% - 24px) !important;
+
+      /* Glass fill */
+      background: rgba(255,255,255,0.055) !important;
+      backdrop-filter: blur(12px) url(#nav-glass-filter) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+
+      /* Liquid glass depth — ported from the LiquidButton shadow stack */
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 2px 6px rgba(0,0,0,0.10),
+        inset  3px  3px 0.5px -3.5px rgba(255,255,255,0.09),
+        inset -3px -3px 0.5px -3.5px rgba(255,255,255,0.85),
+        inset  1px  1px   1px -0.5px rgba(255,255,255,0.55),
+        inset -1px -1px   1px -0.5px rgba(255,255,255,0.55),
+        inset  0    0    6px   6px   rgba(255,255,255,0.10),
+        inset  0    0    2px   2px   rgba(255,255,255,0.05),
+        0 0 14px rgba(0,0,0,0.18) !important;
+
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 14px !important;
+      color: rgba(190,200,220,0.60) !important;
+      font-family: 'Inter', sans-serif !important;
+      font-size: 16.5px !important;
+      font-weight: 400 !important;
+      padding: 13px 18px !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 14px !important;
+      cursor: pointer !important;
+      -webkit-app-region: no-drag !important;
+      transform: scale(1) translateZ(0) !important;
+      transition:
+        transform 0.22s cubic-bezier(0.22,1,0.36,1),
+        box-shadow 0.22s ease,
+        background 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease !important;
+    }
+
+    /* ── HOVER — enlarge + brighter glass ── */
+    .lnav-tab:hover {
+      transform: scale(1.04) translateZ(0) !important;
+      background: rgba(255,255,255,0.09) !important;
+      border-color: rgba(255,255,255,0.18) !important;
+      color: rgba(220,230,255,0.88) !important;
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 6px 20px rgba(0,0,0,0.20),
+        inset  3px  3px 0.5px -3.5px rgba(255,255,255,0.14),
+        inset -3px -3px 0.5px -3.5px rgba(255,255,255,0.90),
+        inset  1px  1px   1px -0.5px rgba(255,255,255,0.70),
+        inset -1px -1px   1px -0.5px rgba(255,255,255,0.70),
+        inset  0    0    6px   6px   rgba(255,255,255,0.14),
+        inset  0    0    2px   2px   rgba(255,255,255,0.08),
+        0 0 22px rgba(180,200,255,0.10) !important;
+    }
+
+    /* ── ACTIVE — blue-tinted glass (no flat solid fill) ── */
+    .lnav-tab.active {
+      background: rgba(80,120,255,0.18) !important;
+      border-color: rgba(120,160,255,0.28) !important;
+      color: rgba(220,235,255,0.96) !important;
+      font-weight: 500 !important;
+      transform: scale(1) translateZ(0) !important;
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 2px 6px rgba(0,0,0,0.10),
+        inset  3px  3px 0.5px -3.5px rgba(140,180,255,0.15),
+        inset -3px -3px 0.5px -3.5px rgba(140,180,255,0.90),
+        inset  1px  1px   1px -0.5px rgba(160,200,255,0.65),
+        inset -1px -1px   1px -0.5px rgba(160,200,255,0.65),
+        inset  0    0    6px   6px   rgba(100,150,255,0.12),
+        inset  0    0    2px   2px   rgba(100,150,255,0.08),
+        0 0 24px rgba(80,120,255,0.22) !important;
+    }
+
+    .lnav-tab.active:hover {
+      transform: scale(1.03) translateZ(0) !important;
+      background: rgba(90,130,255,0.24) !important;
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 6px 20px rgba(0,0,0,0.18),
+        inset  3px  3px 0.5px -3.5px rgba(140,180,255,0.18),
+        inset -3px -3px 0.5px -3.5px rgba(140,180,255,0.95),
+        inset  1px  1px   1px -0.5px rgba(160,200,255,0.75),
+        inset -1px -1px   1px -0.5px rgba(160,200,255,0.75),
+        inset  0    0    6px   6px   rgba(100,150,255,0.16),
+        inset  0    0    2px   2px   rgba(100,150,255,0.10),
+        0 0 32px rgba(80,120,255,0.32) !important;
+    }
+
+    .lnav-tab-icon {
+      width: 21px !important;
+      height: 21px !important;
+      flex-shrink: 0 !important;
+      color: inherit !important;
+    }
+
+    /* ── CHROME BUTTON — history items & quick commands ── */
+    @keyframes chrome-flow {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes chrome-sweep {
+      0%   { left: -60%; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { left: 120%; opacity: 0; }
+    }
+
+    /* Background gradient animates directly on button — text stays visible */
+    .chrome-btn {
+      position: relative !important;
+      overflow: hidden !important;
+      background: linear-gradient(
+        125deg,
+        #0d0f18 0%, #131825 20%, #192240 35%,
+        #0f1422 50%, #18203a 68%, #0c1020 85%, #16203a 100%
+      ) !important;
+      background-size: 300% 300% !important;
+      animation: chrome-flow 6s ease infinite !important;
+      border: 1.5px solid rgba(255,255,255,0.11) !important;
+      border-radius: 10px !important;
+      color: rgba(215,225,245,0.92) !important;
+      cursor: pointer !important;
+      -webkit-app-region: no-drag !important;
+      transition: transform 0.18s cubic-bezier(0.22,1,0.36,1),
+                  border-color 0.2s, box-shadow 0.2s !important;
+    }
+
+    /* Shimmer sweep — sits above bg, below text via z-index */
+    .chrome-btn::after {
+      content: '' !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: -60% !important;
+      width: 45% !important;
+      height: 100% !important;
+      background: linear-gradient(
+        105deg,
+        transparent 0%,
+        rgba(255,255,255,0.05) 40%,
+        rgba(255,255,255,0.13) 50%,
+        rgba(255,255,255,0.05) 60%,
+        transparent 100%
+      ) !important;
+      animation: chrome-sweep 5s ease-in-out infinite !important;
+      pointer-events: none !important;
+      z-index: 0 !important;
+    }
+
+    /* Text nodes in button stay above shimmer */
+    .chrome-btn:not(.history-item) {
+      isolation: isolate !important;
+    }
+
+    .chrome-btn:hover {
+      transform: scale(1.028) !important;
+      border-color: rgba(255,255,255,0.22) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.40),
+                  inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    }
+    .chrome-btn:active { transform: scale(0.97) !important; }
+
+    /* Quick commands sizing */
+    .sw-cmd.chrome-btn {
+      display: block !important;
+      width: 100% !important;
+      text-align: left !important;
+      padding: 11px 15px !important;
+      margin-bottom: 7px !important;
+      font-family: 'Inter', sans-serif !important;
+      font-size: 13px !important;
+      font-weight: 400 !important;
+      letter-spacing: 0 !important;
+    }
+
+    /* History items get same chrome treatment */
+    .history-item {
+      background: linear-gradient(
+        125deg,
+        #0d0f18 0%, #131825 20%, #192240 35%,
+        #0f1422 50%, #18203a 68%, #0c1020 85%, #16203a 100%
+      ) !important;
+      background-size: 300% 300% !important;
+      animation: chrome-flow 7s ease infinite !important;
+      border: 1.5px solid rgba(255,255,255,0.09) !important;
+      transition: transform 0.18s cubic-bezier(0.22,1,0.36,1),
+                  border-color 0.2s !important;
+    }
+    .history-item::before { display: none !important; }
+    .history-item:hover {
+      transform: scale(1.02) !important;
+      border-color: rgba(255,255,255,0.20) !important;
+    }
+    .history-date   { color: rgba(160,185,230,0.50) !important; }
+    .history-preview{ color: rgba(210,222,248,0.88) !important; }
+
+    /* ── ACCOUNT AI STATUS CARD ── */
+    .account-ai-status {
+      background: rgba(255,255,255,0.04) !important;
+      border: 1px solid rgba(255,255,255,0.09) !important;
+      border-radius: 14px !important;
+      padding: 14px 16px !important;
+      box-shadow:
+        inset 1px 1px 1px -0.5px rgba(255,255,255,0.50),
+        inset -1px -1px 1px -0.5px rgba(255,255,255,0.50),
+        inset 0 0 6px 6px rgba(255,255,255,0.08),
+        0 4px 20px rgba(0,0,0,0.25) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+    }
+    .account-ai-grid {
+      display: grid !important;
+      grid-template-columns: auto 1fr !important;
+      gap: 6px 16px !important;
+      margin-top: 10px !important;
+    }
+    .account-ai-key {
+      font-family: 'Inter', sans-serif !important;
+      font-size: 11px !important;
+      letter-spacing: 1.2px !important;
+      color: rgba(180,195,220,0.40) !important;
+      align-self: center !important;
+    }
+    .account-ai-val {
+      font-family: 'Inter', sans-serif !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: rgba(220,230,250,0.90) !important;
+      text-align: right !important;
+    }
+
+    /* ── GLASS CALENDAR ── */
+    #glassCalendar {
+      position: fixed !important;
+      right: 22px !important;
+      width: 288px !important;
+      background: rgba(8,12,28,0.60) !important;
+      backdrop-filter: blur(32px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+      overflow: hidden !important;
+      z-index: 499 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      -webkit-app-region: no-drag !important;
+      font-family: 'Inter', sans-serif !important;
+      color: rgba(220,235,255,0.95) !important;
+      transition: bottom 0.4s cubic-bezier(0.22,1,0.36,1) !important;
+    }
+    #glassCalendar.gc-hidden { display: none !important; }
+    .gc-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding: 12px 14px 8px !important;
+    }
+    .gc-tabs {
+      display: flex !important;
+      align-items: center !important;
+      gap: 2px !important;
+      background: rgba(0,0,0,0.25) !important;
+      border-radius: 8px !important;
+      padding: 3px !important;
+    }
+    .gc-tab {
+      border: none !important;
+      border-radius: 6px !important;
+      padding: 3px 10px !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      cursor: pointer !important;
+      transition: all 0.2s !important;
+      background: transparent !important;
+      color: rgba(255,255,255,0.45) !important;
+    }
+    .gc-tab.active {
+      background: #fff !important;
+      color: #000 !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important;
+    }
+    .gc-settings-btn {
+      background: none !important;
+      border: none !important;
+      color: rgba(160,185,230,0.50) !important;
+      cursor: pointer !important;
+      padding: 4px !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      transition: background 0.2s, color 0.2s !important;
+      font-size: 14px !important;
+    }
+    .gc-settings-btn:hover { background: rgba(255,255,255,0.08) !important; color: rgba(220,235,255,0.9) !important; }
+    .gc-month-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding: 4px 14px 12px !important;
+    }
+    .gc-month-name {
+      font-size: 26px !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.5px !important;
+      color: rgba(230,240,255,0.97) !important;
+    }
+    .gc-nav-btns {
+      display: flex !important;
+      gap: 4px !important;
+    }
+    .gc-nav-btn {
+      background: none !important;
+      border: none !important;
+      color: rgba(160,185,230,0.55) !important;
+      font-size: 16px !important;
+      cursor: pointer !important;
+      padding: 2px 4px !important;
+      border-radius: 50% !important;
+      line-height: 1 !important;
+      transition: background 0.2s, color 0.2s !important;
+    }
+    .gc-nav-btn:hover { background: rgba(255,255,255,0.08) !important; color: rgba(220,235,255,0.9) !important; }
+    .gc-days-scroll {
+      overflow-x: auto !important;
+      padding: 0 14px 14px !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+    .gc-days-scroll::-webkit-scrollbar { display: none !important; }
+    .gc-days-track {
+      display: flex !important;
+      gap: 10px !important;
+    }
+    .gc-day-col {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 6px !important;
+      flex-shrink: 0 !important;
+    }
+    .gc-dow {
+      font-size: 9px !important;
+      font-weight: 700 !important;
+      color: rgba(255,255,255,0.35) !important;
+      letter-spacing: 0.5px !important;
+    }
+    .gc-day-btn {
+      width: 28px !important;
+      height: 28px !important;
+      border-radius: 50% !important;
+      border: none !important;
+      background: transparent !important;
+      color: rgba(220,235,255,0.85) !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      transition: background 0.2s !important;
+    }
+    .gc-day-btn:hover:not(.gc-selected) { background: rgba(255,255,255,0.12) !important; }
+    .gc-day-btn.gc-selected {
+      background: linear-gradient(135deg, #ec4899, #f97316) !important;
+      color: #fff !important;
+      box-shadow: 0 2px 12px rgba(236,72,153,0.45) !important;
+    }
+    .gc-today-dot {
+      position: absolute !important;
+      bottom: 2px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: 4px !important;
+      height: 4px !important;
+      border-radius: 50% !important;
+      background: #ec4899 !important;
+    }
+    .gc-divider {
+      height: 1px !important;
+      background: rgba(255,255,255,0.08) !important;
+      margin: 0 14px !important;
+    }
+    .gc-footer {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding: 10px 14px 12px !important;
+    }
+    .gc-note-btn {
+      background: none !important;
+      border: none !important;
+      color: rgba(160,185,230,0.55) !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+      transition: color 0.2s !important;
+    }
+    .gc-note-btn:hover { color: rgba(220,235,255,0.9) !important; }
+    .gc-new-event-btn {
+      background: rgba(0,0,0,0.28) !important;
+      border: none !important;
+      border-radius: 8px !important;
+      padding: 6px 10px !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      color: rgba(220,235,255,0.90) !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+      transition: background 0.2s !important;
+    }
+    .gc-new-event-btn:hover { background: rgba(255,255,255,0.10) !important; }
+
+    /* Event dot under day number */
+    .gc-event-dot {
+      position: absolute !important;
+      bottom: 1px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: 4px !important;
+      height: 4px !important;
+      border-radius: 50% !important;
+      background: #60a5fa !important;
+    }
+    /* Today ring when not selected */
+    .gc-day-btn.gc-today:not(.gc-selected) {
+      border: 1px solid rgba(236,72,153,0.55) !important;
+    }
+
+    /* ── CALENDAR EVENT FORM ── */
+    .gc-event-form {
+      display: none !important;
+      flex-direction: column !important;
+      gap: 7px !important;
+      padding: 10px 14px 12px !important;
+      border-top: 1px solid rgba(255,255,255,0.07) !important;
+      background: rgba(0,0,0,0.18) !important;
+    }
+    .gc-event-form.visible { display: flex !important; }
+    .gc-form-title {
+      font-size: 9px !important;
+      letter-spacing: 2px !important;
+      font-weight: 700 !important;
+      color: rgba(160,185,230,0.55) !important;
+      font-family: 'Share Tech Mono', monospace !important;
+      margin-bottom: 2px !important;
+    }
+    .gc-gcal-row {
+      display: flex !important;
+      align-items: center !important;
+      gap: 7px !important;
+      font-size: 10px !important;
+      color: rgba(160,185,230,0.65) !important;
+      cursor: pointer !important;
+    }
+    .gc-gcal-row input[type="checkbox"] { cursor: pointer !important; accent-color: #ec4899 !important; }
+
+    /* ── CALENDAR SETTINGS PANEL ── */
+    .gc-settings-panel {
+      display: none !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      padding: 10px 14px 14px !important;
+      border-top: 1px solid rgba(255,255,255,0.07) !important;
+      background: rgba(0,0,0,0.22) !important;
+    }
+    .gc-settings-panel.visible { display: flex !important; }
+    .gc-settings-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+    }
+    .gc-settings-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      font-size: 11px !important;
+      color: rgba(200,220,255,0.70) !important;
+    }
+    .gc-sync-btn {
+      background: rgba(80,120,255,0.18) !important;
+      border: 1px solid rgba(100,150,255,0.28) !important;
+      border-radius: 6px !important;
+      color: rgba(180,210,255,0.85) !important;
+      font-size: 9px !important;
+      font-weight: 700 !important;
+      padding: 3px 9px !important;
+      cursor: pointer !important;
+      transition: background 0.15s !important;
+      letter-spacing: 0.5px !important;
+    }
+    .gc-sync-btn:hover { background: rgba(80,120,255,0.32) !important; }
+    .gc-settings-hint {
+      font-size: 10px !important;
+      color: rgba(140,170,220,0.45) !important;
+      line-height: 1.5 !important;
+      margin: 0 !important;
+    }
+    .gc-settings-hint em { color: rgba(180,210,255,0.65) !important; font-style: normal !important; }
+
+    /* ── REMINDERS PANEL ── */
+    #remindersPanel {
+      position: fixed !important;
+      right: 22px !important;
+      width: 288px !important;
+      background: rgba(8,12,28,0.60) !important;
+      backdrop-filter: blur(32px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+      overflow: hidden !important;
+      z-index: 498 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      -webkit-app-region: no-drag !important;
+      font-family: 'Inter', sans-serif !important;
+      color: rgba(220,235,255,0.95) !important;
+      transition: bottom 0.4s cubic-bezier(0.22,1,0.36,1) !important;
+    }
+    #remindersPanel.rp-hidden { display: none !important; }
+    .rp-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding: 12px 14px 8px !important;
+      border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+    }
+    .rp-title {
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: 9px !important;
+      letter-spacing: 2px !important;
+      color: rgba(160,185,230,0.55) !important;
+    }
+    .rp-add-btn {
+      background: rgba(80,120,255,0.18) !important;
+      border: 1px solid rgba(100,150,255,0.30) !important;
+      border-radius: 6px !important;
+      color: rgba(180,210,255,0.85) !important;
+      font-size: 9px !important;
+      font-weight: 700 !important;
+      padding: 3px 8px !important;
+      cursor: pointer !important;
+      transition: background 0.2s !important;
+    }
+    .rp-add-btn:hover { background: rgba(80,120,255,0.30) !important; }
+    .rp-list {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0 !important;
+      max-height: 220px !important;
+      overflow-y: auto !important;
+      scrollbar-width: none !important;
+    }
+    .rp-list::-webkit-scrollbar { display: none !important; }
+    .rp-item {
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+      padding: 9px 14px !important;
+      border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+      transition: background 0.15s !important;
+    }
+    .rp-item:last-child { border-bottom: none !important; }
+    .rp-item:hover { background: rgba(255,255,255,0.03) !important; }
+    .rp-item.rp-done .rp-text { text-decoration: line-through !important; opacity: 0.4 !important; }
+    .rp-icon {
+      font-size: 16px !important;
+      flex-shrink: 0 !important;
+      width: 28px !important;
+      height: 28px !important;
+      border-radius: 8px !important;
+      background: rgba(80,120,255,0.15) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .rp-content {
+      flex: 1 !important;
+      min-width: 0 !important;
+    }
+    .rp-text {
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      color: rgba(220,235,255,0.90) !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      transition: opacity 0.2s !important;
+    }
+    .rp-time {
+      font-size: 9px !important;
+      color: rgba(140,170,220,0.50) !important;
+      margin-top: 2px !important;
+      font-family: 'Share Tech Mono', monospace !important;
+    }
+    .rp-actions {
+      display: flex !important;
+      gap: 4px !important;
+      flex-shrink: 0 !important;
+    }
+    .rp-done-btn, .rp-del-btn {
+      background: none !important;
+      border: none !important;
+      width: 26px !important;
+      height: 26px !important;
+      border-radius: 7px !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 12px !important;
+      transition: background 0.15s, color 0.15s !important;
+    }
+    .rp-done-btn { color: rgba(120,200,120,0.55) !important; }
+    .rp-done-btn:hover { background: rgba(0,210,100,0.12) !important; color: #00d46a !important; }
+    .rp-del-btn { color: rgba(200,120,120,0.45) !important; }
+    .rp-del-btn:hover { background: rgba(255,60,60,0.14) !important; color: #ff5050 !important; }
+    .rp-empty {
+      padding: 18px 14px !important;
+      text-align: center !important;
+      font-size: 11px !important;
+      color: rgba(160,185,230,0.30) !important;
+    }
+    /* Add reminder form */
+    .rp-add-form {
+      padding: 10px 14px !important;
+      border-top: 1px solid rgba(255,255,255,0.07) !important;
+      display: none !important;
+      flex-direction: column !important;
+      gap: 6px !important;
+    }
+    .rp-add-form.visible { display: flex !important; }
+    .rp-input {
+      background: rgba(255,255,255,0.06) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 8px !important;
+      padding: 6px 10px !important;
+      font-size: 11px !important;
+      color: rgba(220,235,255,0.90) !important;
+      font-family: 'Inter', sans-serif !important;
+      outline: none !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .rp-input:focus { border-color: rgba(100,150,255,0.45) !important; }
+    .rp-input::placeholder { color: rgba(160,185,230,0.30) !important; }
+    .rp-form-row {
+      display: flex !important;
+      gap: 6px !important;
+    }
+    .rp-save-btn {
+      flex: 1 !important;
+      background: rgba(80,120,255,0.25) !important;
+      border: 1px solid rgba(100,150,255,0.35) !important;
+      border-radius: 8px !important;
+      color: rgba(180,210,255,0.90) !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      padding: 6px !important;
+      cursor: pointer !important;
+      transition: background 0.2s !important;
+    }
+    .rp-save-btn:hover { background: rgba(80,120,255,0.40) !important; }
+    .rp-cancel-btn {
+      background: rgba(255,255,255,0.05) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 8px !important;
+      color: rgba(160,185,230,0.60) !important;
+      font-size: 10px !important;
+      padding: 6px 10px !important;
+      cursor: pointer !important;
+      transition: background 0.2s !important;
+    }
+    .rp-cancel-btn:hover { background: rgba(255,255,255,0.10) !important; }
+
+    /* ── FINANCIAL PANEL ── */
+    @keyframes bar-pulse {
+      0%,100% { transform: scaleY(1); }
+      50%      { transform: scaleY(1.35); }
+    }
+    #finPanel {
+      position: fixed !important;
+      bottom: 22px !important;
+      right: 22px !important;
+      width: 288px !important;
+      background: rgba(8,12,28,0.72) !important;
+      backdrop-filter: blur(28px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+      overflow: hidden !important;
+      z-index: 500 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      -webkit-app-region: no-drag !important;
+    }
+    #finPanel.fp-hidden { display: none !important; }
+    #finPanelHeader {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding: 10px 14px 8px !important;
+      border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+    }
+    #finPanelLabel {
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: 9px !important;
+      letter-spacing: 2px !important;
+      color: rgba(160,185,230,0.55) !important;
+    }
+    #finPanelNav {
+      display: flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+    }
+    #finPrev, #finNext {
+      background: none !important;
+      border: none !important;
+      color: rgba(160,185,230,0.50) !important;
+      font-size: 16px !important;
+      cursor: pointer !important;
+      line-height: 1 !important;
+      padding: 0 2px !important;
+      transition: color 0.15s !important;
+    }
+    #finPrev:hover, #finNext:hover { color: rgba(200,220,255,0.90) !important; }
+    #finDots {
+      display: flex !important;
+      gap: 5px !important;
+      align-items: center !important;
+    }
+    .fp-dot {
+      width: 5px !important;
+      height: 5px !important;
+      border-radius: 50% !important;
+      background: rgba(255,255,255,0.20) !important;
+      cursor: pointer !important;
+      transition: background 0.2s, transform 0.2s !important;
+    }
+    .fp-dot.active {
+      background: rgba(100,160,255,0.90) !important;
+      transform: scale(1.35) !important;
+    }
+    #finPanelClose {
+      background: none !important;
+      border: none !important;
+      color: rgba(160,185,230,0.40) !important;
+      font-size: 11px !important;
+      cursor: pointer !important;
+      padding: 0 !important;
+      line-height: 1 !important;
+      transition: color 0.15s !important;
+    }
+    #finPanelClose:hover { color: rgba(255,100,100,0.80) !important; }
+    #finSliderWrap {
+      overflow: hidden !important;
+      width: 288px !important;
+    }
+    #finSlider {
+      display: flex !important;
+      will-change: transform !important;
+      transition: transform 0.38s cubic-bezier(0.22,1,0.36,1) !important;
+    }
+    .fp-slide {
+      min-width: 288px !important;
+      width: 288px !important;
+      flex-shrink: 0 !important;
+      position: relative !important;
+      overflow: hidden !important;
+    }
+    /* Chart visual area */
+    .fp-chart-area {
+      position: relative !important;
+      width: 288px !important;
+      height: 130px !important;
+      overflow: hidden !important;
+    }
+    /* Grid */
+    .fp-grid {
+      position: absolute !important;
+      inset: 0 !important;
+      background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) !important;
+      background-size: 24px 24px !important;
+      mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 50%, transparent 100%) !important;
+      -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 50%, transparent 100%) !important;
+      z-index: 1 !important;
+    }
+    /* Radial glow */
+    .fp-glow {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 2 !important;
+      pointer-events: none !important;
+    }
+    /* Sparkline */
+    .fp-spark {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 3 !important;
+      display: flex !important;
+      align-items: flex-end !important;
+    }
+    .fp-spark svg { width: 100% !important; height: 100% !important; }
+    /* Bar chart (decorative animated overlay) */
+    .fp-bars-wrap {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 4 !important;
+      display: flex !important;
+      align-items: flex-end !important;
+      padding: 0 12px 0 !important;
+      gap: 5px !important;
+    }
+    .fp-bar {
+      flex: 1 !important;
+      border-radius: 3px 3px 0 0 !important;
+      transform-origin: bottom !important;
+      opacity: 0.55 !important;
+    }
+    /* Price overlay at bottom of chart */
+    .fp-price-overlay {
+      position: absolute !important;
+      bottom: 10px !important;
+      left: 14px !important;
+      right: 14px !important;
+      z-index: 6 !important;
+      display: flex !important;
+      align-items: flex-end !important;
+      justify-content: space-between !important;
+    }
+    .fp-sym {
+      font-family: 'Orbitron', monospace !important;
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      color: rgba(230,238,255,0.97) !important;
+      letter-spacing: 1px !important;
+    }
+    .fp-change-badge {
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      padding: 2px 8px !important;
+      border-radius: 6px !important;
+    }
+    .fp-change-badge.up { background: rgba(0,210,100,0.22) !important; color: #00d46a !important; }
+    .fp-change-badge.dn { background: rgba(255,60,60,0.22) !important; color: #ff5050 !important; }
+    /* Info row below chart */
+    .fp-info {
+      padding: 10px 14px 12px !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+    }
+    .fp-name {
+      font-family: 'Inter', sans-serif !important;
+      font-size: 11px !important;
+      color: rgba(160,185,230,0.55) !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      max-width: 160px !important;
+    }
+    .fp-price {
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      color: rgba(220,235,255,0.95) !important;
+    }
+    .fp-remove {
+      position: absolute !important;
+      top: 8px !important;
+      right: 10px !important;
+      z-index: 10 !important;
+      background: rgba(255,255,255,0.06) !important;
+      border: none !important;
+      border-radius: 50% !important;
+      width: 18px !important;
+      height: 18px !important;
+      font-size: 9px !important;
+      color: rgba(200,215,240,0.35) !important;
+      cursor: pointer !important;
+      opacity: 0 !important;
+      transition: opacity 0.15s, background 0.15s !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .fp-slide:hover .fp-remove { opacity: 1 !important; }
+    .fp-remove:hover { background: rgba(255,60,60,0.28) !important; color: rgba(255,100,100,0.90) !important; }
+
+    /* "Add to Panel" button on the stock card */
+    #cardFinBtn {
+      display: block !important;
+      width: 100% !important;
+      margin-top: 7px !important;
+      padding: 10px !important;
+      background: rgba(60,100,255,0.16) !important;
+      border: 1px solid rgba(80,140,255,0.30) !important;
+      border-radius: 10px !important;
+      color: rgba(160,200,255,0.90) !important;
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: 11px !important;
+      letter-spacing: 1px !important;
+      cursor: pointer !important;
+      transition: background 0.2s, border-color 0.2s !important;
+      -webkit-app-region: no-drag !important;
+      pointer-events: auto !important;
+    }
+    #cardFinBtn:hover { background: rgba(60,100,255,0.28) !important; border-color: rgba(100,160,255,0.50) !important; }
+    #cardFinBtn.added { background: rgba(0,180,80,0.14) !important; border-color: rgba(0,200,100,0.30) !important; color: rgba(0,210,110,0.85) !important; }
+
+    /* ── FAVOURITES — gold border glow (matches theme-toggle button treatment) ── */
+    #lnavTabs .lnav-tab[data-section="favourites"] {
+      border-color: rgba(255,200,50,0.55) !important;
+      color: rgba(255,220,120,0.90) !important;
+      box-shadow:
+        0 0 0 1px rgba(255,195,40,0.18),
+        0 0 16px rgba(255,185,20,0.28),
+        0 4px 18px rgba(0,0,0,0.28),
+        inset  3px  3px 0.5px -3.5px rgba(255,220,80,0.18),
+        inset -3px -3px 0.5px -3.5px rgba(255,220,80,0.70),
+        inset  1px  1px   1px -0.5px rgba(255,230,100,0.55),
+        inset -1px -1px   1px -0.5px rgba(255,230,100,0.55),
+        inset  0    0    6px   6px   rgba(255,190,30,0.08),
+        inset  0    0    2px   2px   rgba(255,190,30,0.06) !important;
+    }
+
+    #lnavTabs .lnav-tab[data-section="favourites"]:hover {
+      border-color: rgba(255,210,60,0.80) !important;
+      color: rgba(255,230,140,0.98) !important;
+      box-shadow:
+        0 0 0 1px rgba(255,195,40,0.30),
+        0 0 28px rgba(255,185,20,0.45),
+        0 6px 22px rgba(0,0,0,0.32),
+        inset  3px  3px 0.5px -3.5px rgba(255,220,80,0.22),
+        inset -3px -3px 0.5px -3.5px rgba(255,220,80,0.85),
+        inset  1px  1px   1px -0.5px rgba(255,230,100,0.70),
+        inset -1px -1px   1px -0.5px rgba(255,230,100,0.70),
+        inset  0    0    6px   6px   rgba(255,190,30,0.12),
+        inset  0    0    2px   2px   rgba(255,190,30,0.09) !important;
+    }
+
+    #lnavTabs .lnav-tab.active[data-section="favourites"] {
+      background: rgba(255,175,20,0.12) !important;
+      border-color: rgba(255,215,60,0.75) !important;
+      color: rgba(255,235,150,1.00) !important;
+      box-shadow:
+        0 0 0 1px rgba(255,195,40,0.35),
+        0 0 32px rgba(255,185,20,0.55),
+        0 6px 22px rgba(0,0,0,0.32),
+        inset  3px  3px 0.5px -3.5px rgba(255,220,80,0.25),
+        inset -3px -3px 0.5px -3.5px rgba(255,220,80,0.95),
+        inset  1px  1px   1px -0.5px rgba(255,235,100,0.80),
+        inset -1px -1px   1px -0.5px rgba(255,235,100,0.80),
+        inset  0    0    6px   6px   rgba(255,190,30,0.14),
+        inset  0    0    2px   2px   rgba(255,190,30,0.10) !important;
+    }
+  </style>
 </head>
 <body>
   <!-- WebGL shader background -->
   <canvas id="shaderBg"></canvas>
+
+  <!-- Ambient color accents — fixed behind everything -->
+  <div id="colorAccents"></div>
 
   <!-- Action flash overlay — fades in/out when Jarvis opens something -->
   <div id="actionFlash"></div>
 
   <div id="panel">
 
+    <!-- Dark mode: animated dot surface -->
+    <canvas id="dotSurface"></canvas>
+    <!-- Light mode: GLSL hills surface -->
+    <canvas id="hillSurface" style="display:none;"></canvas>
+
+
     <!-- Splash -->
     <div id="splash">
       <div class="splash-ring"></div>
-      <div id="splashName">JARVIS</div>
+      <div id="splashName">YOUR AI</div>
       <div id="splashStatus">Initializing systems...</div>
     </div>
 
     <!-- Auth / Setup -->
     <div id="setup" class="hidden">
-      <div class="setup-box">
+      <div class="setup-box" id="setupBox">
+        <!-- Animated light beams around card border -->
+        <div class="beam-border">
+          <div class="beam-top"></div>
+          <div class="beam-right"></div>
+          <div class="beam-bottom"></div>
+          <div class="beam-left"></div>
+        </div>
+
         <div class="setup-logo">⬡</div>
         <h2>PERSONAL AI ASSISTANT</h2>
 
@@ -32,9 +1044,9 @@
           <p>First, give your assistant a name</p>
           <div class="setup-field">
             <label>NAME YOUR ASSISTANT</label>
-            <input id="setupName" placeholder="e.g. JARVIS, MAX, ARIA..." autocomplete="off" />
+            <input id="setupName" placeholder="e.g. MAX, ARIA, NOVA..." autocomplete="off" />
           </div>
-          <button id="nameNext">CONTINUE →</button>
+          <button id="nameNext" class="shine-btn">CONTINUE →</button>
         </div>
 
         <!-- Step 2: Auth (sign up or log in) -->
@@ -44,7 +1056,7 @@
             <button class="auth-tab" id="tabLogin">LOG IN</button>
           </div>
 
-          <button id="googleBtn">
+          <button id="googleBtn" class="shine-btn">
             <svg width="18" height="18" viewBox="0 0 18 18" style="margin-right:8px;vertical-align:middle"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
             Continue with Google
           </button>
@@ -53,30 +1065,199 @@
 
           <div class="setup-field" id="signupEmailField">
             <label>EMAIL</label>
-            <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+              <input id="authEmail" type="email" placeholder="Email address" autocomplete="email" />
+            </div>
           </div>
-          <div class="setup-field">
-            <label>PASSWORD</label>
-            <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+          <div class="setup-field" id="signupNameField">
+            <label>WHAT SHOULD THE AI CALL YOU?</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input id="authDisplayName" type="text" placeholder="e.g. Alex, boss, captain..." autocomplete="off" />
+            </div>
+          </div>
+          <div class="setup-field" id="signupGenderField">
+            <label>HOW SHOULD THE AI ADDRESS YOU?</label>
+            <div class="gender-options">
+              <button class="gender-btn active" data-value="sir">SIR</button>
+              <button class="gender-btn" data-value="maam">MA'AM</button>
+              <button class="gender-btn" data-value="none">NO TITLE</button>
+            </div>
+          </div>
+          <div class="setup-field" id="signupVoiceField">
+            <label>AI VOICE</label>
+            <div class="gender-options">
+              <button class="gender-btn active" id="voiceOptMale" data-voice="male">♂ MALE</button>
+              <button class="gender-btn" id="voiceOptFemale" data-voice="female">♀ FEMALE</button>
+            </div>
+          </div>
+          <div class="setup-field" id="signupCountryField">
+            <label>WHERE ARE YOU USING THIS FROM?</label>
+            <div class="auth-input-wrap auth-select-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <select id="signupCountry">
+                <option value="">Select your country…</option>
+                <option value="Afghanistan">Afghanistan</option><option value="Albania">Albania</option><option value="Algeria">Algeria</option><option value="Argentina">Argentina</option><option value="Australia">Australia</option><option value="Austria">Austria</option><option value="Bangladesh">Bangladesh</option><option value="Belgium">Belgium</option><option value="Brazil">Brazil</option><option value="Canada">Canada</option><option value="Chile">Chile</option><option value="China">China</option><option value="Colombia">Colombia</option><option value="Croatia">Croatia</option><option value="Czech Republic">Czech Republic</option><option value="Denmark">Denmark</option><option value="Egypt">Egypt</option><option value="Ethiopia">Ethiopia</option><option value="Finland">Finland</option><option value="France">France</option><option value="Germany">Germany</option><option value="Ghana">Ghana</option><option value="Greece">Greece</option><option value="Hungary">Hungary</option><option value="India">India</option><option value="Indonesia">Indonesia</option><option value="Iran">Iran</option><option value="Iraq">Iraq</option><option value="Ireland">Ireland</option><option value="Israel">Israel</option><option value="Italy">Italy</option><option value="Japan">Japan</option><option value="Jordan">Jordan</option><option value="Kenya">Kenya</option><option value="Malaysia">Malaysia</option><option value="Mexico">Mexico</option><option value="Morocco">Morocco</option><option value="Netherlands">Netherlands</option><option value="New Zealand">New Zealand</option><option value="Nigeria">Nigeria</option><option value="Norway">Norway</option><option value="Pakistan">Pakistan</option><option value="Peru">Peru</option><option value="Philippines">Philippines</option><option value="Poland">Poland</option><option value="Portugal">Portugal</option><option value="Romania">Romania</option><option value="Russia">Russia</option><option value="Saudi Arabia">Saudi Arabia</option><option value="Senegal">Senegal</option><option value="Serbia">Serbia</option><option value="Singapore">Singapore</option><option value="South Africa">South Africa</option><option value="South Korea">South Korea</option><option value="Spain">Spain</option><option value="Sweden">Sweden</option><option value="Switzerland">Switzerland</option><option value="Thailand">Thailand</option><option value="Turkey">Turkey</option><option value="UAE">UAE</option><option value="Uganda">Uganda</option><option value="Ukraine">Ukraine</option><option value="United Kingdom">United Kingdom</option><option value="United States">United States</option><option value="Venezuela">Venezuela</option><option value="Vietnam">Vietnam</option>
+              </select>
+            </div>
           </div>
 
-          <button id="authSubmit">CREATE ACCOUNT</button>
+          <div class="setup-field">
+            <label>PASSWORD</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" />
+              <button class="auth-pw-toggle" id="authPwToggle" type="button" tabindex="-1" title="Show/hide password">
+                <svg id="authEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button id="authSubmit" class="shine-btn">CREATE ACCOUNT</button>
           <div id="authError" class="setup-error hidden"></div>
           <p class="setup-subscribe" id="authFooter">Already have an account? <a href="#" id="switchToLogin">Log in →</a></p>
         </div>
 
-        <!-- Step 3: Payment required -->
+        <!-- Step 3: Terms of Service -->
+        <div id="termsStep" class="hidden">
+          <div class="terms-header">
+            <div class="pay-badge">BEFORE WE CONTINUE</div>
+            <h3 class="terms-title">Terms &amp; Privacy</h3>
+            <p class="terms-subtitle">Please review and agree to continue</p>
+          </div>
+
+          <div class="terms-scroll" id="termsScroll">
+            <div class="terms-section">
+              <h4>1. Acceptance of Terms</h4>
+              <p>By using this AI assistant ("Your Personal AI"), you agree to be bound by these Terms of Service. If you do not agree, do not use the service. You must be at least 13 years old to use this service.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>2. AI-Generated Content</h4>
+              <p>This service uses large language models to generate responses. Outputs may be inaccurate, incomplete, or outdated. You are solely responsible for verifying any information before acting on it. We make no warranties as to the accuracy, reliability, or fitness of AI-generated content for any particular purpose.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>3. Data &amp; Privacy</h4>
+              <p>Your conversations may be used to improve the service. We do not sell your personal data to third parties. Conversation history is stored locally on your device. Any data transmitted to AI providers (OpenAI) is governed by their respective privacy policies.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>4. Prohibited Uses</h4>
+              <p>You agree not to use this service to generate harmful, illegal, or deceptive content; to harass or harm others; to violate any applicable laws or regulations; or to attempt to circumvent safety measures built into the service.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>5. Connected Services</h4>
+              <p>When you connect third-party services (Gmail, Google Drive, Outlook, etc.), you grant your Personal AI permission to access those services on your behalf. You may revoke access at any time via the connectors panel.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>6. Limitation of Liability</h4>
+              <p>This service is provided "as is." To the maximum extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of the service, including loss of data, financial loss, or decisions made based on AI outputs.</p>
+            </div>
+
+            <div class="terms-section">
+              <h4>7. Changes to Terms</h4>
+              <p>We may update these terms at any time. Continued use of this service after changes constitutes acceptance of the revised terms. We will notify you of material changes within the app.</p>
+            </div>
+
+            <div class="terms-fade-hint" id="termsFadeHint">Scroll to read all terms</div>
+          </div>
+
+          <button id="agreeBtn" class="agree-btn shine-btn" disabled>
+            <span class="agree-text">I AGREE TO THE TERMS</span>
+            <i class="agree-arrow" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </i>
+          </button>
+          <p class="terms-note">By clicking agree, you confirm you are 13+ and accept the terms above.</p>
+        </div>
+
+        <!-- Step 4: Payment — choose plan -->
         <div id="paymentStep" class="hidden">
-          <div class="payment-icon">💳</div>
-          <h3 class="payment-title">ONE LAST STEP</h3>
-          <p class="payment-desc">Subscribe to activate your assistant.<br>$10 / month — cancel anytime.</p>
-          <button id="payBtn">SUBSCRIBE NOW →</button>
+          <div class="pay-header">
+            <div class="pay-badge">ONE LAST STEP</div>
+            <h3 class="pay-title">Choose Your Plan</h3>
+            <p class="pay-subtitle">Start free or unlock the full power of your AI</p>
+          </div>
+
+          <!-- Plan cards -->
+          <div id="planCards" class="plan-cards">
+
+            <!-- Premium card -->
+            <div class="plan-card plan-premium">
+              <div class="plan-badge-pill">MOST POPULAR</div>
+              <div class="plan-icon">⚡</div>
+              <div class="plan-name">PREMIUM</div>
+              <div class="plan-price-row">
+                <span class="plan-price">$20</span>
+                <span class="plan-per">/month</span>
+              </div>
+              <ul class="plan-features">
+                <li>✦ Unlimited conversations</li>
+                <li>✦ All connectors unlocked</li>
+                <li>✦ Priority AI responses</li>
+                <li>✦ Google Drive access</li>
+              </ul>
+              <button class="shiny-btn" id="choosePremium"><span>Get Premium →</span></button>
+            </div>
+
+            <!-- Free card -->
+            <div class="plan-card plan-free">
+              <div class="plan-icon" style="color:rgba(0,200,255,0.4)">◇</div>
+              <div class="plan-name" style="color:rgba(200,220,255,0.7)">FREE TRIAL</div>
+              <div class="plan-price-row">
+                <span class="plan-price" style="font-size:28px;color:rgba(200,220,255,0.85)">$0</span>
+              </div>
+              <ul class="plan-features" style="color:rgba(160,190,255,0.55)">
+                <li>✦ 20 messages per day</li>
+                <li>✦ Basic AI responses</li>
+                <li>✦ Core features only</li>
+                <li style="opacity:0.35">✦ No connectors</li>
+              </ul>
+              <button class="free-btn" id="chooseFree"><span>Try for Free</span></button>
+            </div>
+
+          </div>
+
+          <!-- Billing interval sub-step (shown after clicking Premium) -->
+          <div id="billingInterval" class="hidden">
+            <button class="pay-back-btn" id="payBackBtn">← Back</button>
+            <div class="pay-header">
+              <div class="pay-badge">PREMIUM</div>
+              <h3 class="pay-title">Pick Your Billing</h3>
+              <p class="pay-subtitle">Save 17% with annual billing</p>
+            </div>
+            <div class="interval-cards">
+
+              <div class="interval-card" id="intervalMonthly">
+                <div class="interval-label">MONTHLY</div>
+                <div class="interval-price">$20<span>/mo</span></div>
+                <div class="interval-note">Billed monthly — cancel anytime</div>
+                <button class="shiny-btn" id="payMonthly"><span>Subscribe Monthly →</span></button>
+              </div>
+
+              <div class="interval-card interval-annual" id="intervalAnnual">
+                <div class="interval-save-pill">SAVE $40</div>
+                <div class="interval-label">ANNUAL</div>
+                <div class="interval-price">$200<span>/yr</span></div>
+                <div class="interval-note">Just $16.67/mo — best value</div>
+                <button class="shiny-btn shiny-btn-gold" id="payAnnual"><span>Subscribe Annually →</span></button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Waiting for Stripe -->
           <div id="payWaiting" class="hidden">
             <div class="pay-spinner"></div>
             <p class="pay-wait-text">Waiting for payment confirmation...</p>
             <p class="pay-wait-sub">Complete payment in your browser, then return here.</p>
-            <button id="payCheckBtn" style="margin-top:16px;letter-spacing:2px;font-size:12px;">I'VE PAID — CHECK NOW</button>
+            <button id="payCheckBtn">I'VE PAID — CHECK NOW</button>
           </div>
+
           <div id="payError" class="setup-error hidden"></div>
         </div>
 
@@ -85,15 +1266,24 @@
           <p id="reloginMsg">Welcome back. Please log in to continue.</p>
           <div class="setup-field">
             <label>EMAIL</label>
-            <input id="reloginEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+              <input id="reloginEmail" type="email" placeholder="Email address" autocomplete="email" />
+            </div>
           </div>
           <div class="setup-field">
             <label>PASSWORD</label>
-            <input id="reloginPassword" type="password" placeholder="••••••••" />
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input id="reloginPassword" type="password" placeholder="Password" />
+              <button class="auth-pw-toggle" id="reloginPwToggle" type="button" tabindex="-1" title="Show/hide password">
+                <svg id="reloginEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
           </div>
-          <button id="reloginSubmit">LOG IN</button>
+          <button id="reloginSubmit" class="shine-btn">LOG IN</button>
           <div id="reloginError" class="setup-error hidden"></div>
-          <button id="reloginGoogle">
+          <button id="reloginGoogle" class="shine-btn">
             <svg width="16" height="16" viewBox="0 0 18 18" style="margin-right:6px;vertical-align:middle"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
             Sign in with Google
           </button>
@@ -107,7 +1297,7 @@
       <canvas id="sphereCanvas"></canvas>
       <div id="welcomeContent">
         <div id="sphereLabel">YOUR OWN PERSONAL AI</div>
-        <h1 id="enterBtn">ENTER <span id="enterAiName">JARVIS</span> AI</h1>
+        <h1 id="enterBtn">ENTER <span id="enterAiName">YOUR</span> AI</h1>
         <p id="enterSubtitle">An intelligent assistant designed for you alone.<br>Faster thinking. Instant action. Always at your command.</p>
       </div>
     </div>
@@ -115,219 +1305,626 @@
     <!-- Main interface -->
     <div id="main" class="hidden">
 
-      <!-- History sidebar (left) -->
-      <div id="historySidebar" class="hidden">
-        <div id="historyHeader">
-          <span>CHAT HISTORY</span>
-          <button id="historyClose">✕</button>
+      <!-- Wave background canvas (light mode only) -->
+      <canvas id="waveCanvas"></canvas>
+
+      <!-- Unified left navigation -->
+      <div id="leftNav">
+
+        <!-- Single hamburger toggle button -->
+        <div id="leftNavRail">
+          <button class="lnav-icon" id="navToggleBtn" title="Menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
         </div>
-        <div id="historyList"></div>
-      </div>
+
+        <!-- Expandable content panel -->
+        <div id="historySidebar" class="hidden">
+          <div id="historyHeader">
+            <button id="historyClose" title="Close">✕</button>
+          </div>
+          <!-- Section nav tabs -->
+          <div id="lnavTabs">
+            <button class="lnav-tab active" data-section="history">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/>
+                <polyline points="10,6 10,10.5 13,12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Chat History</span>
+            </button>
+            <button class="lnav-tab" data-section="favourites">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="10,2.5 12.25,7.75 18,8.45 13.9,12.3 15.1,18 10,15.2 4.9,18 6.1,12.3 2,8.45 7.75,7.75" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>
+              </svg>
+              <span>Favourites</span>
+            </button>
+            <button class="lnav-tab" data-section="connectors">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="5" cy="10" r="2.5" stroke="currentColor" stroke-width="1.35"/>
+                <circle cx="15" cy="10" r="2.5" stroke="currentColor" stroke-width="1.35"/>
+                <line x1="7.5" y1="10" x2="12.5" y2="10" stroke="currentColor" stroke-width="1.35"/>
+                <line x1="5" y1="7.5" x2="5" y2="4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+                <line x1="15" y1="7.5" x2="15" y2="4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+              </svg>
+              <span>Connectors</span>
+            </button>
+            <button class="lnav-tab" data-section="settings">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.35"/>
+                <path d="M3.5 17.5c0-3.314 2.91-6 6.5-6s6.5 2.686 6.5 6" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+              </svg>
+              <span>Account</span>
+            </button>
+          </div>
+
+          <!-- ── HISTORY PANE ── -->
+          <div class="lnav-pane" id="lnavPaneHistory">
+            <div id="historyList"></div>
+            <div class="sidebar-widget" id="widgetQuickCmds">
+              <div class="sw-title">🎙 QUICK COMMANDS</div>
+              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Open my calendar'; document.getElementById('userInput').focus()">"Open my calendar"</button>
+              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Summarise my emails'; document.getElementById('userInput').focus()">"Summarise my emails"</button>
+              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Play focus music'; document.getElementById('userInput').focus()">"Play focus music"</button>
+              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value=\"What's on my schedule?\"; document.getElementById('userInput').focus()">"What's on my schedule?"</button>
+              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Set a reminder for...'; document.getElementById('userInput').focus()">"Set a reminder for..."</button>
+            </div>
+          </div>
+
+          <!-- ── FAVOURITES PANE ── -->
+          <div class="lnav-pane hidden" id="lnavPaneFavourites">
+            <div id="favouritesList"></div>
+            <div id="favouritesEmpty">
+              <div class="fav-empty-icon">⭐</div>
+              <div class="fav-empty-text">NO FAVOURITES YET<br>ADD STOCKS, SCORES &amp;<br>UPCOMING EVENTS</div>
+            </div>
+          </div>
+
+          <!-- ── CONNECTORS PANE ── -->
+          <div class="lnav-pane hidden" id="lnavPaneConnectors">
+            <div class="connector-section">
+              <div class="connector-row" id="gmailRow">
+                <div class="connector-icon gmail"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg></div>
+                <div class="connector-info"><div class="connector-name">GMAIL</div><div class="connector-status" id="gmailStatus">Not connected</div></div>
+                <button class="connector-btn" id="gmailBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="outlookRow">
+                <div class="connector-icon outlook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/><line x1="2" y1="20" x2="8" y2="14"/><line x1="22" y1="20" x2="16" y2="14"/></svg></div>
+                <div class="connector-info"><div class="connector-name">OUTLOOK</div><div class="connector-status" id="outlookStatus">Not connected</div></div>
+                <button class="connector-btn" id="outlookBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="calendarRow">
+                <div class="connector-icon calendar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5"/></svg></div>
+                <div class="connector-info"><div class="connector-name">GOOGLE CALENDAR</div><div class="connector-status" id="calendarStatus">Not connected</div></div>
+                <button class="connector-btn" id="calendarBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="driveRow">
+                <div class="connector-icon drive"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a2 2 0 0 1-1.7-3l4.5-8a2 2 0 0 1 1.7-1h10a2 2 0 0 1 1.7 1l4.5 8a2 2 0 0 1-1.7 3z"/><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+                <div class="connector-info"><div class="connector-name">GOOGLE DRIVE</div><div class="connector-status" id="driveStatus">Not connected</div></div>
+                <button class="connector-btn" id="driveBtn">CONNECT</button>
+              </div>
+            </div>
+            <div class="connector-section">
+              <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
+              <p class="connector-hint">Emails from these people will be read out in detail. Say their first name when emailing — Jarvis will find their address automatically.</p>
+              <div id="vipList"></div>
+              <div class="vip-add-row">
+                <input id="vipInput" placeholder="name or email@example.com" autocomplete="off" />
+                <button id="vipAddBtn">+ ADD</button>
+              </div>
+            </div>
+            <div class="connector-section">
+              <div class="connector-section-title">📊 BUSINESS &amp; ANALYTICS</div>
+              <p class="connector-hint">Connect your platforms so you can ask about sales, revenue, views, and followers at any time.</p>
+              <div class="connector-row" id="youtubeRow">
+                <div class="connector-icon youtube"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75,15.02 15.5,12 9.75,8.98 9.75,15.02" fill="currentColor" stroke="none"/></svg></div>
+                <div class="connector-info"><div class="connector-name">YOUTUBE STUDIO</div><div class="connector-status" id="youtubeStatus">Not connected</div></div>
+                <button class="connector-btn" id="youtubeBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="instagramRow">
+                <div class="connector-icon instagram"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></div>
+                <div class="connector-info"><div class="connector-name">INSTAGRAM</div><div class="connector-status" id="instagramStatus">Not connected</div></div>
+                <button class="connector-btn" id="instagramBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="tiktokRow">
+                <div class="connector-icon tiktok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></div>
+                <div class="connector-info"><div class="connector-name">TIKTOK STUDIO</div><div class="connector-status" id="tiktokStatus">Not connected</div></div>
+                <button class="connector-btn" id="tiktokBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="shopifyRow">
+                <div class="connector-icon shopify"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+                <div class="connector-info"><div class="connector-name">SHOPIFY / WEBSITE</div><div class="connector-status" id="shopifyStatus">Not connected</div></div>
+                <button class="connector-btn" id="shopifyBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="squarespaceRow">
+                <div class="connector-icon squarespace"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg></div>
+                <div class="connector-info"><div class="connector-name">SQUARESPACE</div><div class="connector-status" id="squarespaceStatus">Not connected</div></div>
+                <button class="connector-btn" id="squarespaceBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="ganalyticsRow">
+                <div class="connector-icon ganalytics"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
+                <div class="connector-info"><div class="connector-name">WEBSITE TRAFFIC</div><div class="connector-status" id="ganalyticsStatus">Not connected · Works with any website</div></div>
+                <button class="connector-btn" id="ganalyticsBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="stripeRow">
+                <div class="connector-icon stripe"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="6.01" y2="15" stroke-width="3"/><line x1="10" y1="15" x2="14" y2="15"/></svg></div>
+                <div class="connector-info"><div class="connector-name">REVENUE &amp; PAYMENTS</div><div class="connector-status" id="stripeStatus">Not connected · Works with any website</div></div>
+                <button class="connector-btn" id="stripeBtn">CONNECT</button>
+              </div>
+              <button class="analytics-view-btn hidden" id="analyticsViewBtn">📊 VIEW DASHBOARD</button>
+            </div>
+            <div class="connector-section">
+              <div class="connector-section-title">HOW TO USE</div>
+              <p class="connector-hint">Say <em>"Give me an update"</em> or <em>"Check my emails"</em> and your assistant will read out your unread emails.</p>
+            </div>
+            <div class="connector-section">
+              <div class="connector-section-title">🎵 MUSIC</div>
+              <p class="connector-hint">Connect Spotify for background playback, or pick a service to open when you say "play".</p>
+              <div class="connector-row" id="spotifyRow">
+                <div class="connector-icon spotify"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 13.5a7 7 0 0 1 8 0"/><path d="M6.5 11a9.5 9.5 0 0 1 11 0"/><path d="M9.5 16a4.5 4.5 0 0 1 5 0"/></svg></div>
+                <div class="connector-info"><div class="connector-name">SPOTIFY</div><div class="connector-status" id="spotifyStatus">Not connected</div></div>
+                <button class="connector-btn" id="spotifyBtn">CONNECT</button>
+              </div>
+              <div class="connector-section-title" style="margin-top:14px">PREFERRED SERVICE</div>
+              <p class="connector-hint">Used when Spotify isn't connected or for other music apps.</p>
+              <div id="musicServiceList">
+                <div class="music-service-row" data-service="spotify"><span class="music-service-icon">🎵</span><span class="music-service-name">Spotify</span><span class="music-service-check">✓</span></div>
+                <div class="music-service-row" data-service="youtube music"><span class="music-service-icon">▶</span><span class="music-service-name">YouTube Music</span><span class="music-service-check">✓</span></div>
+                <div class="music-service-row" data-service="apple music"><span class="music-service-icon">🍎</span><span class="music-service-name">Apple Music</span><span class="music-service-check">✓</span></div>
+                <div class="music-service-row" data-service="amazon music"><span class="music-service-icon">📦</span><span class="music-service-name">Amazon Music</span><span class="music-service-check">✓</span></div>
+                <div class="music-service-row" data-service="deezer"><span class="music-service-icon">🎶</span><span class="music-service-name">Deezer</span><span class="music-service-check">✓</span></div>
+                <div class="music-service-row" data-service="tidal"><span class="music-service-icon">🌊</span><span class="music-service-name">Tidal</span><span class="music-service-check">✓</span></div>
+              </div>
+              <p class="connector-hint" style="margin-top:10px">Selected: <strong id="musicServiceSelected">None</strong></p>
+            </div>
+          </div>
+
+          <!-- ── SETTINGS PANE (Account + Language) ── -->
+          <div class="lnav-pane hidden" id="lnavPaneSettings">
+            <div class="settings-tabs">
+              <button class="settings-tab active" id="settingsTabAccount">ACCOUNT</button>
+              <button class="settings-tab" id="settingsTabLanguage">LANGUAGE</button>
+            </div>
+            <div id="settingsAccountContent">
+              <!-- Avatar — centred -->
+              <div class="account-hero">
+                <div id="profileAvatar">👤</div>
+                <div id="profileName"></div>
+                <div id="profileEmail"></div>
+              </div>
+
+              <!-- Name change -->
+              <div class="profile-section">
+                <div class="profile-label">DISPLAY NAME</div>
+                <div class="profile-name-edit-row">
+                  <input type="text" id="profileNameInput" class="profile-name-input" placeholder="Enter your name…" />
+                  <button id="profileNameSaveBtn" class="profile-name-save-btn">SAVE</button>
+                </div>
+              </div>
+
+              <!-- AI Status card — glass -->
+              <div class="profile-section account-ai-status">
+                <div class="profile-label">⚡ AI STATUS</div>
+                <div class="account-ai-grid">
+                  <span class="account-ai-key">MODEL</span><span class="account-ai-val" id="swModel">GPT-4o</span>
+                  <span class="account-ai-key">SPEED</span><span class="account-ai-val" id="swSpeed">Fast</span>
+                  <span class="account-ai-key">SESSION</span><span class="account-ai-val" id="swSession">0 msgs</span>
+                  <span class="account-ai-key">STATUS</span><span class="account-ai-val sw-online">Online</span>
+                </div>
+              </div>
+
+              <div class="profile-section">
+                <div class="profile-label">SUBSCRIPTION</div>
+                <div id="profileSub" class="profile-value"></div>
+              </div>
+              <div class="profile-section">
+                <div class="profile-label">MEMBER SINCE</div>
+                <div id="profileSince" class="profile-value"></div>
+              </div>
+
+              <div class="profile-section">
+                <div class="profile-label">VOICE SETTINGS</div>
+                <div class="profile-voice-toggle-row">
+                  <span class="profile-slider-label">VOICE</span>
+                  <div class="gender-options profile-voice-opts">
+                    <button class="gender-btn active" id="profileVoiceMale" data-voice="male">♂ MALE</button>
+                    <button class="gender-btn" id="profileVoiceFemale" data-voice="female">♀ FEMALE</button>
+                  </div>
+                </div>
+                <div class="profile-sliders">
+                  <div class="profile-slider-row">
+                    <span class="profile-slider-label">SPEED</span>
+                    <input type="range" id="profileSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" />
+                    <span class="profile-slider-val" id="profileSpeedVal">0.88x</span>
+                  </div>
+                  <div class="profile-slider-row">
+                    <span class="profile-slider-label">VOL</span>
+                    <input type="range" id="profileVolSlider" min="0.5" max="3.0" step="0.1" value="1.5" />
+                    <span class="profile-slider-val" id="profileVolVal">1.5x</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="profile-section">
+                <div class="profile-label">LOCATION &amp; WEATHER</div>
+                <div class="profile-toggle-row">
+                  <span class="profile-toggle-desc">Show city, country &amp; temperature in the top bar</span>
+                  <button class="profile-toggle-btn" id="locationToggleBtn" aria-pressed="true">
+                    <span class="ptb-track"><span class="ptb-thumb"></span></span>
+                  </button>
+                </div>
+                <div id="profileCountryRow" class="profile-country-row">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  <span id="profileCountryLabel">—</span>
+                </div>
+              </div>
+
+              <button id="profileLogout">SIGN OUT</button>
+            </div>
+
+            <!-- LANGUAGE TAB -->
+            <div id="settingsLanguageContent" class="hidden">
+              <div class="lang-search-wrap">
+                <input type="text" id="languageSearch" class="lang-search" placeholder="Search language…" />
+              </div>
+              <div id="languageList" class="lang-list"></div>
+            </div>
+          </div>
+
+        </div><!-- end #historySidebar -->
+      </div><!-- end #leftNav -->
 
       <!-- Main content -->
       <div id="mainPanel">
-        <div id="topBar">
-          <button id="historyBtn" title="Chat History">☰</button>
-          <div id="appTitle">PERSONAL AI ASSISTANT</div>
-          <div id="statusDot"></div>
-          <button id="connectorsBtn" title="Connectors">🔗</button>
-          <button id="languageBtn" title="Language">🌐</button>
-          <button id="contactsBtn" title="Contacts">👥</button>
-          <button id="profileBtn" title="My Account">👤</button>
-          <button id="closeBtn">✕</button>
+        <!-- Reminder alert toast -->
+        <div id="reminderToast" class="hidden">
+          <div class="rt-icon">⏰</div>
+          <div class="rt-body">
+            <div class="rt-text" id="rtText"></div>
+            <div class="rt-actions">
+              <button class="rt-snooze" data-mins="10">Snooze 10 min</button>
+              <button class="rt-snooze" data-mins="60">Snooze 1 hr</button>
+              <button class="rt-dismiss" id="rtDismiss">Dismiss</button>
+            </div>
+          </div>
         </div>
 
-        <!-- Profile panel -->
-        <div id="profilePanel" class="hidden">
-          <div id="profileHeader">
-            <span>MY ACCOUNT</span>
-            <button id="profileClose">✕</button>
+        <div id="topBar">
+          <!-- Hamburger / nav button -->
+          <button id="historyBtn" class="shiny-btn" title="Chat History">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="position:relative;z-index:2;pointer-events:none">
+              <line x1="3" y1="6"  x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+
+          <!-- Theme toggle button -->
+          <button id="themeToggleBtn" class="shiny-btn" title="Toggle light / dark mode">
+            <!-- Sun: shown in dark mode -->
+            <svg id="themeSunIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:2;pointer-events:none">
+              <circle cx="12" cy="12" r="4.5"/>
+              <line x1="12" y1="2"   x2="12" y2="5"/>
+              <line x1="12" y1="19"  x2="12" y2="22"/>
+              <line x1="4.22" y1="4.22"   x2="6.34" y2="6.34"/>
+              <line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
+              <line x1="2"  y1="12" x2="5"  y2="12"/>
+              <line x1="19" y1="12" x2="22" y2="12"/>
+              <line x1="4.22" y1="19.78"  x2="6.34" y2="17.66"/>
+              <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"/>
+            </svg>
+            <!-- Moon: shown in light mode -->
+            <svg id="themeMoonIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="hidden" style="position:relative;z-index:2;pointer-events:none">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+          <div id="appTitle">PERSONAL AI ASSISTANT</div>
+          <div id="statusDot"></div>
+          <div id="hudClock">
+            <div id="hudTime">00:00</div>
+            <div id="hudDate">---</div>
           </div>
-          <div id="profileAvatar">👤</div>
-          <div id="profileName"></div>
-          <div id="profileEmail"></div>
-          <div class="profile-section">
-            <div class="profile-label">SUBSCRIPTION</div>
-            <div id="profileSub" class="profile-value"></div>
+
+          <div id="hudWeather">
+            <div id="hudTemp">--°</div>
+            <div id="hudLocation">Locating…</div>
           </div>
-          <div class="profile-section">
-            <div class="profile-label">MEMBER SINCE</div>
-            <div id="profileSince" class="profile-value"></div>
-          </div>
-          <div class="profile-section">
-            <div class="profile-label">CHAT HISTORY</div>
-            <div id="profileHistoryList"></div>
-          </div>
-          <button id="profileLogout">SIGN OUT</button>
+
+          <div id="dockBar" style="display:none"></div>
+
+          <button id="closeBtn" title="Close">✕</button>
         </div>
 
         <div id="orbContainer">
           <div id="orb"></div>
-          <div id="aiName">JARVIS</div>
+          <div id="aiName">YOUR AI</div>
           <div id="orbLabel">STANDBY</div>
+        </div>
+
+        <!-- Offline / error banner -->
+        <div id="offlineBanner" class="hidden">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.56 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          <span id="offlineBannerText">No internet connection</span>
         </div>
 
         <div id="chat"></div>
 
+        <!-- Drop overlay — shown when user drags a file over the panel -->
+        <div id="dropOverlay" class="hidden">
+          <div class="drop-inner">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>DROP TO ATTACH</span>
+          </div>
+        </div>
+
+        <input type="file" id="attachInput" accept="image/*,.pdf,.txt,.csv,.doc,.docx" multiple style="display:none">
+
         <div style="-webkit-app-region:no-drag; display:flex; flex-direction:column; align-items:center;">
+          <!-- Attachment preview strip — shown when files are queued -->
+          <div id="attachPreview" class="hidden"></div>
+
           <div id="controls">
-            <button id="fileBtn" title="Open a file">📁</button>
-            <button id="micBtn" title="Click to speak">🎤</button>
+            <button id="attachBtn" title="Attach image or file">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button id="micBtn" class="shine-btn" title="Click to speak">🎤</button>
             <button id="clearBtn" title="Clear chat">🗑️</button>
           </div>
           <div id="micLabel">CLICK TO SPEAK</div>
-          <div id="voiceSpeedRow">
-            <span class="speed-label">SPEED</span>
-            <input type="range" id="voiceSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" />
-            <span class="speed-label" id="voiceSpeedVal">0.88x</span>
-          </div>
-          <div id="voiceSpeedRow">
-            <span class="speed-label">🔊 VOL</span>
-            <input type="range" id="voiceVolumeSlider" min="0.5" max="3.0" step="0.1" value="1.5" />
-            <span class="speed-label" id="voiceVolumeVal">1.5x</span>
-          </div>
+          <canvas id="waveformCanvas" width="180" height="36"></canvas>
+          <!-- Hidden sliders keep JS working; visible controls are in My Account -->
+          <input type="range" id="voiceSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" style="display:none">
+          <span id="voiceSpeedVal" style="display:none"></span>
+          <input type="range" id="voiceVolumeSlider" min="0.5" max="3.0" step="0.1" value="1.5" style="display:none">
+          <span id="voiceVolumeVal" style="display:none"></span>
         </div>
       </div>
 
       <!-- Card panel (RIGHT side) -->
       <div id="cardPanel" class="hidden">
-        <button id="cardClose" onclick="document.getElementById('cardPanel').classList.add('hidden')">✕</button>
+        <button id="cardClose" title="Close">✕</button>
         <div id="cardContent"></div>
         <div id="cardSource"></div>
       </div>
 
-      <!-- Connectors panel (RIGHT side) -->
-      <div id="connectorsPanel" class="hidden">
-        <div id="connectorsHeader">
-          <span>CONNECTORS</span>
-          <button id="connectorsClose">✕</button>
-        </div>
+      <!-- connectorsPanel stub (content is in leftNav) -->
+      <div id="connectorsPanel" style="display:none">
+        <div id="_connectorsPanelStub"></div>
+      </div>
 
-        <div class="connector-section">
-          <div class="connector-row" id="gmailRow">
-            <div class="connector-icon">✉</div>
-            <div class="connector-info">
-              <div class="connector-name">GMAIL</div>
-              <div class="connector-status" id="gmailStatus">Not connected</div>
-            </div>
-            <button class="connector-btn" id="gmailBtn">CONNECT</button>
+      <!-- connectorsPanelEnd -->
+
+      <!-- Analytics dashboard panel (RIGHT side) -->
+      <div id="analyticsPanel" class="hidden side-panel">
+        <div id="analyticsHeader">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span>ANALYTICS DASHBOARD</span>
+            <span id="analyticsLastUpdated" style="font-size:9px;opacity:0.4;letter-spacing:1px;font-family:'Share Tech Mono',monospace"></span>
           </div>
-
-          <div class="connector-row" id="outlookRow">
-            <div class="connector-icon">📧</div>
-            <div class="connector-info">
-              <div class="connector-name">OUTLOOK</div>
-              <div class="connector-status" id="outlookStatus">Not connected</div>
-            </div>
-            <button class="connector-btn" id="outlookBtn">CONNECT</button>
-          </div>
-
-          <div class="connector-row" id="calendarRow">
-            <div class="connector-icon">📅</div>
-            <div class="connector-info">
-              <div class="connector-name">GOOGLE CALENDAR</div>
-              <div class="connector-status" id="calendarStatus">Not connected</div>
-            </div>
-            <button class="connector-btn" id="calendarBtn">CONNECT</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button id="analyticsRefreshBtn" title="Refresh" style="background:none;border:none;cursor:pointer;color:rgba(0,200,255,0.6);padding:4px;line-height:1">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+            <button id="analyticsClose" class="sp-close">✕</button>
           </div>
         </div>
-
-        <div class="connector-section">
-          <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
-          <p class="connector-hint">Emails from these people will be read out in detail. Add their name or email address.</p>
-          <div id="vipList"></div>
-          <div class="vip-add-row">
-            <input id="vipInput" placeholder="name or email@example.com" autocomplete="off" />
-            <button id="vipAddBtn">+ ADD</button>
-          </div>
-        </div>
-
-        <div class="connector-section">
-          <div class="connector-section-title">HOW TO USE</div>
-          <p class="connector-hint">Say <em>"Give me an update"</em> or <em>"Check my emails"</em> and Jarvis will read out your unread emails — with full details for important senders.</p>
-        </div>
-
-        <!-- Music section -->
-        <div class="connector-section">
-          <div class="connector-section-title">🎵 MUSIC</div>
-          <p class="connector-hint">Connect Spotify for background playback — songs play without switching windows. Or just pick a service to open when you say "play".</p>
-
-          <!-- Spotify OAuth connect -->
-          <div class="connector-row" id="spotifyRow">
-            <div class="connector-icon">🎵</div>
-            <div class="connector-info">
-              <div class="connector-name">SPOTIFY</div>
-              <div class="connector-status" id="spotifyStatus">Not connected</div>
-            </div>
-            <button class="connector-btn" id="spotifyBtn">CONNECT</button>
-          </div>
-
-          <div class="connector-section-title" style="margin-top:14px">PREFERRED SERVICE</div>
-          <p class="connector-hint">Used when Spotify isn't connected or for other music apps.</p>
-          <div id="musicServiceList">
-            <div class="music-service-row" data-service="spotify">
-              <span class="music-service-icon">🎵</span>
-              <span class="music-service-name">Spotify</span>
-              <span class="music-service-check">✓</span>
-            </div>
-            <div class="music-service-row" data-service="youtube music">
-              <span class="music-service-icon">▶</span>
-              <span class="music-service-name">YouTube Music</span>
-              <span class="music-service-check">✓</span>
-            </div>
-            <div class="music-service-row" data-service="apple music">
-              <span class="music-service-icon">🍎</span>
-              <span class="music-service-name">Apple Music</span>
-              <span class="music-service-check">✓</span>
-            </div>
-            <div class="music-service-row" data-service="amazon music">
-              <span class="music-service-icon">📦</span>
-              <span class="music-service-name">Amazon Music</span>
-              <span class="music-service-check">✓</span>
-            </div>
-            <div class="music-service-row" data-service="deezer">
-              <span class="music-service-icon">🎶</span>
-              <span class="music-service-name">Deezer</span>
-              <span class="music-service-check">✓</span>
-            </div>
-            <div class="music-service-row" data-service="tidal">
-              <span class="music-service-icon">🌊</span>
-              <span class="music-service-name">Tidal</span>
-              <span class="music-service-check">✓</span>
-            </div>
-          </div>
-          <p class="connector-hint" style="margin-top:10px">Selected: <strong id="musicServiceSelected">None</strong></p>
+        <div id="analyticsContent">
+          <div class="analytics-loading">Loading your stats...</div>
         </div>
       </div>
 
-      <!-- Language panel (RIGHT side) -->
-      <div id="languagePanel" class="hidden">
-        <div id="languageHeader">
-          <span>LANGUAGE</span>
-          <button id="languageClose">✕</button>
+      <!-- Universal connection steps modal -->
+      <div id="connectStepsModal" class="hidden">
+        <div class="steps-modal-box">
+          <div class="steps-modal-header">
+            <div class="steps-modal-icon" id="stepsModalIcon"></div>
+            <div>
+              <div class="steps-modal-title" id="stepsModalTitle"></div>
+              <div class="steps-modal-subtitle" id="stepsModalSubtitle"></div>
+            </div>
+          </div>
+          <div class="steps-list" id="stepsModalList"></div>
+          <div class="steps-modal-actions">
+            <button id="stepsModalCancel" class="free-btn"><span>Cancel</span></button>
+            <button id="stepsModalContinue" class="shiny-btn"><span id="stepsModalContinueLabel">Continue →</span></button>
+          </div>
         </div>
-        <p class="connector-hint" style="margin:0 0 12px">Jarvis will always reply in the selected language.</p>
-        <input id="languageSearch" placeholder="Search languages..." autocomplete="off" />
-        <div id="languageList"></div>
       </div>
 
-      <!-- Contacts panel (RIGHT side, overlays card panel) -->
-      <div id="contactsPanel" class="hidden">
-        <div id="contactsHeader">
-          <span>CONTACTS</span>
-          <button id="contactsClose">✕</button>
-        </div>
-        <div id="contactsList"></div>
-        <div id="addContactForm">
-          <div class="contact-form-title">ADD CONTACT</div>
-          <input id="contactNameInput" placeholder="Name (e.g. Ahmed)" autocomplete="off" />
-          <input id="contactPhoneInput" placeholder="Phone (e.g. +447911123456)" autocomplete="off" />
-          <button id="addContactBtn">+ ADD</button>
+      <!-- Stripe connect modal -->
+      <div id="stripeConnectModal" class="hidden">
+        <div class="shopify-modal-box">
+          <div class="shopify-modal-title" style="color:#6772e5">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6772e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            Connect Stripe
+          </div>
+          <p class="shopify-modal-hint">Tracks your revenue and payments. Works with any website using Stripe — Shopify, Squarespace, Wix, WordPress, and custom sites.<br><br>
+          <strong>How to get your key:</strong><br>
+          1. Go to <strong>dashboard.stripe.com</strong><br>
+          2. Click <strong>Developers → API Keys</strong><br>
+          3. Copy your <strong>Secret key</strong> (starts with <code>sk_live_</code>)</p>
+          <div class="setup-field">
+            <label>STRIPE SECRET KEY</label>
+            <div class="auth-input-wrap">
+              <input id="stripeKeyInput" placeholder="sk_live_..." autocomplete="off" type="password" style="padding-left:12px" />
+              <button class="auth-pw-toggle" id="stripePwToggle" type="button" tabindex="-1" title="Show/hide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="stripeModalError" class="setup-error hidden"></div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="stripeModalCancel" class="free-btn" style="flex:1"><span>Cancel</span></button>
+            <button id="stripeModalConnect" class="shiny-btn" style="flex:2"><span>Connect →</span></button>
+          </div>
         </div>
       </div>
+
+      <!-- Squarespace connect modal -->
+      <div id="squarespaceModal" class="hidden">
+        <div class="shopify-modal-box">
+          <div class="shopify-modal-title" style="color:rgba(255,255,255,0.85)">⬡ Connect Squarespace</div>
+          <p class="shopify-modal-hint">Tracks your Squarespace store orders and revenue.<br><br>
+          <strong>How to get your key:</strong><br>
+          1. Go to your <strong>Squarespace dashboard</strong><br>
+          2. Click <strong>Settings → Advanced → API Keys</strong><br>
+          3. Create a key with <em>Orders — Read</em> permission<br>
+          4. Copy and paste it below</p>
+          <div class="setup-field">
+            <label>SQUARESPACE API KEY</label>
+            <div class="auth-input-wrap">
+              <input id="squarespaceKeyInput" placeholder="Paste your API key..." autocomplete="off" type="password" style="padding-left:12px" />
+            </div>
+          </div>
+          <div id="squarespaceModalError" class="setup-error hidden"></div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="squarespaceModalCancel" class="free-btn" style="flex:1"><span>Cancel</span></button>
+            <button id="squarespaceModalConnect" class="shiny-btn" style="flex:2"><span>Connect →</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shopify connect modal -->
+      <div id="shopifyModal" class="hidden">
+        <div class="shopify-modal-box">
+          <div class="shopify-modal-title">🛍 Connect Shopify Store</div>
+          <p class="shopify-modal-hint">Tracks your Shopify orders, revenue, and customers.<br><br>
+          <strong>How to get your token:</strong><br>
+          1. Go to your <strong>Shopify Admin</strong><br>
+          2. Click <strong>Apps → Develop apps → Create an app</strong><br>
+          3. Under <strong>Configuration</strong> add: <em>read_orders, read_customers</em><br>
+          4. Click <strong>Install app</strong> → copy the <strong>Admin API access token</strong></p>
+          <div class="setup-field">
+            <label>STORE URL</label>
+            <input id="shopifyStoreInput" placeholder="yourstore.myshopify.com" autocomplete="off" />
+          </div>
+          <div class="setup-field">
+            <label>ADMIN API ACCESS TOKEN</label>
+            <div class="auth-input-wrap">
+              <input id="shopifyTokenInput" placeholder="shpat_xxxxxxxxxxxx" autocomplete="off" type="password" style="padding-left:12px" />
+            </div>
+          </div>
+          <div id="shopifyModalError" class="setup-error hidden"></div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="shopifyModalCancel" class="free-btn" style="flex:1"><span>Cancel</span></button>
+            <button id="shopifyModalConnect" class="shiny-btn" style="flex:2"><span>Connect →</span></button>
+          </div>
+        </div>
+      </div>
+
 
     </div>
   </div>
-  <script src="renderer.js"></script>
+
+  <!-- ── Reminders Panel ── -->
+  <div id="remindersPanel">
+    <div class="rp-header">
+      <span class="rp-title">REMINDERS</span>
+      <button class="rp-add-btn" id="rpAddBtn">+ ADD</button>
+    </div>
+    <div class="rp-list" id="rpList">
+      <div class="rp-empty" id="rpEmpty">No reminders yet</div>
+    </div>
+    <div class="rp-add-form" id="rpAddForm">
+      <input class="rp-input" id="rpTextInput" type="text" placeholder="Reminder text…" maxlength="60" />
+      <input class="rp-input" id="rpTimeInput" type="datetime-local" />
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="rpSaveBtn">SAVE</button>
+        <button class="rp-cancel-btn" id="rpCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Glass Calendar ── -->
+  <div id="glassCalendar">
+    <div class="gc-header">
+      <div class="gc-tabs">
+        <button class="gc-tab active" id="gcTabWeekly">Weekly</button>
+        <button class="gc-tab" id="gcTabMonthly">Monthly</button>
+      </div>
+      <button class="gc-settings-btn" id="gcSettingsBtn" title="Settings">⚙</button>
+    </div>
+    <div class="gc-month-row">
+      <span class="gc-month-name" id="gcMonthName"></span>
+      <div class="gc-nav-btns">
+        <button class="gc-nav-btn" id="gcPrev">‹</button>
+        <button class="gc-nav-btn" id="gcNext">›</button>
+      </div>
+    </div>
+    <div class="gc-days-scroll">
+      <div class="gc-days-track" id="gcDaysTrack"></div>
+    </div>
+    <div class="gc-divider"></div>
+    <div class="gc-footer">
+      <button class="gc-note-btn">✏ Add a note…</button>
+      <button class="gc-new-event-btn" id="gcNewEventBtn">＋ New Event</button>
+    </div>
+    <!-- New Event Form -->
+    <div class="gc-event-form" id="gcEventForm">
+      <div class="gc-form-title">New Event</div>
+      <input class="rp-input" id="gcEventTitle" type="text" placeholder="Event title…" maxlength="80" />
+      <div class="rp-form-row">
+        <input class="rp-input" id="gcEventDate" type="date" style="flex:1" />
+        <input class="rp-input" id="gcEventTime" type="time" style="flex:1" />
+      </div>
+      <input class="rp-input" id="gcEventDesc" type="text" placeholder="Description (optional)…" maxlength="120" />
+      <label class="gc-gcal-row">
+        <input type="checkbox" id="gcEventGcal" checked /> Also add to Google Calendar
+      </label>
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="gcEventSave">SAVE</button>
+        <button class="rp-cancel-btn" id="gcEventCancel">Cancel</button>
+      </div>
+    </div>
+    <!-- Settings Panel -->
+    <div class="gc-settings-panel" id="gcSettingsPanel">
+      <div class="gc-settings-header">
+        <span class="gc-form-title">Calendar Settings</span>
+        <button class="rp-cancel-btn" id="gcSettingsClose" style="padding:2px 8px">✕</button>
+      </div>
+      <div class="gc-settings-row">
+        <span>Sync with Google Calendar</span>
+        <button class="gc-sync-btn" id="gcSyncBtn">SYNC NOW</button>
+      </div>
+      <div class="gc-settings-row">
+        <span>Clear local events</span>
+        <button class="gc-sync-btn" id="gcClearBtn" style="color:#ff5050">CLEAR</button>
+      </div>
+      <p class="gc-settings-hint">Say <em>"Add an event for [title] on [date] at [time]"</em> to add via voice.</p>
+    </div>
+  </div>
+
+  <!-- ── Financial Panel (bottom-right) ── -->
+  <div id="finPanel">
+    <div id="finPanelHeader">
+      <span id="finPanelLabel">PORTFOLIO</span>
+      <div id="finPanelNav">
+        <button id="finPrev" title="Previous">‹</button>
+        <div id="finDots"></div>
+        <button id="finNext" title="Next">›</button>
+      </div>
+      <button id="finPanelClose" title="Close">✕</button>
+    </div>
+    <div id="finSliderWrap">
+      <div id="finSlider"></div>
+    </div>
+  </div>
+
+  <script src="three.global.js"></script>
+  <script src="renderer.js?v=55"></script>
+  <script src="particles.js?v=4"></script>
+  <script src="hills.js?v=4"></script>
+  <script src="panels.js?v=3"></script>
+
+  <svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
+    <defs>
+      <filter id="nav-glass-filter" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.04 0.04" numOctaves="1" seed="2" result="turbulence"/>
+        <feGaussianBlur in="turbulence" stdDeviation="1.5" result="blurredNoise"/>
+        <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="8" xChannelSelector="R" yChannelSelector="B" result="displaced"/>
+        <feGaussianBlur in="displaced" stdDeviation="1.5" result="finalBlur"/>
+        <feComposite in="finalBlur" in2="finalBlur" operator="over"/>
+      </filter>
+    </defs>
+  </svg>
 </body>
 </html>

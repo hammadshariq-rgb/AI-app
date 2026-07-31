@@ -302,7 +302,10 @@ ipcMain.handle('auth:signup', async (_e, { email, password, name }) => {
 ipcMain.handle('auth:login', async (_e, { email, password }) => {
   const result = await authService.login(email, password);
   if (result.token) saveAuthToken(result.token);
-  if (result.user) store.set('profile', { name: result.user.name, email: result.user.email });
+  if (result.user) {
+    const existing = store.get('profile') || {};
+    store.set('profile', { name: existing.name || result.user.name, email: result.user.email });
+  }
   return result;
 });
 

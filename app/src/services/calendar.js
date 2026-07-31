@@ -1,13 +1,37 @@
 const fetch = require('node-fetch');
 const Store = require('electron-store');
+const { safeStorage } = require('electron');
 const store = new Store();
 
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 
+function encryptToken(val) {
+  if (!val) return val;
+  if (!safeStorage.isEncryptionAvailable()) return val;
+  return safeStorage.encryptString(val).toString('base64');
+}
+function decryptToken(val) {
+  if (!val) return val;
+  if (!safeStorage.isEncryptionAvailable()) return val;
+  try { return safeStorage.decryptString(Buffer.from(val, 'base64')); }
+  catch { return val; }
+}
+function saveCalendarTokens(data) {
+  const obj = { access_token: encryptToken(data.access_token || ''), expires_at: data.expires_at || (Date.now() + (data.expires_in || 3600) * 1000), _enc: true };
+  if (data.refresh_token) obj.refresh_token = encryptToken(data.refresh_token);
+  store.set('connector.calendar', obj);
+}
+function loadCalendarTokens() {
+  const raw = store.get('connector.calendar');
+  if (!raw) return null;
+  if (!raw._enc) return raw;
+  return { ...raw, access_token: decryptToken(raw.access_token), refresh_token: decryptToken(raw.refresh_token) };
+}
+
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
 async function refreshCalendarToken() {
-  const tokens = store.get('connector.calendar');
+  const tokens = loadCalendarTokens();
   if (!tokens?.refresh_token) return null;
   try {
     const res = await fetch(`${SERVER}/connect/calendar/refresh`, {
@@ -17,28 +41,21 @@ async function refreshCalendarToken() {
     });
     const data = await res.json();
     if (data.access_token) {
-      store.set('connector.calendar', { ...tokens, access_token: data.access_token, expires_at: Date.now() + (data.expires_in || 3600) * 1000 });
+      saveCalendarTokens({ access_token: data.access_token, refresh_token: tokens.refresh_token, expires_in: data.expires_in || 3600 });
       return data.access_token;
     }
+    if (data.error === 'invalid_grant') store.delete('connector.calendar');
   } catch (_) {}
   return null;
 }
 
 async function getCalendarToken() {
-  const tokens = store.get('connector.calendar');
+  const tokens = loadCalendarTokens();
   if (!tokens?.access_token) return null;
   if (tokens.expires_at && Date.now() > tokens.expires_at - 60000) {
     return await refreshCalendarToken();
   }
   return tokens.access_token;
-}
-
-function saveCalendarTokens(tokens) {
-  store.set('connector.calendar', {
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: Date.now() + (tokens.expires_in || 3600) * 1000,
-  });
 }
 
 // ── Calendar API ──────────────────────────────────────────────────────────────
