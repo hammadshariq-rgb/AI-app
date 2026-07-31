@@ -44,29 +44,8 @@ jobs:
         run: npm install
         working-directory: app
 
-      - name: Build installer
+      - name: Build and publish
         run: npm run dist
         working-directory: app
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows installer
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-Windows
-          path: app/dist/*.exe
-
-      - name: Upload macOS installer
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-macOS
-          path: app/dist/*.dmg
-
-      - name: Upload Linux installer
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-Linux
-          path: app/dist/*.AppImage
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
