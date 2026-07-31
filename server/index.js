@@ -926,7 +926,7 @@ app.post('/connect/stripe/verify', async (req, res) => {
 app.post('/license/check', (req, res) => res.json({ active: false }));
 
 // ── AI proxy routes (keys never leave this server) ────────────────────────────
-const WHISPER_PROMPT = 'Jarvis, open, search, play, call, remind, weather, stock, show me, who is, what is, how much, tell me about';
+const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis. Open Spotify, open Chrome, open WhatsApp, open Instagram, open YouTube, open Netflix, open Discord, open Telegram. Play music, pause, stop. Search Google for, find, google. Call Ahmed, message Sarah, send a WhatsApp to John. What is the weather in London? What time is it? Set a reminder for tomorrow at 3 PM. Add to my calendar. Send an email to Sarah. Show me, tell me about, who is, what is, how much is, when was, where is, how does, what happened. Stock price, Bitcoin, Ethereum, crypto. Premier League, Champions League, World Cup, NBA score. News, latest news, what happened today, breaking news. Generate an image of, create a picture of. Open my files, open folder, open downloads. Who is the prime minister, who is the president. What is the capital of, tell me about the history of, show me a photo of.`;
 
 // Chat completion (non-streaming, used for tool calls)
 app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {

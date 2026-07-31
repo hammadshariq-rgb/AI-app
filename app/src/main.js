@@ -447,27 +447,38 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
-  // Person/celebrity query — fetch Wikipedia card first; only open Google if no card found
-  const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of)\b/i;
+  // Person/celebrity/historical figure query — fetch Wikipedia card first
+  const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of|actor|actress|singer|rapper|musician|politician|president|prime minister|founder|ceo|scientist|inventor|historical figure|who played|played by)\b/i;
   if (PERSON_FAST_REGEX.test(message)) {
     const personCard = await realtime.fetchCardData(message).catch(() => null);
-    if (personCard?.type === 'person' && personCard.imageUrl) {
+    if (personCard?.imageUrl || personCard?.heroImage) {
       const p = personCard;
-      const spokenText = [p.name, p.bio || p.subtitle].filter(Boolean).join('. ');
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: personCard, hasAction: false };
+      const spokenText = (p.bio || p.subtitle || p.summary || p.description || p.name || '').slice(0, 300);
+      if (spokenText) _sendTTS(_e.sender, spokenText);
+      return { text: spokenText || p.name, audio: null, card: personCard, hasAction: false };
     }
     // No card or no photo — fall through to normal AI flow
+  }
+
+  // Historical/art/food/flag/fashion queries — show card directly
+  const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like)\b/i;
+  if (VISUAL_CARD_REGEX.test(message)) {
+    const visualCard = await realtime.fetchCardData(message).catch(() => null);
+    if (visualCard && (visualCard.imageUrl || visualCard.heroImage || visualCard.poster)) {
+      const spokenText = (visualCard.summary || visualCard.subtitle || visualCard.description || visualCard.plot || visualCard.title || '').slice(0, 300);
+      if (spokenText) _sendTTS(_e.sender, spokenText);
+      return { text: spokenText || visualCard.title || 'Here you go.', audio: null, card: visualCard, hasAction: false };
+    }
   }
 
   // Detect query types
   const EMAIL_REGEX = /\b(email|emails|inbox|messages|unread|update|updates|notifications|mail|whats new|what's new|any new|check my|briefing)\b/i;
   const UPDATE_REGEX = /\b(update|updates|briefing|whats new|what's new|any new|check my)\b/i;
-  const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking)\b/i;
-  // Narrow CARD_REGEX to only queries that actually produce a card (stock/crypto/sports/movie/person/animal/character)
-  const CARD_REGEX = /\b(stock|crypto|bitcoin|ethereum|price of|chart of|score|match|who is|who was|biography|photo of|picture of|movie|film|cinema|sequel|prequel|release date|coming out|box office|cast|director|trailer)\b/i;
+  const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking|election|government|minister|leader|war|conflict|attack|died|arrested|resigned)\b/i;
+  // Card queries — all topic types that produce a sidebar card
+  const CARD_REGEX = /\b(stock|crypto|bitcoin|ethereum|price of|chart of|score|match|who is|who was|biography|photo of|picture of|movie|film|cinema|sequel|prequel|release date|coming out|box office|cast|director|trailer|painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|food|dish|cuisine|recipe|pizza|sushi|burger|biryani|curry|ramen|lion|tiger|elephant|penguin|shark|eagle|gucci|louis vuitton|nike|adidas|battle of|world war|revolution|assassination|historical|landmark|show me|tell me about|actor|actress|singer|rapper|musician|politician|scientist|inventor|historical figure|who played|animal|character|location|city|country|capital)\b/i;
   // Only fetch news for queries that genuinely need current headlines
-  const NEWS_REGEX = /\b(news|latest|breaking|today|yesterday|this week|right now|recently|what happened|current events?|headlines?|update on)\b/i;
+  const NEWS_REGEX = /\b(news|latest|breaking|today|yesterday|this week|right now|recently|what happened|current events?|headlines?|update on|politics|global|world news)\b/i;
 
   const isEmailQuery = UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message);
   const needsRealtime = REALTIME_REGEX.test(message);

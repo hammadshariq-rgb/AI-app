@@ -417,13 +417,16 @@ async function fetchRealtimeContext(query) {
     return parts.length > 0 ? `REAL-TIME DATA:\n${parts.join('\n').slice(0, 900)}` : null;
   }
 
-  // General factual question — always check Google first, then DuckDuckGo/Wikipedia
-  const [google, ddg, wiki] = await Promise.all([
+  // General factual question — only fetch live data for questions that need it
+  // Skip for pure educational/historical questions that the AI already knows
+  const needsLiveData = /\b(who is|who's|who was|currently|right now|at the moment|today|this year|this month|latest|recent|new|announced|launched|released|appointed|elected|won|beat|defeated|died|arrested|charged|sentenced)\b/i.test(q);
+  if (!needsLiveData) return null;
+
+  const [google, ddg] = await Promise.all([
     googleFactSearch(query),
     ddgSearch(query),
-    wikiSearch(query),
   ]);
-  const parts = [google, ddg, wiki].filter(Boolean);
+  const parts = [google, ddg].filter(Boolean);
   return parts.length > 0
     ? `REAL-TIME DATA (prioritise this over your training data):\n${parts.join('\n').slice(0, 900)}`
     : null;
@@ -674,6 +677,76 @@ async function getPersonCard(query) {
     return null;
   } catch (e) { return null; }
 }
+
+// ── Historical event / incident card ─────────────────────────────────────────
+const HISTORICAL_REGEX = /\b(battle of|war of|revolution|independence|assassination|holocaust|hiroshima|nagasaki|world war|cold war|civil war|french revolution|american revolution|cuban missile|watergate|9\/11|september 11|pearl harbor|d-day|normandy|crusades|ottoman empire|roman empire|mongol|colonization|slavery|abolition|apartheid|fall of|treaty of|invasion of|siege of|partition of|great fire|black death|plague|spanish flu|boston tea party|storming of|bloody sunday|tiananmen|berlin wall|moon landing|sputnik|industrial revolution|magna carta|reformation|renaissance|bolshevik|russian revolution|chinese revolution|partition of india|great depression|stock market crash|tulip mania|space race|arms race|cold war|vietnam war|korean war|gulf war|iraq war|afghanistan war|rwandan genocide|bosnian war|falklands|suez crisis|yom kippur|six day war|arab spring|french revolution|reign of terror|age of exploration|age of discovery|manifest destiny|trail of tears|underground railroad|suffragette|women's suffrage|great wall of china|pyramids of|colosseum|hanging gardens)\b/i;
+
+async function getHistoricalCard(query) {
+  try {
+    const concept = extractConcept(query);
+    if (!concept || concept.length < 2) return null;
+    const card = await wikiCard(concept);
+    if (card) return { ...card, type: 'science' };
+    const words = concept.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 1) {
+      const shorter = words.slice(0, 4).join(' ');
+      const card2 = await wikiCard(shorter);
+      if (card2) return { ...card2, type: 'science' };
+    }
+    return null;
+  } catch { return null; }
+}
+
+// ── Art / painting card ───────────────────────────────────────────────────────
+const ART_REGEX = /\b(painting|portrait|mural|fresco|sketch|drawing|artwork|sculpture|statue|tapestry|mona lisa|starry night|last supper|creation of adam|girl with a pearl earring|birth of venus|the scream|guernica|sunflowers|water lilies|da vinci|michelangelo|picasso|van gogh|rembrandt|monet|warhol|banksy|dali|raphael|botticelli|caravaggio|vermeer|renoir|manet|cézanne|kandinsky|pollock|frida kahlo|basquiat|klimt|mucha|hopper|painting by|artwork by|who painted|show me the)\b/i;
+
+async function getArtCard(query) {
+  try {
+    const concept = extractConcept(query);
+    if (!concept || concept.length < 2) return null;
+    const card = await wikiCard(concept);
+    if (card) return card;
+    const words = concept.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 1) {
+      const shorter = words.slice(0, 3).join(' ');
+      const card2 = await wikiCard(shorter);
+      if (card2) return card2;
+    }
+    return null;
+  } catch { return null; }
+}
+
+// ── Food / dish card ──────────────────────────────────────────────────────────
+const FOOD_REGEX = /\b(pizza|burger|hamburger|sushi|pasta|tacos|biryani|curry|ramen|pho|steak|salmon|lobster|spaghetti|lasagna|paella|dim sum|pad thai|falafel|hummus|shawarma|kebab|samosa|naan|croissant|baguette|cheesecake|tiramisu|macarons|baklava|gelato|sashimi|tempura|kimchi|bulgogi|jerk chicken|fish and chips|bangers and mash|carbonara|risotto|osso buco|peking duck|tom yum|rendang|poutine|moussaka|dolmades|pierogi|borscht|goulash|wiener schnitzel|croissant|crepes|couscous|tagine|injera|jollof rice|egusi|piri piri|bunny chow|bobotie|mole sauce|enchiladas|quesadilla|ceviche|arepa|empanada|chimichurri|acai|brigadeiro|mantu|chapati|daal|saag|haleem|nihari|cholay|pav bhaji|dosa|idli|uttapam|national dish of|traditional food of|famous food from|cuisine of)\b/i;
+
+async function getFoodCard(query) {
+  try {
+    const concept = extractConcept(query).replace(/\b(food|dish|cuisine|meal|recipe|dessert|traditional|national|famous)\b/gi, '').trim();
+    if (!concept || concept.length < 2) return null;
+    const card = await wikiCard(concept);
+    if (card) return card;
+    return null;
+  } catch { return null; }
+}
+
+// ── Flag card ─────────────────────────────────────────────────────────────────
+const FLAG_REGEX = /\b(flag of|flag for|national flag|what does the flag|show me the flag|country flag)\b/i;
+
+async function getFlagCard(query) {
+  try {
+    const country = query
+      .replace(/\b(flag of|flag for|national flag of|what does the flag of|show me the flag of|country flag of|the flag|look like)\b/gi, '')
+      .replace(/\?$/, '').trim();
+    if (!country || country.length < 2) return null;
+    const card = await wikiCard(country + ' flag');
+    if (card) return card;
+    const card2 = await wikiCard(country);
+    return card2;
+  } catch { return null; }
+}
+
+// ── Fashion / brand / clothing card ──────────────────────────────────────────
+const FASHION_REGEX = /\b(gucci|louis vuitton|chanel|prada|versace|armani|dior|hermes|burberry|balenciaga|valentino|givenchy|yves saint laurent|ysl|alexander mcqueen|vivienne westwood|ralph lauren|calvin klein|tommy hilfiger|lacoste|hugo boss|michael kors|marc jacobs|coach|kate spade|tory burch|nike|adidas|puma|new balance|under armour|converse|vans|supreme|off-white|fear of god|essentials|north face|patagonia|lululemon|zara|h&m|uniqlo|gap|levis|wrangler|diesel|true religion|fashion brand|clothing brand|luxury brand|streetwear|sneaker|shoe brand)\b/i;
 
 // ── Animal card ───────────────────────────────────────────────────────────────
 
@@ -1288,9 +1361,34 @@ async function fetchCardData(query) {
     if (card) return card;
   }
 
+  // Flag queries
+  if (FLAG_REGEX.test(q)) {
+    const card = await getFlagCard(query);
+    if (card) return card;
+  }
+
+  // Art / painting queries
+  if (ART_REGEX.test(q)) {
+    const card = await getArtCard(query);
+    if (card) return card;
+  }
+
+  // Food / dish queries
+  if (FOOD_REGEX.test(q)) {
+    const card = await getFoodCard(query);
+    if (card) return card;
+  }
+
   // Animal queries — show species photo + description card
   if (ANIMAL_REGEX.test(q)) {
     const card = await getAnimalCard(query);
+    if (card) return card;
+  }
+
+  // Fashion / brand queries — show brand/logo card via Wikipedia
+  if (FASHION_REGEX.test(q)) {
+    const concept = extractConcept(query);
+    const card = await wikiCard(concept);
     if (card) return card;
   }
 
@@ -1301,8 +1399,15 @@ async function fetchCardData(query) {
   }
 
   // Person queries — show photo + bio card (exclude financial/location queries)
-  if (!COMPANY_FINANCE_REGEX.test(q) && /\bwho is\b|\bwho('s| is) (the |a )?\b|\bwho was\b|\btell me about\b|\bshow me\b|\bbiography of\b|\bphoto of\b|\bpicture of\b/i.test(q)) {
+  // Covers: who is/was, tell me about, show me, photo/picture/biography of, plus direct celebrity names
+  if (!COMPANY_FINANCE_REGEX.test(q) && /\bwho is\b|\bwho('s| is) (the |a )?\b|\bwho was\b|\btell me about\b|\bshow me\b|\bbiography of\b|\bphoto of\b|\bpicture of\b|\bactor\b|\bactress\b|\bsinger\b|\brappper\b|\bmusician\b|\bpresident\b|\bprime minister\b|\bpolitician\b|\bfounder\b|\bceo\b|\bdirector\b|\bscientist\b|\binventor\b|\bhistorical figure\b|\bwho played\b|\bplayed by\b/i.test(q)) {
     const card = await getPersonCard(query);
+    if (card) return card;
+  }
+
+  // Historical events / incidents
+  if (HISTORICAL_REGEX.test(q)) {
+    const card = await getHistoricalCard(query);
     if (card) return card;
   }
 
@@ -1409,4 +1514,4 @@ async function getNewsContext(query) {
   return `LIVE NEWS HEADLINES — ${today}:\n${headlines.join('\n')}\n\nUse these headlines to answer questions about current events. If the user asks about something covered here, reference it accurately.`;
 }
 
-module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX };
+module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX };
