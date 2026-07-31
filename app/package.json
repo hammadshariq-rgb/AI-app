@@ -1,6 +1,6 @@
 {
   "name": "jarvis-desktop",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Your Own Personal AI — a voice-powered desktop assistant",
   "keywords": [
     "AI",
@@ -41,6 +41,12 @@
       "src/**/*",
       "assets/**/*",
       "renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      }
     ],
     "win": {
       "target": [
