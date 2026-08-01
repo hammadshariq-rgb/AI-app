@@ -988,6 +988,8 @@ app.post('/ai/tts', authMiddleware, aiLimiter, async (req, res) => {
 
 // Speech-to-text (audio sent as base64 in JSON)
 app.post('/ai/stt', authMiddleware, aiLimiter, async (req, res) => {
+  const keyUsed = (process.env.OPENAI_API_KEY || '').slice(-6);
+  console.log('[STT] key suffix:', keyUsed);
   try {
     const { audio_b64 } = req.body;
     if (!audio_b64) return res.status(400).json({ error: 'audio_b64 required' });
