@@ -1,6 +1,7 @@
 node_modules/
 dist/
-.env
+server/.env
+app/.env, API.txt
 *.log
 .DS_Store
 Thumbs.db
