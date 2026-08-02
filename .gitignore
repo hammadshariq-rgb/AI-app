@@ -1,6 +1,8 @@
 node_modules/
 dist/
 server/.env
+server/.envmoney.txt
+server/env.notepad.txt
 app/.env, API.txt
 *.log
 .DS_Store
