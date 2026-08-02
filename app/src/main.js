@@ -109,6 +109,7 @@ function handleDeepLink(url) {
       const name = parsed.searchParams.get('name');
       const email = parsed.searchParams.get('email');
       if (token && overlayWindow) {
+        saveAuthToken(token);
         overlayWindow.webContents.send('auth:google-success', { token, name, email });
       }
     } else if (parsed.hostname === 'subscribed') {
