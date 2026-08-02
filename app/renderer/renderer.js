@@ -2042,6 +2042,45 @@ async function sendToJarvis(text) {
   const msgEl = (res.text && res.text.trim()) ? addMessage('assistant', res.text) : null;
   setState('idle');
 
+  // Document creation — show Save options
+  if (res.docContent && res.docTitle && msgEl) {
+    const docRow = document.createElement('div');
+    docRow.className = 'doc-action-row';
+    const wordBtn = document.createElement('button');
+    wordBtn.className = 'doc-btn doc-btn-word';
+    wordBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Save as Word File`;
+    const gDocBtn = document.createElement('button');
+    gDocBtn.className = 'doc-btn doc-btn-gdoc';
+    gDocBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Open in Google Docs`;
+    wordBtn.addEventListener('click', async () => {
+      wordBtn.disabled = true;
+      wordBtn.textContent = 'Saving…';
+      try {
+        await window.jarvis.saveWordDoc({ title: res.docTitle, content: res.docContent });
+        wordBtn.textContent = '✓ Saved & Opened';
+        wordBtn.classList.add('done');
+      } catch (e) {
+        wordBtn.textContent = 'Error — try again';
+        wordBtn.disabled = false;
+      }
+    });
+    gDocBtn.addEventListener('click', async () => {
+      gDocBtn.disabled = true;
+      gDocBtn.textContent = 'Opening…';
+      try {
+        await window.jarvis.openGoogleDoc({ title: res.docTitle, content: res.docContent });
+        gDocBtn.textContent = '✓ Content copied — paste in Google Docs';
+        gDocBtn.classList.add('done');
+      } catch (e) {
+        gDocBtn.textContent = 'Error — try again';
+        gDocBtn.disabled = false;
+      }
+    });
+    docRow.appendChild(wordBtn);
+    docRow.appendChild(gDocBtn);
+    msgEl.appendChild(docRow);
+  }
+
   // Show email send arrow button when AI drafted an email
   if (res.emailDraft && msgEl) {
     const draft = res.emailDraft;
@@ -4104,8 +4143,12 @@ async function stopRecording() {
     const base64 = arrayBufferToBase64(arrayBuffer);
     const text = await window.jarvis.transcribe(base64);
     console.log('[MIC] transcribed:', text);
-    if (text && text.trim()) await sendToJarvis(text.trim());
-    else setState('idle');
+    if (text && text.trim().length > 1) {
+      await sendToJarvis(text.trim());
+    } else {
+      addMessage('assistant', "I didn't catch that — could you try speaking again?");
+      setState('idle');
+    }
   } catch (err) {
     const msg = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
     addMessage('assistant', msg || 'Could not understand audio. Please try again.');

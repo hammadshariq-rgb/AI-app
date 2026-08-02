@@ -5456,6 +5456,34 @@ body.light-mode .fav-bubble-item:hover { background: rgba(200,160,0,0.1); color:
 .email-send-row.sent .email-send-btn { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.1); color: #4ade80; }
 .email-send-row.sent .email-send-label { color: rgba(74,222,128,0.8); }
 
+/* Document creation buttons */
+.doc-action-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 10px;
+}
+.doc-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase;
+  font-family: 'Share Tech Mono', monospace;
+  cursor: pointer; transition: all 0.2s;
+}
+.doc-btn-word {
+  border: 1px solid rgba(74,144,226,0.35);
+  background: rgba(74,144,226,0.07);
+  color: rgba(110,180,255,0.85);
+}
+.doc-btn-word:hover { background: rgba(74,144,226,0.18); border-color: rgba(74,144,226,0.7); color: #fff; }
+.doc-btn-gdoc {
+  border: 1px solid rgba(66,200,100,0.35);
+  background: rgba(66,200,100,0.07);
+  color: rgba(80,220,120,0.85);
+}
+.doc-btn-gdoc:hover { background: rgba(66,200,100,0.18); border-color: rgba(66,200,100,0.7); color: #fff; }
+.doc-btn:disabled { opacity: 0.5; cursor: default; }
+.doc-btn.done { opacity: 0.7; cursor: default; }
+
 /* Light mode overrides */
 body.light-mode #favouritesBtn { background: rgba(0,0,0,0.82); border-color: rgba(0,0,0,0.9); }
 body.light-mode #favouritesPanel {

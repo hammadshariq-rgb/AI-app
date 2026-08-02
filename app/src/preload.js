@@ -67,4 +67,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, d) => cb(d)),
   onUpdateReady: (cb) => ipcRenderer.on('update:ready', () => cb()),
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
+  saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
+  openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
 });

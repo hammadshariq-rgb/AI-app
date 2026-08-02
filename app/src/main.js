@@ -344,6 +344,35 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
   }
 });
 
+ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
+  const fs = require('fs');
+  const safe = (title || 'Document').replace(/[<>:"/\\|?*]/g, '_');
+  const dir = app.getPath('documents');
+  const filePath = path.join(dir, `${safe}.rtf`);
+  const rtfContent = buildRTF(title || 'Document', content || '');
+  fs.writeFileSync(filePath, rtfContent, 'utf8');
+  await shell.openPath(filePath);
+  return { ok: true, path: filePath };
+});
+
+ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content }) => {
+  const { clipboard } = require('electron');
+  clipboard.writeText(`${title}\n\n${content}`);
+  await shell.openExternal('https://docs.google.com/document/create');
+  return { ok: true };
+});
+
+function buildRTF(title, content) {
+  const esc = s => s
+    .replace(/\\/g, '\\\\')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n\n/g, '\\par\\par\n')
+    .replace(/\n/g, '\\par\n');
+  return `{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}\n\\widowctrl\\wpaper12240\\wpaperh15840\\margl1800\\margr1800\\margt1440\\margb1440\n\\pard\\f0\\fs28\\b ${esc(title)}\\b0\\par\\par\n\\fs24 ${esc(content)}\\par\n}`;
+}
+
 // Helper: send TTS audio to renderer without blocking the return value
 function _sendTTS(sender, text) {
   tts.synthesize(text).then(audio => {
@@ -845,6 +874,14 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       : 'I couldn\'t clear your calendar. Please try again.';
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  if (finalAction?.type === 'create_document') {
+    const docTitle = finalAction.arg || 'Document';
+    const docContent = finalAction.content || '';
+    const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to save it.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false, docContent, docTitle };
   }
 
   // Handle image generation separately (returns imageUrl, not a command result)

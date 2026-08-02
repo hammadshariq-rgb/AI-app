@@ -273,6 +273,21 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_document',
+      description: 'Create a written document for the user. Use when the user says "create a document about X", "write a document on X", "make a document regarding X", "write me a report on X", "create a word file about X", "draft a document about X", or similar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'A concise title for the document (e.g. "Climate Change Overview").' },
+          content: { type: 'string', description: 'The full document content, written in clear, well-structured paragraphs. Use double newlines to separate paragraphs. Do not include the title in the content.' },
+        },
+        required: ['title', 'content'],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English', userName = null, userTitle = null) => {
@@ -417,7 +432,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc)\b/i;
 
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
 const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
@@ -524,6 +539,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
           else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
           else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
+          else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
           if (action) return { text: fastChoice.message.content || 'Right away.', memory: null, action };
         }
       }
@@ -571,6 +587,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
     else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
     else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
+    else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
     text = choice.message.content || 'On it.';
   } else {
     text = choice.message.content || '';
