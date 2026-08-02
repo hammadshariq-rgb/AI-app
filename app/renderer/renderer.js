@@ -2558,15 +2558,14 @@ function promptUserCallName(googleName) {
 async function checkSubscriptionAndEnter(name, email) {
   // Re-verify token to get latest subscription status
   const result = await window.jarvis.authVerify();
-  if (result.active) {
-    setupView.classList.add('hidden');
-    await showSplash(name);
-    await enterMain();
-  } else {
-    // Not subscribed — show terms (first time) or payment (returning)
+  // Allow entry for all logged-in users (subscribed or not)
+  if (result.needsLogin) {
     setupView.classList.remove('hidden');
-    showTermsOrPayment();
+    return;
   }
+  setupView.classList.add('hidden');
+  await showSplash(name);
+  await enterMain();
 }
 
 // Plan selection — Get Premium → show billing interval picker
