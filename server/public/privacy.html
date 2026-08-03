@@ -1,0 +1,321 @@
+<title>Privacy Policy — Callisto AI</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080A10; --surface: #0D1421; --blue: #4F8EF7;
+    --teal: #2DD4BF; --white: #F0F4FF; --muted: #8892A4;
+    --border: rgba(79,142,247,0.15);
+  }
+  body {
+    background: var(--bg); color: var(--white);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.7;
+  }
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(8,10,16,0.9); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo { font-size: 17px; font-weight: 700; color: var(--white); text-decoration: none; }
+  .nav-logo .dot { color: var(--teal); }
+  nav a.back { color: var(--muted); font-size: 13px; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+  nav a.back:hover { color: var(--white); }
+
+  .container {
+    max-width: 780px; margin: 0 auto;
+    padding: 120px 24px 80px;
+  }
+
+  .doc-header { margin-bottom: 56px; padding-bottom: 40px; border-bottom: 1px solid var(--border); }
+  .doc-label {
+    display: inline-block;
+    font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--teal); font-weight: 700; margin-bottom: 16px;
+  }
+  .doc-header h1 {
+    font-size: clamp(32px, 5vw, 48px); font-weight: 800;
+    letter-spacing: -1.5px; margin-bottom: 16px; line-height: 1.1;
+  }
+  .doc-meta { color: var(--muted); font-size: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .doc-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* TOC */
+  .toc {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 32px; margin-bottom: 56px;
+  }
+  .toc h2 { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .toc a { color: var(--blue); text-decoration: none; font-size: 14px; transition: opacity 0.2s; }
+  .toc a:hover { opacity: 0.75; }
+
+  /* SECTIONS */
+  .section { margin-bottom: 52px; }
+  .section h2 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 16px; color: var(--white);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section h2 .num {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: var(--blue);
+  }
+  .section p { color: var(--muted); font-size: 15px; margin-bottom: 14px; }
+  .section p:last-child { margin-bottom: 0; }
+  .section ul, .section ol {
+    padding-left: 20px; color: var(--muted);
+    font-size: 15px; display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .section li { line-height: 1.65; }
+  .section li strong { color: var(--white); font-weight: 600; }
+
+  /* DATA TABLE */
+  .data-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+  .data-table th {
+    text-align: left; padding: 10px 16px;
+    background: rgba(79,142,247,0.08); color: var(--blue);
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--muted); vertical-align: top; }
+  .data-table td:first-child { color: var(--white); font-weight: 500; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0; }
+
+  /* HIGHLIGHT BOX */
+  .highlight {
+    background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.2);
+    border-radius: 12px; padding: 20px 24px; margin: 20px 0;
+    color: rgba(45,212,191,0.9); font-size: 14px; line-height: 1.65;
+  }
+  .highlight strong { color: var(--teal); }
+
+  .divider { height: 1px; background: var(--border); margin: 52px 0; }
+
+  /* CONTACT */
+  .contact-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 32px;
+  }
+  .contact-box h2 { font-size: 19px; font-weight: 700; margin-bottom: 12px; }
+  .contact-box p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  .contact-box a { color: var(--blue); text-decoration: none; }
+  .contact-box a:hover { text-decoration: underline; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 32px 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-top: 60px;
+  }
+  footer p { color: var(--muted); font-size: 13px; }
+  footer a { color: var(--muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+  footer a:hover { color: var(--white); }
+
+  @media (max-width: 640px) {
+    nav { padding: 16px 20px; }
+    .container { padding: 100px 20px 60px; }
+    footer { padding: 28px 20px; flex-direction: column; text-align: center; }
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+    nav { background: rgba(244,247,255,0.92); }
+  }
+  :root[data-theme="light"] { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+  :root[data-theme="dark"] { --bg: #080A10; --surface: #0D1421; --white: #F0F4FF; --muted: #8892A4; --border: rgba(79,142,247,0.15); }
+</style>
+
+<nav>
+  <a href="/" class="nav-logo">Callisto<span class="dot">.</span>AI</a>
+  <a href="/" class="back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Home
+  </a>
+</nav>
+
+<div class="container">
+
+  <div class="doc-header">
+    <span class="doc-label">Legal</span>
+    <h1>Privacy Policy</h1>
+    <div class="doc-meta">
+      <span>Callisto AI by Shariqen</span>
+      <span>Effective: July 1, 2025</span>
+      <span>Last updated: July 1, 2025</span>
+    </div>
+  </div>
+
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">Who we are</a></li>
+      <li><a href="#s2">What data we collect</a></li>
+      <li><a href="#s3">How we use your data</a></li>
+      <li><a href="#s4">How we store and protect your data</a></li>
+      <li><a href="#s5">Third-party services</a></li>
+      <li><a href="#s6">Data sharing</a></li>
+      <li><a href="#s7">Your rights</a></li>
+      <li><a href="#s8">Children's privacy</a></li>
+      <li><a href="#s9">Changes to this policy</a></li>
+      <li><a href="#s10">Contact us</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight">
+    <strong>Summary:</strong> Callisto AI is a voice-powered desktop assistant. We collect only what is necessary to provide the service. Your conversation history is stored locally on your device. Voice recordings are processed for transcription and not permanently stored. We never sell your personal data.
+  </div>
+
+  <div class="section" id="s1">
+    <h2><span class="num">1</span>Who we are</h2>
+    <p>Callisto AI is a product of <strong style="color:var(--white)">Shariqen</strong>, operated by Hammad Shariq. We are based in Canada and Pakistan. This Privacy Policy explains how we collect, use, and protect your personal information when you use the Callisto AI desktop application and associated services.</p>
+    <p>By using Callisto AI, you agree to the practices described in this policy.</p>
+  </div>
+
+  <div class="section" id="s2">
+    <h2><span class="num">2</span>What data we collect</h2>
+    <p>We collect the following categories of personal information:</p>
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Data type</th><th>What we collect</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Account information</td>
+            <td>Name, email address, profile picture (via Google Sign-In or email registration)</td>
+            <td>To create and manage your account</td>
+          </tr>
+          <tr>
+            <td>Voice data</td>
+            <td>Audio recordings captured when you activate the microphone</td>
+            <td>To transcribe your speech into text for the AI to process</td>
+          </tr>
+          <tr>
+            <td>Chat history</td>
+            <td>Your conversations with Callisto AI</td>
+            <td>To provide context-aware responses and session history</td>
+          </tr>
+          <tr>
+            <td>Location data</td>
+            <td>Approximate location (city/region level) when requested by features</td>
+            <td>To answer location-relevant queries (weather, local info)</td>
+          </tr>
+          <tr>
+            <td>Google Contacts</td>
+            <td>Contact names and phone numbers (only if you connect Google Contacts)</td>
+            <td>To enable calling or messaging contacts by name</td>
+          </tr>
+          <tr>
+            <td>Payment information</td>
+            <td>Billing details for subscription payments</td>
+            <td>To process payments (handled entirely by Stripe — we never see raw card numbers)</td>
+          </tr>
+          <tr>
+            <td>Usage data</td>
+            <td>Feature interactions, error logs, app version</td>
+            <td>To improve the app and diagnose issues</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section" id="s3">
+    <h2><span class="num">3</span>How we use your data</h2>
+    <p>We use the information we collect to:</p>
+    <ul>
+      <li>Provide, operate, and improve the Callisto AI service</li>
+      <li>Authenticate your identity and manage your account</li>
+      <li>Process your voice input and generate AI responses</li>
+      <li>Enable integrations you choose to connect (Google, Spotify, etc.)</li>
+      <li>Process subscription payments via Stripe</li>
+      <li>Send you important service-related notifications</li>
+      <li>Diagnose technical issues and ensure app stability</li>
+    </ul>
+    <p>We do <strong style="color:var(--white)">not</strong> use your data for advertising, profiling, or any purpose beyond operating the service.</p>
+  </div>
+
+  <div class="section" id="s4">
+    <h2><span class="num">4</span>How we store and protect your data</h2>
+    <ul>
+      <li><strong>Voice recordings</strong> are sent to our secure server for transcription processing only. They are not stored after transcription is complete.</li>
+      <li><strong>Chat history</strong> is stored locally on your device. It is not uploaded to our servers unless you explicitly use a cloud sync feature.</li>
+      <li><strong>Account data</strong> is stored on secure servers hosted by Railway (cloud infrastructure provider) with encryption in transit (TLS) and at rest.</li>
+      <li><strong>Authentication tokens</strong> are stored using your operating system's secure credential storage (Windows Data Protection API).</li>
+      <li><strong>Payment data</strong> is handled entirely by Stripe and never stored on our servers.</li>
+    </ul>
+    <p>We implement industry-standard security practices including HTTPS for all data in transit and access controls on our backend systems.</p>
+  </div>
+
+  <div class="section" id="s5">
+    <h2><span class="num">5</span>Third-party services</h2>
+    <p>Callisto AI integrates with the following third-party services to deliver its features. Each has its own privacy policy:</p>
+    <ul>
+      <li><strong>OpenAI</strong> — Powers AI responses and voice transcription. <a href="https://openai.com/privacy" style="color:var(--blue)">openai.com/privacy</a></li>
+      <li><strong>Google</strong> — Used for Sign-In with Google, Google Calendar, Google Drive, and Google Contacts (only if you connect them). <a href="https://policies.google.com/privacy" style="color:var(--blue)">policies.google.com/privacy</a></li>
+      <li><strong>Stripe</strong> — Processes subscription payments. <a href="https://stripe.com/privacy" style="color:var(--blue)">stripe.com/privacy</a></li>
+      <li><strong>Spotify</strong> — Music playback integration (only if you connect it). <a href="https://www.spotify.com/legal/privacy-policy" style="color:var(--blue)">spotify.com/legal/privacy-policy</a></li>
+      <li><strong>Railway</strong> — Cloud hosting for our backend server. <a href="https://railway.app/legal/privacy" style="color:var(--blue)">railway.app/legal/privacy</a></li>
+    </ul>
+    <p>We only request permissions from third-party services that are necessary for features you choose to use.</p>
+  </div>
+
+  <div class="section" id="s6">
+    <h2><span class="num">6</span>Data sharing</h2>
+    <p>We do <strong style="color:var(--white)">not</strong> sell, rent, or trade your personal data to any third party.</p>
+    <p>We may share your data only in the following limited circumstances:</p>
+    <ul>
+      <li><strong>Service providers</strong> — Third-party services listed in Section 5, solely to provide the features of the app</li>
+      <li><strong>Legal requirements</strong> — If required by applicable law, court order, or governmental authority</li>
+      <li><strong>Business transfer</strong> — In the event of a merger or acquisition, with notice provided to users beforehand</li>
+    </ul>
+  </div>
+
+  <div class="section" id="s7">
+    <h2><span class="num">7</span>Your rights</h2>
+    <p>Depending on your location, you may have the following rights regarding your personal data:</p>
+    <ul>
+      <li><strong>Access</strong> — Request a copy of the personal data we hold about you</li>
+      <li><strong>Correction</strong> — Request correction of inaccurate data</li>
+      <li><strong>Deletion</strong> — Request deletion of your account and associated data</li>
+      <li><strong>Portability</strong> — Request your data in a portable format</li>
+      <li><strong>Withdraw consent</strong> — Disconnect any third-party integration at any time from within the app</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at <a href="mailto:hammad.shariq@hotmail.com" style="color:var(--blue)">hammad.shariq@hotmail.com</a>. We will respond within 30 days.</p>
+    <p>If you are located in Canada, your rights are governed by the <em>Personal Information Protection and Electronic Documents Act (PIPEDA)</em>.</p>
+  </div>
+
+  <div class="section" id="s8">
+    <h2><span class="num">8</span>Children's privacy</h2>
+    <p>Callisto AI is not directed at children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us with personal information, please contact us immediately and we will delete it.</p>
+  </div>
+
+  <div class="section" id="s9">
+    <h2><span class="num">9</span>Changes to this policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we make significant changes, we will notify you via the app or by email. The "Last updated" date at the top of this page will always reflect the most recent revision.</p>
+    <p>Continued use of Callisto AI after changes are posted constitutes your acceptance of the updated policy.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="contact-box" id="s10">
+    <h2>Contact us</h2>
+    <p>If you have any questions about this Privacy Policy or how we handle your data, please reach out:</p>
+    <p>
+      <strong style="color:var(--white)">Shariqen — Callisto AI</strong><br>
+      Email: <a href="mailto:hammad.shariq@hotmail.com">hammad.shariq@hotmail.com</a><br>
+      Based in Canada / Pakistan
+    </p>
+  </div>
+
+</div>
+
+<footer>
+  <p>© 2025 Shariqen. All rights reserved.</p>
+  <a href="/">← Back to Callisto AI</a>
+</footer>
