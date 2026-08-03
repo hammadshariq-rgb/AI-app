@@ -1,0 +1,245 @@
+<title>Terms of Service — Callisto AI</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080A10; --surface: #0D1421; --blue: #4F8EF7;
+    --teal: #2DD4BF; --white: #F0F4FF; --muted: #8892A4;
+    --border: rgba(79,142,247,0.15);
+  }
+  body {
+    background: var(--bg); color: var(--white);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.7;
+  }
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(8,10,16,0.9); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo { font-size: 17px; font-weight: 700; color: var(--white); text-decoration: none; }
+  .nav-logo .dot { color: var(--teal); }
+  nav a.back { color: var(--muted); font-size: 13px; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+  nav a.back:hover { color: var(--white); }
+
+  .container { max-width: 780px; margin: 0 auto; padding: 120px 24px 80px; }
+
+  .doc-header { margin-bottom: 56px; padding-bottom: 40px; border-bottom: 1px solid var(--border); }
+  .doc-label { display: inline-block; font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--teal); font-weight: 700; margin-bottom: 16px; }
+  .doc-header h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 800; letter-spacing: -1.5px; margin-bottom: 16px; line-height: 1.1; }
+  .doc-meta { color: var(--muted); font-size: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 56px; }
+  .toc h2 { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .toc a { color: var(--blue); text-decoration: none; font-size: 14px; transition: opacity 0.2s; }
+  .toc a:hover { opacity: 0.75; }
+
+  .highlight { background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.2); border-radius: 12px; padding: 20px 24px; margin: 20px 0; color: rgba(45,212,191,0.9); font-size: 14px; line-height: 1.65; }
+  .highlight strong { color: var(--teal); }
+
+  .section { margin-bottom: 52px; }
+  .section h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 16px; color: var(--white); display: flex; align-items: center; gap: 12px; }
+  .section h2 .num { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--blue); }
+  .section p { color: var(--muted); font-size: 15px; margin-bottom: 14px; }
+  .section p:last-child { margin-bottom: 0; }
+  .section ul, .section ol { padding-left: 20px; color: var(--muted); font-size: 15px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .section li { line-height: 1.65; }
+  .section li strong { color: var(--white); font-weight: 600; }
+
+  .divider { height: 1px; background: var(--border); margin: 52px 0; }
+
+  .contact-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 32px; }
+  .contact-box h2 { font-size: 19px; font-weight: 700; margin-bottom: 12px; }
+  .contact-box p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  .contact-box a { color: var(--blue); text-decoration: none; }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 48px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 60px; }
+  footer p { color: var(--muted); font-size: 13px; }
+  footer a { color: var(--muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+  footer a:hover { color: var(--white); }
+
+  @media (max-width: 640px) {
+    nav { padding: 16px 20px; }
+    .container { padding: 100px 20px 60px; }
+    footer { padding: 28px 20px; flex-direction: column; text-align: center; }
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+    nav { background: rgba(244,247,255,0.92); }
+  }
+  :root[data-theme="light"] { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+  :root[data-theme="dark"] { --bg: #080A10; --surface: #0D1421; --white: #F0F4FF; --muted: #8892A4; --border: rgba(79,142,247,0.15); }
+</style>
+
+<nav>
+  <a href="/" class="nav-logo">Callisto<span class="dot">.</span>AI</a>
+  <a href="/" class="back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Home
+  </a>
+</nav>
+
+<div class="container">
+
+  <div class="doc-header">
+    <span class="doc-label">Legal</span>
+    <h1>Terms of Service</h1>
+    <div class="doc-meta">
+      <span>Callisto AI by Shariqen</span>
+      <span>Effective: July 1, 2025</span>
+      <span>Last updated: July 1, 2025</span>
+    </div>
+  </div>
+
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">Acceptance of terms</a></li>
+      <li><a href="#s2">Description of service</a></li>
+      <li><a href="#s3">Eligibility</a></li>
+      <li><a href="#s4">Account registration</a></li>
+      <li><a href="#s5">Subscriptions and payments</a></li>
+      <li><a href="#s6">Acceptable use</a></li>
+      <li><a href="#s7">Intellectual property</a></li>
+      <li><a href="#s8">Third-party services</a></li>
+      <li><a href="#s9">Disclaimer of warranties</a></li>
+      <li><a href="#s10">Limitation of liability</a></li>
+      <li><a href="#s11">Termination</a></li>
+      <li><a href="#s12">Changes to these terms</a></li>
+      <li><a href="#s13">Governing law</a></li>
+      <li><a href="#s14">Contact</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight">
+    <strong>Plain English summary:</strong> By using Callisto AI you agree to these terms. Use the app responsibly, pay for your subscription if applicable, and don't misuse the service. We provide Callisto AI as-is and are not liable for damages beyond what you paid us.
+  </div>
+
+  <div class="section" id="s1">
+    <h2><span class="num">1</span>Acceptance of terms</h2>
+    <p>By downloading, installing, or using Callisto AI (the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.</p>
+    <p>These Terms constitute a legally binding agreement between you and Shariqen ("we", "us", or "our"), operated by Hammad Shariq.</p>
+  </div>
+
+  <div class="section" id="s2">
+    <h2><span class="num">2</span>Description of service</h2>
+    <p>Callisto AI is a voice-powered AI desktop assistant that allows users to interact with artificial intelligence through natural speech and text. The Service may include features such as:</p>
+    <ul>
+      <li>Voice transcription and AI-generated responses</li>
+      <li>Integration with third-party services (Google, Spotify, email, etc.)</li>
+      <li>Document creation and management</li>
+      <li>Calendar and reminder management</li>
+      <li>Web search and information retrieval</li>
+    </ul>
+    <p>We reserve the right to modify, suspend, or discontinue any part of the Service at any time with reasonable notice.</p>
+  </div>
+
+  <div class="section" id="s3">
+    <h2><span class="num">3</span>Eligibility</h2>
+    <p>You must be at least 13 years of age to use Callisto AI. By using the Service, you represent and warrant that you meet this requirement. If you are under 18, you must have the consent of a parent or legal guardian.</p>
+  </div>
+
+  <div class="section" id="s4">
+    <h2><span class="num">4</span>Account registration</h2>
+    <p>To access the Service you must create an account. You agree to:</p>
+    <ul>
+      <li>Provide accurate and complete information when registering</li>
+      <li>Keep your account credentials secure and confidential</li>
+      <li>Notify us immediately of any unauthorized access to your account</li>
+      <li>Be responsible for all activity that occurs under your account</li>
+    </ul>
+    <p>We reserve the right to suspend or terminate accounts that violate these Terms.</p>
+  </div>
+
+  <div class="section" id="s5">
+    <h2><span class="num">5</span>Subscriptions and payments</h2>
+    <ul>
+      <li><strong>Free tier:</strong> Callisto AI may offer limited free access to the Service.</li>
+      <li><strong>Paid subscription:</strong> Certain features require a paid subscription, billed on a recurring basis via Stripe.</li>
+      <li><strong>Billing:</strong> By subscribing, you authorize us to charge your payment method on a recurring basis until you cancel.</li>
+      <li><strong>Cancellation:</strong> You may cancel your subscription at any time from within the app. Cancellation takes effect at the end of the current billing period — no partial refunds are issued.</li>
+      <li><strong>Refunds:</strong> All sales are final unless otherwise required by applicable law.</li>
+      <li><strong>Price changes:</strong> We may change subscription prices with at least 30 days' notice.</li>
+    </ul>
+  </div>
+
+  <div class="section" id="s6">
+    <h2><span class="num">6</span>Acceptable use</h2>
+    <p>You agree not to use the Service to:</p>
+    <ul>
+      <li>Violate any applicable law or regulation</li>
+      <li>Harass, threaten, or harm other individuals</li>
+      <li>Generate, distribute, or promote illegal, harmful, or offensive content</li>
+      <li>Attempt to reverse-engineer, decompile, or extract the source code of the Service</li>
+      <li>Use the Service to train competing AI models or products</li>
+      <li>Overload or interfere with the Service's infrastructure</li>
+      <li>Circumvent any security, billing, or access controls</li>
+      <li>Impersonate any person or entity</li>
+    </ul>
+    <p>Violation of this section may result in immediate termination of your account.</p>
+  </div>
+
+  <div class="section" id="s7">
+    <h2><span class="num">7</span>Intellectual property</h2>
+    <p>The Callisto AI application, including its design, code, branding, and content, is owned by Shariqen and protected by applicable intellectual property laws.</p>
+    <p>You retain ownership of any content you create using the Service (documents, notes, etc.). By using the Service, you grant us a limited license to process your content solely to provide the Service to you.</p>
+    <p>You may not copy, redistribute, or resell any part of the Service without our express written permission.</p>
+  </div>
+
+  <div class="section" id="s8">
+    <h2><span class="num">8</span>Third-party services</h2>
+    <p>Callisto AI integrates with third-party services including Google, Stripe, OpenAI, and Spotify. Your use of these integrations is subject to the respective third party's terms of service and privacy policies. We are not responsible for the practices or content of any third-party service.</p>
+  </div>
+
+  <div class="section" id="s9">
+    <h2><span class="num">9</span>Disclaimer of warranties</h2>
+    <p>The Service is provided <strong style="color:var(--white)">"as is"</strong> and <strong style="color:var(--white)">"as available"</strong> without warranties of any kind, either express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.</p>
+    <p>We do not warrant that the Service will be uninterrupted, error-free, or completely secure. AI-generated responses may be inaccurate — always verify important information independently.</p>
+  </div>
+
+  <div class="section" id="s10">
+    <h2><span class="num">10</span>Limitation of liability</h2>
+    <p>To the maximum extent permitted by applicable law, Shariqen shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of or inability to use the Service.</p>
+    <p>Our total liability to you for any claims arising under these Terms shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
+  </div>
+
+  <div class="section" id="s11">
+    <h2><span class="num">11</span>Termination</h2>
+    <p>You may stop using the Service and delete your account at any time by contacting us at <a href="mailto:hammad.shariq@hotmail.com" style="color:var(--blue)">hammad.shariq@hotmail.com</a>.</p>
+    <p>We may suspend or terminate your access to the Service immediately, without prior notice, if you violate these Terms or if we reasonably believe your use poses a risk to the Service or other users.</p>
+    <p>Upon termination, your right to use the Service ceases immediately. Provisions that by their nature should survive termination will remain in effect.</p>
+  </div>
+
+  <div class="section" id="s12">
+    <h2><span class="num">12</span>Changes to these terms</h2>
+    <p>We may update these Terms from time to time. We will notify you of significant changes via the app or email. Continued use of the Service after changes are posted constitutes your acceptance of the updated Terms.</p>
+  </div>
+
+  <div class="section" id="s13">
+    <h2><span class="num">13</span>Governing law</h2>
+    <p>These Terms are governed by the laws of the Province of Ontario, Canada, without regard to its conflict of law provisions. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts of Ontario, Canada.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="contact-box" id="s14">
+    <h2>Contact us</h2>
+    <p>If you have any questions about these Terms, please contact us:</p>
+    <p>
+      <strong style="color:var(--white)">Shariqen — Callisto AI</strong><br>
+      Email: <a href="mailto:hammad.shariq@hotmail.com">hammad.shariq@hotmail.com</a><br>
+      Based in Canada / Pakistan
+    </p>
+  </div>
+
+</div>
+
+<footer>
+  <p>© 2025 Shariqen. All rights reserved.</p>
+  <div style="display:flex;gap:24px">
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/">← Back to Callisto AI</a>
+  </div>
+</footer>
