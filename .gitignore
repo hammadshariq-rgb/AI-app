@@ -1,9 +1,25 @@
 node_modules/
 dist/
+
+# Environment files — NEVER commit these
+.env
+.env.*
+!.env.example
 server/.env
 server/.envmoney.txt
 server/env.notepad.txt
+app/.env
 app/.env, API.txt
+app/.env.*
+
+# Sensitive data files
+server/users.json
+server/licenses.json
+server/*.key
+server/*.pem
+
+# OS files
 *.log
 .DS_Store
 Thumbs.db
+Thumbs.db:encryptable
