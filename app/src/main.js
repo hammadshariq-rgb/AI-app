@@ -437,9 +437,56 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const FAST_MESSAGING = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
   const FAST_MUSIC = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
 
+  // Fast volume/mute/shutdown — zero AI latency
+  const _volMute = _lo.match(/^(mute|unmute|silence)$/);
+  const _volSet  = _lo.match(/^(?:set\s+)?volume\s+(?:to\s+)?(\d+)\s*%?$/);
+  const _volUpDn = _lo.match(/^volume\s+(up|down)$/);
+  const _shutdown = _lo.match(/^(shut\s*down|turn\s+off\s+(my\s+)?(?:pc|computer|laptop)|power\s+off)$/);
+  const _restart  = _lo.match(/^(restart|reboot)(\s+(my\s+)?(?:pc|computer|laptop))?$/);
+  const _sleep    = _lo.match(/^(sleep|hibernate|standby)(\s+(my\s+)?(?:pc|computer|laptop))?$/);
+
+  if (_volMute) {
+    const action = _lo === 'unmute' ? 'unmute' : 'mute';
+    commands.run('set_volume', `${action}|`).catch(() => {});
+    const t = action === 'mute' ? 'Muted.' : 'Unmuted.';
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+  if (_volSet) {
+    commands.run('set_volume', `set|${_volSet[1]}`).catch(() => {});
+    const t = `Volume set to ${_volSet[1]} percent.`;
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+  if (_volUpDn) {
+    commands.run('set_volume', `${_volUpDn[1]}|`).catch(() => {});
+    const t = _volUpDn[1] === 'up' ? 'Volume up.' : 'Volume down.';
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+  if (_shutdown) {
+    const t = 'Shutting down in 10 seconds. Save your work.';
+    _sendTTS(_e.sender, t);
+    commands.run('system_power', 'shutdown|10').catch(() => {});
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+  if (_restart) {
+    const t = 'Restarting in 10 seconds.';
+    _sendTTS(_e.sender, t);
+    commands.run('system_power', 'restart|10').catch(() => {});
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+  if (_sleep) {
+    const t = 'Going to sleep.';
+    _sendTTS(_e.sender, t);
+    commands.run('system_power', 'sleep|0').catch(() => {});
+    return { text: t, audio: null, card: null, hasAction: true };
+  }
+
   if (_searchM) {
     const q = encodeURIComponent(_searchM[1].trim()).replace(/%20/g, '+');
     const url = `https://www.google.com/search?q=${q}`;
+    // Fire action AND TTS simultaneously — don't wait for one before the other
     commands.run('open_url', url).catch(() => {});
     _sendTTS(_e.sender, 'Searching now.');
     return { text: 'Searching now.', audio: null, card: null, hasAction: true };
@@ -506,6 +553,22 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     // No card or no photo — fall through to normal AI flow
   }
 
+  // Image search queries — "show me a photo of X", "picture of X", "what does X look like"
+  const IMAGE_QUERY_REGEX = /\b(show me (a |the )?photo(s)? of|picture(s)? of|image(s)? of|what does .{0,30} look like|show me what .{0,30} looks like)\b/i;
+  if (IMAGE_QUERY_REGEX.test(message)) {
+    const topic = message.replace(IMAGE_QUERY_REGEX, '').replace(/[?!.]+$/, '').trim();
+    const [cardResult, imgResult] = await Promise.all([
+      realtime.fetchCardData(message).catch(() => null),
+      topic ? realtime.searchImages(topic).catch(() => null) : Promise.resolve(null),
+    ]);
+    const best = (cardResult?.imageUrl || cardResult?.heroImage) ? cardResult : imgResult;
+    if (best) {
+      const spokenText = (best.summary || best.subtitle || best.description || best.title || 'Here you go.').slice(0, 300);
+      if (spokenText) _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: best, hasAction: false };
+    }
+  }
+
   // Historical/art/food/flag/fashion queries — show card directly
   const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like)\b/i;
   if (VISUAL_CARD_REGEX.test(message)) {
@@ -543,8 +606,8 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
     isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 4000) : Promise.resolve(null),
-    (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 3000) : Promise.resolve(null),
-    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 3000) : Promise.resolve(null),
+    (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
+    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 

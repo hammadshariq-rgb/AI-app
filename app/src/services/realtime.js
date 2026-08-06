@@ -1,5 +1,20 @@
 const fetch = require('node-fetch');
 
+// ── In-memory cache — avoid repeat fetches for the same query within 60s ─────
+const _cache = new Map();
+function _cached(key, fn, ttlMs = 60000) {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.ts < ttlMs) return Promise.resolve(hit.value);
+  return fn().then(v => { _cache.set(key, { value: v, ts: Date.now() }); return v; });
+}
+
+// ── Timed fetch helper ────────────────────────────────────────────────────────
+function _timedFetch(url, opts = {}, ms = 3000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 // Weather via wttr.in — free, no API key
 async function getWeather(location) {
   try {
@@ -276,7 +291,7 @@ async function getScienceCard(query) {
 async function ddgSearch(query) {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(url, { timeout: 1500 });
+    const res = await _timedFetch(url, {}, 2500);
     const data = await res.json();
     const parts = [];
     if (data.Answer) parts.push(data.Answer);
@@ -293,11 +308,11 @@ async function ddgSearch(query) {
 // Wikipedia summary for factual/historical queries
 async function wikiSearch(query) {
   try {
-    const search = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 1500 });
+    const search = await _timedFetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, {}, 2000);
     const searchData = await search.json();
     const title = searchData?.query?.search?.[0]?.title;
     if (!title) return null;
-    const summary = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(title)}&format=json`, { timeout: 1500 });
+    const summary = await _timedFetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(title)}&format=json`, {}, 2000);
     const sumData = await summary.json();
     const pages = sumData?.query?.pages;
     const page = pages[Object.keys(pages)[0]];
@@ -361,6 +376,9 @@ async function googleFactSearch(query) {
 
 // Main function — called before AI responds when real-time data is needed
 async function fetchRealtimeContext(query) {
+  return _cached(`rtx:${query}`, () => _fetchRealtimeContextInner(query), 45000);
+}
+async function _fetchRealtimeContextInner(query) {
   const q = query.toLowerCase();
 
   // Weather
@@ -432,16 +450,7 @@ async function fetchRealtimeContext(query) {
     : null;
 }
 
-// AbortController-based fetch with hard timeout
-async function _timedFetch(url, opts = {}, ms = 4000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const res = await fetch(url, { ...opts, signal: ctrl.signal });
-    clearTimeout(timer);
-    return res;
-  } catch (e) { clearTimeout(timer); throw e; }
-}
+// (duplicate _timedFetch removed — defined at top of file)
 
 // Look up ticker symbol by company name using Yahoo Finance search
 async function resolveTickerSymbol(query) {
@@ -1277,6 +1286,9 @@ const TICKER_MAP = {
 const STOCK_KEYWORDS = /\b(stock|share|shares|price|invest|market|nasdaq|nyse|crypto|cryptocurrency|coin|token|trading|chart|value|worth|valuation|how much is|how much are|what is .+ worth|what is .+ trading)\b/i;
 
 async function fetchCardData(query) {
+  return _cached(`card:${query}`, () => _fetchCardDataInner(query), 45000);
+}
+async function _fetchCardDataInner(query) {
   const q = query.toLowerCase();
 
   // Stock / crypto detection
@@ -1514,4 +1526,27 @@ async function getNewsContext(query) {
   return `LIVE NEWS HEADLINES — ${today}:\n${headlines.join('\n')}\n\nUse these headlines to answer questions about current events. If the user asks about something covered here, reference it accurately.`;
 }
 
-module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX };
+// ── Wikimedia Commons image search — richer image results ────────────────────
+async function searchImages(query) {
+  try {
+    const res = await _timedFetch(
+      `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1&prop=pageimages|extracts&exintro&explaintext&pithumbsize=500&format=json`,
+      { headers: { 'User-Agent': 'CallistoAI/1.0' } }, 2500
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const pages = Object.values(data?.query?.pages || {});
+    const page = pages[0];
+    if (!page) return null;
+    return {
+      type: 'image',
+      title: page.title,
+      imageUrl: page.thumbnail?.source || null,
+      description: (page.extract || '').slice(0, 200),
+      source: 'Wikipedia',
+      sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
+    };
+  } catch { return null; }
+}
+
+module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
