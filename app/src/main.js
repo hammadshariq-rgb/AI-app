@@ -222,6 +222,22 @@ app.whenReady().then(async () => {
   // Porcupine); wiring that in is the natural next step. Hotkey ships as the v1 trigger.
   globalShortcut.register('Control+Shift+J', toggleOverlay);
 
+  // Ctrl+Space — Clipboard AI: grab clipboard text and process it with the AI
+  globalShortcut.register('Control+Space', () => {
+    const { clipboard } = require('electron');
+    const text = clipboard.readText().trim();
+    if (!text) return;
+    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
+    if (!overlayWindow.isVisible()) {
+      overlayWindow.show();
+      overlayWindow.focus();
+      const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
+      overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
+    }
+    // Send clipboard content as a prefilled message
+    overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
+  });
+
   // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
   globalShortcut.register('Control+S', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
@@ -882,6 +898,89 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to save it.`;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false, docContent, docTitle };
+  }
+
+  if (finalAction?.type === 'set_volume') {
+    await commands.run('set_volume', finalAction.arg).catch(() => {});
+    const [action, levelStr] = (finalAction.arg || '').split('|');
+    const level = parseFloat(levelStr);
+    const spokenText = finalText || (
+      action === 'mute'   ? 'Muted.' :
+      action === 'unmute' ? 'Unmuted.' :
+      action === 'up'     ? 'Volume up.' :
+      action === 'down'   ? 'Volume down.' :
+      !isNaN(level)       ? `Volume set to ${Math.round(level)} percent.` : 'Done.'
+    );
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  if (finalAction?.type === 'system_power') {
+    const [action] = (finalAction.arg || '').split('|');
+    const spokenText = finalText || (
+      action === 'shutdown' ? 'Shutting down in 10 seconds. Save your work.' :
+      action === 'restart'  ? 'Restarting in 10 seconds.' :
+      action === 'sleep'    ? 'Putting the computer to sleep.' : 'Done.'
+    );
+    _sendTTS(_e.sender, spokenText);
+    await commands.run('system_power', finalAction.arg).catch(() => {});
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  if (finalAction?.type === 'remember_fact') {
+    const fact = finalAction.arg || '';
+    if (fact) {
+      memories.push(fact);
+      store.set('memories', memories);
+    }
+    const spokenText = finalText || 'Noted. I\'ll remember that.';
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
+
+  if (finalAction?.type === 'forget_fact') {
+    const query = (finalAction.arg || '').toLowerCase();
+    const before = memories.length;
+    const updated = memories.filter(m => !m.toLowerCase().includes(query));
+    store.set('memories', updated);
+    const removed = before - updated.length;
+    const spokenText = finalText || (removed > 0 ? `Done — I've removed ${removed} item${removed !== 1 ? 's' : ''} from memory.` : 'I couldn\'t find anything matching that in my memory.');
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
+
+  if (finalAction?.type === 'get_briefing') {
+    const days = parseInt(finalAction.arg) || 1;
+    const parts = [];
+
+    // Calendar
+    if (calendar.isConnected()) {
+      const eventsResult = await calendar.getUpcomingEvents(days).catch(() => null);
+      if (eventsResult?.events?.length > 0) {
+        const eventLines = eventsResult.events.slice(0, 5).map(e => {
+          const start = new Date(e.start);
+          const timeStr = e.allDay ? 'all day' : start.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
+          return `${e.title} at ${timeStr}`;
+        });
+        parts.push(`Today you have ${eventsResult.events.length} event${eventsResult.events.length !== 1 ? 's' : ''}: ${eventLines.join(', ')}.`);
+      } else {
+        parts.push('Your schedule is clear today.');
+      }
+    } else {
+      parts.push('No calendar connected.');
+    }
+
+    // News headlines (already cached by the realtime module)
+    const newsCtx = await realtime.getNewsContext('today briefing').catch(() => null);
+    if (newsCtx) parts.push('For the news: ' + newsCtx.replace(/\n/g, ' ').slice(0, 300));
+
+    // Memory reminder
+    if (memories.length > 0) parts.push(`You have ${memories.length} thing${memories.length !== 1 ? 's' : ''} in my memory.`);
+
+    const briefingText = parts.join(' ') || 'Good morning. Nothing on the agenda today.';
+    const spokenText = finalText || briefingText;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false };
   }
 
   // Handle image generation separately (returns imageUrl, not a command result)

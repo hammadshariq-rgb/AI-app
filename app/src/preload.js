@@ -69,4 +69,5 @@ contextBridge.exposeInMainWorld('jarvis', {
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
+  onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
 });

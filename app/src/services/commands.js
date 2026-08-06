@@ -646,6 +646,50 @@ async function run(action, arg) {
       return { ok: true };
     }
 
+    case 'set_volume': {
+      const [action, levelStr] = String(arg).split('|');
+      const level = parseFloat(levelStr);
+      if (IS_WIN) {
+        let cmd;
+        if (action === 'mute')   cmd = `powershell -command "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"`;
+        else if (action === 'unmute') cmd = `powershell -command "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"`;
+        else if (action === 'up')   cmd = `powershell -command "1..5 | ForEach-Object { (New-Object -ComObject WScript.Shell).SendKeys([char]175) }"`;
+        else if (action === 'down') cmd = `powershell -command "1..5 | ForEach-Object { (New-Object -ComObject WScript.Shell).SendKeys([char]174) }"`;
+        else if (!isNaN(level)) {
+          // Set exact volume via nircmd if available, else use PowerShell audio API
+          const vol = Math.round(Math.max(0, Math.min(100, level)));
+          const scalar = Math.round(vol * 65535 / 100);
+          cmd = `powershell -command "$obj = New-Object -ComObject WScript.Shell; $vol = [int](${vol}/2); 1..50 | ForEach-Object { $obj.SendKeys([char]174) }; 1..$vol | ForEach-Object { $obj.SendKeys([char]175) }"`;
+        }
+        if (cmd) exec(cmd, () => {});
+      } else if (IS_MAC) {
+        let cmd;
+        if (action === 'mute')   cmd = `osascript -e 'set volume output muted true'`;
+        else if (action === 'unmute') cmd = `osascript -e 'set volume output muted false'`;
+        else if (action === 'up')   cmd = `osascript -e 'set volume output volume ((output volume of (get volume settings)) + 10)'`;
+        else if (action === 'down') cmd = `osascript -e 'set volume output volume ((output volume of (get volume settings)) - 10)'`;
+        else if (!isNaN(level)) cmd = `osascript -e 'set volume output volume ${Math.round(level)}'`;
+        if (cmd) exec(cmd, () => {});
+      }
+      return { ok: true };
+    }
+
+    case 'system_power': {
+      const [action, delayStr] = String(arg).split('|');
+      const delay = parseInt(delayStr) || 10;
+      if (IS_WIN) {
+        const cmds = { shutdown: `shutdown /s /t ${delay}`, restart: `shutdown /r /t ${delay}`, sleep: 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0' };
+        if (cmds[action]) exec(cmds[action], () => {});
+      } else if (IS_MAC) {
+        const cmds = { shutdown: `osascript -e 'tell application "System Events" to shut down'`, restart: `osascript -e 'tell application "System Events" to restart'`, sleep: `osascript -e 'tell application "System Events" to sleep'` };
+        if (cmds[action]) setTimeout(() => exec(cmds[action], () => {}), delay * 1000);
+      } else {
+        const cmds = { shutdown: `shutdown -h +${Math.ceil(delay/60)}`, restart: `shutdown -r +${Math.ceil(delay/60)}`, sleep: 'systemctl suspend' };
+        if (cmds[action]) exec(cmds[action], () => {});
+      }
+      return { ok: true };
+    }
+
     case 'open_file_dialog':
       return { ok: true };
 

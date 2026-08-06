@@ -1876,6 +1876,18 @@ window.jarvis.onVoiceTrigger(() => {
   else startRecording();
 });
 
+// Ctrl+Space — Clipboard AI: auto-fill the input with clipboard text and a prompt
+window.jarvis.onClipboardAI(({ text }) => {
+  const preview = text.length > 120 ? text.slice(0, 120) + '…' : text;
+  const prompt = `Summarise and explain this:\n\n${text}`;
+  if (userInput) {
+    userInput.value = prompt;
+    userInput.focus();
+    // Show a hint message
+    addMessage('assistant', `I've grabbed your clipboard (${text.length} characters). What would you like me to do with it? You can edit the prompt above or just press Enter to summarise it.`);
+  }
+});
+
 // ===================== ATTACH FILES =====================
 let pendingAttachments = [];
 

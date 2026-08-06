@@ -276,6 +276,78 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'set_volume',
+      description: 'Set the system volume or mute/unmute. Use when the user says "set volume to X", "volume up/down", "mute", "unmute", "turn it up/down".',
+      parameters: {
+        type: 'object',
+        properties: {
+          level: { type: 'number', description: 'Volume level from 0 to 100. Use -1 for mute, -2 for unmute.' },
+          action: { type: 'string', enum: ['set', 'mute', 'unmute', 'up', 'down'], description: 'Action to perform.' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'system_power',
+      description: 'Shut down, restart, or sleep the computer. Use when the user says "shut down", "turn off my PC", "restart", "reboot", "sleep".',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['shutdown', 'restart', 'sleep'], description: 'Power action to perform.' },
+          delay: { type: 'number', description: 'Delay in seconds before action (default 10 to give user time to cancel).' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remember_fact',
+      description: 'Save a fact to long-term memory. Use when the user says "remember that", "note that", "don\'t forget", or shares important personal info they want saved. Also use proactively when you learn the user\'s name, preferences, or important details.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fact: { type: 'string', description: 'The fact to remember, written as a clear, self-contained statement. E.g. "User\'s wife\'s name is Sarah." or "User prefers dark mode."' },
+        },
+        required: ['fact'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'forget_fact',
+      description: 'Remove a specific fact from memory. Use when the user says "forget that", "remove that from memory", or asks to update/delete a stored fact.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The topic or fact to search for and remove from memory. E.g. "wife\'s name" or "dark mode preference".' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_briefing',
+      description: 'Give the user a morning briefing covering their day — calendar events, weather, and top news. Use when the user says "briefing", "morning briefing", "what\'s on today", "give me my day", "what do I have today".',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'number', description: 'How many days of calendar to include (default 1 for today only).' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'create_document',
       description: 'Create a written document for the user. Use when the user says "create a document about X", "write a document on X", "make a document regarding X", "write me a report on X", "create a word file about X", "draft a document about X", or similar.',
       parameters: {
@@ -432,7 +504,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note)\b/i;
 
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
 const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
@@ -540,6 +612,11 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
           else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
           else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
+          else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
+          else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
+          else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
+          else if (fnName === 'forget_fact')   action = { type: 'forget_fact',   arg: args.query };
+          else if (fnName === 'get_briefing')  action = { type: 'get_briefing',  arg: args.days || 1 };
           if (action) return { text: fastChoice.message.content || 'Right away.', memory: null, action };
         }
       }
@@ -588,6 +665,11 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
     else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
     else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
+    else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
+    else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
+    else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
+    else if (fnName === 'forget_fact')   action = { type: 'forget_fact',   arg: args.query };
+    else if (fnName === 'get_briefing')  action = { type: 'get_briefing',  arg: args.days || 1 };
     text = choice.message.content || 'On it.';
   } else {
     text = choice.message.content || '';
