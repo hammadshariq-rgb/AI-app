@@ -1232,6 +1232,68 @@ const WeatherWidget = (function() {
 
 WeatherWidget.init();
 
+// ===================== NEWS FLASH MARQUEE =====================
+const NewsFlash = (() => {
+  const inner = document.getElementById('newsFlashInner');
+  let _headlines = [];
+
+  // RSS feeds that support CORS via allorigins proxy — global news sources
+  const RSS_FEEDS = [
+    'https://feeds.bbci.co.uk/news/world/rss.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://feeds.reuters.com/reuters/worldNews',
+    'https://www.aljazeera.com/xml/rss/all.xml',
+  ];
+
+  async function fetchFeed(url) {
+    try {
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxy, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(data.contents, 'text/xml');
+      const items = Array.from(xml.querySelectorAll('item')).slice(0, 6);
+      return items.map(i => i.querySelector('title')?.textContent?.trim()).filter(Boolean);
+    } catch { return []; }
+  }
+
+  async function refresh() {
+    try {
+      // Fetch all feeds in parallel, take first 2 results from each
+      const results = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
+      const all = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value.slice(0, 3));
+
+      if (all.length > 0) {
+        _headlines = all;
+        render();
+      }
+    } catch { /* keep existing headlines */ }
+  }
+
+  function render() {
+    if (!inner || _headlines.length === 0) return;
+
+    // Build double-set for seamless loop (50% trick)
+    const full = [..._headlines, ..._headlines];
+    inner.innerHTML = full
+      .map(h => `<span class="news-item">${h}</span>`)
+      .join('');
+
+    // Adjust animation speed to headline count (longer = slower)
+    const duration = Math.max(40, _headlines.length * 12);
+    inner.style.animationDuration = `${duration}s`;
+  }
+
+  // Init: fetch now, then every 20 minutes
+  refresh();
+  setInterval(refresh, 20 * 60 * 1000);
+
+  return { refresh };
+})();
+
 // ===================== CARD PANEL =====================
 // Map team/country names → flag emoji for sports cards without logos
 const TEAM_FLAGS = {
@@ -1874,6 +1936,34 @@ window.jarvis.onActionFired(() => triggerActionFlash());
 window.jarvis.onVoiceTrigger(() => {
   if (isRecording) stopRecording();
   else startRecording();
+});
+
+// ===================== AUTO-UPDATE =====================
+const updateWrap = document.getElementById('updateWrap');
+const updateBtn  = document.getElementById('updateBtn');
+const updateBtnLabel = document.getElementById('updateBtnLabel');
+
+// Step 1: update is downloading in background — show downloading state
+window.jarvis.onUpdateAvailable && window.jarvis.onUpdateAvailable(({ version }) => {
+  updateBtnLabel.textContent = `Downloading v${version}…`;
+  updateWrap.classList.remove('hidden');
+  updateBtn.disabled = true;
+  updateBtn.style.opacity = '0.6';
+});
+
+// Step 2: update downloaded — show restart prompt
+window.jarvis.onUpdateReady && window.jarvis.onUpdateReady(() => {
+  updateBtnLabel.textContent = 'Restart to update';
+  updateWrap.classList.remove('hidden');
+  updateBtn.disabled = false;
+  updateBtn.style.opacity = '1';
+});
+
+// Step 3: user clicks — restart and install
+updateBtn && updateBtn.addEventListener('click', () => {
+  updateBtnLabel.textContent = 'Restarting…';
+  updateBtn.disabled = true;
+  window.jarvis.installUpdate();
 });
 
 // Ctrl+Space — Clipboard AI: auto-fill the input with clipboard text and a prompt
