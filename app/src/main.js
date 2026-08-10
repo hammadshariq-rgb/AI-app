@@ -186,7 +186,30 @@ app.whenReady().then(async () => {
   // Pre-warm the news cache in the background so first query has headlines ready instantly
   realtime.fetchNewsFeeds().catch(() => {});
   // Refresh every 20 minutes while app is running
-  setInterval(() => { realtime.fetchNewsFeeds().catch(() => {}); }, 20 * 60 * 1000);
+  setInterval(() => {
+    realtime.fetchNewsFeeds().catch(() => {});
+    // Push fresh headlines to the renderer
+    sendNewsToRenderer();
+  }, 20 * 60 * 1000);
+
+  // Send headlines to renderer once loaded
+  function sendNewsToRenderer() {
+    realtime.fetchNewsFeeds().then(data => {
+      if (!overlayWindow || overlayWindow.isDestroyed()) return;
+      if (!data || Object.keys(data).length === 0) return;
+      // Take up to 5 headlines from each category for a rich ticker
+      const headlines = Object.entries(data)
+        .flatMap(([, items]) => (Array.isArray(items) ? items.slice(0, 5) : []))
+        .filter(Boolean);
+      if (headlines.length > 0) {
+        overlayWindow.webContents.send('jarvis:news-headlines', headlines);
+      }
+    }).catch(() => {});
+  }
+
+  // Wait for renderer ready then send — retry after 8s in case feeds were still loading
+  setTimeout(sendNewsToRenderer, 4000);
+  setTimeout(sendNewsToRenderer, 10000);
 
   // ── Auto-updater ─────────────────────────────────────────────────────────────
   if (app.isPackaged) {

@@ -4255,12 +4255,13 @@ body.light-mode #hudWeather { border-left-color: rgba(30,40,100,0.15); }
 }
 
 #newsFlashInner {
-  display: flex;
+  display: inline-flex;
   white-space: nowrap;
-  animation: newsScroll 60s linear infinite;
+  will-change: transform;
+  animation: newsScroll 90s linear infinite;
   animation-play-state: running;
 }
-#newsFlashInner:hover { animation-play-state: paused; }
+#newsFlashTrack:hover #newsFlashInner { animation-play-state: paused; }
 
 .news-item {
   font-family: 'Inter', sans-serif;

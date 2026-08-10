@@ -70,4 +70,5 @@ contextBridge.exposeInMainWorld('jarvis', {
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
+  onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
 });

@@ -1237,61 +1237,25 @@ const NewsFlash = (() => {
   const inner = document.getElementById('newsFlashInner');
   let _headlines = [];
 
-  // RSS feeds that support CORS via allorigins proxy — global news sources
-  const RSS_FEEDS = [
-    'https://feeds.bbci.co.uk/news/world/rss.xml',
-    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
-    'https://feeds.reuters.com/reuters/worldNews',
-    'https://www.aljazeera.com/xml/rss/all.xml',
-  ];
-
-  async function fetchFeed(url) {
-    try {
-      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const res = await fetch(proxy, { signal: AbortSignal.timeout(5000) });
-      if (!res.ok) return [];
-      const data = await res.json();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents, 'text/xml');
-      const items = Array.from(xml.querySelectorAll('item')).slice(0, 6);
-      return items.map(i => i.querySelector('title')?.textContent?.trim()).filter(Boolean);
-    } catch { return []; }
-  }
-
-  async function refresh() {
-    try {
-      // Fetch all feeds in parallel, take first 2 results from each
-      const results = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
-      const all = results
-        .filter(r => r.status === 'fulfilled')
-        .flatMap(r => r.value.slice(0, 3));
-
-      if (all.length > 0) {
-        _headlines = all;
-        render();
-      }
-    } catch { /* keep existing headlines */ }
-  }
-
-  function render() {
-    if (!inner || _headlines.length === 0) return;
-
+  function render(headlines) {
+    if (!inner || !headlines || headlines.length === 0) return;
+    _headlines = headlines;
     // Build double-set for seamless loop (50% trick)
-    const full = [..._headlines, ..._headlines];
+    const full = [...headlines, ...headlines];
     inner.innerHTML = full
       .map(h => `<span class="news-item">${h}</span>`)
       .join('');
-
-    // Adjust animation speed to headline count (longer = slower)
-    const duration = Math.max(40, _headlines.length * 12);
+    // Adjust speed to headline count
+    const duration = Math.max(40, headlines.length * 10);
     inner.style.animationDuration = `${duration}s`;
   }
 
-  // Init: fetch now, then every 20 minutes
-  refresh();
-  setInterval(refresh, 20 * 60 * 1000);
+  // Listen for headlines pushed from main process
+  window.jarvis.onNewsHeadlines && window.jarvis.onNewsHeadlines((headlines) => {
+    render(headlines);
+  });
 
-  return { refresh };
+  return { render };
 })();
 
 // ===================== CARD PANEL =====================
