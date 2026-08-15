@@ -428,7 +428,11 @@ app.get('/connect/calendar', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/calendar/callback`,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/calendar',
+    scope: [
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/presentations',
+    ].join(' '),
     access_type: 'offline',
     prompt: 'consent',
   });
@@ -929,7 +933,7 @@ app.post('/connect/stripe/verify', async (req, res) => {
 app.post('/license/check', (req, res) => res.json({ active: false }));
 
 // ── AI proxy routes (keys never leave this server) ────────────────────────────
-const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis. Open Spotify, open Chrome, open WhatsApp, open Instagram, open YouTube, open Netflix, open Discord, open Telegram. Play music, pause, stop. Search Google for, find, google. Call Ahmed, message Sarah, send a WhatsApp to John. What is the weather in London? What time is it? Set a reminder for tomorrow at 3 PM. Add to my calendar. Send an email to Sarah. Show me, tell me about, who is, what is, how much is, when was, where is, how does, what happened. Stock price, Bitcoin, Ethereum, crypto. Premier League, Champions League, World Cup, NBA score. News, latest news, what happened today, breaking news. Generate an image of, create a picture of. Open my files, open folder, open downloads. Who is the prime minister, who is the president. What is the capital of, tell me about the history of, show me a photo of.`;
+const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis, hi Jarvis, Callisto. Open Spotify, open Chrome, open WhatsApp, open Instagram, open YouTube, open Netflix, open Discord, open Telegram, open Gmail, open Google Drive. Play music, pause, stop, next song, previous song, shuffle. Search Google for, find, google, look up. Call Ahmed, message Sarah, send a WhatsApp to John. What is the weather in London? What time is it? Set a reminder for tomorrow at 3 PM. Add to my calendar. Clear my schedule. Remove event. Send an email to Sarah. Create a document about, write a document on, make a report about, create a presentation about, make slides for. Show me, tell me about, who is, what is, how much is, when was, where is, how does, what happened. Stock price, Bitcoin, Ethereum, crypto. Premier League, Champions League, World Cup, NBA score. News, latest news, what happened today, breaking news. Generate an image of, create a picture of, draw me. Open my files, open folder, open downloads. Who is the prime minister, who is the president. What is the capital of, tell me about the history of. Volume up, volume down, mute, unmute, set volume to fifty percent. Shut down, restart, sleep.`;
 
 // Chat completion (non-streaming, used for tool calls)
 app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
