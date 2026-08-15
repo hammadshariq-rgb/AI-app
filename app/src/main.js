@@ -383,23 +383,131 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
   }
 });
 
-ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
+ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, sections, content }) => {
   const fs = require('fs');
   const safe = (title || 'Document').replace(/[<>:"/\\|?*]/g, '_');
   const dir = app.getPath('documents');
   const filePath = path.join(dir, `${safe}.rtf`);
-  const rtfContent = buildRTF(title || 'Document', content || '');
+  const rtfContent = sections && sections.length
+    ? buildRTFFromSections(title || 'Document', sections)
+    : buildRTF(title || 'Document', content || '');
   fs.writeFileSync(filePath, rtfContent, 'utf8');
   await shell.openPath(filePath);
   return { ok: true, path: filePath };
 });
 
-ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content }) => {
-  const { clipboard } = require('electron');
-  clipboard.writeText(`${title}\n\n${content}`);
-  await shell.openExternal('https://docs.google.com/document/create');
-  return { ok: true };
+function openInChrome(url) {
+  const { exec } = require('child_process');
+  const fs = require('fs');
+  const chromePaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe` : '',
+  ].filter(Boolean);
+  for (const p of chromePaths) {
+    if (fs.existsSync(p)) { exec(`"${p}" "${url}"`); return; }
+  }
+  shell.openExternal(url);
+}
+
+ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, sections }) => {
+  const docs = require('./services/docs');
+  try {
+    const url = await docs.createGoogleDoc(title, sections || []);
+    openInChrome(url);
+    return { ok: true };
+  } catch (err) {
+    console.error('[openGoogleDoc] error:', err.message);
+    return { ok: false, error: 'failed', detail: err.message };
+  }
 });
+
+ipcMain.handle('jarvis:openGoogleSlides', async (_e, { title, slides }) => {
+  const docs = require('./services/docs');
+  try {
+    const url = await docs.createGoogleSlides(title, slides || []);
+    openInChrome(url);
+    return { ok: true };
+  } catch (err) {
+    console.error('[openGoogleSlides] error:', err.message);
+    if (err.message.includes('not connected')) return { ok: false, error: 'not_connected' };
+    return { ok: false, error: 'failed', detail: err.message };
+  }
+});
+
+// Rich RTF builder from structured sections (headings, paragraphs, tables, bullets)
+function buildRTFFromSections(title, sections) {
+  const esc = s => String(s || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n/g, '\\line\n');
+
+  // Colour table: index 1=dark blue, 2=medium blue, 3=table header blue, 4=alt row grey
+  const colourTable = '{\\colortbl;\\red26\\green115\\blue232;\\red21\\green87\\blue176;\\red255\\green255\\blue255;\\red241\\green243\\blue244;}';
+
+  const parts = [];
+  // Title
+  parts.push(`\\pard\\sb240\\sa120\\f0\\fs40\\b\\cf1 ${esc(title)}\\b0\\par\n`);
+  parts.push(`\\pard\\sb0\\sa60\\brdrb\\brdrs\\brdrw10\\brdrcf1 \\par\n`);
+
+  for (const sec of (sections || [])) {
+    if (!sec || !sec.type) continue;
+    switch (sec.type) {
+      case 'heading':
+        parts.push(`\\pard\\sb200\\sa80\\f0\\fs28\\b\\cf2 ${esc(sec.text)}\\b0\\cf0\\par\n`);
+        break;
+      case 'subheading':
+        parts.push(`\\pard\\sb160\\sa60\\f0\\fs24\\b\\cf2 ${esc(sec.text)}\\b0\\cf0\\par\n`);
+        break;
+      case 'paragraph':
+        parts.push(`\\pard\\sb0\\sa120\\f0\\fs22 ${esc(sec.text)}\\par\n`);
+        break;
+      case 'bullet_list':
+        for (const item of (sec.items || [])) {
+          parts.push(`\\pard\\li360\\fi-360\\sb0\\sa80\\f0\\fs22 \\bullet\\tab ${esc(item)}\\par\n`);
+        }
+        break;
+      case 'table': {
+        const headers = sec.headers || [];
+        const rows    = sec.rows    || [];
+        const colW    = headers.length > 0 ? Math.floor(8640 / headers.length) : 2160;
+        // Header row
+        if (headers.length) {
+          let hdrRow = '\\trowd\\trgaph108\\trleft-108\\trpaddl108\\trpaddr108\\trpaddb108\\trpaddt108\n';
+          let pos = 0;
+          for (const h of headers) {
+            pos += colW;
+            hdrRow += `\\clcbpat3\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs\\cellx${pos}\n`;
+          }
+          hdrRow += '\\pard\\intbl\\f0\\fs20\\b\\cf0 ';
+          hdrRow += headers.map(h => `${esc(h)}\\cell`).join(' ');
+          hdrRow += '\\b0\\row\n';
+          parts.push(hdrRow);
+        }
+        // Data rows
+        rows.forEach((row, ri) => {
+          const bg = ri % 2 === 0 ? 4 : 3; // alt row colours
+          let dataRow = '\\trowd\\trgaph108\\trleft-108\\trpaddl108\\trpaddr108\\trpaddb108\\trpaddt108\n';
+          let pos = 0;
+          for (let ci = 0; ci < Math.max(headers.length, (row || []).length); ci++) {
+            pos += colW;
+            dataRow += `\\clcbpat${bg}\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs\\cellx${pos}\n`;
+          }
+          dataRow += '\\pard\\intbl\\f0\\fs20 ';
+          dataRow += (row || []).map(c => `${esc(c)}\\cell`).join(' ');
+          dataRow += '\\row\n';
+          parts.push(dataRow);
+        });
+        parts.push('\\pard\\sb120\\par\n');
+        break;
+      }
+    }
+  }
+
+  return `{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}\n${colourTable}\n\\widowctrl\\wpaper12240\\wpaperh15840\\margl1440\\margr1440\\margt1440\\margb1440\n${parts.join('')}}`;
+}
 
 function buildRTF(title, content) {
   const esc = s => s
@@ -980,10 +1088,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   if (finalAction?.type === 'create_document') {
     const docTitle = finalAction.arg || 'Document';
-    const docContent = finalAction.content || '';
-    const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to save it.`;
+    const docSections = finalAction.sections || [];
+    const spokenText = finalText || `I've prepared your document on "${docTitle}". Choose how you'd like to save it.`;
     _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: false, docContent, docTitle };
+    return { text: spokenText, audio: null, card: null, hasAction: false, docSections, docTitle };
+  }
+
+  if (finalAction?.type === 'create_slides') {
+    const slidesTitle = finalAction.arg || 'Presentation';
+    const slidesData = finalAction.slides || [];
+    const spokenText = finalText || `I've put together a ${slidesData.length}-slide presentation on "${slidesTitle}". Opening Google Slides now.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false, slidesTitle, slidesData };
   }
 
   if (finalAction?.type === 'set_volume') {
