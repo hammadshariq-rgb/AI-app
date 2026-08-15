@@ -428,11 +428,7 @@ app.get('/connect/calendar', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/calendar/callback`,
     response_type: 'code',
-    scope: [
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/presentations',
-    ].join(' '),
+    scope: 'https://www.googleapis.com/auth/calendar',
     access_type: 'offline',
     prompt: 'consent',
   });
@@ -581,7 +577,11 @@ app.get('/connect/drive', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    scope: [
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/presentations',
+    ].join(' '),
     access_type: 'offline',
     prompt: 'consent',
   });
