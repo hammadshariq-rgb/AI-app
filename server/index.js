@@ -577,11 +577,7 @@ app.get('/connect/drive', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
     response_type: 'code',
-    scope: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/documents',
-      'https://www.googleapis.com/auth/presentations',
-    ].join(' '),
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
     access_type: 'offline',
     prompt: 'consent',
   });
@@ -1034,6 +1030,142 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
     res.json({ url: result.data[0].url });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Service-Account Google Docs / Slides creator ─────────────────────────────
+// Creates real Google Docs & Slides via a service account, bypassing the user's
+// OAuth scope restrictions. Set GOOGLE_SERVICE_ACCOUNT_JSON in Railway env vars.
+
+const crypto = require('crypto');
+
+function buildServiceAccountJWT(saKey, scopes) {
+  const sa = typeof saKey === 'string' ? JSON.parse(saKey) : saKey;
+  const now = Math.floor(Date.now() / 1000);
+  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: sa.client_email,
+    scope: Array.isArray(scopes) ? scopes.join(' ') : scopes,
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  })).toString('base64url');
+  const input = `${header}.${payload}`;
+  const sign  = crypto.createSign('RSA-SHA256');
+  sign.update(input);
+  return `${input}.${sign.sign(sa.private_key, 'base64url')}`;
+}
+
+async function getServiceAccountToken() {
+  const saKey = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!saKey) return null;
+  try {
+    const jwt = buildServiceAccountJWT(saKey, [
+      'https://www.googleapis.com/auth/documents',
+      'https://www.googleapis.com/auth/drive',
+      'https://www.googleapis.com/auth/presentations',
+    ]);
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }),
+    });
+    const d = await r.json();
+    return d.access_token || null;
+  } catch (e) { console.error('[serviceAccount] token error:', e.message); return null; }
+}
+
+async function makeFilePublicWriter(saToken, fileId) {
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'anyone', role: 'writer' }),
+  });
+}
+
+// POST /api/create-google-doc  { title, requests }
+app.post('/api/create-google-doc', authMiddleware, async (req, res) => {
+  const { title, requests } = req.body;
+  if (!title) return res.status(400).json({ ok: false, error: 'title required' });
+
+  const saToken = await getServiceAccountToken();
+  if (!saToken) return res.json({ ok: false, error: 'service_account_not_configured' });
+
+  try {
+    // 1. Create document
+    const createRes = await fetch('https://docs.googleapis.com/v1/documents', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!createRes.ok) {
+      const txt = await createRes.text().catch(() => createRes.statusText);
+      return res.json({ ok: false, error: `Docs API ${createRes.status}: ${txt}` });
+    }
+    const doc   = await createRes.json();
+    const docId = doc.documentId;
+
+    // 2. Apply formatting
+    if (Array.isArray(requests) && requests.length > 0) {
+      await fetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests }),
+      });
+    }
+
+    // 3. Make public (anyone with link can edit)
+    await makeFilePublicWriter(saToken, docId);
+
+    return res.json({ ok: true, url: `https://docs.google.com/document/d/${docId}/edit` });
+  } catch (err) {
+    console.error('[create-google-doc]', err.message);
+    return res.json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/create-google-slides  { title, requests, defaultSlideId }
+app.post('/api/create-google-slides', authMiddleware, async (req, res) => {
+  const { title, requests } = req.body;
+  if (!title) return res.status(400).json({ ok: false, error: 'title required' });
+
+  const saToken = await getServiceAccountToken();
+  if (!saToken) return res.json({ ok: false, error: 'service_account_not_configured' });
+
+  try {
+    // 1. Create presentation
+    const createRes = await fetch('https://slides.googleapis.com/v1/presentations', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!createRes.ok) {
+      const txt = await createRes.text().catch(() => createRes.statusText);
+      return res.json({ ok: false, error: `Slides API ${createRes.status}: ${txt}` });
+    }
+    const pres   = await createRes.json();
+    const presId = pres.presentationId;
+    const defaultSlideId = pres.slides?.[0]?.objectId;
+
+    // 2. Apply slide content + delete default blank slide
+    const allRequests = Array.isArray(requests) ? [...requests] : [];
+    if (defaultSlideId) allRequests.push({ deleteObject: { objectId: defaultSlideId } });
+
+    if (allRequests.length > 0) {
+      await fetch(`https://slides.googleapis.com/v1/presentations/${presId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: allRequests }),
+      });
+    }
+
+    // 3. Make public (anyone with link can edit)
+    await makeFilePublicWriter(saToken, presId);
+
+    return res.json({ ok: true, url: `https://docs.google.com/presentation/d/${presId}/edit` });
+  } catch (err) {
+    console.error('[create-google-slides]', err.message);
+    return res.json({ ok: false, error: err.message });
   }
 });
 
