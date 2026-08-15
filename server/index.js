@@ -578,8 +578,8 @@ app.get('/connect/drive', (req, res) => {
     redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
     response_type: 'code',
     scope: [
-      'https://www.googleapis.com/auth/drive.file',
       'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/documents',
       'https://www.googleapis.com/auth/presentations',
     ].join(' '),
     access_type: 'offline',
