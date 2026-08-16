@@ -1708,6 +1708,19 @@
           <div id="micLabel">CLICK TO SPEAK</div>
           <canvas id="waveformCanvas" width="180" height="36"></canvas>
 
+          <!-- Shift to typing toggle -->
+          <button id="typeModeToggle" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
+
+          <!-- Typing input (hidden by default) -->
+          <div id="typeInputWrap" class="hidden" style="margin-top:8px;width:100%;max-width:260px;display:flex;gap:6px;align-items:center">
+            <input id="userInput" type="text" placeholder="Type a message…" autocomplete="off"
+              style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(200,130,150,0.30);border-radius:20px;padding:8px 14px;font-size:12px;color:rgba(220,235,255,0.9);outline:none;font-family:'Inter',sans-serif" />
+            <button id="typeSendBtn" title="Send"
+              style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:rgba(180,80,105,0.5);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+
           <!-- ── Update notification button ── -->
           <div id="updateWrap" class="glow-btn-wrap hidden" style="margin-top:10px;">
             <div class="glow-ring"></div>

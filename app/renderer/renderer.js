@@ -4446,6 +4446,67 @@ micBtn.addEventListener('click', () => {
   else startRecording();
 });
 
+// ── Typing mode toggle ────────────────────────────────────────────────────────
+(function initTypingMode() {
+  const toggleBtn    = document.getElementById('typeModeToggle');
+  const typeWrap     = document.getElementById('typeInputWrap');
+  const userInput    = document.getElementById('userInput');
+  const typeSendBtn  = document.getElementById('typeSendBtn');
+  const micControls  = document.getElementById('micWrap');
+  const attachWrap   = document.getElementById('attachWrap');
+  const clearWrap    = document.getElementById('clearWrap');
+  const waveCanvas   = document.getElementById('waveformCanvas');
+  if (!toggleBtn || !typeWrap || !userInput) return;
+
+  let typingMode = false;
+
+  toggleBtn.addEventListener('click', () => {
+    typingMode = !typingMode;
+    if (typingMode) {
+      // Switch to typing
+      if (isRecording) stopRecording();
+      micControls?.classList.add('hidden');
+      attachWrap?.classList.add('hidden');
+      clearWrap?.classList.add('hidden');
+      waveCanvas?.classList.add('hidden');
+      micLabel?.classList.add('hidden');
+      typeWrap.classList.remove('hidden');
+      typeWrap.style.display = 'flex';
+      toggleBtn.textContent = '🎙 SHIFT TO VOICE';
+      toggleBtn.classList.add('disconnect'); // green tint = active/on state
+      userInput.focus();
+    } else {
+      // Switch back to voice
+      micControls?.classList.remove('hidden');
+      attachWrap?.classList.remove('hidden');
+      clearWrap?.classList.remove('hidden');
+      waveCanvas?.classList.remove('hidden');
+      micLabel?.classList.remove('hidden');
+      typeWrap.classList.add('hidden');
+      typeWrap.style.display = 'none';
+      toggleBtn.textContent = '⌨ SHIFT TO TYPING';
+      toggleBtn.classList.remove('disconnect');
+    }
+  });
+
+  async function sendTyped() {
+    const text = userInput.value.trim();
+    if (!text) return;
+    userInput.value = '';
+    await sendToJarvis(text);
+  }
+
+  typeSendBtn.addEventListener('click', sendTyped);
+  userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
+  });
+  // focus style
+  userInput.addEventListener('focus', () => { userInput.style.borderColor = 'rgba(230,140,165,0.55)'; });
+  userInput.addEventListener('blur',  () => { userInput.style.borderColor = 'rgba(200,130,150,0.30)'; });
+  typeSendBtn.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(200,90,120,0.75)'; });
+  typeSendBtn.addEventListener('mouseleave', () => { typeSendBtn.style.background = 'rgba(180,80,105,0.5)'; });
+}());
+
 // ── Orb mouse tilt ───────────────────────────────────────────────────────────
 (function initOrbTilt() {
   const orbEl = document.getElementById('orb');
