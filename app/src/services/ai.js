@@ -401,6 +401,20 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'show_image',
+      description: 'Show a visual image card in the sidebar for ANY visual topic. Use this proactively whenever the user asks about or mentions: a person (celebrity, actor, musician, singer, rapper, athlete, sportsperson, footballer, politician, president, prime minister, historical figure, scientist, inventor), an animal or wildlife creature, a painting or artwork, a video game or game character, a brand or fashion label or clothing item, a plant or flower or tree, a place (city, country, landmark, monument), an object, a colour, a food or dish, a flag, or any other visual subject. If the user\'s query is about something you can show visually — always call this tool. Examples: "who is Cristiano Ronaldo" → show_image("Cristiano Ronaldo footballer"), "tell me about tigers" → show_image("Bengal tiger"), "what does a cherry blossom look like" → show_image("cherry blossom tree"), "who is Elon Musk" → show_image("Elon Musk"), "what is the Eiffel Tower" → show_image("Eiffel Tower Paris").',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Specific search query for the image. Be descriptive, e.g. "Cristiano Ronaldo footballer", "Bengal tiger wildlife", "Mona Lisa painting Leonardo da Vinci", "Cherry Blossom tree Japan", "Nike logo brand".' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English', userName = null, userTitle = null) => {
@@ -509,12 +523,28 @@ LANGUAGE:
 - You MUST reply in ${language}. Every single response, regardless of what language the user speaks in, must be in ${language}.
 - This is a hard requirement — never reply in any other language.
 
+IMAGE ANALYSIS (CRITICAL — follow exactly):
+- When the user uploads a photo or image, ALWAYS examine it carefully and describe what you see. Never say "I can't see the image" — you can.
+- For maths/science homework photos: read every symbol, equation, and number from the image. Solve step by step with full working shown. State the final answer clearly at the end.
+- For any photo (food, place, object, person, document, receipt, screenshot, etc.): describe what you see in detail and answer the user's question about it.
+- If the image contains text: read it out accurately. If it contains a problem: solve it. If it's a visual question: answer it.
+
+SHOW_IMAGE TOOL (CRITICAL — use it proactively):
+- Whenever the user asks about a PERSON, CELEBRITY, ATHLETE, SPORTSPERSON, FOOTBALLER, POLITICIAN, PRESIDENT, PRIME MINISTER, ACTOR, MUSICIAN, SINGER, HISTORICAL FIGURE, SCIENTIST, or INVENTOR → call show_image immediately.
+- Whenever the user asks about an ANIMAL, WILDLIFE CREATURE, BIRD, FISH, or INSECT → call show_image.
+- Whenever the user asks about a PAINTING, ARTWORK, SCULPTURE, or FAMOUS PIECE OF ART → call show_image.
+- Whenever the user asks about a VIDEO GAME, GAME CHARACTER, or GAME TITLE → call show_image.
+- Whenever the user asks about a BRAND, FASHION LABEL, CLOTHING ITEM, OUTFIT, or SHOE → call show_image.
+- Whenever the user asks about a PLANT, FLOWER, TREE, or NATURE SUBJECT → call show_image.
+- Whenever the user asks about a PLACE, CITY, COUNTRY, LANDMARK, or MONUMENT → call show_image.
+- Whenever the user asks about a COLOUR or "what does X look like" → call show_image.
+- The show_image tool is your default response for any visual subject. Always use it unless the user is clearly asking a calculation or opinion question with no visual component.
+
 SCIENCE, MATH & EDUCATION:
-- When the user asks about any science, math, or educational topic, answer with depth and accuracy. A visual card with an image is shown automatically on the sidebar — reference it when helpful ("as shown on the card…").
-- If the user uploads a photo of a maths or science question, examine it carefully and solve it step by step. Show your full working. State the final answer clearly.
-- For chemistry element questions: read out the element's key facts (symbol, atomic number, mass, category). The element card is shown automatically.
+- When the user asks about any science, math, or educational topic, answer with depth and accuracy. Call show_image with the topic to show a visual card on the sidebar.
+- For chemistry element questions: read out the element's key facts (symbol, atomic number, mass, category). Call show_image("periodic table element [name]").
 - For math: give a clear, step-by-step solution. Write out every step. Don't skip working.
-- A visual image card always appears for educational questions — so give a thorough explanation to complement it.
+- A visual image card appears for educational questions — so give a thorough explanation to complement it.
 
 VISUAL CARDS (shown automatically on sidebar — always reference them):
 - Actors, celebrities, politicians, athletes, historical figures → person card with photo + bio

@@ -564,8 +564,11 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   }
 
   // Person/celebrity/historical figure query — fetch Wikipedia card first
-  const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of|actor|actress|singer|rapper|musician|politician|president|prime minister|founder|ceo|scientist|inventor|historical figure|who played|played by)\b/i;
-  if (PERSON_FAST_REGEX.test(message)) {
+  const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of|actor|actress|singer|rapper|musician|footballer|basketball player|tennis player|boxer|athlete|sportsperson|sportsman|sportswoman|politician|president|prime minister|pm of|chancellor|governor|founder|ceo|scientist|inventor|historical figure|who played|played by|celebrity|famous|legend)\b/i;
+  // Current-leader queries need live realtime context — don't short-circuit them
+  const CURRENT_LEADER_REGEX = /\b(prime minister of|president of|pm of|chancellor of|who('s| is) the (current |new |present )?(?:prime minister|president|pm|chancellor|leader)|current (?:prime minister|president|pm|chancellor)|who leads|who runs|head of state|head of government)\b/i;
+  const isCurrentLeader = CURRENT_LEADER_REGEX.test(message);
+  if (PERSON_FAST_REGEX.test(message) && !isCurrentLeader) {
     const personCard = await realtime.fetchCardData(message).catch(() => null);
     if (personCard?.imageUrl || personCard?.heroImage) {
       const p = personCard;
@@ -592,8 +595,8 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
-  // Historical/art/food/flag/fashion queries — show card directly
-  const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like)\b/i;
+  // Historical/art/food/flag/fashion/nature queries — show card directly
+  const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like|game|video game|minecraft|fortnite|call of duty|pokemon|zelda|mario|fifa|gta|game character|brand|clothing|outfit|dress|fashion|sneakers|shoes|shirt|jacket|plant|flower|tree|rose|tulip|sunflower|oak|pine|cherry blossom|cactus|orchid|colour|color|shade of|hue|tone of|red|blue|green|yellow|purple|orange|pink|black|white|brown)\b/i;
   if (VISUAL_CARD_REGEX.test(message)) {
     const visualCard = await realtime.fetchCardData(message).catch(() => null);
     if (visualCard && (visualCard.imageUrl || visualCard.heroImage || visualCard.poster)) {
@@ -606,7 +609,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Detect query types
   const EMAIL_REGEX = /\b(email|emails|inbox|messages|unread|update|updates|notifications|mail|whats new|what's new|any new|check my|briefing)\b/i;
   const UPDATE_REGEX = /\b(update|updates|briefing|whats new|what's new|any new|check my)\b/i;
-  const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking|election|government|minister|leader|war|conflict|attack|died|arrested|resigned)\b/i;
+  const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking|election|government|minister|leader|war|conflict|attack|died|arrested|resigned|prime minister of|president of|who leads|who runs|head of state)\b/i;
   // Card queries — all topic types that produce a sidebar card
   const CARD_REGEX = /\b(stock|crypto|bitcoin|ethereum|price of|chart of|score|match|who is|who was|biography|photo of|picture of|movie|film|cinema|sequel|prequel|release date|coming out|box office|cast|director|trailer|painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|food|dish|cuisine|recipe|pizza|sushi|burger|biryani|curry|ramen|lion|tiger|elephant|penguin|shark|eagle|gucci|louis vuitton|nike|adidas|battle of|world war|revolution|assassination|historical|landmark|show me|tell me about|actor|actress|singer|rapper|musician|politician|scientist|inventor|historical figure|who played|animal|character|location|city|country|capital)\b/i;
   // Only fetch news for queries that genuinely need current headlines
@@ -1067,6 +1070,19 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const spokenText = finalText || briefingText;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
+
+  // Handle show_image — search for an image and show it as a sidebar card
+  if (finalAction?.type === 'show_image') {
+    const imgQuery = finalAction.arg || '';
+    const [cardResult, imgResult] = await Promise.all([
+      realtime.fetchCardData(imgQuery).catch(() => null),
+      realtime.searchImages(imgQuery).catch(() => null),
+    ]);
+    const best = (cardResult?.imageUrl || cardResult?.heroImage) ? cardResult : imgResult;
+    const spokenText = finalText || (best ? (best.summary || best.subtitle || best.description || best.title || 'Here you go.').slice(0, 300) : 'Here you go.');
+    if (spokenText) _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: best || null, hasAction: false };
   }
 
   // Handle image generation separately (returns imageUrl, not a command result)
