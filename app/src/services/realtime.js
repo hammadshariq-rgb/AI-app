@@ -1539,10 +1539,10 @@ async function searchImages(query) {
     const page = pages[0];
     if (!page) return null;
     return {
-      type: 'image',
+      type: 'wiki_card',
       title: page.title,
       imageUrl: page.thumbnail?.source || null,
-      description: (page.extract || '').slice(0, 200),
+      description: (page.extract || '').slice(0, 250),
       source: 'Wikipedia',
       sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
     };

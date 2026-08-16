@@ -633,7 +633,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
     isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 4000) : Promise.resolve(null),
     (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
-    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
+    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 4000) : Promise.resolve(null),
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 
@@ -1157,7 +1157,16 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
-  return { text: finalText, audio: null, card: imageCard || cardData || null, hasAction: didTakeAction, emailDraft };
+  // Last-resort card: if no card yet but query is clearly visual, try searchImages now
+  let finalCard = imageCard || cardData || null;
+  if (!finalCard) {
+    const VISUAL_AUTO_REGEX = /\b(who is|who was|who('s| is)|tell me about|photo of|picture of|show me|actor|actress|singer|rapper|musician|footballer|athlete|politician|president|prime minister|celebrity|founder|ceo|scientist|inventor|animal|painting|artwork|flag|food|dish|plant|flower|city|country|landmark|game|brand|clothing)\b/i;
+    if (VISUAL_AUTO_REGEX.test(message)) {
+      const autoCard = await realtime.searchImages(searchMessage).catch(() => null);
+      if (autoCard?.imageUrl) finalCard = autoCard;
+    }
+  }
+  return { text: finalText, audio: null, card: finalCard, hasAction: didTakeAction, emailDraft };
 
   } catch (err) {
     console.error('[CHAT] unhandled error:', err?.message || err);

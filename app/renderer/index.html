@@ -1708,17 +1708,22 @@
           <div id="micLabel">CLICK TO SPEAK</div>
           <canvas id="waveformCanvas" width="180" height="36"></canvas>
 
-          <!-- Shift to typing toggle -->
+          <!-- Shift to typing toggle (voice mode) -->
           <button id="typeModeToggle" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
 
-          <!-- Typing input (hidden by default) -->
-          <div id="typeInputWrap" class="hidden" style="margin-top:8px;width:100%;max-width:260px;display:flex;gap:6px;align-items:center">
-            <input id="userInput" type="text" placeholder="Type a message…" autocomplete="off"
-              style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(200,130,150,0.30);border-radius:20px;padding:8px 14px;font-size:12px;color:rgba(220,235,255,0.9);outline:none;font-family:'Inter',sans-serif" />
-            <button id="typeSendBtn" title="Send"
-              style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:rgba(180,80,105,0.5);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
+          <!-- Typing input panel (hidden by default) -->
+          <div id="typeInputWrap" class="hidden" style="margin-top:10px;width:100%;max-width:310px">
+            <!-- Input box -->
+            <div style="position:relative;background:rgba(255,255,255,0.04);border:1px solid rgba(180,120,150,0.28);border-radius:18px;overflow:hidden;transition:border-color 0.2s" id="typeBoxBorder">
+              <textarea id="userInput" placeholder="Type a message…" autocomplete="off" rows="2"
+                style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:14px 52px 14px 16px;font-size:13px;color:rgba(220,235,255,0.92);font-family:'Inter',sans-serif;line-height:1.55;min-height:58px;max-height:140px;overflow-y:auto;display:block;vertical-align:top"></textarea>
+              <button id="typeSendBtn" title="Send"
+                style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(170,75,105,0.75);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s;flex-shrink:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+            <!-- Shift to voice — below the input box -->
+            <button id="typeVoiceBtn" class="connector-btn" style="margin-top:8px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center">🎙 SHIFT TO VOICE</button>
           </div>
 
           <!-- ── Update notification button ── -->

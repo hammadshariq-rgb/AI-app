@@ -1641,6 +1641,21 @@ function showCard(card) {
       const img = document.getElementById('generatedImgCard');
       if (img && card.imageUrl) img.addEventListener('click', () => window.jarvis.openUrl(card.imageUrl));
     }, 50);
+  } else if (card.type === 'wiki_card') {
+    // Wikipedia image card — generic visual for any topic (person, animal, place, game, brand, etc.)
+    cardContent.innerHTML = `
+      <div class="card-wiki">
+        <div class="wiki-label">VISUAL RESULT</div>
+        ${card.imageUrl ? `<img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.title)}" onerror="this.style.display='none'" />` : ''}
+        <div class="wiki-title">${esc(card.title)}</div>
+        ${card.description ? `<div class="wiki-desc">${esc(card.description)}</div>` : ''}
+        ${card.sourceUrl ? `<a class="card-source-link" href="#" id="wikiCardLink">📖 Wikipedia</a>` : ''}
+      </div>`;
+    setTimeout(() => {
+      document.getElementById('wikiCardLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
+      const photo = cardContent.querySelector('.wiki-photo');
+      if (photo && card.sourceUrl) { photo.style.cursor = 'pointer'; photo.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
+    }, 50);
   } else if (card.type === 'element') {
     const catColors = {
       'Alkali Metal':'#e74c3c','Alkaline Earth':'#e67e22','Transition Metal':'#3498db',
@@ -4448,8 +4463,10 @@ micBtn.addEventListener('click', () => {
 
 // ── Typing mode toggle ────────────────────────────────────────────────────────
 (function initTypingMode() {
-  const toggleBtn    = document.getElementById('typeModeToggle');
+  const toggleBtn    = document.getElementById('typeModeToggle');  // "SHIFT TO TYPING" (voice mode)
+  const typeVoiceBtn = document.getElementById('typeVoiceBtn');     // "SHIFT TO VOICE" (inside typing panel)
   const typeWrap     = document.getElementById('typeInputWrap');
+  const typeBoxBorder= document.getElementById('typeBoxBorder');
   const userInput    = document.getElementById('userInput');
   const typeSendBtn  = document.getElementById('typeSendBtn');
   const micControls  = document.getElementById('micWrap');
@@ -4458,53 +4475,61 @@ micBtn.addEventListener('click', () => {
   const waveCanvas   = document.getElementById('waveformCanvas');
   if (!toggleBtn || !typeWrap || !userInput) return;
 
-  let typingMode = false;
+  // Auto-resize textarea
+  function resizeInput() {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 140) + 'px';
+  }
+  userInput.addEventListener('input', resizeInput);
 
-  toggleBtn.addEventListener('click', () => {
-    typingMode = !typingMode;
-    if (typingMode) {
-      // Switch to typing
-      if (isRecording) stopRecording();
-      micControls?.classList.add('hidden');
-      attachWrap?.classList.add('hidden');
-      clearWrap?.classList.add('hidden');
-      waveCanvas?.classList.add('hidden');
-      micLabel?.classList.add('hidden');
-      typeWrap.classList.remove('hidden');
-      typeWrap.style.display = 'flex';
-      toggleBtn.textContent = '🎙 SHIFT TO VOICE';
-      toggleBtn.classList.add('disconnect'); // green tint = active/on state
-      userInput.focus();
-    } else {
-      // Switch back to voice
-      micControls?.classList.remove('hidden');
-      attachWrap?.classList.remove('hidden');
-      clearWrap?.classList.remove('hidden');
-      waveCanvas?.classList.remove('hidden');
-      micLabel?.classList.remove('hidden');
-      typeWrap.classList.add('hidden');
-      typeWrap.style.display = 'none';
-      toggleBtn.textContent = '⌨ SHIFT TO TYPING';
-      toggleBtn.classList.remove('disconnect');
-    }
-  });
+  function enterTypingMode() {
+    if (isRecording) stopRecording();
+    micControls?.classList.add('hidden');
+    attachWrap?.classList.add('hidden');
+    clearWrap?.classList.add('hidden');
+    waveCanvas?.classList.add('hidden');
+    micLabel?.classList.add('hidden');
+    toggleBtn.classList.add('hidden');           // hide the "SHIFT TO TYPING" button
+    typeWrap.classList.remove('hidden');
+    typeWrap.style.display = 'block';
+    userInput.focus();
+  }
+
+  function enterVoiceMode() {
+    micControls?.classList.remove('hidden');
+    attachWrap?.classList.remove('hidden');
+    clearWrap?.classList.remove('hidden');
+    waveCanvas?.classList.remove('hidden');
+    micLabel?.classList.remove('hidden');
+    toggleBtn.classList.remove('hidden');        // show the "SHIFT TO TYPING" button again
+    typeWrap.classList.add('hidden');
+    typeWrap.style.display = 'none';
+    // Reset textarea height
+    userInput.style.height = '58px';
+    userInput.value = '';
+  }
+
+  toggleBtn.addEventListener('click', enterTypingMode);
+  typeVoiceBtn?.addEventListener('click', enterVoiceMode);
 
   async function sendTyped() {
     const text = userInput.value.trim();
     if (!text) return;
     userInput.value = '';
+    userInput.style.height = '58px';
     await sendToJarvis(text);
   }
 
-  typeSendBtn.addEventListener('click', sendTyped);
+  typeSendBtn?.addEventListener('click', sendTyped);
   userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
   });
-  // focus style
-  userInput.addEventListener('focus', () => { userInput.style.borderColor = 'rgba(230,140,165,0.55)'; });
-  userInput.addEventListener('blur',  () => { userInput.style.borderColor = 'rgba(200,130,150,0.30)'; });
-  typeSendBtn.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(200,90,120,0.75)'; });
-  typeSendBtn.addEventListener('mouseleave', () => { typeSendBtn.style.background = 'rgba(180,80,105,0.5)'; });
+
+  // Focus/hover styles
+  userInput.addEventListener('focus', () => { if (typeBoxBorder) typeBoxBorder.style.borderColor = 'rgba(200,120,155,0.55)'; });
+  userInput.addEventListener('blur',  () => { if (typeBoxBorder) typeBoxBorder.style.borderColor = 'rgba(180,120,150,0.28)'; });
+  typeSendBtn?.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(210,90,125,0.9)'; typeSendBtn.style.transform = 'scale(1.08)'; });
+  typeSendBtn?.addEventListener('mouseleave', () => { typeSendBtn.style.background = 'rgba(170,75,105,0.75)'; typeSendBtn.style.transform = 'scale(1)'; });
 }());
 
 // ── Orb mouse tilt ───────────────────────────────────────────────────────────
