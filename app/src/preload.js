@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   shopifyConnect: (shop, access_token) => ipcRenderer.invoke('shopify:connect', { shop, access_token }),
   squarespaceConnect: (api_key) => ipcRenderer.invoke('squarespace:connect', { api_key }),
   stripeConnect: (secret_key) => ipcRenderer.invoke('stripe:connect', { secret_key }),
+  analyticsSelectProperty: (propertyId) => ipcRenderer.invoke('analytics:selectProperty', propertyId),
+  onAnalyticsShowPropertyPicker: (cb) => ipcRenderer.on('analytics:showPropertyPicker', (_e, d) => cb(d)),
   // Auto-updater
   installUpdate: () => ipcRenderer.send('update:install'),
   onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, d) => cb(d)),
@@ -69,6 +71,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
+  openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
 });

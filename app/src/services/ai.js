@@ -349,14 +349,55 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'create_document',
-      description: 'Create a written document for the user. Use when the user says "create a document about X", "write a document on X", "make a document regarding X", "write me a report on X", "create a word file about X", "draft a document about X", or similar.',
+      description: 'Create a richly formatted document for the user with headings, paragraphs, bullet lists, and colourful tables. Use when the user says "create a document about X", "write a document on X", "make a document regarding X", "write me a report on X", "create a word file about X", "draft a document about X", or similar. Produce thorough, well-researched content with multiple sections and at least one table where appropriate.',
       parameters: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'A concise title for the document (e.g. "Climate Change Overview").' },
-          content: { type: 'string', description: 'The full document content, written in clear, well-structured paragraphs. Use double newlines to separate paragraphs. Do not include the title in the content.' },
+          title: { type: 'string', description: 'A concise, descriptive title for the document.' },
+          sections: {
+            type: 'array',
+            description: 'Ordered array of document sections. Alternate headings, paragraphs, bullet lists, and tables to create a rich document. Include at least 4-6 sections with detailed content.',
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['heading', 'subheading', 'paragraph', 'bullet_list', 'table'], description: 'Section type' },
+                text: { type: 'string', description: 'Text for heading/subheading/paragraph types' },
+                items: { type: 'array', items: { type: 'string' }, description: 'List items for bullet_list type' },
+                headers: { type: 'array', items: { type: 'string' }, description: 'Column header labels for table type' },
+                rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Data rows for table type — each row is an array of cell strings matching the headers' },
+                color: { type: 'string', description: 'Optional hex colour for the table header row, e.g. "#e53935". Pick a different colour for each table.' },
+              },
+              required: ['type'],
+            },
+          },
         },
-        required: ['title', 'content'],
+        required: ['title', 'sections'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_slides',
+      description: 'Create a Google Slides presentation for the user. Use when the user says "make me a presentation", "create slides about X", "make a slideshow on X", or similar. Generate 6-10 slides with meaningful content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Title of the presentation' },
+          slides: {
+            type: 'array',
+            description: 'Array of slides, each with a heading and bullet points',
+            items: {
+              type: 'object',
+              properties: {
+                heading: { type: 'string', description: 'Slide title' },
+                bullets: { type: 'array', items: { type: 'string' }, description: 'Bullet points for the slide body — 3-5 concise, informative points per slide' },
+              },
+              required: ['heading', 'bullets'],
+            },
+          },
+        },
+        required: ['title', 'slides'],
       },
     },
   },
@@ -416,6 +457,7 @@ EMAIL & UPDATE RULES:
 EMAIL SENDING (CRITICAL — follow exactly):
 - You CAN send emails on behalf of the user when Gmail or Outlook is connected and VIP senders have been added.
 - When the user asks you to write or send an email to someone (e.g. "send an email to John", "write an email to Sarah"), compose a professional, concise email appropriate to the context.
+- CRITICAL: Always sign the email with the user's actual name from USER'S NAME above. Never use "[Your Name]", "[Name]", or any placeholder. If no name is set, end with just a closing word like "Best," and nothing after it.
 - Present the email naturally in your reply (e.g. "Here's a draft for John:"), then at the very end of your response embed this exact marker on its own line — no extra text around it:
   <!--EMAILDRAFT:{"to":"Display Name","toEmail":"email@address.com","subject":"Subject line here","body":"Full email body here\\nWith line breaks as \\n"}-->
 - The "toEmail" field must be the actual email address. If you know it from VIP senders context, use it. If you don't know the exact email, use the name as "toEmail" and the system will handle it.
@@ -611,7 +653,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
           else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
           else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
-          else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
+          else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
+          else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
           else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
           else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
           else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
@@ -632,7 +675,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const hasImages = attachments.some(a => a.kind === 'image');
   const body = {
     model: hasImages ? 'gpt-4o' : 'gpt-4o-mini',
-    max_tokens: needsTools ? 300 : (hasImages ? 2048 : 1024),
+    max_tokens: needsTools ? 1500 : (hasImages ? 2048 : 1024),
     messages,
   };
   if (needsTools) { body.tools = TOOLS; body.tool_choice = 'required'; }
@@ -664,7 +707,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
     else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
     else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
-    else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', content: args.content || '' };
+    else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
+    else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
     else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
     else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
     else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };

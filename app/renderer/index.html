@@ -1442,7 +1442,7 @@
               </div>
               <div class="connector-row" id="ganalyticsRow">
                 <div class="connector-icon ganalytics"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
-                <div class="connector-info"><div class="connector-name">WEBSITE TRAFFIC</div><div class="connector-status" id="ganalyticsStatus">Not connected · Works with any website</div></div>
+                <div class="connector-info"><div class="connector-name">WEBSITE ANALYTICS</div><div class="connector-status" id="ganalyticsStatus">Not connected · Traffic, revenue &amp; top pages</div></div>
                 <button class="connector-btn" id="ganalyticsBtn">CONNECT</button>
               </div>
               <div class="connector-row" id="stripeRow">
@@ -1776,54 +1776,98 @@
       </div>
 
       <!-- Stripe connect modal -->
-      <div id="stripeConnectModal" class="hidden">
-        <div class="shopify-modal-box">
-          <div class="shopify-modal-title" style="color:#6772e5">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6772e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            Connect Stripe
+      <div id="stripeConnectModal" class="hidden" role="dialog" aria-modal="true" aria-label="Connect Stripe">
+        <div class="conn-box" id="stripeConnectBox">
+          <button class="conn-close" id="stripeModalCancel" aria-label="Close">✕</button>
+          <div class="conn-header">
+            <div class="conn-icon-wrap" style="background:linear-gradient(135deg,#6772e5,#4a56d2)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            </div>
+            <div class="conn-titles">
+              <div class="conn-title">Connect Stripe</div>
+              <div class="conn-sub">Revenue &amp; payments · any Stripe-powered site</div>
+            </div>
           </div>
-          <p class="shopify-modal-hint">Tracks your revenue and payments. Works with any website using Stripe — Shopify, Squarespace, Wix, WordPress, and custom sites.<br><br>
-          <strong>How to get your key:</strong><br>
-          1. Go to <strong>dashboard.stripe.com</strong><br>
-          2. Click <strong>Developers → API Keys</strong><br>
-          3. Copy your <strong>Secret key</strong> (starts with <code>sk_live_</code>)</p>
-          <div class="setup-field">
+          <div class="conn-divider"></div>
+          <div class="conn-steps">
+            <div class="conn-step"><span class="conn-step-num">1</span><span>Go to <strong>dashboard.stripe.com</strong></span></div>
+            <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Developers → API Keys</strong></span></div>
+            <div class="conn-step"><span class="conn-step-num">3</span><span>Copy your <strong>Secret key</strong> — starts with <code style="color:rgba(140,180,255,0.8);font-size:10.5px">sk_live_</code></span></div>
+          </div>
+          <div class="conn-field">
             <label>STRIPE SECRET KEY</label>
-            <div class="auth-input-wrap">
-              <input id="stripeKeyInput" placeholder="sk_live_..." autocomplete="off" type="password" style="padding-left:12px" />
-              <button class="auth-pw-toggle" id="stripePwToggle" type="button" tabindex="-1" title="Show/hide">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <div class="conn-input-wrap">
+              <input id="stripeKeyInput" placeholder="sk_live_..." autocomplete="off" type="password" />
+              <button class="conn-pw-toggle" id="stripePwToggle" type="button" tabindex="-1" title="Show/hide key">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
           </div>
-          <div id="stripeModalError" class="setup-error hidden"></div>
-          <div style="display:flex;gap:10px;margin-top:16px">
-            <button id="stripeModalCancel" class="free-btn" style="flex:1"><span>Cancel</span></button>
-            <button id="stripeModalConnect" class="shiny-btn" style="flex:2"><span>Connect →</span></button>
+          <div id="stripeModalError" class="conn-error hidden"></div>
+          <div class="conn-actions">
+            <button id="stripeModalCancelBtn" class="conn-btn-cancel">CANCEL</button>
+            <button id="stripeModalConnect" class="conn-btn-connect">CONNECT →</button>
           </div>
         </div>
       </div>
 
       <!-- Squarespace connect modal -->
-      <div id="squarespaceModal" class="hidden">
-        <div class="shopify-modal-box">
-          <div class="shopify-modal-title" style="color:rgba(255,255,255,0.85)">⬡ Connect Squarespace</div>
-          <p class="shopify-modal-hint">Tracks your Squarespace store orders and revenue.<br><br>
-          <strong>How to get your key:</strong><br>
-          1. Go to your <strong>Squarespace dashboard</strong><br>
-          2. Click <strong>Settings → Advanced → API Keys</strong><br>
-          3. Create a key with <em>Orders — Read</em> permission<br>
-          4. Copy and paste it below</p>
-          <div class="setup-field">
-            <label>SQUARESPACE API KEY</label>
-            <div class="auth-input-wrap">
-              <input id="squarespaceKeyInput" placeholder="Paste your API key..." autocomplete="off" type="password" style="padding-left:12px" />
+      <div id="squarespaceModal" class="hidden" role="dialog" aria-modal="true" aria-label="Connect Squarespace">
+        <div class="conn-box" id="squarespaceConnectBox">
+          <button class="conn-close" id="squarespaceModalCancel" aria-label="Close">✕</button>
+          <div class="conn-header">
+            <div class="conn-icon-wrap" style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8.5" x2="22" y2="8.5"/></svg>
+            </div>
+            <div class="conn-titles">
+              <div class="conn-title">Connect Squarespace</div>
+              <div class="conn-sub">Orders &amp; revenue tracking</div>
             </div>
           </div>
-          <div id="squarespaceModalError" class="setup-error hidden"></div>
-          <div style="display:flex;gap:10px;margin-top:16px">
-            <button id="squarespaceModalCancel" class="free-btn" style="flex:1"><span>Cancel</span></button>
-            <button id="squarespaceModalConnect" class="shiny-btn" style="flex:2"><span>Connect →</span></button>
+          <div class="conn-divider"></div>
+          <div class="conn-steps">
+            <div class="conn-step"><span class="conn-step-num">1</span><span>Go to your <strong>Squarespace dashboard</strong></span></div>
+            <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Settings → Advanced → API Keys</strong></span></div>
+            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Generate Key</strong> — enable <em>Orders — Read</em> permission</span></div>
+            <div class="conn-step"><span class="conn-step-num">4</span><span>Copy and paste the key below</span></div>
+          </div>
+          <div class="conn-field">
+            <label>SQUARESPACE API KEY</label>
+            <div class="conn-input-wrap">
+              <input id="squarespaceKeyInput" placeholder="Paste your API key..." autocomplete="off" type="password" />
+              <button class="conn-pw-toggle" id="squarespacePwToggle" type="button" tabindex="-1" title="Show/hide key">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="squarespaceModalError" class="conn-error hidden"></div>
+          <div class="conn-actions">
+            <button id="squarespaceModalCancelBtn" class="conn-btn-cancel">CANCEL</button>
+            <button id="squarespaceModalConnect" class="conn-btn-connect">CONNECT →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Analytics — property picker modal (shown after OAuth) -->
+      <div id="analyticsPropertyModal" class="hidden" role="dialog" aria-modal="true">
+        <div class="conn-box" id="analyticsPropertyBox">
+          <button class="conn-close" id="analyticsPropertyCancel" aria-label="Close">✕</button>
+          <div class="conn-header">
+            <div class="conn-icon-wrap" style="background:linear-gradient(135deg,#e8710a,#f4b400)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="conn-titles">
+              <div class="conn-title">Select Your Property</div>
+              <div class="conn-sub">GA4 properties found on your account</div>
+            </div>
+          </div>
+          <div class="conn-divider"></div>
+          <div id="analyticsPropertyList" class="conn-prop-list">
+            <div style="color:rgba(100,140,200,0.6);font-size:11px;text-align:center;padding:16px">Loading your properties…</div>
+          </div>
+          <div class="conn-actions">
+            <button id="analyticsPropertyCancelBtn" class="conn-btn-cancel">CANCEL</button>
+            <button id="analyticsPropertyConfirm" class="conn-btn-connect">CONNECT →</button>
           </div>
         </div>
       </div>

@@ -2109,7 +2109,8 @@ async function sendToJarvis(text) {
   setState('idle');
 
   // Document creation — show Save options
-  if (res.docContent && res.docTitle && msgEl) {
+  if (res.docTitle && (res.docSections || res.docContent) && msgEl) {
+    const docSections = res.docSections || [];
     const docRow = document.createElement('div');
     docRow.className = 'doc-action-row';
     const wordBtn = document.createElement('button');
@@ -2122,7 +2123,20 @@ async function sendToJarvis(text) {
       wordBtn.disabled = true;
       wordBtn.textContent = 'Saving…';
       try {
-        await window.jarvis.saveWordDoc({ title: res.docTitle, content: res.docContent });
+        // Build plain text for Word from sections
+        const plainContent = docSections.map(s => {
+          if (s.type === 'heading' || s.type === 'subheading') return s.text;
+          if (s.type === 'paragraph') return s.text;
+          if (s.type === 'bullet_list') return (s.items || []).map(i => '• ' + i).join('\n');
+          if (s.type === 'table') {
+            const rows = [];
+            if (s.headers) rows.push(s.headers.join('\t'));
+            (s.rows || []).forEach(r => rows.push(r.join('\t')));
+            return rows.join('\n');
+          }
+          return '';
+        }).filter(Boolean).join('\n\n');
+        await window.jarvis.saveWordDoc({ title: res.docTitle, sections: docSections, content: plainContent });
         wordBtn.textContent = '✓ Saved & Opened';
         wordBtn.classList.add('done');
       } catch (e) {
@@ -2132,10 +2146,29 @@ async function sendToJarvis(text) {
     });
     gDocBtn.addEventListener('click', async () => {
       gDocBtn.disabled = true;
-      gDocBtn.textContent = 'Opening…';
+      gDocBtn.textContent = 'Creating document…';
       try {
-        await window.jarvis.openGoogleDoc({ title: res.docTitle, content: res.docContent });
-        gDocBtn.textContent = '✓ Content copied — paste in Google Docs';
+        const result = await window.jarvis.openGoogleDoc({ title: res.docTitle, sections: docSections });
+        if (result && result.error) {
+          gDocBtn.textContent = 'Error — try again';
+          gDocBtn.disabled = false;
+          const hint = document.createElement('div');
+          hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
+          if (result.error === 'not_connected') {
+            hint.textContent = '⚠ Google Drive not connected. Connect it in Settings (🔗 icon).';
+          } else if (result.error === 'scope_missing') {
+            hint.textContent = '⚠ Google Drive needs new permissions. Disconnect & reconnect Google Drive in Settings.';
+          } else {
+            hint.textContent = '⚠ Failed to create document: ' + (result.detail || 'unknown error');
+          }
+          gDocBtn.parentElement.appendChild(hint);
+          return;
+        }
+        if (result && result.fallback === 'word') {
+          gDocBtn.textContent = '✓ Opened as Word File';
+        } else {
+          gDocBtn.textContent = '✓ Document Created & Opened';
+        }
         gDocBtn.classList.add('done');
       } catch (e) {
         gDocBtn.textContent = 'Error — try again';
@@ -2145,6 +2178,45 @@ async function sendToJarvis(text) {
     docRow.appendChild(wordBtn);
     docRow.appendChild(gDocBtn);
     msgEl.appendChild(docRow);
+  }
+
+  // Slides creation — show Open in Google Slides button
+  if (res.slidesTitle && (res.slidesData || res.slidesContent) && msgEl) {
+    const slidesData = res.slidesData || [];
+    const slidesRow = document.createElement('div');
+    slidesRow.className = 'doc-action-row';
+    const slidesBtn = document.createElement('button');
+    slidesBtn.className = 'doc-btn doc-btn-gdoc';
+    slidesBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Open in Google Slides`;
+    slidesBtn.addEventListener('click', async () => {
+      slidesBtn.disabled = true;
+      slidesBtn.textContent = 'Creating presentation…';
+      try {
+        const result = await window.jarvis.openGoogleSlides({ title: res.slidesTitle, slides: slidesData });
+        if (result && result.error) {
+          slidesBtn.textContent = 'Error — try again';
+          slidesBtn.disabled = false;
+          const hint = document.createElement('div');
+          hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
+          if (result.error === 'not_connected') {
+            hint.textContent = '⚠ Google Drive not connected. Connect it in Settings (🔗 icon).';
+          } else if (result.error === 'scope_missing') {
+            hint.textContent = '⚠ Google Drive needs new permissions. Disconnect & reconnect Google Drive in Settings.';
+          } else {
+            hint.textContent = '⚠ Failed to create presentation: ' + (result.detail || 'unknown error');
+          }
+          slidesBtn.parentElement.appendChild(hint);
+          return;
+        }
+        slidesBtn.textContent = '✓ Presentation Created & Opened';
+        slidesBtn.classList.add('done');
+      } catch (e) {
+        slidesBtn.textContent = 'Error — try again';
+        slidesBtn.disabled = false;
+      }
+    });
+    slidesRow.appendChild(slidesBtn);
+    msgEl.appendChild(slidesRow);
   }
 
   // Show email send arrow button when AI drafted an email
@@ -3261,7 +3333,8 @@ function renderAnalyticsDashboard(data) {
 
   if (googleAnalytics) {
     const ga = googleAnalytics;
-    const avgMin = Math.floor(ga.last30Days.avgSessionSec / 60);
+    const avgMin  = Math.floor(ga.last30Days.avgSessionSec / 60);
+    const revenue = parseFloat(ga.last30Days.revenue || 0);
     const topPagesHtml = (ga.topPages || []).slice(0, 3).map(p =>
       `<div class="apc-recent-item">${p.path}<span>${fmtNum(p.views)} views</span></div>`
     ).join('');
@@ -3270,8 +3343,8 @@ function renderAnalyticsDashboard(data) {
         <div class="apc-header">
           <div class="apc-icon ganalytics">📈</div>
           <div>
-            <div class="apc-title">GOOGLE ANALYTICS</div>
-            <div class="apc-subtitle">${ga.siteName}</div>
+            <div class="apc-title">WEBSITE ANALYTICS</div>
+            <div class="apc-subtitle">${ga.siteName}${ga.propertyId ? ` · Property ${ga.propertyId}` : ''}</div>
           </div>
         </div>
         <div class="apc-stats">
@@ -3280,9 +3353,11 @@ function renderAnalyticsDashboard(data) {
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.pageViews)}</div><div class="apc-stat-label">PAGE VIEWS</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${avgMin}m</div><div class="apc-stat-label">AVG SESSION</div></div>
         </div>
-        <div class="apc-stats" style="grid-template-columns:1fr 1fr;margin-top:-4px">
+        <div class="apc-stats" style="margin-top:-4px">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last7Days.users)}</div><div class="apc-stat-label">USERS (7D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${ga.last30Days.bounceRate}%</div><div class="apc-stat-label">BOUNCE RATE</div></div>
+          ${revenue > 0 ? `<div class="apc-stat"><div class="apc-stat-val">$${revenue > 999 ? (revenue/1000).toFixed(1)+'K' : revenue.toFixed(0)}</div><div class="apc-stat-label">REVENUE (30D)</div></div>` : ''}
+          ${ga.last30Days.transactions > 0 ? `<div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.transactions)}</div><div class="apc-stat-label">ORDERS (30D)</div></div>` : ''}
         </div>
         ${topPagesHtml ? `<div class="apc-recent"><div class="apc-recent-title">TOP PAGES</div>${topPagesHtml}</div>` : ''}
       </div>`);
@@ -3522,62 +3597,187 @@ document.getElementById('stepsModalContinue').addEventListener('click', () => {
   if (_stepsAction) { _stepsAction(); _stepsAction = null; }
 });
 
+// ── Beam border animation ─────────────────────────────────────────────────────
+(function () {
+  const beamBoxes = new Map(); // el → rafId
+  function startBeam(el) {
+    if (!el || beamBoxes.has(el)) return;
+    let angle = 40;
+    let speed = 42; // deg/s idle
+    const TARGET_IDLE = 42, TARGET_HOVER = 220;
+    let targetSpeed = TARGET_IDLE;
+    // mini spring on velocity
+    let v = 0;
+    const K = 30, D = 11;
+    let last = 0;
+    function frame(now) {
+      if (!last) last = now;
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const a = K * (targetSpeed - speed) - D * v;
+      v += a * dt; speed += v * dt;
+      angle = (angle + speed * dt) % 360;
+      el.style.setProperty('--beam-a', angle.toFixed(2) + 'deg');
+      beamBoxes.set(el, requestAnimationFrame(frame));
+    }
+    el.addEventListener('pointerenter', () => { targetSpeed = TARGET_HOVER; });
+    el.addEventListener('pointerleave', () => { targetSpeed = TARGET_IDLE; });
+    beamBoxes.set(el, requestAnimationFrame(frame));
+  }
+  function stopBeam(el) {
+    if (!el) return;
+    cancelAnimationFrame(beamBoxes.get(el));
+    beamBoxes.delete(el);
+  }
+  // Observe modals becoming visible and wire up animation
+  function watchModal(overlayId, boxId) {
+    const overlay = document.getElementById(overlayId);
+    const box     = document.getElementById(boxId);
+    if (!overlay || !box) return;
+    new MutationObserver(() => {
+      if (!overlay.classList.contains('hidden')) startBeam(box);
+      else stopBeam(box);
+    }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+  }
+  watchModal('stripeConnectModal',     'stripeConnectBox');
+  watchModal('squarespaceModal',       'squarespaceConnectBox');
+  watchModal('analyticsPropertyModal', 'analyticsPropertyBox');
+}());
+
 // ── Stripe modal ──────────────────────────────────────────────────────────────
-document.getElementById('stripeModalCancel')?.addEventListener('click', () => {
+function _hideStripeModal() {
   document.getElementById('stripeConnectModal').classList.add('hidden');
+  document.getElementById('stripeKeyInput').value = '';
+  document.getElementById('stripeModalError').classList.add('hidden');
+}
+document.getElementById('stripeModalCancel')?.addEventListener('click', _hideStripeModal);
+document.getElementById('stripeModalCancelBtn')?.addEventListener('click', _hideStripeModal);
+// Click backdrop to close
+document.getElementById('stripeConnectModal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) _hideStripeModal();
 });
 
-// Show/hide Stripe key toggle
 document.getElementById('stripePwToggle')?.addEventListener('click', () => {
   const inp = document.getElementById('stripeKeyInput');
   inp.type = inp.type === 'password' ? 'text' : 'password';
 });
 
 document.getElementById('stripeModalConnect')?.addEventListener('click', async () => {
-  const key = document.getElementById('stripeKeyInput').value.trim();
+  const key   = document.getElementById('stripeKeyInput').value.trim();
   const errEl = document.getElementById('stripeModalError');
   errEl.classList.add('hidden');
   if (!key) { errEl.textContent = 'Please paste your Stripe secret key.'; errEl.classList.remove('hidden'); return; }
-  if (!key.startsWith('sk_')) { errEl.textContent = 'That doesn\'t look like a Stripe secret key — it should start with sk_live_ or sk_test_.'; errEl.classList.remove('hidden'); return; }
+  if (!key.startsWith('sk_')) { errEl.textContent = "Doesn't look right — key should start with sk_live_ or sk_test_."; errEl.classList.remove('hidden'); return; }
   const btn = document.getElementById('stripeModalConnect');
-  btn.disabled = true; btn.querySelector('span').textContent = 'Verifying...';
+  btn.disabled = true; btn.textContent = 'Verifying…';
   const result = await window.jarvis.stripeConnect(key);
-  btn.disabled = false; btn.querySelector('span').textContent = 'Connect →';
+  btn.disabled = false; btn.textContent = 'CONNECT →';
   if (result.ok) {
-    document.getElementById('stripeConnectModal').classList.add('hidden');
-    document.getElementById('stripeKeyInput').value = '';
+    _hideStripeModal();
     renderConnectors();
     const name = result.accountName ? ` (${result.accountName})` : '';
     addMessage('assistant', `Stripe${name} connected! Ask me "how much revenue did I make this month?" or "show me my recent payments".`);
   } else {
-    errEl.textContent = result.error || 'Connection failed. Check your secret key.';
+    errEl.textContent = result.error || 'Connection failed — check your secret key.';
     errEl.classList.remove('hidden');
   }
 });
 
 // ── Squarespace modal ─────────────────────────────────────────────────────────
-document.getElementById('squarespaceModalCancel')?.addEventListener('click', () => {
+function _hideSquarespaceModal() {
   document.getElementById('squarespaceModal').classList.add('hidden');
+  document.getElementById('squarespaceKeyInput').value = '';
+  document.getElementById('squarespaceModalError').classList.add('hidden');
+}
+document.getElementById('squarespaceModalCancel')?.addEventListener('click', _hideSquarespaceModal);
+document.getElementById('squarespaceModalCancelBtn')?.addEventListener('click', _hideSquarespaceModal);
+document.getElementById('squarespaceModal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) _hideSquarespaceModal();
+});
+
+// Squarespace show/hide key toggle
+document.getElementById('squarespacePwToggle')?.addEventListener('click', () => {
+  const inp = document.getElementById('squarespaceKeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
 });
 
 document.getElementById('squarespaceModalConnect')?.addEventListener('click', async () => {
-  const key = document.getElementById('squarespaceKeyInput').value.trim();
+  const key   = document.getElementById('squarespaceKeyInput').value.trim();
   const errEl = document.getElementById('squarespaceModalError');
   errEl.classList.add('hidden');
   if (!key) { errEl.textContent = 'Please paste your API key.'; errEl.classList.remove('hidden'); return; }
   const btn = document.getElementById('squarespaceModalConnect');
-  btn.disabled = true;
-  btn.querySelector('span').textContent = 'Verifying...';
+  btn.disabled = true; btn.textContent = 'Verifying…';
   const result = await window.jarvis.squarespaceConnect(key);
-  btn.disabled = false;
-  btn.querySelector('span').textContent = 'Connect →';
+  btn.disabled = false; btn.textContent = 'CONNECT →';
   if (result.ok) {
-    document.getElementById('squarespaceModal').classList.add('hidden');
+    _hideSquarespaceModal();
     renderConnectors();
-    addMessage('assistant', 'Squarespace connected! Ask me "how many orders did I get this month?" or "what\'s my revenue?"');
+    addMessage('assistant', "Squarespace connected! Ask me \"how many orders did I get this month?\" or \"what's my revenue?\"");
   } else {
-    errEl.textContent = result.error || 'Connection failed. Check your API key.';
+    errEl.textContent = result.error || 'Connection failed — check your API key.';
     errEl.classList.remove('hidden');
+  }
+});
+
+// ── Google Analytics — property picker ───────────────────────────────────────
+let _analyticsProperties = [];
+let _selectedPropertyId  = null;
+
+function _hideAnalyticsPropertyModal() {
+  document.getElementById('analyticsPropertyModal').classList.add('hidden');
+  _analyticsProperties = [];
+  _selectedPropertyId  = null;
+}
+
+function showAnalyticsPropertyPicker(properties) {
+  _analyticsProperties = properties || [];
+  _selectedPropertyId  = _analyticsProperties[0]?.id || null;
+
+  const list = document.getElementById('analyticsPropertyList');
+  if (!_analyticsProperties.length) {
+    list.innerHTML = '<div style="color:rgba(255,100,100,0.8);font-size:11px;text-align:center;padding:16px">No GA4 properties found on this account.</div>';
+  } else {
+    list.innerHTML = _analyticsProperties.map((p, i) => `
+      <label class="conn-prop-item${i === 0 ? ' selected' : ''}" data-pid="${p.id}">
+        <input type="radio" name="ga4prop" value="${p.id}" ${i === 0 ? 'checked' : ''} />
+        <div>
+          <div class="conn-prop-name">${p.displayName}</div>
+          <div class="conn-prop-id">Property ${p.id} · ${p.websiteUrl || ''}</div>
+        </div>
+      </label>
+    `).join('');
+    list.querySelectorAll('.conn-prop-item').forEach(el => {
+      el.addEventListener('click', () => {
+        list.querySelectorAll('.conn-prop-item').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        _selectedPropertyId = el.dataset.pid;
+        const radio = el.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+      });
+    });
+  }
+
+  document.getElementById('analyticsPropertyModal').classList.remove('hidden');
+}
+
+document.getElementById('analyticsPropertyCancel')?.addEventListener('click', _hideAnalyticsPropertyModal);
+document.getElementById('analyticsPropertyCancelBtn')?.addEventListener('click', _hideAnalyticsPropertyModal);
+document.getElementById('analyticsPropertyModal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) _hideAnalyticsPropertyModal();
+});
+
+document.getElementById('analyticsPropertyConfirm')?.addEventListener('click', async () => {
+  if (!_selectedPropertyId) return;
+  const btn = document.getElementById('analyticsPropertyConfirm');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+  const result = await window.jarvis.analyticsSelectProperty(_selectedPropertyId);
+  btn.disabled = false; btn.textContent = 'CONNECT →';
+  if (result?.ok) {
+    _hideAnalyticsPropertyModal();
+    renderConnectors();
+    const prop = _analyticsProperties.find(p => p.id === _selectedPropertyId);
+    addMessage('assistant', `Google Analytics connected for "${prop?.displayName || 'your site'}"! Ask me "how many visitors did I get this month?" or "show me my top pages".`);
   }
 });
 
@@ -3679,7 +3879,25 @@ languageSearch?.addEventListener('input', () => renderLanguageList(languageSearc
 // Listen for successful connector OAuth callback
 window.jarvis.onConnectorConnected(({ service }) => {
   renderConnectors();
-  addMessage('assistant', `${service.charAt(0).toUpperCase() + service.slice(1)} connected successfully! Say "give me an update" to check your emails.`);
+  const connectedMessages = {
+    gmail:    'Gmail connected. Say "give me an update" to check your emails.',
+    outlook:  'Outlook connected. Say "give me an update" to check your emails.',
+    drive:    'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
+    calendar: 'Google Calendar connected. Say "what\'s on my schedule" to see your events.',
+    spotify:  'Spotify connected. Say "play some music" to get started.',
+    youtube:  'YouTube connected. Say "show me my channel stats" to see your analytics.',
+    instagram:'Instagram connected. Say "show me my analytics" to see your reach and followers.',
+    tiktok:   'TikTok connected. Say "show me my TikTok stats" to see your performance.',
+    analytics:'Google Analytics connected. Say "how many visitors did I get this month?" to see your traffic and revenue.',
+  };
+  const name = service.charAt(0).toUpperCase() + service.slice(1);
+  const msg  = connectedMessages[service] || `${name} connected successfully.`;
+  addMessage('assistant', msg);
+});
+
+// Show GA4 property picker after OAuth completes
+window.jarvis.onAnalyticsShowPropertyPicker && window.jarvis.onAnalyticsShowPropertyPicker(({ properties }) => {
+  showAnalyticsPropertyPicker(properties);
 });
 
 // ===================== SETTINGS PANE =====================

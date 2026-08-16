@@ -747,28 +747,62 @@ async function getAnalyticsToken() {
   return tokens.access_token;
 }
 
+// List all GA4 properties for the property picker
+async function listAnalyticsProperties() {
+  const token = await getAnalyticsToken();
+  if (!token) return [];
+  try {
+    const res = await fetch('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=20', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    return (data.properties || []).map(p => ({
+      id: p.name.replace('properties/', ''),
+      displayName: p.displayName || 'Unnamed property',
+      websiteUrl: p.websiteUrl || '',
+    }));
+  } catch { return []; }
+}
+
+// Save the user-selected GA4 property ID
+function saveAnalyticsPropertyId(id) { store.set('connector.analytics.propertyId', id); }
+function loadAnalyticsPropertyId() { return store.get('connector.analytics.propertyId') || null; }
+
 async function getGoogleAnalyticsStats() {
   const token = await getAnalyticsToken();
   if (!token) return null;
   try {
-    // List GA4 properties the user has access to
-    const propsRes = await fetch('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=5', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const propsData = await propsRes.json();
-    const property = propsData.properties?.[0];
-    if (!property) return null;
+    // Use saved property if available, else auto-pick first
+    let propertyId = loadAnalyticsPropertyId();
+    let siteName   = 'Your Website';
+    if (!propertyId) {
+      const propsRes  = await fetch('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=5', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const propsData = await propsRes.json();
+      const property  = propsData.properties?.[0];
+      if (!property) return null;
+      propertyId = property.name.replace('properties/', '');
+      siteName   = property.displayName || 'Your Website';
+    } else {
+      // Fetch display name for saved property
+      try {
+        const r = await fetch(`https://analyticsadmin.googleapis.com/v1beta/properties/${propertyId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await r.json();
+        siteName = d.displayName || siteName;
+      } catch {}
+    }
 
-    const propertyId = property.name.replace('properties/', '');
-
-    // Run a report: sessions + users + pageviews for last 30 days
+    // Traffic + revenue report for 30 and 7 days
     const reportRes = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         dateRanges: [
           { startDate: '30daysAgo', endDate: 'today' },
-          { startDate: '7daysAgo', endDate: 'today' },
+          { startDate: '7daysAgo',  endDate: 'today' },
         ],
         metrics: [
           { name: 'sessions' },
@@ -776,28 +810,15 @@ async function getGoogleAnalyticsStats() {
           { name: 'screenPageViews' },
           { name: 'bounceRate' },
           { name: 'averageSessionDuration' },
+          { name: 'purchaseRevenue' },
+          { name: 'transactions' },
         ],
-        dimensions: [{ name: 'date' }],
-        limit: 30,
+        limit: 1,
       }),
     });
     const reportData = await reportRes.json();
-
-    // Aggregate totals
-    let sessions30 = 0, users30 = 0, views30 = 0;
-    let sessions7 = 0, users7 = 0;
-    (reportData.rows || []).forEach(row => {
-      const rangeIdx = row.dimensionValues?.[0]?.value; // date
-      const s = parseInt(row.metricValues?.[0]?.value || 0);
-      const u = parseInt(row.metricValues?.[1]?.value || 0);
-      const v = parseInt(row.metricValues?.[2]?.value || 0);
-      // Both date ranges are returned interleaved; use totals from first range
-      sessions30 += s; users30 += u; views30 += v;
-    });
-    // 7-day from second dateRange
-    const totals7 = reportData.totals?.[1]?.metricValues || [];
-    sessions7 = parseInt(totals7[0]?.value || 0);
-    users7 = parseInt(totals7[1]?.value || 0);
+    const totals30   = reportData.totals?.[0]?.metricValues || [];
+    const totals7    = reportData.totals?.[1]?.metricValues || [];
 
     // Top pages
     const pagesRes = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, {
@@ -812,23 +833,29 @@ async function getGoogleAnalyticsStats() {
       }),
     });
     const pagesData = await pagesRes.json();
-    const topPages = (pagesData.rows || []).map(r => ({
+    const topPages  = (pagesData.rows || []).map(r => ({
       path: r.dimensionValues?.[0]?.value || '/',
       views: parseInt(r.metricValues?.[0]?.value || 0),
     }));
 
-    const totals30 = reportData.totals?.[0]?.metricValues || [];
-
     return {
-      siteName: property.displayName || 'Your Website',
+      siteName,
+      propertyId,
       last30Days: {
-        sessions: parseInt(totals30[0]?.value || sessions30),
-        users: parseInt(totals30[1]?.value || users30),
-        pageViews: parseInt(totals30[2]?.value || views30),
-        bounceRate: parseFloat(totals30[3]?.value || 0).toFixed(1),
-        avgSessionSec: parseInt(totals30[4]?.value || 0),
+        sessions:       parseInt(totals30[0]?.value   || 0),
+        users:          parseInt(totals30[1]?.value   || 0),
+        pageViews:      parseInt(totals30[2]?.value   || 0),
+        bounceRate:     parseFloat(totals30[3]?.value || 0).toFixed(1),
+        avgSessionSec:  parseInt(totals30[4]?.value   || 0),
+        revenue:        parseFloat(totals30[5]?.value || 0).toFixed(2),
+        transactions:   parseInt(totals30[6]?.value   || 0),
       },
-      last7Days: { sessions: sessions7, users: users7 },
+      last7Days: {
+        sessions:     parseInt(totals7[0]?.value || 0),
+        users:        parseInt(totals7[1]?.value || 0),
+        revenue:      parseFloat(totals7[5]?.value || 0).toFixed(2),
+        transactions: parseInt(totals7[6]?.value || 0),
+      },
       topPages,
     };
   } catch (err) {
@@ -1033,5 +1060,6 @@ module.exports = {
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
   getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
   getAllAnalytics, formatAnalyticsForAI,
+  listAnalyticsProperties, saveAnalyticsPropertyId, loadAnalyticsPropertyId,
   sendEmail,
 };

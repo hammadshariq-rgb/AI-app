@@ -153,12 +153,45 @@ function positionRightPanels() {
     popup.id = 'gcDayPopup';
     popup.style.cssText = 'position:absolute;top:0;left:0;right:0;background:rgba(8,12,28,0.95);border-top:1px solid rgba(255,255,255,0.08);padding:8px 14px 10px;z-index:10;font-family:Inter,sans-serif;';
     popup.innerHTML = '<div style="font-size:9px;letter-spacing:2px;color:rgba(160,185,230,0.5);margin-bottom:6px;">EVENTS</div>';
-    events.forEach(function(ev) {
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(220,235,255,0.85);';
-      row.innerHTML = '<span style="color:#ec4899;font-size:9px;">●</span><span>' + escCal(ev.time ? ev.time + ' — ' + ev.title : ev.title) + '</span>';
-      popup.appendChild(row);
-    });
+
+    function rebuildRows() {
+      popup.querySelectorAll('.gc-popup-row').forEach(function(r) { r.remove(); });
+      var current = eventsOnDate(dateStr);
+      if (!current.length) { popup.remove(); return; }
+      current.forEach(function(ev) {
+        var row = document.createElement('div');
+        row.className = 'gc-popup-row';
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(220,235,255,0.85);';
+        var dot = document.createElement('span');
+        dot.style.cssText = 'color:#ec4899;font-size:9px;';
+        dot.textContent = '●';
+        var label = document.createElement('span');
+        label.style.flex = '1';
+        label.textContent = ev.time ? ev.time + ' — ' + ev.title : ev.title;
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.style.cssText = 'background:none;border:none;color:rgba(255,80,80,0.6);cursor:pointer;font-size:10px;padding:0 2px;line-height:1;';
+        delBtn.title = 'Remove event';
+        (function(evId, evTitle, evFromGcal) {
+          delBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            appEvents = appEvents.filter(function(x) { return x.id !== evId; });
+            saveAppEvents();
+            renderCalendar();
+            rebuildRows();
+            if (evFromGcal && window.jarvis && window.jarvis.calendarDeleteEvent) {
+              window.jarvis.calendarDeleteEvent(evTitle).catch(function() {});
+            }
+          });
+        })(ev.id, ev.title, !!ev.fromGcal);
+        row.appendChild(dot);
+        row.appendChild(label);
+        row.appendChild(delBtn);
+        popup.appendChild(row);
+      });
+    }
+
+    rebuildRows();
     var closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = 'position:absolute;top:6px;right:10px;background:none;border:none;color:rgba(160,185,230,0.4);cursor:pointer;font-size:10px;';

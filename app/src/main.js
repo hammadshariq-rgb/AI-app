@@ -1580,10 +1580,22 @@ ipcMain.handle('connector:connect', async (_e, service) => {
   // Other services (Spotify, etc.) still use the server flow
   const url = `${process.env.LICENSE_SERVER_URL || 'http://localhost:4000'}/connect/${service}`;
   commands.openInChrome(url);
-  connectors.pollForToken(service).then(ok => {
-    if (ok && overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
+  connectors.pollForToken(service).then(async ok => {
+    if (!ok || !overlayWindow) return;
+    // For analytics: show property picker before declaring connected
+    if (service === 'analytics') {
+      const props = await connectors.listAnalyticsProperties();
+      overlayWindow.webContents.send('analytics:showPropertyPicker', { properties: props });
+    } else {
+      overlayWindow.webContents.send('connector:connected', { service });
+    }
   });
   return true;
+});
+ipcMain.handle('analytics:selectProperty', async (_e, propertyId) => {
+  connectors.saveAnalyticsPropertyId(propertyId);
+  if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'analytics' });
+  return { ok: true };
 });
 ipcMain.handle('connector:disconnect', (_e, service) => {
   connectors.disconnectService(service);

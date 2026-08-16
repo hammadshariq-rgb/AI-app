@@ -3175,16 +3175,262 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   line-height: 1.8;
 }
 
-/* ===================== SHOPIFY MODAL ===================== */
-#shopifyModal {
+/* ===================== SHARED CONNECTOR MODAL OVERLAY ===================== */
+#shopifyModal,
+#stripeConnectModal,
+#squarespaceModal,
+#analyticsPropertyModal {
   position: fixed;
   inset: 0;
-  background: rgba(2,5,18,0.88);
-  z-index: 200;
+  background: rgba(2, 5, 18, 0.90);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9990;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+/* ── Beam-border modal box ─────────────────────────────────────────────── */
+.conn-box {
+  position: relative;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: #070c1e;
+  border-radius: 22px;
+  padding: 32px 30px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  isolation: isolate;
+  /* The beam ring is drawn via --beam-a custom prop, animated by JS */
+}
+/* Rotating conic-gradient border, masked to ring only */
+.conn-box::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 23px;
+  background: conic-gradient(
+    from var(--beam-a, 40deg),
+    transparent 0deg,
+    transparent 18deg,
+    rgba(70, 110, 255, 0.18) 40deg,
+    rgba(70, 140, 255, 0.65) 55deg,
+    rgba(120, 200, 255, 1)   60deg,
+    #fff                     62deg,
+    transparent              65deg,
+    transparent              200deg,
+    rgba(255, 100, 80, 0.12) 218deg,
+    rgba(255, 110, 90, 0.6)  230deg,
+    #fff                     234deg,
+    transparent              237deg,
+    transparent              360deg
+  );
+  padding: 1.5px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+/* Soft glow behind the box */
+.conn-box::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 23px;
+  background: conic-gradient(
+    from var(--beam-a, 40deg),
+    transparent 0deg,
+    transparent 18deg,
+    rgba(70, 110, 255, 0.08) 55deg,
+    rgba(120, 200, 255, 0.3) 60deg,
+    transparent 65deg,
+    transparent 360deg
+  );
+  filter: blur(18px);
+  z-index: -2;
+  pointer-events: none;
+}
+.conn-close {
+  position: absolute;
+  top: 16px; right: 18px;
+  width: 28px; height: 28px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 50%;
+  color: rgba(180,200,240,0.6);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.conn-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+.conn-icon-wrap {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.conn-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.conn-titles { display: flex; flex-direction: column; gap: 3px; }
+.conn-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  color: rgba(220,235,255,0.95);
+  text-transform: uppercase;
+}
+.conn-sub {
+  font-size: 11px;
+  color: rgba(100,140,200,0.7);
+  letter-spacing: 0.3px;
+}
+.conn-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(60,100,200,0.3) 40%, rgba(60,100,200,0.3) 60%, transparent);
+  margin: 0 -4px;
+}
+.conn-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conn-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11.5px;
+  color: rgba(150,180,230,0.75);
+  line-height: 1.5;
+}
+.conn-step-num {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(60,100,220,0.2);
+  border: 1px solid rgba(80,120,240,0.3);
+  font-size: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  color: rgba(120,160,255,0.9);
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.conn-step strong { color: rgba(200,220,255,0.9); }
+.conn-field { display: flex; flex-direction: column; gap: 6px; }
+.conn-field label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  color: rgba(100,140,200,0.7);
+}
+.conn-input-wrap { position: relative; }
+.conn-input-wrap input, .conn-field input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(60,100,200,0.25);
+  border-radius: 10px;
+  padding: 11px 40px 11px 14px;
+  font-size: 12.5px;
+  font-family: 'Share Tech Mono', monospace;
+  color: rgba(200,220,255,0.9);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.conn-field input { padding-right: 14px; }
+.conn-input-wrap input:focus, .conn-field input:focus {
+  border-color: rgba(80,140,255,0.55);
+}
+.conn-pw-toggle {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  color: rgba(100,140,200,0.6);
+  cursor: pointer; padding: 4px;
+}
+.conn-pw-toggle:hover { color: rgba(150,190,255,0.9); }
+.conn-error {
+  font-size: 11px;
+  color: rgba(255,100,100,0.85);
+  background: rgba(255,60,60,0.07);
+  border: 1px solid rgba(255,60,60,0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.conn-error.hidden { display: none; }
+.conn-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.conn-btn-cancel {
+  flex: 1;
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(60,100,200,0.2);
+  background: transparent;
+  color: rgba(120,160,220,0.7);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.conn-btn-cancel:hover { border-color: rgba(100,150,255,0.4); color: rgba(160,200,255,0.9); }
+.conn-btn-connect {
+  flex: 2;
+  padding: 11px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, rgba(50,100,240,0.9), rgba(30,70,200,0.9));
+  color: #fff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(50,100,240,0.3);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.conn-btn-connect:hover { opacity: 0.88; transform: translateY(-1px); }
+.conn-btn-connect:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* Property picker (analytics) */
+.conn-prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.conn-prop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(60,100,200,0.2);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.conn-prop-item:hover, .conn-prop-item.selected {
+  border-color: rgba(80,140,255,0.5);
+  background: rgba(60,100,240,0.08);
+}
+.conn-prop-item input[type="radio"] { accent-color: #4a80ff; width: 14px; height: 14px; }
+.conn-prop-name { font-size: 12px; color: rgba(200,220,255,0.9); font-family: 'Share Tech Mono', monospace; }
+.conn-prop-id { font-size: 10px; color: rgba(100,140,200,0.6); }
+
+/* ── Legacy shopify box (unchanged look, new shared styles apply) ──────── */
 .shopify-modal-box {
   background: rgba(6,12,35,0.98);
   border: 1px solid rgba(60,110,220,0.35);
@@ -5641,33 +5887,81 @@ body.light-mode .fav-bubble-item:hover { background: rgba(200,160,0,0.1); color:
 .email-send-row.sent .email-send-btn { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.1); color: #4ade80; }
 .email-send-row.sent .email-send-label { color: rgba(74,222,128,0.8); }
 
-/* Document creation buttons */
+/* Document / Slides action buttons — liquid metal style */
+@keyframes doc-btn-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
 .doc-action-row {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-top: 12px;
 }
 .doc-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase;
+  position: relative;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 18px;
+  border-radius: 100px;
+  font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase;
   font-family: 'Share Tech Mono', monospace;
-  cursor: pointer; transition: all 0.2s;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s;
+  /* dark inner face */
+  background: linear-gradient(180deg, #1e1e2e 0%, #0d0d18 100%);
+  color: #aac4e8;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 6px 18px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.07);
 }
+/* shimmer overlay */
+.doc-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg,
+    transparent 20%,
+    rgba(255,255,255,0.06) 40%,
+    rgba(255,255,255,0.13) 50%,
+    rgba(255,255,255,0.06) 60%,
+    transparent 80%);
+  background-size: 200% 100%;
+  animation: doc-btn-shimmer 3s linear infinite;
+  pointer-events: none;
+}
+.doc-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 10px 28px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+  color: #fff;
+}
+.doc-btn:active { transform: translateY(0) scale(0.98); }
+
 .doc-btn-word {
-  border: 1px solid rgba(74,144,226,0.35);
-  background: rgba(74,144,226,0.07);
-  color: rgba(110,180,255,0.85);
+  border-color: rgba(74,144,226,0.3);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 6px 18px rgba(74,144,226,0.12),
+    inset 0 1px 0 rgba(74,144,226,0.1);
 }
-.doc-btn-word:hover { background: rgba(74,144,226,0.18); border-color: rgba(74,144,226,0.7); color: #fff; }
+.doc-btn-word:hover { border-color: rgba(74,144,226,0.6); box-shadow: 0 0 0 1px rgba(0,0,0,0.5), 0 10px 28px rgba(74,144,226,0.2), inset 0 1px 0 rgba(255,255,255,0.12); }
+
 .doc-btn-gdoc {
-  border: 1px solid rgba(66,200,100,0.35);
-  background: rgba(66,200,100,0.07);
-  color: rgba(80,220,120,0.85);
+  border-color: rgba(52,168,83,0.3);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 6px 18px rgba(52,168,83,0.12),
+    inset 0 1px 0 rgba(52,168,83,0.1);
 }
-.doc-btn-gdoc:hover { background: rgba(66,200,100,0.18); border-color: rgba(66,200,100,0.7); color: #fff; }
-.doc-btn:disabled { opacity: 0.5; cursor: default; }
-.doc-btn.done { opacity: 0.7; cursor: default; }
+.doc-btn-gdoc:hover { border-color: rgba(52,168,83,0.6); box-shadow: 0 0 0 1px rgba(0,0,0,0.5), 0 10px 28px rgba(52,168,83,0.2), inset 0 1px 0 rgba(255,255,255,0.12); }
+
+.doc-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+.doc-btn.done { opacity: 0.65; cursor: default; }
 
 /* Light mode overrides */
 body.light-mode #favouritesBtn { background: rgba(0,0,0,0.82); border-color: rgba(0,0,0,0.9); }
