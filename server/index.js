@@ -1,6 +1,149 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+
+// ── Shared OAuth success page ─────────────────────────────────────────────────
+function connectedPage(serviceName) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connected — Callisto AI</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #080808;
+      color: #f0f0f0;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+    /* Subtle red grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(180,20,20,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(140,10,10,0.12) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    /* Thin red top border */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #c8102e, #ff2a2a, #c8102e, transparent);
+      z-index: 10;
+    }
+    .wrap {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 0;
+      text-align: center;
+      padding: 40px;
+    }
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #c8102e;
+      margin-bottom: 24px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease 0.1s forwards;
+    }
+    .headline {
+      font-size: clamp(42px, 8vw, 88px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -2px;
+      text-transform: uppercase;
+      color: #ffffff;
+      opacity: 0;
+      animation: fadeUp 0.7s ease 0.25s forwards;
+    }
+    .headline span {
+      color: #c8102e;
+    }
+    .service {
+      font-size: clamp(18px, 3vw, 28px);
+      font-weight: 300;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      margin-top: 16px;
+      opacity: 0;
+      animation: fadeUp 0.7s ease 0.4s forwards;
+    }
+    .divider {
+      width: 60px;
+      height: 2px;
+      background: #c8102e;
+      margin: 32px auto;
+      opacity: 0;
+      animation: fadeUp 0.6s ease 0.55s forwards;
+    }
+    .sub {
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 2px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease 0.65s forwards;
+    }
+    /* Tick checkmark */
+    .tick {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid rgba(200,16,46,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.1s forwards;
+    }
+    .tick svg { width: 24px; height: 24px; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.6); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="tick">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c8102e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div class="eyebrow">Callisto AI</div>
+    <div class="headline">Connected<span>.</span></div>
+    <div class="service">${serviceName}</div>
+    <div class="divider"></div>
+    <div class="sub">This tab will close automatically</div>
+  </div>
+  <script>setTimeout(() => window.close(), 3000);</script>
+</body>
+</html>`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
@@ -270,11 +413,7 @@ app.get('/connect/gmail/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['gmail'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Gmail Connected!</h2>
-      <p>You can close this tab and return to Jarvis.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Gmail'));
   } catch (err) {
     res.send(`<p>Gmail connection failed: ${err.message}</p>`);
   }
@@ -335,11 +474,7 @@ app.get('/connect/spotify/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['spotify'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Spotify Connected!</h2>
-      <p>You can close this tab and return to Jarvis.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Spotify'));
   } catch (err) {
     res.send(`<p>Spotify connection failed: ${err.message}</p>`);
   }
@@ -453,11 +588,7 @@ app.get('/connect/calendar/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['calendar'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Google Calendar Connected!</h2>
-      <p>You can close this tab and return to Jarvis.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Google Calendar'));
   } catch (err) {
     res.send(`<p>Calendar connection failed: ${err.message}</p>`);
   }
@@ -606,11 +737,7 @@ app.get('/connect/drive/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['drive'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Google Drive Connected!</h2>
-      <p>You can close this tab and return to the app.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Google Drive'));
   } catch (err) {
     res.send(`<p>Drive connection failed: ${err.message}</p>`);
   }
@@ -675,11 +802,7 @@ app.get('/connect/youtube/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['youtube'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#ff0000;">YouTube Connected!</h2>
-      <p>You can close this tab and return to the app.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('YouTube'));
   } catch (err) {
     res.send(`<p>YouTube connection failed: ${err.message}</p>`);
   }
@@ -745,11 +868,7 @@ app.get('/connect/instagram/callback', async (req, res) => {
     const longData = await longRes.json();
     const finalToken = longData.access_token || tokens.access_token;
     pendingTokens['instagram'] = { access_token: finalToken, expires_in: longData.expires_in || 5184000, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#e1306c;">Instagram Connected!</h2>
-      <p>You can close this tab and return to the app.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Instagram'));
   } catch (err) {
     res.send(`<p>Instagram connection failed: ${err.message}</p>`);
   }
@@ -795,11 +914,7 @@ app.get('/connect/tiktok/callback', async (req, res) => {
     const tokens = data.data || data;
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['tiktok'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 86400, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#69c9d0;">TikTok Connected!</h2>
-      <p>You can close this tab and return to the app.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('TikTok'));
   } catch (err) {
     res.send(`<p>TikTok connection failed: ${err.message}</p>`);
   }
@@ -879,11 +994,7 @@ app.get('/connect/analytics/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) throw new Error('No access token');
     pendingTokens['analytics'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#e37400;">Google Analytics Connected!</h2>
-      <p>You can close this tab and return to the app.</p>
-      <script>setTimeout(()=>window.close(),2000)</script>
-    </body></html>`);
+    res.send(connectedPage('Google Analytics'));
   } catch (err) {
     res.send(`<p>Analytics connection failed: ${err.message}</p>`);
   }
