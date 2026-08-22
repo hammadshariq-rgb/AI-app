@@ -4677,20 +4677,44 @@ micBtn.addEventListener('click', () => {
     localStorage.setItem('orbColor', hex);
   }
 
+  function resetOrbColor() {
+    // Remove inline styles — CSS defaults take over
+    const orbEl = document.getElementById('orb');
+    if (orbEl) { orbEl.style.background = ''; orbEl.style.boxShadow = ''; }
+    document.documentElement.style.removeProperty('--orb-ring-color');
+    // Reset surfaces to default cyan
+    if (window._dotSurface) window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
+    if (window._wave) window._wave.setColor([0.0, 0.784, 1.0]);
+    if (window._hills) window._hills.setColor(null); // null = revert to theme default
+    window._waveformColor = null;
+    localStorage.removeItem('orbColor');
+    // Mark reset swatch active
+    document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
+    document.getElementById('orbColorReset')?.classList.add('active');
+    const custom = document.getElementById('orbColorCustom');
+    if (custom) custom.value = '#00c8ff';
+  }
+
+  // Reset button
+  document.getElementById('orbColorReset')?.addEventListener('click', resetOrbColor);
+
   // Load saved colour on startup
   const saved = localStorage.getItem('orbColor');
   if (saved) {
     setTimeout(() => applyOrbColor(saved), 500); // after WebGL inits
-    // mark correct swatch active
     document.querySelectorAll('.orb-swatch').forEach(s => {
       s.classList.toggle('active', s.dataset.color === saved);
     });
+    document.getElementById('orbColorReset')?.classList.remove('active');
     const custom = document.getElementById('orbColorCustom');
     if (custom) custom.value = saved;
+  } else {
+    // Default: reset swatch is active
+    document.getElementById('orbColorReset')?.classList.add('active');
   }
 
   // Swatch clicks
-  document.querySelectorAll('.orb-swatch').forEach(swatch => {
+  document.querySelectorAll('.orb-swatch:not(#orbColorReset)').forEach(swatch => {
     swatch.addEventListener('click', () => {
       document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
       swatch.classList.add('active');

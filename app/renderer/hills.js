@@ -133,6 +133,7 @@
   }
 
   function setColor(rgb) {
+    if (!rgb) { _customColor = null; setTheme(document.body.classList.contains('light-mode')); return; }
     _customColor = rgb;
     uniforms.uColor.value.set(rgb[0], rgb[1], rgb[2]);
     uniforms.uAlpha.value = 0.72;
