@@ -693,6 +693,12 @@ function addMessage(role, text) {
   return div;
 }
 
+function showStopBtn(visible) {
+  let btn = document.getElementById('stopResponseBtn');
+  if (!btn) return;
+  btn.style.display = visible ? 'flex' : 'none';
+}
+
 function setState(state) {
   orb.className = state;
   if (state === 'idle') {
@@ -1736,9 +1742,13 @@ function showCard(card) {
       if (img && card.sourceUrl) { img.style.cursor = 'pointer'; img.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
     }, 50);
   } else if (card.type === 'analytics') {
-    // Open the analytics panel with fresh data
+    // Open the analytics panel with fresh data — scroll to top so website card is first
     cardPanel.classList.add('hidden');
-    document.getElementById('analyticsPanel').classList.remove('hidden');
+    const ap = document.getElementById('analyticsPanel');
+    ap.classList.remove('hidden');
+    ap.scrollTop = 0;
+    const ac = document.getElementById('analyticsContent');
+    if (ac) ac.scrollTop = 0;
     loadAnalyticsDashboard();
     return;
   } else if (card.type === 'news') {
@@ -1887,7 +1897,7 @@ clearBtn.addEventListener('click', async () => { debugFlash('CLEARING...');
   _sessionMsgCount = 0;
   cardPanel.classList.add('hidden');
   orbContainer.classList.remove('compact');
-  addMessage('assistant', 'Chat cleared. How can I help?');
+  // orb returns to full size — no message
 });
 
 if (fileBtn) fileBtn.addEventListener('click', async () => {
@@ -2090,6 +2100,7 @@ async function sendToJarvis(text) {
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
   setState('thinking');
+  showStopBtn(true);
 
   let res;
   try {
@@ -2104,7 +2115,7 @@ async function sendToJarvis(text) {
       friendly = "I can't reach the internet right now. Check your connection and try again.";
     }
     addMessage('assistant', friendly);
-    setState('idle');
+    showStopBtn(false); setState('idle');
     return;
   }
   if (!res || res.error) {
@@ -2114,14 +2125,14 @@ async function sendToJarvis(text) {
       // Structured error from classifyAIError — message already spoken via TTS in main.js
       addMessage('assistant', res.userMsg);
     }
-    setState('idle');
+    showStopBtn(false); setState('idle');
     return;
   }
 
   history.push({ role: 'assistant', content: res.text });
   // Don't render a blank bubble — if there's a card it'll display the data visually
   const msgEl = (res.text && res.text.trim()) ? addMessage('assistant', res.text) : null;
-  setState('idle');
+  showStopBtn(false); setState('idle');
 
   // Document creation — show Save options
   if (res.docTitle && (res.docSections || res.docContent) && msgEl) {
@@ -3494,7 +3505,11 @@ async function loadAnalyticsDashboard() {
 
 document.getElementById('analyticsViewBtn')?.addEventListener('click', async () => {
   historySidebar.classList.add('hidden');
-  document.getElementById('analyticsPanel').classList.remove('hidden');
+  const ap = document.getElementById('analyticsPanel');
+  ap.classList.remove('hidden');
+  ap.scrollTop = 0;
+  const ac = document.getElementById('analyticsContent');
+  if (ac) ac.scrollTop = 0;
   loadAnalyticsDashboard();
 });
 
@@ -4542,12 +4557,16 @@ micBtn.addEventListener('click', () => {
   const waveCanvas   = document.getElementById('waveformCanvas');
   if (!toggleBtn || !typeWrap || !userInput) return;
 
-  // Auto-resize textarea
+  // Auto-resize textarea + orb compact on typing
   function resizeInput() {
     userInput.style.height = 'auto';
     userInput.style.height = Math.min(userInput.scrollHeight, 140) + 'px';
   }
-  userInput.addEventListener('input', resizeInput);
+  userInput.addEventListener('input', () => {
+    resizeInput();
+    if (userInput.value.trim()) orbContainer.classList.add('compact');
+    else if (!chat.children.length) orbContainer.classList.remove('compact');
+  });
 
   function enterTypingMode() {
     if (isRecording) stopRecording();
@@ -4592,11 +4611,21 @@ micBtn.addEventListener('click', () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
   });
 
-  // Focus/hover styles
-  userInput.addEventListener('focus', () => { if (typeBoxBorder) typeBoxBorder.style.borderColor = 'rgba(200,120,155,0.55)'; });
-  userInput.addEventListener('blur',  () => { if (typeBoxBorder) typeBoxBorder.style.borderColor = 'rgba(180,120,150,0.28)'; });
-  typeSendBtn?.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(210,90,125,0.9)'; typeSendBtn.style.transform = 'scale(1.08)'; });
-  typeSendBtn?.addEventListener('mouseleave', () => { typeSendBtn.style.background = 'rgba(170,75,105,0.75)'; typeSendBtn.style.transform = 'scale(1)'; });
+  // Focus/hover styles — cyan theme to match new input
+  userInput.addEventListener('focus', () => { if (typeBoxBorder) { typeBoxBorder.style.borderColor = 'rgba(0,180,255,0.5)'; typeBoxBorder.style.boxShadow = '0 0 12px rgba(0,180,255,0.15)'; } });
+  userInput.addEventListener('blur',  () => { if (typeBoxBorder) { typeBoxBorder.style.borderColor = 'rgba(0,160,220,0.25)'; typeBoxBorder.style.boxShadow = 'none'; } });
+  typeSendBtn?.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(0,190,255,0.95)'; typeSendBtn.style.transform = 'scale(1.08)'; typeSendBtn.style.boxShadow = '0 0 16px rgba(0,200,255,0.5)'; });
+  typeSendBtn?.addEventListener('mouseleave', () => { typeSendBtn.style.background = 'rgba(0,160,220,0.8)'; typeSendBtn.style.transform = 'scale(1)'; typeSendBtn.style.boxShadow = '0 0 10px rgba(0,180,255,0.3)'; });
+
+  // Stop response button
+  const stopResponseBtn = document.getElementById('stopResponseBtn');
+  stopResponseBtn?.addEventListener('click', () => {
+    showStopBtn(false);
+    setState('idle');
+    addMessage('assistant', 'Stopped.');
+  });
+  stopResponseBtn?.addEventListener('mouseenter', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(200,40,60,0.3)'; });
+  stopResponseBtn?.addEventListener('mouseleave', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(180,40,60,0.18)'; });
 }());
 
 // ── Orb mouse tilt ───────────────────────────────────────────────────────────
