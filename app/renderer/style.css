@@ -1931,44 +1931,65 @@ body.light-mode #cardClose:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 13px;
-  border-radius: 12px;
-  border: 1px solid rgba(60,100,220,0.12);
+  padding: 12px 15px;
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,0.06);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  color: rgba(180,210,255,0.7);
-  font-family: 'Rajdhani', sans-serif;
+  color: rgba(190,210,255,0.72);
+  font-family: 'Inter', 'Rajdhani', sans-serif;
   font-size: 13px;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
-  background: transparent;
-  transition: background 0.2s, border-color 0.2s, color 0.15s;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  margin-bottom: 5px;
+  background: linear-gradient(135deg, rgba(10,12,22,0.8) 0%, rgba(14,17,32,0.6) 100%);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+  transition: background 0.2s, border-color 0.22s, color 0.18s, box-shadow 0.22s, transform 0.15s;
+  -webkit-app-region: no-drag;
 }
-.lang-row::before {
+/* Remove old shimmer — replaced by glow on hover */
+.lang-row::before { display: none; }
+/* Glow layer on hover */
+.lang-row::after {
   content: '';
   pointer-events: none;
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 25%, rgba(100,140,255,0.09) 50%, transparent 75%);
-  transform: translateX(-130%);
-  animation: shimmer-lr 4s ease-in-out infinite;
+  background: radial-gradient(ellipse at 20% 50%, rgba(90,130,255,0.10) 0%, transparent 65%);
+  opacity: 0;
+  transition: opacity 0.25s;
   border-radius: inherit;
 }
 .lang-row:hover {
-  background: rgba(20,40,120,0.5);
-  border-color: rgba(60,100,220,0.28);
-  color: rgba(200,225,255,0.95);
+  background: linear-gradient(135deg, rgba(14,18,36,0.95) 0%, rgba(18,24,50,0.8) 100%);
+  border-color: rgba(100,140,255,0.20);
+  color: rgba(215,230,255,0.95);
+  box-shadow: 0 3px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+  transform: translateX(2px);
 }
+.lang-row:hover::after { opacity: 1; }
+.lang-row:active { transform: translateX(1px) scale(0.99); }
 .lang-row.active {
-  background: rgba(20,50,140,0.6);
-  border-color: rgba(80,130,255,0.38);
-  color: rgba(140,180,255,0.95);
+  background: linear-gradient(135deg, rgba(18,25,60,0.9) 0%, rgba(22,32,72,0.75) 100%);
+  border-color: rgba(100,150,255,0.28);
+  color: rgba(160,195,255,0.95);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(100,150,255,0.08), inset 0 1px 0 rgba(100,150,255,0.08);
 }
 .lang-check {
-  color: rgba(80,160,255,0.9);
-  font-size: 14px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(80,130,255,0.15);
+  border: 1px solid rgba(80,130,255,0.30);
+  color: rgba(120,170,255,0.95);
+  font-size: 11px;
+  font-weight: 700;
   visibility: hidden;
+  flex-shrink: 0;
 }
 .lang-row.active .lang-check { visibility: visible; }
 
@@ -2242,20 +2263,24 @@ body.light-mode #cardClose:hover {
 }
 .lang-search {
   width: 100%;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(80,120,255,0.20);
-  border-radius: 8px;
+  background: rgba(10,12,22,0.6);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
   color: rgba(200,220,255,0.88);
   font-family: 'Inter', sans-serif;
   font-size: 13px;
-  padding: 9px 14px;
+  padding: 10px 14px;
   outline: none;
   -webkit-app-region: no-drag;
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.lang-search:focus { border-color: rgba(80,130,255,0.50); }
-.lang-search::placeholder { color: rgba(120,150,210,0.38); }
+.lang-search:focus {
+  border-color: rgba(100,140,255,0.35);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 0 0 3px rgba(80,120,255,0.08);
+}
+.lang-search::placeholder { color: rgba(120,150,210,0.35); }
 .lang-list {
   flex: 1;
   overflow-y: auto;
@@ -2817,22 +2842,123 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 }
 .connector-hint em { color: rgba(220,160,175,0.85); font-style: italic; }
 
-#vipList { margin-bottom: 10px; }
+/* ── VIP / Important Senders ──────────────────────────────────── */
+@property --vip-angle       { syntax: "<angle>";      initial-value: 0deg;  inherits: false; }
+@property --vip-angle-off   { syntax: "<angle>";      initial-value: 0deg;  inherits: false; }
+@property --vip-pct         { syntax: "<percentage>"; initial-value: 5%;    inherits: false; }
+@property --vip-shine       { syntax: "<color>";      initial-value: rgba(0,200,255,0.9); inherits: false; }
+
+#vipList { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+
 .vip-item {
+  --vip-bg: rgba(4,10,35,0.92);
+  --vip-hi: rgba(0,200,255,0.8);
+  --vip-hi-sub: rgba(120,220,255,0.6);
+  --dur: 3s;
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(0,180,255,0.06);
+  padding: 7px 10px 7px 12px;
+  border-radius: 10px;
   font-size: 12px;
-  color: rgba(0,200,255,0.7);
+  color: rgba(180,220,255,0.9);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--vip-bg), var(--vip-bg)) padding-box,
+    conic-gradient(
+      from calc(var(--vip-angle) - var(--vip-angle-off)),
+      transparent,
+      var(--vip-hi)    var(--vip-pct),
+      var(--vip-shine) calc(var(--vip-pct) * 2),
+      var(--vip-hi)    calc(var(--vip-pct) * 3),
+      transparent      calc(var(--vip-pct) * 4)
+    ) border-box;
+  box-shadow: inset 0 0 0 1px rgba(20,50,100,0.5);
+  transition: --vip-angle-off 800ms cubic-bezier(0.25,1,0.5,1),
+              --vip-pct       800ms cubic-bezier(0.25,1,0.5,1),
+              --vip-shine     800ms cubic-bezier(0.25,1,0.5,1);
+  animation: vip-spin var(--dur) linear infinite,
+             vip-spin calc(var(--dur) / 0.4) linear infinite reverse paused;
+  animation-composition: add;
 }
+.vip-item::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 2px 2px, rgba(0,200,255,0.15) 0.5px, transparent 0) padding-box;
+  background-size: 4px 4px;
+  mask-image: conic-gradient(from calc(var(--vip-angle) + 45deg), black, transparent 10% 90%, black);
+  opacity: 0.35;
+  animation: vip-spin var(--dur) linear infinite,
+             vip-spin calc(var(--dur) / 0.4) linear infinite reverse paused;
+  animation-composition: add;
+}
+.vip-item:hover {
+  --vip-pct: 18%;
+  --vip-angle-off: 90deg;
+  --vip-shine: rgba(120,230,255,0.7);
+  color: rgba(220,240,255,1);
+}
+.vip-item:hover,
+.vip-item:hover::before { animation-play-state: running; }
+
+@keyframes vip-spin { to { --vip-angle: 360deg; } }
+
+.vip-item span { position: relative; z-index: 1; }
 .vip-item button {
+  position: relative; z-index: 1;
   background: none; border: none;
-  color: rgba(255,100,100,0.6); cursor: pointer; font-size: 12px;
+  color: rgba(255,80,80,0.5);
+  cursor: pointer; font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
 }
-.vip-add-row {
-  display: flex; gap: 8px;
+.vip-item button:hover { color: rgba(255,100,100,0.9); background: rgba(255,50,50,0.1); }
+
+.vip-add-row { display: flex; gap: 8px; }
+
+/* Shiny ADD button */
+#vipAddBtn {
+  --btn-angle: 0deg; --btn-angle-off: 0deg; --btn-pct: 5%; --btn-shine: rgba(0,200,255,0.9);
+  isolation: isolate;
+  position: relative; overflow: hidden;
+  padding: 9px 13px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(rgba(4,12,40,0.9), rgba(4,12,40,0.9)) padding-box,
+    conic-gradient(
+      from calc(var(--btn-angle) - var(--btn-angle-off)),
+      transparent,
+      rgba(0,180,255,0.8) var(--btn-pct),
+      var(--btn-shine) calc(var(--btn-pct)*2),
+      rgba(0,180,255,0.8) calc(var(--btn-pct)*3),
+      transparent calc(var(--btn-pct)*4)
+    ) border-box;
+  color: rgba(120,180,255,0.9);
+  font-size: 11px; letter-spacing: 1px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; font-weight: 600;
+  white-space: nowrap;
+  transition: --btn-angle-off 800ms cubic-bezier(0.25,1,0.5,1),
+              --btn-pct 800ms cubic-bezier(0.25,1,0.5,1),
+              color 0.2s;
+  animation: vip-spin 3s linear infinite,
+             vip-spin 7.5s linear infinite reverse paused;
+  animation-composition: add;
+}
+#vipAddBtn:hover {
+  --btn-pct: 20%; --btn-angle-off: 90deg;
+  --btn-shine: rgba(120,230,255,0.7);
+  color: #fff;
+  animation-play-state: running;
 }
 
 /* ===================== MUSIC SERVICE SELECTOR ===================== */
@@ -3173,6 +3299,75 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   letter-spacing: 1px;
   padding: 20px;
   line-height: 1.8;
+}
+
+/* ── Website Analytics Card ─────────────────────────────────────── */
+.website-analytics-card {
+  background: linear-gradient(135deg, rgba(0,20,60,0.85) 0%, rgba(0,40,80,0.75) 100%);
+  border: 1px solid rgba(0,200,255,0.25);
+  box-shadow: 0 0 20px rgba(0,180,255,0.06), inset 0 0 30px rgba(0,100,200,0.04);
+}
+.apc-icon.website-icon {
+  background: rgba(0,200,255,0.12);
+  border: 1px solid rgba(0,200,255,0.2);
+  color: rgba(0,220,255,0.9);
+  width: 34px; height: 34px;
+}
+.website-platform-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: rgba(0,180,255,0.5);
+  background: rgba(0,100,200,0.12);
+  border: 1px solid rgba(0,150,255,0.15);
+  border-radius: 4px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.website-analytics-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.wa-stat {
+  background: rgba(0,10,40,0.6);
+  border-radius: 12px;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  border: 1px solid rgba(0,100,200,0.18);
+  transition: border-color 0.2s;
+}
+.wa-stat.visitors { border-color: rgba(0,200,255,0.2); }
+.wa-stat.sales    { border-color: rgba(0,255,160,0.2); }
+.wa-stat.products { border-color: rgba(180,100,255,0.2); }
+.wa-stat-icon { font-size: 16px; line-height: 1; }
+.wa-stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.wa-stat.visitors .wa-stat-val { color: rgba(0,220,255,0.95); }
+.wa-stat.sales    .wa-stat-val { color: rgba(0,255,160,0.95); }
+.wa-stat.products .wa-stat-val { color: rgba(200,140,255,0.95); }
+.wa-stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: rgba(100,150,200,0.7);
+}
+.wa-stat-sub {
+  font-size: 9px;
+  color: rgba(60,100,160,0.5);
+  font-family: 'Share Tech Mono', monospace;
 }
 
 /* ===================== SHARED CONNECTOR MODAL OVERLAY ===================== */
@@ -5287,9 +5482,23 @@ body.light-mode #main {
 
 /* ── History sidebar (light mode) ── */
 body.light-mode #historySidebar {
-  background: #000000;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0) 0px,
+    rgba(12,14,26,0.97) 80px,
+    rgba(10,12,22,1) 100%
+  );
   border-right: 1px solid rgba(255,255,255,0.04);
   box-shadow: 4px 0 32px rgba(0,0,0,0.70);
+}
+/* Top fade mask — blends sidebar into the white host window */
+body.light-mode #historySidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 72px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 100;
 }
 body.light-mode #historyHeader { background: transparent; }
 body.light-mode #historyClose {
@@ -5341,6 +5550,63 @@ body.light-mode .history-item:hover {
   background: rgba(52,52,58,0.98);
   border-color: rgba(255,255,255,0.18);
   box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* ── Settings tabs — light mode ── */
+body.light-mode .settings-tabs {
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+body.light-mode .settings-tab {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(200,215,255,0.75);
+  font-weight: 500;
+}
+body.light-mode .settings-tab:hover {
+  background: rgba(255,255,255,0.11);
+  border-color: rgba(255,255,255,0.22);
+  color: rgba(230,240,255,0.95);
+}
+body.light-mode .settings-tab.active {
+  background: rgba(80,120,255,0.28);
+  border-color: rgba(100,150,255,0.55);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(80,120,255,0.20);
+}
+
+/* ── Language rows — light mode ── */
+body.light-mode .lang-search {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(215,230,255,0.90);
+}
+body.light-mode .lang-search:focus {
+  border-color: rgba(100,150,255,0.40);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 0 0 3px rgba(80,120,255,0.12);
+}
+body.light-mode .lang-search::placeholder { color: rgba(150,175,230,0.40); }
+body.light-mode .lang-row {
+  background: linear-gradient(135deg, rgba(22,26,48,0.75) 0%, rgba(18,22,40,0.60) 100%);
+  border-color: rgba(255,255,255,0.09);
+  color: rgba(200,218,255,0.80);
+}
+body.light-mode .lang-row:hover {
+  background: linear-gradient(135deg, rgba(28,34,62,0.90) 0%, rgba(24,30,58,0.78) 100%);
+  border-color: rgba(110,150,255,0.28);
+  color: rgba(225,238,255,0.98);
+  box-shadow: 0 3px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+body.light-mode .lang-row.active {
+  background: linear-gradient(135deg, rgba(30,45,90,0.88) 0%, rgba(24,38,78,0.75) 100%);
+  border-color: rgba(110,155,255,0.38);
+  color: rgba(170,205,255,0.98);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(100,150,255,0.12);
+}
+body.light-mode .lang-check {
+  background: rgba(80,130,255,0.20);
+  border-color: rgba(100,155,255,0.40);
+  color: rgba(140,185,255,0.98);
 }
 body.light-mode .sidebar-widget {
   background: rgba(30,35,52,0.90);
@@ -5417,8 +5683,17 @@ body.light-mode .dock-item.active { background: rgba(255,255,255,0.15); border-c
 
 /* ── Orb area — keep same cyan glow as dark mode ── */
 body.light-mode #orbContainer { background: transparent; }
-body.light-mode #aiName { color: #1a1d35; text-shadow: none; }
-body.light-mode #orbLabel { color: rgba(30,40,100,0.5); text-shadow: none; }
+body.light-mode #aiName {
+  color: rgba(30,35,55,0.88);
+  text-shadow: none;
+  animation: none;
+  -webkit-text-fill-color: rgba(30,35,55,0.88);
+}
+body.light-mode #orbLabel {
+  color: rgba(90,100,130,0.55);
+  text-shadow: none;
+  animation: none;
+}
 body.light-mode #orb {
   border-color: rgba(0,180,255,0.55);
   background: radial-gradient(circle at 35% 30%,
