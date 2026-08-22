@@ -3118,6 +3118,7 @@ async function renderConnectors() {
     }
   }
 
+
   // VIP list
   const vipList = document.getElementById('vipList');
   const vips = await window.jarvis.connectorGetVip();
@@ -3241,6 +3242,104 @@ function renderAnalyticsDashboard(data) {
   const { youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe } = data;
   const cards = [];
 
+  // ── WEBSITE ANALYTICS — always first, unified card across all platforms ──
+  const hasWebsite = googleAnalytics || squarespace || shopify || stripe;
+  if (hasWebsite) {
+    // Aggregate visitors, sales, products from all connected website sources
+    let visitors = '—', sales = '—', products = '—', siteName = '', platform = '';
+
+    if (googleAnalytics) {
+      visitors = fmtNum(googleAnalytics.last30Days.users);
+      siteName = googleAnalytics.siteName || 'Your Website';
+      platform = 'Google Analytics';
+      const rev = parseFloat(googleAnalytics.last30Days.revenue || 0);
+      if (rev > 0) sales = '$' + (rev > 999 ? (rev/1000).toFixed(1)+'K' : rev.toFixed(0));
+      if (googleAnalytics.last30Days.transactions > 0) products = fmtNum(googleAnalytics.last30Days.transactions) + ' orders';
+    }
+    if (shopify) {
+      siteName = shopify.shopName || siteName;
+      platform = platform ? platform + ' · Shopify' : 'Shopify';
+      sales = '$' + shopify.last30Days.revenue;
+      products = fmtNum(shopify.productCount || shopify.last30Days.paidOrders) + ' products';
+      visitors = googleAnalytics ? visitors : fmtNum(shopify.totalCustomers) + ' customers';
+    }
+    if (squarespace) {
+      siteName = squarespace.siteName || siteName;
+      platform = platform ? platform + ' · Squarespace' : 'Squarespace';
+      if (sales === '—') sales = squarespace.last30Days.currency + ' ' + squarespace.last30Days.revenue;
+      if (products === '—') products = fmtNum(squarespace.last30Days.orders) + ' orders';
+    }
+    if (stripe && sales === '—') {
+      platform = platform ? platform + ' · Stripe' : 'Stripe';
+      sales = stripe.last30Days.currency + ' ' + stripe.last30Days.revenue;
+      products = fmtNum(stripe.last30Days.orders) + ' payments';
+    }
+
+    // Bounce rate / session for GA
+    const bounceRate = googleAnalytics ? googleAnalytics.last30Days.bounceRate + '%' : '—';
+    const pageViews  = googleAnalytics ? fmtNum(googleAnalytics.last30Days.pageViews) : '—';
+
+    // Top pages / recent orders
+    let listHtml = '';
+    if (googleAnalytics?.topPages?.length) {
+      listHtml = `<div class="apc-recent"><div class="apc-recent-title">TOP PAGES</div>${
+        googleAnalytics.topPages.slice(0,3).map(p =>
+          `<div class="apc-recent-item">${p.path}<span>${fmtNum(p.views)} views</span></div>`
+        ).join('')}</div>`;
+    } else if (squarespace?.recentOrders?.length) {
+      listHtml = `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${
+        squarespace.recentOrders.slice(0,3).map(o => {
+          const date = new Date(o.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+          return `<div class="apc-recent-item">#${o.orderNumber} — ${o.total}<span>${date}</span></div>`;
+        }).join('')}</div>`;
+    } else if (stripe?.recentPayments?.length) {
+      listHtml = `<div class="apc-recent"><div class="apc-recent-title">RECENT PAYMENTS</div>${
+        stripe.recentPayments.slice(0,3).map(p =>
+          `<div class="apc-recent-item">${p.description}<span>${p.amount} · ${p.date}</span></div>`
+        ).join('')}</div>`;
+    }
+
+    cards.push(`
+      <div class="analytics-platform-card website-analytics-card">
+        <div class="apc-header">
+          <div class="apc-icon website-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div style="flex:1">
+            <div class="apc-title" style="color:rgba(0,220,255,0.9)">WEBSITE ANALYTICS</div>
+            <div class="apc-subtitle">${siteName || 'Your Website'}</div>
+          </div>
+          <div class="website-platform-badge">${platform}</div>
+        </div>
+        <div class="website-analytics-stats">
+          <div class="wa-stat visitors">
+            <div class="wa-stat-icon">👥</div>
+            <div class="wa-stat-val">${visitors}</div>
+            <div class="wa-stat-label">VISITORS</div>
+            <div class="wa-stat-sub">last 30 days</div>
+          </div>
+          <div class="wa-stat sales">
+            <div class="wa-stat-icon">💰</div>
+            <div class="wa-stat-val">${sales}</div>
+            <div class="wa-stat-label">SALES</div>
+            <div class="wa-stat-sub">last 30 days</div>
+          </div>
+          <div class="wa-stat products">
+            <div class="wa-stat-icon">📦</div>
+            <div class="wa-stat-val">${products}</div>
+            <div class="wa-stat-label">PRODUCTS</div>
+            <div class="wa-stat-sub">in store</div>
+          </div>
+        </div>
+        ${googleAnalytics ? `
+        <div class="apc-stats" style="margin-top:0">
+          <div class="apc-stat"><div class="apc-stat-val">${pageViews}</div><div class="apc-stat-label">PAGE VIEWS (30D)</div></div>
+          <div class="apc-stat"><div class="apc-stat-val">${bounceRate}</div><div class="apc-stat-label">BOUNCE RATE</div></div>
+        </div>` : ''}
+        ${listHtml}
+      </div>`);
+  }
+
   if (youtube) {
     const recentHtml = youtube.recentVideos.slice(0, 3).map(v =>
       `<div class="apc-recent-item">${v.title}</div>`
@@ -3343,38 +3442,6 @@ function renderAnalyticsDashboard(data) {
           <div class="apc-stat"><div class="apc-stat-val">${squarespace.last30Days.currency} ${squarespace.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${recentHtml}</div>` : ''}
-      </div>`);
-  }
-
-  if (googleAnalytics) {
-    const ga = googleAnalytics;
-    const avgMin  = Math.floor(ga.last30Days.avgSessionSec / 60);
-    const revenue = parseFloat(ga.last30Days.revenue || 0);
-    const topPagesHtml = (ga.topPages || []).slice(0, 3).map(p =>
-      `<div class="apc-recent-item">${p.path}<span>${fmtNum(p.views)} views</span></div>`
-    ).join('');
-    cards.push(`
-      <div class="analytics-platform-card">
-        <div class="apc-header">
-          <div class="apc-icon ganalytics">📈</div>
-          <div>
-            <div class="apc-title">WEBSITE ANALYTICS</div>
-            <div class="apc-subtitle">${ga.siteName}${ga.propertyId ? ` · Property ${ga.propertyId}` : ''}</div>
-          </div>
-        </div>
-        <div class="apc-stats">
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.sessions)}</div><div class="apc-stat-label">SESSIONS (30D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.users)}</div><div class="apc-stat-label">USERS (30D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.pageViews)}</div><div class="apc-stat-label">PAGE VIEWS</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${avgMin}m</div><div class="apc-stat-label">AVG SESSION</div></div>
-        </div>
-        <div class="apc-stats" style="margin-top:-4px">
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last7Days.users)}</div><div class="apc-stat-label">USERS (7D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${ga.last30Days.bounceRate}%</div><div class="apc-stat-label">BOUNCE RATE</div></div>
-          ${revenue > 0 ? `<div class="apc-stat"><div class="apc-stat-val">$${revenue > 999 ? (revenue/1000).toFixed(1)+'K' : revenue.toFixed(0)}</div><div class="apc-stat-label">REVENUE (30D)</div></div>` : ''}
-          ${ga.last30Days.transactions > 0 ? `<div class="apc-stat"><div class="apc-stat-val">${fmtNum(ga.last30Days.transactions)}</div><div class="apc-stat-label">ORDERS (30D)</div></div>` : ''}
-        </div>
-        ${topPagesHtml ? `<div class="apc-recent"><div class="apc-recent-title">TOP PAGES</div>${topPagesHtml}</div>` : ''}
       </div>`);
   }
 

@@ -66,7 +66,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'open_file',
-      description: 'Open a file by name. Searches the users PC for it and opens it. Use when user asks to open or read a specific file.',
+      description: 'Open a local file by name — searches this PC/laptop for it. Use ONLY when the user asks to open a local file and does NOT mention Google Drive or cloud storage.',
       parameters: {
         type: 'object',
         properties: {
@@ -153,11 +153,12 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'search_drive',
-      description: 'Search Google Drive for a file and open it. Use whenever the user asks to open, find, or show a file from Google Drive, their documents, or their cloud storage.',
+      description: 'Search Google Drive for files. Use whenever the user mentions "Google Drive", "Drive", "my drive", "my cloud", "my documents on drive", asks what files they have, asks to open/find a specific file from Drive, or says "open [filename] from my Drive". NEVER use open_file for Drive requests — always use this tool instead.',
       parameters: {
         type: 'object',
         properties: {
-          filename: { type: 'string', description: 'The name or partial name of the file to find in Google Drive.' },
+          filename: { type: 'string', description: 'The name or partial name of the file to find. Use empty string "" to list recent files when the user asks "what\'s in my Drive" or "show my files".' },
+          open: { type: 'boolean', description: 'Set true to open the found file in the browser. Set false to just list/show files without opening.' },
         },
         required: ['filename'],
       },
@@ -413,6 +414,14 @@ const TOOLS = [
         },
         required: ['query'],
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mark_emails_read',
+      description: 'Mark all unread emails as read in Gmail. Use when the user says "mark all emails as read", "clear my unread emails", "mark everything as read", or similar.',
+      parameters: { type: 'object', properties: {} },
     },
   },
 ];
@@ -680,11 +689,12 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
           else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
           else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
-          else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
+          else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename || '', open: args.open !== false };
           else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
           else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
           else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
           else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
+          else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
           else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
           else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
           else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
@@ -739,6 +749,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
     else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
     else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
+    else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
     else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
     else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
     else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };

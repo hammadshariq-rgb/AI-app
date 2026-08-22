@@ -615,7 +615,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Only fetch news for queries that genuinely need current headlines
   const NEWS_REGEX = /\b(news|latest|breaking|today|yesterday|this week|right now|recently|what happened|current events?|headlines?|update on|politics|global|world news)\b/i;
 
-  const isEmailQuery = UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message);
+  // Detect mark-as-read intent — bypass email fetch, go straight to action
+  const MARK_READ_REGEX = /\b(mark.*read|read.*all|clear.*unread|mark.*unread|all.*read)\b/i;
+  const isMarkRead = MARK_READ_REGEX.test(message);
+  const isEmailQuery = !isMarkRead && (UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message));
   const needsRealtime = REALTIME_REGEX.test(message);
   const needsCard = CARD_REGEX.test(message);
   const needsNews = !isEmailQuery && NEWS_REGEX.test(message);
@@ -746,6 +749,114 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Action queries get trimmed history for speed; conversation queries keep 30 for context
   // Streaming path: synthesize each sentence as it arrives and push audio to renderer immediately
   // This lets the user hear the first sentence while the rest is still being generated
+  // Fast path: Google Drive — ONLY triggers when user explicitly mentions Drive/Google Drive
+  const DRIVE_REGEX = /\b(google drive|my drive|google file|from (?:my )?drive|in (?:my )?drive|on (?:my )?drive|drive file|drive folder)\b/i;
+  const DRIVE_LIST_REGEX = /\b(what|list|show|see|whats)\b.*\b(google drive|my drive|drive files)\b|\b(google drive|my drive)\b.*\b(files|what)\b/i;
+  // Handle "open number X" when user picked from a previous listing
+  const DRIVE_NUM_REGEX = /\b(open|show|launch)\b.*\b(number\s*(\d+)|#(\d+)|(\d+)(?:st|nd|rd|th)?)\b|\b^(\d+)$/;
+  const numMatch = message.match(/\b(?:number\s*|#\s*)?(\d+)(?:st|nd|rd|th)?\b/);
+  if (numMatch && global._lastDriveFiles?.length) {
+    const idx = parseInt(numMatch[1], 10) - 1;
+    const file = global._lastDriveFiles[idx];
+    if (file) {
+      connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
+      const spokenText = `Opening "${file.name}" from your Google Drive.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
+    }
+  }
+  if (DRIVE_REGEX.test(message)) {
+    const driveToken = await connectors.getDriveToken();
+    if (!driveToken) {
+      const spokenText = 'Google Drive isn\'t connected yet. Open the connectors panel and connect Google Drive first.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const isListing = DRIVE_LIST_REGEX.test(message);
+    // Extract filename by removing command/preposition/drive words
+    const cleaned = message
+      .replace(/\b(open|find|show|get|give me|look for|search|from|in|on|my|called|named|titled|please|can you|could you|the)\b/gi, ' ')
+      .replace(/\b(google drive|google|drive|cloud|documents|files|file)\b/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+    const files = await connectors.searchDriveFiles(isListing || !cleaned ? '' : cleaned);
+    if (!files.length) {
+      const spokenText = isListing
+        ? 'Your Google Drive appears to be empty or I couldn\'t access it right now.'
+        : `I couldn't find "${cleaned}" in your Google Drive.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    if (isListing || !cleaned) {
+      // Save for follow-up number selection
+      global._lastDriveFiles = files.slice(0, 10);
+      const names = files.slice(0, 10).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+      const spokenNames = files.slice(0, 5).map(f => f.name).join(', ');
+      const spokenText = `Here are your recent Google Drive files: ${spokenNames}${files.length > 5 ? ', and more.' : '.'}`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: `**Your Google Drive files:**\n${names}`, audio: null, card: null, hasAction: true };
+    }
+    // Direct open — best match
+    global._lastDriveFiles = null;
+    const file = files[0];
+    connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
+    const spokenText = `Opening "${file.name}" from your Google Drive.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  // Fast path: Google Docs/Slides/Sheets — open via Drive connection, detect file type
+  const DOCS_REGEX = /\b(google docs?|google slides?|google sheets?|in docs?|in slides?|in sheets?)\b/i;
+  if (DOCS_REGEX.test(message)) {
+    const driveToken = await connectors.getDriveToken();
+    if (!driveToken) {
+      const spokenText = 'Please connect Google Drive first via the connectors panel, then you can open Docs, Slides, and Sheets files.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const cleaned = message
+      .replace(/\b(i|want|you|to|open|find|show|get|give|me|look|for|search|from|in|on|my|called|named|titled|please|can|could|the|a|an|it|that|there|there's|is|file|document|there|this|go|go to)\b/gi, ' ')
+      .replace(/\b(google docs?|google slides?|google sheets?|google|docs?|slides?|sheets?|drive)\b/gi, ' ')
+      .replace(/[.,!?]/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+    const files = await connectors.searchDriveFiles(cleaned || '');
+    if (!files.length || !cleaned) {
+      // Not in Drive — try local file search
+      if (cleaned) {
+        const localResult = await commands.openDocumentFile(cleaned).catch(() => ({ ok: false }));
+        if (localResult && localResult.ok) {
+          const typeLabel = localResult.type || 'file';
+          const spokenText = `I didn't find "${cleaned}" in Google Drive, but I found and opened it locally as a ${typeLabel}.`;
+          _sendTTS(_e.sender, spokenText);
+          return { text: spokenText, audio: null, card: null, hasAction: true };
+        }
+      }
+      const spokenText = cleaned
+        ? `I couldn't find "${cleaned}" in Google Drive or on this computer.`
+        : `Please tell me the name of the file you want to open.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const file = files[0];
+    global._lastDriveFiles = null;
+    const appName = file.mimeType === 'application/vnd.google-apps.presentation' ? 'Google Slides'
+      : file.mimeType === 'application/vnd.google-apps.spreadsheet' ? 'Google Sheets'
+      : 'Google Docs';
+    connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
+    const spokenText = `Opening "${file.name}" in ${appName}.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  // Fast path: mark-as-read — execute immediately, no AI call needed
+  if (isMarkRead) {
+    const result = await connectors.markAllEmailsRead().catch(() => ({ ok: false, error: 'Failed' }));
+    const spokenText = result.ok
+      ? (result.count === 0 ? 'You have no unread emails.' : `Done! Marked ${result.count} email${result.count !== 1 ? 's' : ''} as read.`)
+      : (result.error === 'Gmail not connected.' ? 'Please connect your Gmail account first via the link icon.' : `Sorry, I couldn't do that: ${result.error}`);
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
   console.log('[CHAT] calling AI, needsAction:', ai.ACTION_KEYWORDS.test(message), 'isEmailSend:', isEmailSendRequest);
   const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message);
 
@@ -824,20 +935,40 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it, wait, retry
+        // Spotify not open — launch it, wait for device to register, retry
         await commands.run('open_app', 'spotify');
-        await new Promise(r => setTimeout(r, 2000));
-        const retry = await connectors.playOnSpotify(query);
-        if (retry.ok) {
-          const spokenText = `Playing ${retry.trackName} by ${retry.artistName} on Spotify.`;
+        let lastRetry = null;
+        for (const delay of [4000, 4000, 5000, 5000]) {
+          await new Promise(r => setTimeout(r, delay));
+          lastRetry = await connectors.playOnSpotify(query);
+          if (lastRetry.ok) {
+            const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
+            _sendTTS(_e.sender, spokenText);
+            return { text: spokenText, audio: null, card: null, hasAction: true };
+          }
+          if (lastRetry.error !== 'NO_ACTIVE_DEVICE') break;
+        }
+        // Retries exhausted — open the specific track so user lands on the right song
+        const trackUri = lastRetry?.trackUri || playResult.trackUri;
+        const trackName = lastRetry?.trackName || playResult.trackName || query;
+        if (trackUri) {
+          const spokenText = `Spotify is open — "${trackName}" is queued, just press play.`;
           _sendTTS(_e.sender, spokenText);
+          await commands.run('play_music', `spotify_track_uri|${trackUri}`);
           return { text: spokenText, audio: null, card: null, hasAction: true };
         }
-        // Retry also failed — fall through to open Spotify with search
+        const spokenText = `Spotify is open — search for "${query}" and press play.`;
+        _sendTTS(_e.sender, spokenText);
+        return { text: spokenText, audio: null, card: null, hasAction: true };
       }
-      // No Premium or retry failed — open Spotify app with search so user can press play
-      finalAction = { type: 'play_music', arg: `spotify|${query}` };
-      finalText = `Opening Spotify with "${query}" for you — just press play when it opens.`;
+      // Other error (token issue, etc.) — open the specific track directly so user just presses play
+      if (playResult.trackUri) {
+        finalAction = { type: 'play_music', arg: `spotify_track_uri|${playResult.trackUri}` };
+        finalText = `Found "${playResult.trackName}" by ${playResult.artistName} — press play in Spotify.`;
+      } else {
+        finalAction = { type: 'play_music', arg: `spotify|${query}` };
+        finalText = `Opening Spotify with "${query}" — just press play when it opens.`;
+      }
     } else {
       // Non-Spotify or Spotify not connected — open preferred/resolved service
       finalAction = { type: 'play_music', arg: `${resolvedService}|${query}` };
@@ -916,12 +1047,25 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
-    const files = await connectors.searchDriveFiles(finalAction.arg);
+    const query = finalAction.arg || '';
+    const shouldOpen = finalAction.open !== false;
+    const files = await connectors.searchDriveFiles(query);
     if (!files.length) {
-      const spokenText = `I couldn't find any file called "${finalAction.arg}" in your Google Drive.`;
+      const spokenText = query
+        ? `I couldn't find any file called "${query}" in your Google Drive.`
+        : 'Your Google Drive appears to be empty, or I couldn\'t fetch your files right now.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
+    // Listing mode — no specific file to open
+    if (!query || !shouldOpen) {
+      const names = files.slice(0, 10).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+      const spokenNames = files.slice(0, 5).map(f => f.name).join(', ');
+      const spokenText = `Here are your recent Google Drive files: ${spokenNames}${files.length > 5 ? ', and more.' : '.'}`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: `**Your Google Drive files:**\n${names}`, audio: null, card: null, hasAction: true };
+    }
+    // Open mode — find best match and open in Chrome
     const file = files[0];
     connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
     const spokenText = `Opening "${file.name}" from your Google Drive.`;
@@ -932,7 +1076,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   if (finalAction?.type === 'get_analytics') {
     const platform = finalAction.arg;
     const analytics = await connectors.getAllAnalytics();
-    const hasSomething = analytics.youtube || analytics.instagram || analytics.tiktok || analytics.shopify;
+    const hasSomething = analytics.youtube || analytics.instagram || analytics.tiktok || analytics.shopify || analytics.googleAnalytics || analytics.squarespace || analytics.stripe;
     if (!hasSomething) {
       const spokenText = 'No analytics platforms are connected yet. Open the connectors panel and connect YouTube, Instagram, TikTok, or your Shopify store.';
       _sendTTS(_e.sender, spokenText);
@@ -983,10 +1127,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   if (finalAction?.type === 'create_document') {
     const docTitle = finalAction.arg || 'Document';
-    const docContent = finalAction.content || '';
-    const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to save it.`;
+    const docSections = finalAction.sections || [];
+    const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to open it.`;
     _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: false, docContent, docTitle };
+    return { text: spokenText, audio: null, card: null, hasAction: false, docTitle, docSections };
   }
 
   if (finalAction?.type === 'set_volume') {
@@ -1083,6 +1227,16 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const spokenText = finalText || (best ? (best.summary || best.subtitle || best.description || best.title || 'Here you go.').slice(0, 300) : 'Here you go.');
     if (spokenText) _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: best || null, hasAction: false };
+  }
+
+  // Handle mark_emails_read action
+  if (finalAction?.type === 'mark_emails_read') {
+    const result = await connectors.markAllEmailsRead().catch(() => ({ ok: false, error: 'Failed' }));
+    const spokenText = result.ok
+      ? (result.count === 0 ? 'You have no unread emails.' : `Done! Marked ${result.count} email${result.count !== 1 ? 's' : ''} as read.`)
+      : `Sorry, I couldn't do that: ${result.error}`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
   // Handle image generation separately (returns imageUrl, not a command result)
@@ -1277,6 +1431,45 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '865368740519-49kjj4p1c
 // This redirect URI must be registered in Google Cloud Console → Credentials
 // Add: urn:ietf:wg:oauth:2.0:oob  AND  http://localhost  as authorised redirect URIs
 // We use a loopback HTTP server so the callback lands locally without the cloud server.
+// ── Shared connected-page HTML for loopback OAuth callbacks ──────────────────
+function _oauthPage(serviceName, error) {
+  if (error) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Callisto AI</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#080808;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',sans-serif;color:#fff;text-align:center;padding:20px}</style>
+</head><body><div><div style="font-size:48px;margin-bottom:16px">❌</div><div style="font-size:32px;font-weight:900;color:#ff4444">Connection Failed</div><div style="margin-top:12px;color:rgba(255,255,255,0.5);font-size:14px">Please close this tab and try again.</div></div></body></html>`;
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Callisto AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080808;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;color:#fff;text-align:center;padding:40px 20px;position:relative;overflow:hidden}
+body::before{content:'';position:fixed;top:-30%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(180,30,40,0.18) 0%,transparent 70%);pointer-events:none}
+body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#c0392b,transparent)}
+.wrap{position:relative;z-index:1;animation:fadeUp 0.6s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+.tick{width:72px;height:72px;border-radius:50%;border:2.5px solid rgba(192,57,43,0.5);display:flex;align-items:center;justify-content:center;margin:0 auto 28px;animation:popIn 0.5s cubic-bezier(.34,1.56,.64,1) 0.2s both}
+.tick svg{width:36px;height:36px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:5px;color:#c0392b;text-transform:uppercase;margin-bottom:18px}
+.headline{font-size:52px;font-weight:900;letter-spacing:-1.5px;line-height:1;margin-bottom:16px}
+.service{font-size:16px;font-weight:300;color:rgba(255,255,255,0.45);letter-spacing:2px;text-transform:uppercase;margin-bottom:24px}
+.divider{width:40px;height:1.5px;background:#c0392b;margin:0 auto 24px}
+.sub{font-size:13px;color:rgba(255,255,255,0.3);letter-spacing:0.5px}
+</style>
+</head><body>
+<div class="wrap">
+  <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+  <div class="eyebrow">Callisto AI</div>
+  <div class="headline">Connected.</div>
+  <div class="service">${serviceName}</div>
+  <div class="divider"></div>
+  <div class="sub">This tab will close automatically.</div>
+</div>
+<script>setTimeout(()=>window.close(),3000)</script>
+</body></html>`;
+}
+
 const GOOGLE_OAUTH_SCOPES = {
   gmail:    'https://mail.google.com/',
   calendar: 'https://www.googleapis.com/auth/calendar',
@@ -1304,11 +1497,7 @@ async function startGoogleOAuthFlow(service) {
 
         // Close the browser tab with a friendly page
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`<html><body style="font-family:sans-serif;background:#0a0f1a;color:#d0eeff;text-align:center;padding-top:80px;">
-          <h2 style="color:#00c8ff;">${error ? '❌ Connection failed' : '✅ Connected!'}</h2>
-          <p>${error ? 'Please close this tab and try again.' : 'You can close this tab and return to Jarvis.'}</p>
-          <script>setTimeout(()=>window.close(),2000)</script>
-        </body></html>`);
+        res.end(_oauthPage(service, error));
         server.close();
 
         if (!code) { resolve(false); return; }
@@ -1329,7 +1518,16 @@ async function startGoogleOAuthFlow(service) {
           else if (service === 'calendar') connectors.saveCalendarTokens(tokenData);
           else if (service === 'drive')    connectors.saveDriveTokens(tokenData);
           else if (service === 'youtube')  connectors.saveYouTubeTokens(tokenData);
-          else if (service === 'analytics') connectors.saveAnalyticsTokens(tokenData);
+          else if (service === 'analytics') {
+            connectors.saveAnalyticsTokens(tokenData);
+            // Show property picker before marking as connected
+            if (overlayWindow) {
+              const props = await connectors.listAnalyticsProperties();
+              overlayWindow.webContents.send('analytics:showPropertyPicker', { properties: props });
+            }
+            resolve(true);
+            return;
+          }
 
           if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
           resolve(true);
@@ -1376,11 +1574,7 @@ async function startMicrosoftOAuthFlow() {
         const error = reqUrl.searchParams.get('error');
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`<html><body style="font-family:sans-serif;background:#0a0f1a;color:#d0eeff;text-align:center;padding-top:80px;">
-          <h2 style="color:#00c8ff;">${error ? '❌ Connection failed' : '✅ Outlook Connected!'}</h2>
-          <p>${error ? 'Please close this tab and try again.' : 'You can close this tab and return to Jarvis.'}</p>
-          <script>setTimeout(()=>window.close(),2000)</script>
-        </body></html>`);
+        res.end(_oauthPage('Outlook', error));
         server.close();
 
         if (!code) { resolve(false); return; }
@@ -1449,11 +1643,7 @@ async function startInstagramOAuthFlow() {
         const error = reqUrl.searchParams.get('error');
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`<html><body style="font-family:sans-serif;background:#0a0f1a;color:#d0eeff;text-align:center;padding-top:80px;">
-          <h2 style="color:#00c8ff;">${error ? '❌ Connection failed' : '✅ Instagram Connected!'}</h2>
-          <p>${error ? 'Please close this tab and try again.' : 'You can close this tab and return to Jarvis.'}</p>
-          <script>setTimeout(()=>window.close(),2000)</script>
-        </body></html>`);
+        res.end(_oauthPage('Instagram', error));
         server.close();
 
         if (!code) { resolve(false); return; }
@@ -1524,11 +1714,7 @@ async function startTikTokOAuthFlow() {
         const error = reqUrl.searchParams.get('error');
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`<html><body style="font-family:sans-serif;background:#0a0f1a;color:#d0eeff;text-align:center;padding-top:80px;">
-          <h2 style="color:#00c8ff;">${error ? '❌ Connection failed' : '✅ TikTok Connected!'}</h2>
-          <p>${error ? 'Please close this tab and try again.' : 'You can close this tab and return to Jarvis.'}</p>
-          <script>setTimeout(()=>window.close(),2000)</script>
-        </body></html>`);
+        res.end(_oauthPage('TikTok', error));
         server.close();
 
         if (!code) { resolve(false); return; }

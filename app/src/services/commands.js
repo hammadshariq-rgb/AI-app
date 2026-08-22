@@ -513,16 +513,10 @@ function readFileContent(filePath) {
 // ─── MUSIC ────────────────────────────────────────────────────────────────────
 function openMusicUri(uri, web) {
   return new Promise((resolve) => {
-    if (IS_WIN) {
-      exec(`start "" "${uri}"`, (err) => {
-        if (err) openInChrome(web).then(resolve).catch(resolve);
-        else resolve();
-      });
-    } else if (IS_MAC) {
-      // On Mac, spotify: URIs work natively; open command handles them
-      exec(`open "${uri}"`, (err) => {
-        if (err) openInChrome(web).then(resolve).catch(resolve);
-        else resolve();
+    if (IS_WIN || IS_MAC) {
+      // shell.openExternal properly triggers registered URI protocol handlers (spotify:, etc.)
+      shell.openExternal(uri).then(resolve).catch(() => {
+        openInChrome(web).then(resolve).catch(resolve);
       });
     } else {
       // Linux: xdg-open handles registered URI schemes
@@ -625,7 +619,8 @@ async function run(action, arg) {
 
       const getServiceUrl = (svc) => {
         switch (svc) {
-          case 'spotify':       return { uri: `spotify:search:${query}`, web: `https://open.spotify.com/search/${q}` };
+          case 'spotify_track_uri': return { uri: query, web: `https://open.spotify.com/track/${query.split(':')[2] || ''}` }; // query holds the full spotify:track:xxx uri
+          case 'spotify':       return { uri: `spotify:search:${encodeURIComponent(query)}`, web: `https://open.spotify.com/search/${q}` };
           case 'apple music':   return { uri: IS_MAC ? `music://search?term=${q}` : null, web: `https://music.apple.com/search?term=${q}` };
           case 'youtube music': return { uri: null, web: `https://music.youtube.com/search?q=${q}` };
           case 'amazon music':  return { uri: `amzn-music://play?q=${q}`, web: `https://music.amazon.com/search/${q}` };
@@ -698,4 +693,67 @@ async function run(action, arg) {
   }
 }
 
-module.exports = { run, findFolder, readFileContent, makeCall, openChat, openInChrome };
+// ─── SMART DOCUMENT FILE OPENER ───────────────────────────────────────────────
+// Used by the Docs/Slides/Sheets fast path.
+// Searches local file system, then opens based on extension:
+//   .gdoc / .gslides / .gsheet  → read URL from JSON shortcut, open in Chrome
+//   .docx / .doc / .pptx / .xlsx → open with default app (Word, PowerPoint, Excel)
+//   anything else                → shell.openPath
+async function openDocumentFile(name) {
+  const target = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!target) return { ok: false, error: 'No filename provided.' };
+
+  // Google Drive shortcut extensions → open in Chrome
+  const GDRIVE_EXTS = { '.gdoc': 'Google Doc', '.gslides': 'Google Slides', '.gsheet': 'Google Sheets', '.gdraw': 'Google Drawing', '.gform': 'Google Form' };
+  // Office extensions → open with default app
+  const OFFICE_EXTS = ['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.odt', '.odp', '.ods', '.pdf'];
+
+  function tryOpen(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (GDRIVE_EXTS[ext]) {
+      // Read the JSON shortcut and extract the URL
+      try {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const url = data.url || data.URL;
+        if (url) {
+          openInChrome(url);
+          return { ok: true, type: GDRIVE_EXTS[ext], source: 'local-shortcut' };
+        }
+      } catch (_) {}
+    }
+    // Office or other file — open with default app
+    shell.openPath(filePath);
+    return { ok: true, type: OFFICE_EXTS.includes(ext) ? ext.slice(1).toUpperCase() : 'file', source: 'local' };
+  }
+
+  for (const root of getSearchRoots()) {
+    if (!fs.existsSync(root)) continue;
+    try {
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      // Shallow match first
+      for (const entry of entries) {
+        if (entry.isDirectory()) continue;
+        const clean = entry.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (clean.includes(target) || target.includes(clean.replace(/\.[^.]+$/, ''))) {
+          return tryOpen(path.join(root, entry.name));
+        }
+      }
+      // One level deep
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        try {
+          for (const se of fs.readdirSync(path.join(root, entry.name), { withFileTypes: true })) {
+            if (se.isDirectory()) continue;
+            const clean = se.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (clean.includes(target)) {
+              return tryOpen(path.join(root, entry.name, se.name));
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  return { ok: false, error: `Couldn't find "${name}" on this computer.` };
+}
+
+module.exports = { run, findFolder, readFileContent, makeCall, openChat, openInChrome, openDocumentFile };

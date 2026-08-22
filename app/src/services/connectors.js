@@ -300,9 +300,15 @@ async function playOnSpotify(query) {
   if (!token) return { ok: false, error: 'not_connected' };
 
   try {
-    // 1. Search for the track
+    // 1. Search for the track — format query for best accuracy
+    // Remove leading "play " if AI passed it through
+    let searchQuery = query.replace(/^play\s+/i, '').trim();
+    // "song by artist" → Spotify field filter "track:song artist:artist"
+    const byMatch = searchQuery.match(/^(.+?)\s+by\s+(.+)$/i);
+    if (byMatch) searchQuery = `track:${byMatch[1].trim()} artist:${byMatch[2].trim()}`;
+
     const searchRes = await fetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=track&limit=1`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const searchData = await searchRes.json();
@@ -320,9 +326,11 @@ async function playOnSpotify(query) {
     const devices = devData.devices || [];
     const device = devices.find(d => d.is_active) || devices[0];
 
+    // If no device at all, return early with trackUri so caller can open it after launching Spotify
+    if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri: track.uri, trackName, artistName };
+
     // 3. Start playback
-    const playBody = { uris: [track.uri] };
-    if (device?.id) playBody.device_id = device.id;
+    const playBody = { uris: [track.uri], device_id: device.id };
 
     const playRes = await fetch('https://api.spotify.com/v1/me/player/play', {
       method: 'PUT',
@@ -333,9 +341,9 @@ async function playOnSpotify(query) {
     if (playRes.status === 204 || playRes.status === 200) {
       return { ok: true, trackName, artistName };
     }
-    // 403 = no Premium, 404 = no active device
+    // 403 = no Premium, 404 = no active device — include trackUri so caller can open it directly
     const errBody = await playRes.json().catch(() => ({}));
-    return { ok: false, error: errBody?.error?.reason || `status_${playRes.status}` };
+    return { ok: false, error: errBody?.error?.reason || `status_${playRes.status}`, trackUri: track.uri, trackName, artistName };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -395,13 +403,21 @@ async function getDriveToken() {
   return tokens.access_token;
 }
 
+
 async function searchDriveFiles(query) {
   const token = await getDriveToken();
   if (!token) return [];
   try {
-    const q = encodeURIComponent(`name contains '${query.replace(/'/g, "\\'")}' and trashed=false`);
+    let qStr;
+    if (!query || !query.trim()) {
+      // List recent files — no name filter
+      qStr = `trashed=false`;
+    } else {
+      qStr = `name contains '${query.replace(/'/g, "\\'")}' and trashed=false`;
+    }
+    const q = encodeURIComponent(qStr);
     const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,webViewLink,modifiedTime)&pageSize=10`,
+      `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,mimeType,webViewLink,modifiedTime)&pageSize=20`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const data = await res.json();
@@ -409,14 +425,31 @@ async function searchDriveFiles(query) {
   } catch (_) { return []; }
 }
 
+function _getChromePath() {
+  try {
+    // Most reliable: Windows registry lookup
+    const { execSync } = require('child_process');
+    const regVal = execSync(
+      'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe" /ve',
+      { encoding: 'utf8', timeout: 2000 }
+    );
+    const match = regVal.match(/REG_SZ\s+(.+\.exe)/i);
+    if (match) return match[1].trim();
+  } catch (_) {}
+  // Fallback: known install paths
+  const paths = [
+    `${process.env['PROGRAMFILES']}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${process.env['LOCALAPPDATA']}\\Google\\Chrome\\Application\\chrome.exe`,
+  ];
+  const fs = require('fs');
+  return paths.find(p => { try { return p && fs.existsSync(p); } catch { return false; } }) || null;
+}
+
 async function openDriveFile(fileId, mimeType, webViewLink) {
-  const { shell } = require('electron');
-  if (webViewLink) { shell.openExternal(webViewLink); return true; }
-  const token = await getDriveToken();
-  if (!token) return false;
-  // For Google Docs/Sheets/Slides open in browser; for others download
-  const viewerUrl = `https://drive.google.com/file/d/${fileId}/view`;
-  shell.openExternal(viewerUrl);
+  const { openInChrome } = require('./commands');
+  const url = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+  await openInChrome(url);
   return true;
 }
 
@@ -752,15 +785,27 @@ async function listAnalyticsProperties() {
   const token = await getAnalyticsToken();
   if (!token) return [];
   try {
-    const res = await fetch('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=20', {
+    // First get accounts, then list properties filtered by account
+    const accRes = await fetch('https://analyticsadmin.googleapis.com/v1beta/accounts?pageSize=20', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
-    return (data.properties || []).map(p => ({
-      id: p.name.replace('properties/', ''),
-      displayName: p.displayName || 'Unnamed property',
-      websiteUrl: p.websiteUrl || '',
-    }));
+    const accData = await accRes.json();
+    const accounts = accData.accounts || [];
+
+    const allProps = [];
+    for (const account of accounts) {
+      const accountId = account.name; // e.g. "accounts/123456"
+      const res = await fetch(`https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${accountId}&pageSize=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      (data.properties || []).forEach(p => allProps.push({
+        id: p.name.replace('properties/', ''),
+        displayName: p.displayName || 'Unnamed property',
+        websiteUrl: p.websiteUrl || '',
+      }));
+    }
+    return allProps;
   } catch { return []; }
 }
 
@@ -1040,6 +1085,28 @@ async function sendOutlookEmail({ to, subject, body }) {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+async function markAllEmailsRead() {
+  const token = await getGmailToken();
+  if (!token) return { ok: false, error: 'Gmail not connected.' };
+  try {
+    // Get all unread message IDs
+    const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=500', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const listData = await listRes.json();
+    const ids = (listData.messages || []).map(m => m.id);
+    if (!ids.length) return { ok: true, count: 0 };
+    // Batch modify — mark all as read
+    const modRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, removeLabelIds: ['UNREAD'] }),
+    });
+    if (!modRes.ok) throw new Error(`Gmail API error ${modRes.status}`);
+    return { ok: true, count: ids.length };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 async function sendEmail({ to, subject, body }) {
   const gmailToken = await getGmailToken();
   if (gmailToken) return sendGmailEmail({ to, subject, body });
@@ -1062,4 +1129,5 @@ module.exports = {
   getAllAnalytics, formatAnalyticsForAI,
   listAnalyticsProperties, saveAnalyticsPropertyId, loadAnalyticsPropertyId,
   sendEmail,
+  markAllEmailsRead,
 };
