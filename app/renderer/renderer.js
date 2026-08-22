@@ -172,10 +172,12 @@ const orbLabel = document.getElementById('orbLabel');
     const uMou  = gl.getUniformLocation(prog, 'uMouse');
 
     // Cyan — same accent colour as dark mode (#00c8ff)
-    gl.uniform3fv(uCol,  [0.0, 0.784, 1.0]);
+    let _waveColor = [0.0, 0.784, 1.0];
+    gl.uniform3fv(uCol,  _waveColor);
     gl.uniform1f(uAmp,   1.6);
     gl.uniform1f(uDist,  0.22);
     gl.uniform2fv(uMou,  [0.5, 0.5]);
+    window._wave = { setColor(rgb) { _waveColor = rgb; gl.uniform3fv(uCol, rgb); } };
 
     function resize() {
       const { clientWidth: w, clientHeight: h } = waveCanvas.parentElement || document.body;
@@ -4627,6 +4629,64 @@ micBtn.addEventListener('click', () => {
   stopResponseBtn?.addEventListener('mouseenter', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(200,40,60,0.3)'; });
   stopResponseBtn?.addEventListener('mouseleave', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(180,40,60,0.18)'; });
 }());
+
+// ── Orb & Wave colour picker ─────────────────────────────────────────────────
+(function initOrbColorPicker() {
+  function hexToRgb01(hex) {
+    const r = parseInt(hex.slice(1,3),16)/255;
+    const g = parseInt(hex.slice(3,5),16)/255;
+    const b = parseInt(hex.slice(5,7),16)/255;
+    return [r, g, b];
+  }
+
+  function applyOrbColor(hex) {
+    const rgb = hexToRgb01(hex);
+    // dot surface (dark mode orb dots)
+    if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
+    // wave background (light mode)
+    if (window._wave) window._wave.setColor(rgb);
+    // hills (light mode waves)
+    if (window._hills) window._hills.setColor(rgb);
+    // also tint the orb CSS glow
+    const orbEl = document.getElementById('orb');
+    if (orbEl) orbEl.style.setProperty('--orb-accent', hex);
+    // sphere canvas accent
+    window._shaderAccent = rgb;
+    // save preference
+    localStorage.setItem('orbColor', hex);
+  }
+
+  // Load saved colour on startup
+  const saved = localStorage.getItem('orbColor');
+  if (saved) {
+    setTimeout(() => applyOrbColor(saved), 500); // after WebGL inits
+    // mark correct swatch active
+    document.querySelectorAll('.orb-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.color === saved);
+    });
+    const custom = document.getElementById('orbColorCustom');
+    if (custom) custom.value = saved;
+  }
+
+  // Swatch clicks
+  document.querySelectorAll('.orb-swatch').forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      const hex = swatch.dataset.color;
+      const custom = document.getElementById('orbColorCustom');
+      if (custom) custom.value = hex;
+      applyOrbColor(hex);
+    });
+  });
+
+  // Custom colour wheel
+  const customInput = document.getElementById('orbColorCustom');
+  customInput?.addEventListener('input', () => {
+    document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
+    applyOrbColor(customInput.value);
+  });
+})();
 
 // ── Orb mouse tilt ───────────────────────────────────────────────────────────
 (function initOrbTilt() {

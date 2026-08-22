@@ -117,12 +117,25 @@
     requestAnimationFrame(tick);
   }
 
+  let _customColor = null;
+
   function setTheme(isLight) {
+    if (_customColor) {
+      uniforms.uColor.value.set(_customColor[0], _customColor[1], _customColor[2]);
+      uniforms.uAlpha.value = 0.72;
+      return;
+    }
     const r = isLight ? LITE_R : DARK_R;
     const g = isLight ? LITE_G : DARK_G;
     const b = isLight ? LITE_B : DARK_B;
     uniforms.uColor.value.set(r, g, b);
     uniforms.uAlpha.value = isLight ? 0.55 : 0.72;
+  }
+
+  function setColor(rgb) {
+    _customColor = rgb;
+    uniforms.uColor.value.set(rgb[0], rgb[1], rgb[2]);
+    uniforms.uAlpha.value = 0.72;
   }
 
   window.addEventListener('resize', resize);
@@ -136,6 +149,6 @@
   if (dotCanvas) dotCanvas.style.display = isLight ? 'none' : '';
   setTheme(isLight);
 
-  window._hills = { setTheme };
+  window._hills = { setTheme, setColor };
   console.log('[hills] running');
 })();

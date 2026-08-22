@@ -2265,6 +2265,23 @@ body.light-mode #cardClose:hover {
   color: #fff;
 }
 
+/* ── Orb colour swatches ── */
+.orb-swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.orb-swatch:hover { transform: scale(1.15); }
+.orb-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+  transform: scale(1.12);
+}
+
 /* ── Language tab ── */
 .lang-search-wrap {
   padding: 12px 14px 6px;
@@ -3170,7 +3187,7 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 
 /* ===================== ANALYTICS DASHBOARD PANEL ===================== */
 #analyticsPanel {
-  position: absolute;
+  position: fixed;
   top: 0; right: 0;
   width: 340px;
   height: 100%;
@@ -3178,7 +3195,7 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   border-left: 1px solid rgba(40,80,200,0.25);
   display: flex;
   flex-direction: column;
-  z-index: 30;
+  z-index: 600;
   overflow-y: auto;
 }
 #analyticsHeader {
@@ -4328,8 +4345,7 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 @keyframes sb-spin   { to { --sb-angle: 360deg; } }
 @keyframes sb-shimmer { to { rotate: 360deg; } }
 
-/* ── Both topBar buttons: identical glass circles ── */
-#historyBtn,
+/* ── Both topBar buttons ── */
 #themeToggleBtn {
   border-radius: 50%;
   width: 42px;
@@ -4337,10 +4353,24 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   flex-shrink: 0;
 }
 
+/* History button — oval pill */
 #historyBtn {
+  border-radius: 22px;
+  width: auto;
+  min-width: 42px;
+  padding: 0 16px;
+  height: 36px;
+  flex-shrink: 0;
   color: rgba(160, 220, 255, 0.95);
   --sb-highlight: rgba(80, 200, 255, 1);
   --sb-highlight-subtle: rgba(160, 225, 255, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
 }
 
 #themeToggleBtn {
