@@ -225,7 +225,15 @@ const orbLabel = document.getElementById('orbLabel');
     const hillCanvas = document.getElementById('hillSurface');
     if (dotCanvas)  dotCanvas.style.display  = light ? 'none'  : '';
     if (hillCanvas) hillCanvas.style.display = light ? ''      : 'none';
-    if (!light && window._dotSurface) window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
+    if (!light && window._dotSurface) {
+      const saved = localStorage.getItem('orbColor');
+      if (saved) {
+        const r=parseInt(saved.slice(1,3),16)/255, g=parseInt(saved.slice(3,5),16)/255, b=parseInt(saved.slice(5,7),16)/255;
+        window._dotSurface.setColor([r,g,b], 0.72);
+      } else {
+        window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
+      }
+    }
     localStorage.setItem('theme', light ? 'light' : 'dark');
   }
 
@@ -4658,8 +4666,17 @@ micBtn.addEventListener('click', () => {
         inset 0 0 45px rgba(${r255},${g255},${b255},0.18)`;
     }
 
-    // 2. Orb ring borders (::before / ::after can't be set inline — use CSS var via style)
+    // 2. Orb ring borders + halo glow behind orb
     document.documentElement.style.setProperty('--orb-ring-color', `rgba(${r255},${g255},${b255},0.3)`);
+    // inject a dynamic keyframe override for the idle pulse glow
+    let styleTag = document.getElementById('orbIdleOverride');
+    if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = 'orbIdleOverride'; document.head.appendChild(styleTag); }
+    styleTag.textContent = `
+      @keyframes orbIdle {
+        0%,100%{ box-shadow: 0 0 32px 8px rgba(${r255},${g255},${b255},0.65), 0 0 75px 22px rgba(${Math.round(r255*.6)},${Math.round(g255*.6)},${Math.round(b255*.6)},0.30), 0 0 130px 44px rgba(${Math.round(r255*.3)},${Math.round(g255*.3)},${Math.round(b255*.3)},0.15), inset 0 0 45px rgba(${r255},${g255},${b255},0.18); }
+        50%     { box-shadow: 0 0 44px 12px rgba(${r255},${g255},${b255},0.80), 0 0 95px 30px rgba(${Math.round(r255*.7)},${Math.round(g255*.7)},${Math.round(b255*.7)},0.40), 0 0 160px 55px rgba(${Math.round(r255*.4)},${Math.round(g255*.4)},${Math.round(b255*.4)},0.22), inset 0 0 55px rgba(${r255},${g255},${b255},0.24); }
+      }
+    `;
 
     // 3. Dot surface — big flowing wave lines (dark mode)
     if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
@@ -4682,6 +4699,9 @@ micBtn.addEventListener('click', () => {
     const orbEl = document.getElementById('orb');
     if (orbEl) { orbEl.style.background = ''; orbEl.style.boxShadow = ''; }
     document.documentElement.style.removeProperty('--orb-ring-color');
+    // Remove keyframe override so CSS animation reverts to original blue
+    const styleTag = document.getElementById('orbIdleOverride');
+    if (styleTag) styleTag.textContent = '';
     // Reset surfaces to default cyan
     if (window._dotSurface) window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
     if (window._wave) window._wave.setColor([0.0, 0.784, 1.0]);
