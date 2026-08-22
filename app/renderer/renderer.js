@@ -4687,6 +4687,7 @@ micBtn.addEventListener('click', () => {
     // 3. shaderBg — the flowing glowing wave lines (the main background wave)
     window._shaderLineColor = rgb;
     if (window._shaderBg) window._shaderBg.setColor(rgb);
+    else setTimeout(() => { if (window._shaderBg) window._shaderBg.setColor(rgb); }, 300);
 
     // 4. Dot surface — secondary dot particles
     if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
@@ -4730,18 +4731,24 @@ micBtn.addEventListener('click', () => {
   // Reset button
   document.getElementById('orbColorReset')?.addEventListener('click', resetOrbColor);
 
-  // Load saved colour on startup
+  // Load saved colour on startup — retry until all WebGL contexts are ready
   const saved = localStorage.getItem('orbColor');
   if (saved) {
-    setTimeout(() => applyOrbColor(saved), 500); // after WebGL inits
     document.querySelectorAll('.orb-swatch').forEach(s => {
       s.classList.toggle('active', s.dataset.color === saved);
     });
     document.getElementById('orbColorReset')?.classList.remove('active');
     const custom = document.getElementById('orbColorCustom');
     if (custom) custom.value = saved;
+    // Apply after a short delay so all WebGL contexts have initialised
+    setTimeout(() => applyOrbColor(saved), 800);
+    // Also retry at 1.5s in case shaderBg took longer
+    setTimeout(() => {
+      const rgb = hexToRgb01(saved);
+      window._shaderLineColor = rgb;
+      if (window._shaderBg) window._shaderBg.setColor(rgb);
+    }, 1500);
   } else {
-    // Default: reset swatch is active
     document.getElementById('orbColorReset')?.classList.add('active');
   }
 
