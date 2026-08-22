@@ -225,14 +225,14 @@ const orbLabel = document.getElementById('orbLabel');
     const hillCanvas = document.getElementById('hillSurface');
     if (dotCanvas)  dotCanvas.style.display  = light ? 'none'  : '';
     if (hillCanvas) hillCanvas.style.display = light ? ''      : 'none';
-    if (!light && window._dotSurface) {
-      const saved = localStorage.getItem('orbColor');
-      if (saved) {
-        const r=parseInt(saved.slice(1,3),16)/255, g=parseInt(saved.slice(3,5),16)/255, b=parseInt(saved.slice(5,7),16)/255;
-        window._dotSurface.setColor([r,g,b], 0.72);
-      } else {
-        window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
-      }
+    const savedColor = localStorage.getItem('orbColor');
+    if (savedColor) {
+      const r=parseInt(savedColor.slice(1,3),16)/255, g=parseInt(savedColor.slice(3,5),16)/255, b=parseInt(savedColor.slice(5,7),16)/255;
+      if (!light && window._dotSurface) window._dotSurface.setColor([r,g,b], 0.72);
+      if (window._shaderBg) window._shaderBg.setColor([r,g,b]);
+      window._shaderLineColor = [r,g,b];
+    } else {
+      if (!light && window._dotSurface) window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
     }
     localStorage.setItem('theme', light ? 'light' : 'dark');
   }
@@ -758,10 +758,10 @@ function animateMicLabel(text) {
     uniform float iTime;
     uniform float uGlow;
 
+    uniform vec3 uLineColor;
     const float overallSpeed = 0.15;
     const float gridSmoothWidth = 0.015;
     const float scale = 5.0;
-    const vec4 lineColor = vec4(0.0, 0.72, 1.0, 1.0);
     const float minLineWidth = 0.008;
     const float maxLineWidth = 0.10;
     const float lineSpeed = 1.0 * overallSpeed;
@@ -813,7 +813,7 @@ function animateMicLabel(text) {
         float cx = mod(float(l) + iTime * lineSpeed, 25.0) - 12.0;
         vec2 cp = vec2(cx, getPlasmaY(cx, hFade, offset));
         float circle = drawCircle(cp, 0.01, space) * 4.0;
-        lines += (line + circle) * lineColor * rand;
+        lines += (line + circle) * vec4(uLineColor, 1.0) * rand;
       }
 
       // Restrict waves to vertical center band so they don't reach text areas
@@ -845,11 +845,16 @@ function animateMicLabel(text) {
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
 
-  const attribPos   = gl.getAttribLocation(program, 'aVertexPosition');
-  const uResolution = gl.getUniformLocation(program, 'iResolution');
-  const uTime       = gl.getUniformLocation(program, 'iTime');
-  const uGlowLoc    = gl.getUniformLocation(program, 'uGlow');
+  const attribPos    = gl.getAttribLocation(program, 'aVertexPosition');
+  const uResolution  = gl.getUniformLocation(program, 'iResolution');
+  const uTime        = gl.getUniformLocation(program, 'iTime');
+  const uGlowLoc     = gl.getUniformLocation(program, 'uGlow');
+  const uLineColorLoc= gl.getUniformLocation(program, 'uLineColor');
   window._shaderGlow = 0.0;
+  // Default cyan line colour
+  gl.useProgram(program);
+  gl.uniform3fv(uLineColorLoc, [0.0, 0.72, 1.0]);
+  window._shaderBg = { setColor(rgb) { gl.useProgram(program); gl.uniform3fv(uLineColorLoc, rgb); } };
 
   function resize() {
     canvas.width  = window.innerWidth;
@@ -867,6 +872,7 @@ function animateMicLabel(text) {
     gl.uniform2f(uResolution, canvas.width, canvas.height);
     gl.uniform1f(uTime, t);
     gl.uniform1f(uGlowLoc, window._shaderGlow || 0.0);
+    if (window._shaderLineColor) gl.uniform3fv(uLineColorLoc, window._shaderLineColor);
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.vertexAttribPointer(attribPos, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(attribPos);
@@ -4678,7 +4684,11 @@ micBtn.addEventListener('click', () => {
       }
     `;
 
-    // 3. Dot surface — big flowing wave lines (dark mode)
+    // 3. shaderBg — the flowing glowing wave lines (the main background wave)
+    window._shaderLineColor = rgb;
+    if (window._shaderBg) window._shaderBg.setColor(rgb);
+
+    // 4. Dot surface — secondary dot particles
     if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
 
     // 4. Hills / light-mode wave
@@ -4703,6 +4713,8 @@ micBtn.addEventListener('click', () => {
     const styleTag = document.getElementById('orbIdleOverride');
     if (styleTag) styleTag.textContent = '';
     // Reset surfaces to default cyan
+    window._shaderLineColor = null;
+    if (window._shaderBg) window._shaderBg.setColor([0.0, 0.72, 1.0]);
     if (window._dotSurface) window._dotSurface.setColor([0.0, 0.55, 1.0], 0.72);
     if (window._wave) window._wave.setColor([0.0, 0.784, 1.0]);
     if (window._hills) window._hills.setColor(null); // null = revert to theme default
