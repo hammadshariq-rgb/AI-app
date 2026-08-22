@@ -4401,7 +4401,8 @@ function startWaveformDraw() {
       const barH = Math.max(3, amp * H * 0.9);
       const x = i * (barW + 2);
       const alpha = 0.4 + amp * 0.6;
-      waveCtx.fillStyle = `rgba(0, ${Math.floor(180 + amp * 75)}, 255, ${alpha})`;
+      const wc = window._waveformColor || [0, 200, 255];
+      waveCtx.fillStyle = `rgba(${wc[0]}, ${Math.min(255, wc[1] + Math.floor(amp * 55))}, ${wc[2]}, ${alpha})`;
       const r = barW / 2;
       waveCtx.beginPath();
       waveCtx.roundRect(x, (H - barH) / 2, barW, barH, r);
@@ -4641,17 +4642,37 @@ micBtn.addEventListener('click', () => {
 
   function applyOrbColor(hex) {
     const rgb = hexToRgb01(hex);
-    // dot surface (dark mode orb dots)
-    if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
-    // wave background (light mode)
-    if (window._wave) window._wave.setColor(rgb);
-    // hills (light mode waves)
-    if (window._hills) window._hills.setColor(rgb);
-    // also tint the orb CSS glow
+    const [r255, g255, b255] = [Math.round(rgb[0]*255), Math.round(rgb[1]*255), Math.round(rgb[2]*255)];
+
+    // 1. Orb sphere CSS — radial gradient + glow
     const orbEl = document.getElementById('orb');
-    if (orbEl) orbEl.style.setProperty('--orb-accent', hex);
-    // sphere canvas accent
-    window._shaderAccent = rgb;
+    if (orbEl) {
+      orbEl.style.background = `radial-gradient(circle at 35% 30%,
+        rgba(${Math.min(255,r255+80)},${Math.min(255,g255+80)},${Math.min(255,b255+80)},0.95),
+        rgba(${r255},${g255},${b255},0.90) 48%,
+        rgba(${Math.round(r255*0.1)},${Math.round(g255*0.1)},${Math.round(b255*0.15)},0.98) 100%)`;
+      orbEl.style.boxShadow = `
+        0 0 32px 8px rgba(${r255},${g255},${b255},0.65),
+        0 0 75px 22px rgba(${Math.round(r255*0.6)},${Math.round(g255*0.6)},${Math.round(b255*0.6)},0.30),
+        0 0 130px 44px rgba(${Math.round(r255*0.3)},${Math.round(g255*0.3)},${Math.round(b255*0.3)},0.15),
+        inset 0 0 45px rgba(${r255},${g255},${b255},0.18)`;
+    }
+
+    // 2. Orb ring borders (::before / ::after can't be set inline — use CSS var via style)
+    document.documentElement.style.setProperty('--orb-ring-color', `rgba(${r255},${g255},${b255},0.3)`);
+
+    // 3. Dot surface — big flowing wave lines (dark mode)
+    if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
+
+    // 4. Hills / light-mode wave
+    if (window._hills) window._hills.setColor(rgb);
+
+    // 5. WebGL background wave (light mode)
+    if (window._wave) window._wave.setColor(rgb);
+
+    // 6. Waveform bars — expose color for draw loop
+    window._waveformColor = [r255, g255, b255];
+
     // save preference
     localStorage.setItem('orbColor', hex);
   }

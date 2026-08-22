@@ -4345,7 +4345,8 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 @keyframes sb-spin   { to { --sb-angle: 360deg; } }
 @keyframes sb-shimmer { to { rotate: 360deg; } }
 
-/* ── Both topBar buttons ── */
+/* ── Both topBar buttons: identical glass circles ── */
+#historyBtn,
 #themeToggleBtn {
   border-radius: 50%;
   width: 42px;
@@ -4353,24 +4354,10 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   flex-shrink: 0;
 }
 
-/* History button — oval pill */
 #historyBtn {
-  border-radius: 22px;
-  width: auto;
-  min-width: 42px;
-  padding: 0 16px;
-  height: 36px;
-  flex-shrink: 0;
   color: rgba(160, 220, 255, 0.95);
   --sb-highlight: rgba(80, 200, 255, 1);
   --sb-highlight-subtle: rgba(160, 225, 255, 0.9);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
 }
 
 #themeToggleBtn {
@@ -4487,16 +4474,16 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   position: absolute;
   inset: -18px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 200, 255, 0.3);
+  border: 1px solid var(--orb-ring-color, rgba(0, 200, 255, 0.3));
   animation: orbRing 5s linear infinite;
-  box-shadow: 0 0 8px rgba(0, 200, 255, 0.2);
+  box-shadow: 0 0 8px var(--orb-ring-color, rgba(0, 200, 255, 0.2));
 }
 #orb::after {
   content: '';
   position: absolute;
   inset: -34px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 160, 255, 0.15);
+  border: 1px solid var(--orb-ring-color, rgba(0, 160, 255, 0.15));
   animation: orbRing 9s linear infinite reverse;
 }
 
