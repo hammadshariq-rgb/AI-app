@@ -511,20 +511,26 @@ body {
 .gender-btn {
   flex: 1;
   padding: 9px 6px;
-  background: transparent;
-  border: 1px solid rgba(0, 180, 255, 0.2);
+  background: linear-gradient(145deg, #1e2252 0%, #0d1135 100%);
+  border: none;
   border-radius: 8px;
-  color: rgba(0, 200, 255, 0.4);
+  color: rgba(255,255,255,0.55);
   font-size: 11px;
   font-family: 'Rajdhani', sans-serif;
   letter-spacing: 2px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: all 0.18s;
+}
+.gender-btn:hover {
+  background: linear-gradient(145deg, #262b62 0%, #141844 100%);
+  color: rgba(255,255,255,0.85);
+  transform: translateY(-1px);
 }
 .gender-btn.active {
-  background: rgba(0, 100, 200, 0.3);
-  border-color: rgba(0, 180, 255, 0.6);
-  color: #00c8ff;
+  background: linear-gradient(145deg, #1a3a7a 0%, #0d1f55 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0,100,255,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .auth-divider {
@@ -818,21 +824,21 @@ body {
 /* Error */
 .setup-error { color: rgba(255,110,110,0.9) !important; }
 
-/* Gender buttons */
+/* Gender buttons — setup page */
 .gender-btn {
-  background: rgba(255,255,255,0.04) !important;
-  border: 1px solid rgba(255,255,255,0.09) !important;
-  color: rgba(255,255,255,0.4) !important;
+  background: linear-gradient(145deg, #1e2252 0%, #0d1135 100%) !important;
+  border: none !important;
+  color: rgba(255,255,255,0.5) !important;
   border-radius: 8px !important;
   font-size: 10px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
 }
 .gender-btn.active {
-  background: rgba(255,255,255,0.12) !important;
-  border-color: rgba(255,255,255,0.28) !important;
+  background: linear-gradient(145deg, #1a3a7a 0%, #0d1f55 100%) !important;
   color: #fff !important;
-  box-shadow: none !important;
+  box-shadow: 0 4px 16px rgba(0,100,255,0.25) !important;
 }
-.gender-btn:hover { box-shadow: none !important; background: rgba(255,255,255,0.08) !important; }
+.gender-btn:hover { background: linear-gradient(145deg, #262b62 0%, #141844 100%) !important; color: rgba(255,255,255,0.85) !important; }
 
 /* ===================== TERMS PAGE ===================== */
 
@@ -1564,23 +1570,25 @@ body {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(0,180,255,0.1);
-  background: transparent;
-  transition: background 0.2s, border-color 0.2s;
+  border: none;
+  background: linear-gradient(145deg, #1c2158 0%, #0e1240 100%);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: background 0.18s, box-shadow 0.18s, transform 0.15s;
 }
 .history-item::before {
   content: '';
   pointer-events: none;
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 25%, rgba(0,200,255,0.09) 50%, transparent 75%);
+  background: linear-gradient(105deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%);
   transform: translateX(-130%);
-  animation: shimmer-lr 4s ease-in-out infinite;
+  animation: shimmer-lr 5s ease-in-out infinite;
   border-radius: inherit;
 }
 .history-item:hover {
-  background: rgba(0,60,140,0.18);
-  border-color: rgba(0,180,255,0.22);
+  background: linear-gradient(145deg, #252c6a 0%, #14194e 100%);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.09);
+  transform: translateY(-1px);
 }
 .history-date {
   font-size: 10px;
@@ -2803,33 +2811,36 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 .connector-status.connected { color: rgba(52,211,153,0.85); }
 
 .connector-btn {
-  padding: 6px 14px;
-  border: 1px solid rgba(200,130,150,0.30);
-  border-radius: 20px;
-  background: rgba(180,80,105,0.12);
-  color: rgba(230,180,195,0.90);
+  padding: 7px 16px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #1e2252 0%, #0d1135 100%);
+  color: rgba(255,255,255,0.92);
   font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 500;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07);
+  transition: all 0.18s;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .connector-btn:hover {
-  background: rgba(200,90,120,0.25);
-  border-color: rgba(230,140,165,0.55);
-  color: rgba(255,210,220,0.98);
+  background: linear-gradient(145deg, #262b62 0%, #141844 100%);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.09);
+  color: #fff;
+  transform: translateY(-1px);
 }
+.connector-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 .connector-btn.disconnect {
-  border-color: rgba(52,211,153,0.30);
-  color: rgba(52,211,153,0.80);
-  background: rgba(52,211,153,0.08);
+  background: linear-gradient(145deg, #0e2e1e 0%, #071a10 100%);
+  color: rgba(52,211,153,0.90);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(52,211,153,0.1);
 }
 .connector-btn.disconnect:hover {
-  background: rgba(52,211,153,0.16);
-  border-color: rgba(52,211,153,0.55);
+  background: linear-gradient(145deg, #133a26 0%, #0b2318 100%);
   color: rgba(52,211,153,1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px rgba(52,211,153,0.12);
 }
 
 .connector-hint {
