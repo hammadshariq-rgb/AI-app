@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ── Animatable CSS custom properties for shiny-btn ── */
 @property --sb-angle {
@@ -3887,44 +3887,145 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 .card-wiki {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 8px 4px 16px;
+  align-items: stretch;
+  padding: 0;
+  margin: -18px -16px -20px;
+  border-radius: 16px;
+  overflow: hidden;
 }
-.wiki-label {
-  font-size: 10px;
-  letter-spacing: 4px;
-  color: rgba(110,170,255,0.7);
-  font-weight: 700;
-  margin-bottom: 12px;
-  text-align: center;
+.wiki-hero {
+  position: relative;
+  width: 100%;
+  height: 195px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 .wiki-photo {
   width: 100%;
-  max-height: 220px;
+  height: 100%;
   object-fit: cover;
-  border-radius: 14px;
-  border: 2px solid rgba(110,170,255,0.25);
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.2s;
-  margin-bottom: 12px;
+  object-position: center center;
+  display: block;
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  border: none;
+  border-radius: 0;
+  margin: 0;
 }
-.wiki-photo:hover { border-color: rgba(110,170,255,0.7); transform: scale(1.01); }
-.wiki-title {
-  font-size: 17px;
+.wiki-hero:hover .wiki-photo { transform: scale(1.04); }
+.wiki-hero-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 35%,
+    rgba(0, 6, 18, 0.55) 70%,
+    rgba(0, 6, 18, 0.92) 100%
+  );
+  pointer-events: none;
+}
+.wiki-body {
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wiki-label {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 3px;
+  color: rgba(100, 180, 255, 0.65);
   font-weight: 700;
-  color: rgba(200,220,255,0.95);
-  letter-spacing: 0.5px;
-  text-align: center;
-  margin-bottom: 8px;
+  text-transform: uppercase;
+  margin: 0;
+}
+.wiki-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: rgba(220, 235, 255, 0.97);
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  margin: 0;
 }
 .wiki-desc {
-  font-size: 12px;
-  color: rgba(180,200,255,0.60);
-  line-height: 1.55;
-  text-align: center;
-  padding: 0 4px;
-  margin-bottom: 10px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: rgba(160, 190, 230, 0.72);
+  line-height: 1.65;
+  margin: 2px 0 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+.wiki-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.wiki-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: rgba(100, 180, 255, 0.90);
+  background: rgba(60, 130, 255, 0.12);
+  border: 1px solid rgba(80, 150, 255, 0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  -webkit-app-region: no-drag;
+}
+.wiki-open-btn:hover {
+  background: rgba(60, 130, 255, 0.22);
+  border-color: rgba(100, 170, 255, 0.45);
+  color: rgba(150, 210, 255, 1);
+}
+.wiki-source-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: rgba(100, 140, 200, 0.40);
+  text-transform: uppercase;
+}
+/* light mode overrides */
+body.light-mode .card-wiki { background: transparent; }
+body.light-mode .wiki-label { color: rgba(40, 100, 200, 0.70); }
+body.light-mode .wiki-title { color: rgba(15, 25, 55, 0.97); }
+body.light-mode .wiki-desc { color: rgba(40, 60, 110, 0.65); }
+body.light-mode .wiki-hero-gradient {
+  background: linear-gradient(to bottom, transparent 35%, rgba(240,244,255,0.55) 70%, rgba(240,244,255,0.95) 100%);
+}
+body.light-mode .wiki-footer { border-top-color: rgba(0,0,0,0.08); }
+body.light-mode .wiki-open-btn {
+  color: rgba(30, 90, 210, 0.90);
+  background: rgba(30, 90, 210, 0.08);
+  border-color: rgba(30, 90, 210, 0.20);
+}
+body.light-mode .wiki-open-btn:hover {
+  background: rgba(30, 90, 210, 0.15);
+  border-color: rgba(30, 90, 210, 0.35);
+  color: rgba(20, 70, 180, 1);
+}
+body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
+/* Favourite added state on wiki-style button */
+.wiki-open-btn.added {
+  background: rgba(0, 200, 100, 0.12) !important;
+  border-color: rgba(0, 200, 100, 0.30) !important;
+  color: rgba(0, 220, 110, 0.90) !important;
+  cursor: default !important;
+}
+.wiki-open-btn:disabled { opacity: 1; }
 
 .card-animal {
   display: flex;
@@ -4628,6 +4729,18 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 14px -2px rgba(0,0,0,0.40);
+}
+
+/* ── Input bar left-side action buttons (+ attach, trash clear) ── */
+#fileBtn:hover {
+  background: rgba(0,160,220,0.18) !important;
+  border-color: rgba(0,180,255,0.45) !important;
+  color: rgba(160,220,255,0.95) !important;
+}
+#clearBtn:hover {
+  background: rgba(200,60,60,0.18) !important;
+  border-color: rgba(255,80,80,0.40) !important;
+  color: rgba(255,140,140,0.95) !important;
 }
 
 /* ── Inline stop button (left of copy, shown while AI is responding) ── */

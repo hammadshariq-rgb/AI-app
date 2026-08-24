@@ -680,20 +680,8 @@ function addMessage(role, text) {
   div.appendChild(textSpan);
 
   if (role === 'assistant') {
-    // Stop button — shown while AI is responding, hidden once done
-    const stopInlineBtn = document.createElement('button');
-    stopInlineBtn.className = 'msg-stop-btn';
-    stopInlineBtn.title = 'Stop responding';
-    stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
-    stopInlineBtn.style.display = 'none'; // hidden until AI starts responding
-    stopInlineBtn.addEventListener('click', () => {
-      // Trigger the existing stop mechanism
-      document.getElementById('stopResponseBtn')?.click();
-      stopInlineBtn.style.display = 'none';
-    });
-    div.appendChild(stopInlineBtn);
-    // Expose so showStopBtn can toggle it
-    div._stopBtn = stopInlineBtn;
+    // No inline stop button in the bubble — stop lives only in the input bar corner
+    div._stopBtn = null; // kept for compat with showStopBtn()
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';
@@ -1621,58 +1609,92 @@ function showCard(card) {
       });
     }, 50);
   } else if (card.type === 'person') {
+    const personLabel = card.subtitle || 'PERSON';
     cardContent.innerHTML = `
-      <div class="card-person">
-        ${card.imageUrl ? `<img class="person-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" />` : '<div class="person-photo-placeholder">👤</div>'}
-        <div class="person-name">${esc(card.name)}</div>
-        ${card.subtitle ? `<div class="person-subtitle">${esc(card.subtitle)}</div>` : ''}
-        ${card.bio ? `<div class="person-bio">${esc(card.bio)}</div>` : ''}
-        <button class="card-fav-btn" id="personFavBtn">⭐ ADD TO FAVOURITES</button>
+      <div class="card-wiki">
+        ${card.imageUrl ? `
+        <div class="wiki-hero" id="personHero">
+          <img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" onerror="this.closest('.wiki-hero').style.display='none'" />
+          <div class="wiki-hero-gradient"></div>
+        </div>` : ''}
+        <div class="wiki-body">
+          <div class="wiki-label">${esc(personLabel)}</div>
+          <div class="wiki-title">${esc(card.name)}</div>
+          ${card.bio ? `<div class="wiki-desc">${esc(card.bio)}</div>` : ''}
+          <div class="wiki-footer">
+            <button class="wiki-open-btn" id="personFavBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              Add to Favourites
+            </button>
+            ${card.sourceUrl ? `<span class="wiki-source-tag">Wikipedia</span>` : ''}
+          </div>
+        </div>
       </div>`;
     setTimeout(() => {
       const favBtn = document.getElementById('personFavBtn');
-      if (!favBtn) return;
-      favBtn.addEventListener('click', () => {
-        addFavourite(card.name, card.name, card.sourceUrl || `https://en.wikipedia.org/wiki/${encodeURIComponent(card.name)}`, 'general');
-        favBtn.textContent = '✓ ADDED TO FAVOURITES'; favBtn.classList.add('added'); favBtn.disabled = true;
-      });
-      const photo = cardContent.querySelector('.person-photo');
-      if (photo && card.sourceUrl) {
-        photo.style.cursor = 'pointer';
-        photo.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl));
+      if (favBtn) {
+        favBtn.addEventListener('click', () => {
+          addFavourite(card.name, card.name, card.sourceUrl || `https://en.wikipedia.org/wiki/${encodeURIComponent(card.name)}`, 'general');
+          favBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Added!`;
+          favBtn.classList.add('added'); favBtn.disabled = true;
+        });
       }
+      document.getElementById('personHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
   } else if (card.type === 'animal') {
+    const animalDesc = [card.description, card.funFact ? `💡 ${card.funFact}` : ''].filter(Boolean).join(' ');
     cardContent.innerHTML = `
-      <div class="card-animal">
-        <div class="animal-label">ANIMAL</div>
-        ${card.imageUrl ? `<img class="animal-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" />` : ''}
-        <div class="animal-name">${esc(card.name)}</div>
-        ${card.description ? `<div class="animal-desc">${esc(card.description)}</div>` : ''}
-        ${card.funFact ? `<div class="animal-fact"><span class="fact-label">DID YOU KNOW</span> ${esc(card.funFact)}</div>` : ''}
-        ${card.sourceUrl ? `<a class="card-source-link" href="#" id="animalWikiLink">📖 Wikipedia</a>` : ''}
+      <div class="card-wiki">
+        ${card.imageUrl ? `
+        <div class="wiki-hero" id="animalHero">
+          <img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" onerror="this.closest('.wiki-hero').style.display='none'" />
+          <div class="wiki-hero-gradient"></div>
+        </div>` : ''}
+        <div class="wiki-body">
+          <div class="wiki-label">ANIMAL</div>
+          <div class="wiki-title">${esc(card.name)}</div>
+          ${animalDesc ? `<div class="wiki-desc">${esc(animalDesc)}</div>` : ''}
+          ${card.sourceUrl ? `
+          <div class="wiki-footer">
+            <a class="wiki-open-btn" href="#" id="animalWikiLink">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open Wikipedia
+            </a>
+            <span class="wiki-source-tag">Wikipedia</span>
+          </div>` : ''}
+        </div>
       </div>`;
     setTimeout(() => {
-      const link = document.getElementById('animalWikiLink');
-      if (link && card.sourceUrl) link.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
-      const photo = cardContent.querySelector('.animal-photo');
-      if (photo && card.sourceUrl) { photo.style.cursor = 'pointer'; photo.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
+      document.getElementById('animalWikiLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
+      document.getElementById('animalHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
   } else if (card.type === 'character') {
+    const charLabel = card.showName ? `FROM ${card.showName.toUpperCase()}` : 'CHARACTER';
+    const charDesc = card.subtitle || '';
     cardContent.innerHTML = `
-      <div class="card-character">
-        <div class="character-label">CHARACTER</div>
-        ${card.imageUrl ? `<img class="character-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" />` : ''}
-        <div class="character-name">${esc(card.name)}</div>
-        ${card.showName ? `<div class="character-show">${esc(card.showName)}</div>` : ''}
-        ${card.subtitle ? `<div class="character-subtitle">${esc(card.subtitle)}</div>` : ''}
-        ${card.sourceUrl ? `<a class="card-source-link" href="#" id="charWikiLink">📖 Wikipedia</a>` : ''}
+      <div class="card-wiki">
+        ${card.imageUrl ? `
+        <div class="wiki-hero" id="charHero">
+          <img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.name)}" onerror="this.closest('.wiki-hero').style.display='none'" />
+          <div class="wiki-hero-gradient"></div>
+        </div>` : ''}
+        <div class="wiki-body">
+          <div class="wiki-label">${esc(charLabel)}</div>
+          <div class="wiki-title">${esc(card.name)}</div>
+          ${charDesc ? `<div class="wiki-desc">${esc(charDesc)}</div>` : ''}
+          ${card.sourceUrl ? `
+          <div class="wiki-footer">
+            <a class="wiki-open-btn" href="#" id="charWikiLink">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open Wikipedia
+            </a>
+            <span class="wiki-source-tag">Wikipedia</span>
+          </div>` : ''}
+        </div>
       </div>`;
     setTimeout(() => {
-      const link = document.getElementById('charWikiLink');
-      if (link && card.sourceUrl) link.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
-      const photo = cardContent.querySelector('.character-photo');
-      if (photo && card.sourceUrl) { photo.style.cursor = 'pointer'; photo.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
+      document.getElementById('charWikiLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
+      document.getElementById('charHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
   } else if (card.type === 'image') {
     cardContent.innerHTML = `
@@ -1688,18 +1710,32 @@ function showCard(card) {
     }, 50);
   } else if (card.type === 'wiki_card') {
     // Wikipedia image card — generic visual for any topic (person, animal, place, game, brand, etc.)
+    const categoryLabel = card.category || 'VISUAL RESULT';
+    const sourceName = card.source || 'Wikipedia';
     cardContent.innerHTML = `
       <div class="card-wiki">
-        <div class="wiki-label">VISUAL RESULT</div>
-        ${card.imageUrl ? `<img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.title)}" onerror="this.style.display='none'" />` : ''}
-        <div class="wiki-title">${esc(card.title)}</div>
-        ${card.description ? `<div class="wiki-desc">${esc(card.description)}</div>` : ''}
-        ${card.sourceUrl ? `<a class="card-source-link" href="#" id="wikiCardLink">📖 Wikipedia</a>` : ''}
+        ${card.imageUrl ? `
+        <div class="wiki-hero" id="wikiHero">
+          <img class="wiki-photo" src="${esc(card.imageUrl)}" alt="${esc(card.title)}" onerror="this.closest('.wiki-hero').style.display='none'" />
+          <div class="wiki-hero-gradient"></div>
+        </div>` : ''}
+        <div class="wiki-body">
+          <div class="wiki-label">${esc(categoryLabel)}</div>
+          <div class="wiki-title">${esc(card.title)}</div>
+          ${card.description ? `<div class="wiki-desc">${esc(card.description)}</div>` : ''}
+          ${card.sourceUrl ? `
+          <div class="wiki-footer">
+            <a class="wiki-open-btn" href="#" id="wikiCardLink">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open ${esc(sourceName)}
+            </a>
+            <span class="wiki-source-tag">${esc(sourceName)}</span>
+          </div>` : ''}
+        </div>
       </div>`;
     setTimeout(() => {
       document.getElementById('wikiCardLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
-      const photo = cardContent.querySelector('.wiki-photo');
-      if (photo && card.sourceUrl) { photo.style.cursor = 'pointer'; photo.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
+      document.getElementById('wikiHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
   } else if (card.type === 'element') {
     const catColors = {
@@ -1803,7 +1839,11 @@ function showCard(card) {
     cardContent.innerHTML = `<div class="card-calendar"><div class="cal-header">📅 UPCOMING EVENTS</div>${evRows || '<div class="cal-empty">No events found.</div>'}</div>`;
   }
 
-  if (card.sourceUrl) {
+  // Wiki-style cards embed their own source footer — hide the external one
+  const inlineSourceTypes = ['wiki_card', 'person', 'animal', 'character'];
+  if (inlineSourceTypes.includes(card.type)) {
+    cardSource.textContent = '';
+  } else if (card.sourceUrl) {
     cardSource.innerHTML = `SOURCE: <a href="#" id="cardSourceLink">${esc(card.source || card.sourceUrl)}</a>`;
     const link = document.getElementById('cardSourceLink');
     if (link) link.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });

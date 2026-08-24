@@ -1784,7 +1784,22 @@
             <!-- Input box -->
             <div style="position:relative;background:rgba(10,15,40,0.7);border:1px solid rgba(0,160,220,0.25);border-radius:16px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:0 0 0 0 rgba(0,180,255,0)" id="typeBoxBorder">
               <textarea id="userInput" placeholder="Type a message…" autocomplete="off" rows="2"
-                style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:16px 60px 16px 18px;font-size:14px;color:rgba(220,235,255,0.95);font-family:'Inter',sans-serif;line-height:1.6;min-height:64px;max-height:160px;overflow-y:auto;display:block;vertical-align:top"></textarea>
+                style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:16px 60px 16px 52px;font-size:14px;color:rgba(220,235,255,0.95);font-family:'Inter',sans-serif;line-height:1.6;min-height:64px;max-height:160px;overflow-y:auto;display:block;vertical-align:top"></textarea>
+
+              <!-- Left action buttons: + attach and trash clear -->
+              <div style="position:absolute;left:10px;bottom:11px;display:flex;flex-direction:column;gap:5px;align-items:center">
+                <!-- + Attach file -->
+                <button id="fileBtn" title="Attach file"
+                  style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,160,220,0.25);background:rgba(0,160,220,0.08);color:rgba(120,190,255,0.75);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,border-color 0.2s,color 0.2s;-webkit-app-region:no-drag">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <!-- Trash — clear chat -->
+                <button id="clearBtn" title="Clear chat"
+                  style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(200,60,60,0.20);background:rgba(200,60,60,0.06);color:rgba(255,120,120,0.60);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,border-color 0.2s,color 0.2s;-webkit-app-region:no-drag">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              </div>
+
               <!-- Send button (hidden while AI responds) -->
               <button id="typeSendBtn" title="Send"
                 style="position:absolute;right:12px;bottom:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,160,220,0.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 10px rgba(0,180,255,0.3)">
