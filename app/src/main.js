@@ -640,20 +640,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 
-  // Build email context
+  // Email context — Gmail/Outlook removed pending ADA-CASA verification
   let emailContext = null;
   if (isEmailQuery) {
-    const status = connectors.getConnectorStatus();
-    if (emailData?.gmail || emailData?.outlook) {
-      emailContext = 'EMAIL UPDATE:\n' + connectors.formatEmailUpdateForAI(emailData);
-    } else if (!status.gmail && !status.outlook) {
-      emailContext = 'EMAIL UPDATE: No email accounts connected. Tell the user they can connect Gmail or Outlook by clicking the link icon (🔗) in the top bar.';
-    } else {
-      emailContext = 'EMAIL UPDATE: No unread emails found.';
-    }
-    if (UPDATE_REGEX.test(message)) {
-      emailContext += '\n\nWhatsApp and Instagram: you cannot read message counts from these apps. Do NOT mention them in the update unless the user specifically asks about them. Only give the email briefing.';
-    }
+    emailContext = 'EMAIL UPDATE: Email connectors are not available in this version. Let the user know email features are coming soon.';
   }
 
   // Inject card data into AI context so it can speak what's shown on screen
@@ -749,110 +739,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Action queries get trimmed history for speed; conversation queries keep 30 for context
   // Streaming path: synthesize each sentence as it arrives and push audio to renderer immediately
   // This lets the user hear the first sentence while the rest is still being generated
-  // Fast path: Google Drive — ONLY triggers when user explicitly mentions Drive/Google Drive
-  const DRIVE_REGEX = /\b(google drive|my drive|google file|from (?:my )?drive|in (?:my )?drive|on (?:my )?drive|drive file|drive folder)\b/i;
-  const DRIVE_LIST_REGEX = /\b(what|list|show|see|whats)\b.*\b(google drive|my drive|drive files)\b|\b(google drive|my drive)\b.*\b(files|what)\b/i;
-  // Handle "open number X" when user picked from a previous listing
-  const DRIVE_NUM_REGEX = /\b(open|show|launch)\b.*\b(number\s*(\d+)|#(\d+)|(\d+)(?:st|nd|rd|th)?)\b|\b^(\d+)$/;
-  const numMatch = message.match(/\b(?:number\s*|#\s*)?(\d+)(?:st|nd|rd|th)?\b/);
-  if (numMatch && global._lastDriveFiles?.length) {
-    const idx = parseInt(numMatch[1], 10) - 1;
-    const file = global._lastDriveFiles[idx];
-    if (file) {
-      connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
-      const spokenText = `Opening "${file.name}" from your Google Drive.`;
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: true };
-    }
-  }
-  if (DRIVE_REGEX.test(message)) {
-    const driveToken = await connectors.getDriveToken();
-    if (!driveToken) {
-      const spokenText = 'Google Drive isn\'t connected yet. Open the connectors panel and connect Google Drive first.';
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: false };
-    }
-    const isListing = DRIVE_LIST_REGEX.test(message);
-    // Extract filename by removing command/preposition/drive words
-    const cleaned = message
-      .replace(/\b(open|find|show|get|give me|look for|search|from|in|on|my|called|named|titled|please|can you|could you|the)\b/gi, ' ')
-      .replace(/\b(google drive|google|drive|cloud|documents|files|file)\b/gi, ' ')
-      .replace(/\s+/g, ' ').trim();
-    const files = await connectors.searchDriveFiles(isListing || !cleaned ? '' : cleaned);
-    if (!files.length) {
-      const spokenText = isListing
-        ? 'Your Google Drive appears to be empty or I couldn\'t access it right now.'
-        : `I couldn't find "${cleaned}" in your Google Drive.`;
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: false };
-    }
-    if (isListing || !cleaned) {
-      // Save for follow-up number selection
-      global._lastDriveFiles = files.slice(0, 10);
-      const names = files.slice(0, 10).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
-      const spokenNames = files.slice(0, 5).map(f => f.name).join(', ');
-      const spokenText = `Here are your recent Google Drive files: ${spokenNames}${files.length > 5 ? ', and more.' : '.'}`;
-      _sendTTS(_e.sender, spokenText);
-      return { text: `**Your Google Drive files:**\n${names}`, audio: null, card: null, hasAction: true };
-    }
-    // Direct open — best match
-    global._lastDriveFiles = null;
-    const file = files[0];
-    connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
-    const spokenText = `Opening "${file.name}" from your Google Drive.`;
-    _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: true };
-  }
-
-  // Fast path: Google Docs/Slides/Sheets — open via Drive connection, detect file type
-  const DOCS_REGEX = /\b(google docs?|google slides?|google sheets?|in docs?|in slides?|in sheets?)\b/i;
-  if (DOCS_REGEX.test(message)) {
-    const driveToken = await connectors.getDriveToken();
-    if (!driveToken) {
-      const spokenText = 'Please connect Google Drive first via the connectors panel, then you can open Docs, Slides, and Sheets files.';
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: false };
-    }
-    const cleaned = message
-      .replace(/\b(i|want|you|to|open|find|show|get|give|me|look|for|search|from|in|on|my|called|named|titled|please|can|could|the|a|an|it|that|there|there's|is|file|document|there|this|go|go to)\b/gi, ' ')
-      .replace(/\b(google docs?|google slides?|google sheets?|google|docs?|slides?|sheets?|drive)\b/gi, ' ')
-      .replace(/[.,!?]/g, ' ')
-      .replace(/\s+/g, ' ').trim();
-    const files = await connectors.searchDriveFiles(cleaned || '');
-    if (!files.length || !cleaned) {
-      // Not in Drive — try local file search
-      if (cleaned) {
-        const localResult = await commands.openDocumentFile(cleaned).catch(() => ({ ok: false }));
-        if (localResult && localResult.ok) {
-          const typeLabel = localResult.type || 'file';
-          const spokenText = `I didn't find "${cleaned}" in Google Drive, but I found and opened it locally as a ${typeLabel}.`;
-          _sendTTS(_e.sender, spokenText);
-          return { text: spokenText, audio: null, card: null, hasAction: true };
-        }
-      }
-      const spokenText = cleaned
-        ? `I couldn't find "${cleaned}" in Google Drive or on this computer.`
-        : `Please tell me the name of the file you want to open.`;
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: false };
-    }
-    const file = files[0];
-    global._lastDriveFiles = null;
-    const appName = file.mimeType === 'application/vnd.google-apps.presentation' ? 'Google Slides'
-      : file.mimeType === 'application/vnd.google-apps.spreadsheet' ? 'Google Sheets'
-      : 'Google Docs';
-    connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
-    const spokenText = `Opening "${file.name}" in ${appName}.`;
-    _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: true };
-  }
-
-  // Fast path: mark-as-read — execute immediately, no AI call needed
+  // Fast path: mark-as-read — email not available in this version
   if (isMarkRead) {
-    const result = await connectors.markAllEmailsRead().catch(() => ({ ok: false, error: 'Failed' }));
-    const spokenText = result.ok
-      ? (result.count === 0 ? 'You have no unread emails.' : `Done! Marked ${result.count} email${result.count !== 1 ? 's' : ''} as read.`)
-      : (result.error === 'Gmail not connected.' ? 'Please connect your Gmail account first via the link icon.' : `Sorry, I couldn't do that: ${result.error}`);
+    const spokenText = 'Email features are coming soon in a future update.';
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }

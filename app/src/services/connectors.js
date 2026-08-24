@@ -38,211 +38,14 @@ function loadTokens(service) {
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
+// NOTE: Gmail and Drive functions removed pending ADA-CASA AL1 assessment.
+// Re-add when verification is complete.
 
-async function refreshGmailToken() {
-  const tokens = loadTokens('gmail');
-  if (!tokens?.refresh_token) return null;
-  try {
-    const res = await fetch(`${SERVER}/connect/gmail/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      saveTokens('gmail', { access_token: data.access_token, refresh_token: tokens.refresh_token, expires_in: data.expires_in || 3600 });
-      return data.access_token;
-    }
-    if (data.error === 'invalid_grant') {
-      store.delete('connector.gmail');
-    }
-  } catch (e) { console.error('[Gmail refresh error]', e.message); }
-  return null;
-}
+// ── Email (Gmail + Outlook) — removed pending ADA-CASA verification ───────────
+// These functions will be restored when Gmail/Outlook connectors are re-enabled.
 
-async function getGmailToken() {
-  const tokens = loadTokens('gmail');
-  if (!tokens?.access_token) return null;
-  if (tokens.expires_at && Date.now() > tokens.expires_at - 60000) {
-    const refreshed = await refreshGmailToken();
-    return refreshed || tokens.access_token;
-  }
-  return tokens.access_token;
-}
-
-async function refreshOutlookToken() {
-  const tokens = loadTokens('outlook');
-  if (!tokens?.refresh_token) return null;
-  try {
-    const clientId = process.env.MICROSOFT_CLIENT_ID;
-    if (!clientId) return null;
-    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refresh_token,
-        client_id: clientId,
-        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
-      }),
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      saveTokens('outlook', { access_token: data.access_token, refresh_token: data.refresh_token || tokens.refresh_token, expires_in: data.expires_in || 3600 });
-      return data.access_token;
-    }
-  } catch (_) {}
-  return null;
-}
-
-async function getOutlookToken() {
-  const tokens = loadTokens('outlook');
-  if (!tokens?.access_token) return null;
-  if (tokens.expires_at && Date.now() > tokens.expires_at - 60000) {
-    const refreshed = await refreshOutlookToken();
-    return refreshed || tokens.access_token;
-  }
-  return tokens.access_token;
-}
-
-// ── Gmail ─────────────────────────────────────────────────────────────────────
-
-async function getGmailUpdate() {
-  const token = await getGmailToken();
-  if (!token) return null;
-
-  const vipAddresses = (store.get('connector.vipSenders') || []).map(v => v.toLowerCase());
-
-  try {
-    // Use labelIds filter — more reliable than search query
-    const msgRes = await fetch(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&labelIds=UNREAD&maxResults=50',
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const msgData = await msgRes.json();
-
-    console.log('Gmail API response:', JSON.stringify(msgData).slice(0, 300));
-
-    // If API returned an error (expired token, scope issue, etc.) try refreshing once
-    if (msgData.error) {
-      console.error('Gmail API error:', msgData.error.message, '— attempting token refresh');
-      const newToken = await refreshGmailToken();
-      if (!newToken) return null;
-      const retryRes = await fetch(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&labelIds=UNREAD&maxResults=50',
-        { headers: { Authorization: `Bearer ${newToken}` } }
-      );
-      const retryData = await retryRes.json();
-      console.log('Gmail retry response:', JSON.stringify(retryData).slice(0, 300));
-      if (retryData.error) { console.error('Gmail retry also failed:', retryData.error.message); return null; }
-      Object.assign(msgData, retryData);
-    }
-
-    const messages = msgData.messages || [];
-    // resultSizeEstimate is Google's total-count hint; fall back to actual message count
-    const totalUnread = (msgData.resultSizeEstimate || 0) > 0 ? msgData.resultSizeEstimate : messages.length;
-    console.log('Gmail totalUnread:', totalUnread);
-
-    // Fetch details for each unread message (sender + subject)
-    const details = await Promise.all(
-      messages.slice(0, 15).map(m =>
-        fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then(r => r.json()).catch(() => null)
-      )
-    );
-
-    const emails = details.filter(Boolean).map(d => {
-      const headers = d.payload?.headers || [];
-      const from = headers.find(h => h.name === 'From')?.value || '';
-      const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
-      const nameMatch = from.match(/^"?([^"<]+)"?\s*</);
-      const senderName = nameMatch ? nameMatch[1].trim() : from.split('@')[0];
-      const senderEmail = (from.match(/<([^>]+)>/) || [])[1] || from;
-      const isVip = vipAddresses.some(v => senderEmail.toLowerCase().includes(v) || senderName.toLowerCase().includes(v));
-      return { senderName, senderEmail, subject, isVip };
-    });
-
-    const vipEmails = emails.filter(e => e.isVip);
-    const regularCount = totalUnread - vipEmails.length;
-
-    return { service: 'Gmail', totalUnread, vipEmails, regularCount: Math.max(0, regularCount) };
-  } catch (err) {
-    console.error('Gmail fetch error:', err.message);
-    return null;
-  }
-}
-
-// ── Outlook ───────────────────────────────────────────────────────────────────
-
-async function getOutlookUpdate() {
-  const token = await getOutlookToken();
-  if (!token) return null;
-
-  const vipAddresses = (store.get('connector.vipSenders') || []).map(v => v.toLowerCase());
-
-  try {
-    const res = await fetch(
-      'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=isRead eq false&$top=20&$select=from,subject',
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const data = await res.json();
-    const messages = data.value || [];
-
-    const countRes = await fetch('https://graph.microsoft.com/v1.0/me/mailFolders/inbox', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const countData = await countRes.json();
-    const totalUnread = countData.unreadItemCount || messages.length;
-
-    const emails = messages.map(m => {
-      const senderName = m.from?.emailAddress?.name || '';
-      const senderEmail = m.from?.emailAddress?.address || '';
-      const subject = m.subject || '(no subject)';
-      const isVip = vipAddresses.some(v => senderEmail.toLowerCase().includes(v) || senderName.toLowerCase().includes(v));
-      return { senderName, senderEmail, subject, isVip };
-    });
-
-    const vipEmails = emails.filter(e => e.isVip);
-    const regularCount = Math.max(0, totalUnread - vipEmails.length);
-
-    return { service: 'Outlook', totalUnread, vipEmails, regularCount };
-  } catch (err) {
-    console.error('Outlook fetch error:', err.message);
-    return null;
-  }
-}
-
-// ── Combined update ───────────────────────────────────────────────────────────
-
-async function getEmailUpdate() {
-  const [gmail, outlook] = await Promise.all([
-    getGmailUpdate().catch(() => null),
-    getOutlookUpdate().catch(() => null),
-  ]);
-  return { gmail, outlook };
-}
-
-function formatEmailUpdateForAI({ gmail, outlook }) {
-  if (!gmail && !outlook) return null;
-  const lines = [];
-
-  const formatService = (data) => {
-    if (!data) return;
-    lines.push(`\n${data.service}: ${data.totalUnread} unread email${data.totalUnread !== 1 ? 's' : ''}.`);
-    if (data.vipEmails.length > 0) {
-      lines.push(`Important emails:`);
-      data.vipEmails.forEach(e => lines.push(`  - From ${e.senderName}: "${e.subject}"`));
-    }
-    if (data.regularCount > 0) {
-      lines.push(`${data.regularCount} other unread email${data.regularCount !== 1 ? 's' : ''}.`);
-    }
-  };
-
-  formatService(gmail);
-  formatService(outlook);
-  return lines.join('\n');
-}
+async function getEmailUpdate() { return { gmail: null, outlook: null }; }
+function formatEmailUpdateForAI() { return null; }
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
@@ -264,8 +67,8 @@ function getConnectorStatus() {
   };
 }
 
-function saveGmailTokens(tokens) { saveTokens('gmail', tokens); }
-function saveOutlookTokens(tokens) { saveTokens('outlook', tokens); }
+function saveGmailTokens(_tokens) { /* Gmail removed — pending ADA-CASA */ }
+function saveOutlookTokens(_tokens) { /* Outlook removed — pending setup */ }
 function saveSpotifyTokens(tokens) { saveTokens('spotify', tokens); }
 
 async function refreshSpotifyToken() {
@@ -374,84 +177,13 @@ function removeVipSender(emailOrName) {
 
 function saveCalendarTokens(tokens) { saveTokens('calendar', tokens); }
 
-// ── Google Drive ───────────────────────────────────────────────────────────────
+// ── Google Drive — removed pending ADA-CASA verification ─────────────────────
+// Will be restored when Drive connector is re-enabled.
 
-function saveDriveTokens(tokens) { saveTokens('drive', tokens); }
-
-async function refreshDriveToken() {
-  const tokens = loadTokens('drive');
-  if (!tokens?.refresh_token) return null;
-  try {
-    const res = await fetch(`${SERVER}/connect/drive/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      saveTokens('drive', { access_token: data.access_token, refresh_token: tokens.refresh_token, expires_in: data.expires_in || 3600 });
-      return data.access_token;
-    }
-  } catch (_) {}
-  return null;
-}
-
-async function getDriveToken() {
-  const tokens = loadTokens('drive');
-  if (!tokens?.access_token) return null;
-  if (tokens.expires_at && Date.now() > tokens.expires_at - 60000) return await refreshDriveToken();
-  return tokens.access_token;
-}
-
-
-async function searchDriveFiles(query) {
-  const token = await getDriveToken();
-  if (!token) return [];
-  try {
-    let qStr;
-    if (!query || !query.trim()) {
-      // List recent files — no name filter
-      qStr = `trashed=false`;
-    } else {
-      qStr = `name contains '${query.replace(/'/g, "\\'")}' and trashed=false`;
-    }
-    const q = encodeURIComponent(qStr);
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,mimeType,webViewLink,modifiedTime)&pageSize=20`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const data = await res.json();
-    return data.files || [];
-  } catch (_) { return []; }
-}
-
-function _getChromePath() {
-  try {
-    // Most reliable: Windows registry lookup
-    const { execSync } = require('child_process');
-    const regVal = execSync(
-      'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe" /ve',
-      { encoding: 'utf8', timeout: 2000 }
-    );
-    const match = regVal.match(/REG_SZ\s+(.+\.exe)/i);
-    if (match) return match[1].trim();
-  } catch (_) {}
-  // Fallback: known install paths
-  const paths = [
-    `${process.env['PROGRAMFILES']}\\Google\\Chrome\\Application\\chrome.exe`,
-    `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
-    `${process.env['LOCALAPPDATA']}\\Google\\Chrome\\Application\\chrome.exe`,
-  ];
-  const fs = require('fs');
-  return paths.find(p => { try { return p && fs.existsSync(p); } catch { return false; } }) || null;
-}
-
-async function openDriveFile(fileId, mimeType, webViewLink) {
-  const { openInChrome } = require('./commands');
-  const url = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
-  await openInChrome(url);
-  return true;
-}
+function saveDriveTokens(_tokens) { /* Drive removed — pending ADA-CASA */ }
+async function getDriveToken() { return null; }
+async function searchDriveFiles() { return []; }
+async function openDriveFile() { return false; }
 
 // ── YouTube Studio ─────────────────────────────────────────────────────────────
 
@@ -1032,102 +764,30 @@ async function pollForToken(service) {
   return false;
 }
 
-// ── Send email via Gmail or Outlook ───────────────────────────────────────────
+// ── Email send — removed pending ADA-CASA verification ───────────────────────
 
-async function sendGmailEmail({ to, subject, body }) {
-  let token = await getGmailToken();
-  if (!token) return { ok: false, error: 'Gmail not connected' };
-
-  const buildRaw = () => {
-    const message = [`To: ${to}`, `Subject: ${subject}`, 'Content-Type: text/plain; charset=utf-8', '', body].join('\r\n');
-    return Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  };
-
-  const doSend = async (tok) => fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw: buildRaw() }),
-  });
-
-  try {
-    let res = await doSend(token);
-    // On 401, refresh token and retry once
-    if (res.status === 401) {
-      console.log('[sendGmail] 401 — refreshing token and retrying');
-      const newToken = await refreshGmailToken();
-      if (!newToken) return { ok: false, error: 'Gmail session expired. Please reconnect Gmail in the Connectors panel (🔗 icon).' };
-      token = newToken;
-      res = await doSend(token);
-    }
-    if (!res.ok) { const err = await res.json().catch(() => ({})); return { ok: false, error: err.error?.message || `HTTP ${res.status}` }; }
-    return { ok: true, service: 'Gmail' };
-  } catch (e) { return { ok: false, error: e.message }; }
+async function sendEmail() {
+  return { ok: false, error: 'Email sending is not available in this version.' };
 }
-
-async function sendOutlookEmail({ to, subject, body }) {
-  const token = await getOutlookToken();
-  if (!token) return { ok: false, error: 'Outlook not connected' };
-  try {
-    const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          subject,
-          body: { contentType: 'Text', content: body },
-          toRecipients: [{ emailAddress: { address: to } }],
-        },
-        saveToSentItems: true,
-      }),
-    });
-    if (!res.ok && res.status !== 202) { const err = await res.json().catch(() => ({})); return { ok: false, error: err.error?.message || `HTTP ${res.status}` }; }
-    return { ok: true, service: 'Outlook' };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
 async function markAllEmailsRead() {
-  const token = await getGmailToken();
-  if (!token) return { ok: false, error: 'Gmail not connected.' };
-  try {
-    // Get all unread message IDs
-    const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=500', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const listData = await listRes.json();
-    const ids = (listData.messages || []).map(m => m.id);
-    if (!ids.length) return { ok: true, count: 0 };
-    // Batch modify — mark all as read
-    const modRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, removeLabelIds: ['UNREAD'] }),
-    });
-    if (!modRes.ok) throw new Error(`Gmail API error ${modRes.status}`);
-    return { ok: true, count: ids.length };
-  } catch (e) { return { ok: false, error: e.message }; }
-}
-
-async function sendEmail({ to, subject, body }) {
-  const gmailToken = await getGmailToken();
-  if (gmailToken) return sendGmailEmail({ to, subject, body });
-  const outlookToken = await getOutlookToken();
-  if (outlookToken) return sendOutlookEmail({ to, subject, body });
-  return { ok: false, error: 'No email account connected. Please connect Gmail or Outlook first.' };
+  return { ok: false, error: 'Email not available in this version.' };
 }
 
 module.exports = {
-  getEmailUpdate, formatEmailUpdateForAI,
-  getConnectorStatus, saveGmailTokens, saveOutlookTokens, saveSpotifyTokens, saveCalendarTokens, saveDriveTokens,
+  // Email stubs (Gmail/Outlook removed pending ADA-CASA)
+  getEmailUpdate, formatEmailUpdateForAI, sendEmail, markAllEmailsRead,
+  saveGmailTokens, saveOutlookTokens,
+  // Drive stub (removed pending ADA-CASA)
+  saveDriveTokens, getDriveToken, searchDriveFiles, openDriveFile,
+  // Active connectors
+  getConnectorStatus, saveSpotifyTokens, saveCalendarTokens,
   saveYouTubeTokens, saveInstagramTokens, saveTikTokTokens, saveShopifyCredentials,
   saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials,
   playOnSpotify,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
-  searchDriveFiles, openDriveFile, getDriveToken,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
   getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
   getAllAnalytics, formatAnalyticsForAI,
   listAnalyticsProperties, saveAnalyticsPropertyId, loadAnalyticsPropertyId,
-  sendEmail,
-  markAllEmailsRead,
 };

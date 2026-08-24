@@ -3099,38 +3099,42 @@ const connectorsClose = document.getElementById('connectorsClose');
 async function renderConnectors() {
   const status = await window.jarvis.connectorStatus();
 
-  // Gmail row
+  // Gmail row (hidden — pending verification)
   const gmailStatus = document.getElementById('gmailStatus');
   const gmailBtn = document.getElementById('gmailBtn');
-  if (status.gmail) {
-    gmailStatus.textContent = 'Connected';
-    gmailStatus.className = 'connector-status connected';
-    gmailBtn.textContent = 'DISCONNECT';
-    gmailBtn.className = 'connector-btn disconnect';
-    gmailBtn.onclick = async () => { await window.jarvis.connectorDisconnect('gmail'); renderConnectors(); };
-  } else {
-    gmailStatus.textContent = 'Not connected';
-    gmailStatus.className = 'connector-status';
-    gmailBtn.textContent = 'CONNECT';
-    gmailBtn.className = 'connector-btn';
-    gmailBtn.onclick = () => showConnectSteps('gmail');
+  if (gmailStatus && gmailBtn) {
+    if (status.gmail) {
+      gmailStatus.textContent = 'Connected';
+      gmailStatus.className = 'connector-status connected';
+      gmailBtn.textContent = 'DISCONNECT';
+      gmailBtn.className = 'connector-btn disconnect';
+      gmailBtn.onclick = async () => { await window.jarvis.connectorDisconnect('gmail'); renderConnectors(); };
+    } else {
+      gmailStatus.textContent = 'Not connected';
+      gmailStatus.className = 'connector-status';
+      gmailBtn.textContent = 'CONNECT';
+      gmailBtn.className = 'connector-btn';
+      gmailBtn.onclick = () => showConnectSteps('gmail');
+    }
   }
 
-  // Outlook row
+  // Outlook row (hidden — pending setup)
   const outlookStatus = document.getElementById('outlookStatus');
   const outlookBtn = document.getElementById('outlookBtn');
-  if (status.outlook) {
-    outlookStatus.textContent = 'Connected';
-    outlookStatus.className = 'connector-status connected';
-    outlookBtn.textContent = 'DISCONNECT';
-    outlookBtn.className = 'connector-btn disconnect';
-    outlookBtn.onclick = async () => { await window.jarvis.connectorDisconnect('outlook'); renderConnectors(); };
-  } else {
-    outlookStatus.textContent = 'Not connected';
-    outlookStatus.className = 'connector-status';
-    outlookBtn.textContent = 'CONNECT';
-    outlookBtn.className = 'connector-btn';
-    outlookBtn.onclick = () => showConnectSteps('outlook');
+  if (outlookStatus && outlookBtn) {
+    if (status.outlook) {
+      outlookStatus.textContent = 'Connected';
+      outlookStatus.className = 'connector-status connected';
+      outlookBtn.textContent = 'DISCONNECT';
+      outlookBtn.className = 'connector-btn disconnect';
+      outlookBtn.onclick = async () => { await window.jarvis.connectorDisconnect('outlook'); renderConnectors(); };
+    } else {
+      outlookStatus.textContent = 'Not connected';
+      outlookStatus.className = 'connector-status';
+      outlookBtn.textContent = 'CONNECT';
+      outlookBtn.className = 'connector-btn';
+      outlookBtn.onclick = () => showConnectSteps('outlook');
+    }
   }
 
   // Google Calendar row
@@ -3172,17 +3176,19 @@ async function renderConnectors() {
   }
 
 
-  // VIP list
+  // VIP list (hidden — shown when email connectors are live)
   const vipList = document.getElementById('vipList');
-  const vips = await window.jarvis.connectorGetVip();
-  if (!vips.length) {
-    vipList.innerHTML = '<div style="font-size:11px;color:rgba(0,200,255,0.25);padding:4px 0;">No important senders yet.</div>';
-  } else {
-    vipList.innerHTML = vips.map(v => `
-      <div class="vip-item">
-        <span>${v}</span>
-        <button onclick="removeVip('${v}')">✕</button>
-      </div>`).join('');
+  if (vipList) {
+    const vips = await window.jarvis.connectorGetVip();
+    if (!vips.length) {
+      vipList.innerHTML = '<div style="font-size:11px;color:rgba(0,200,255,0.25);padding:4px 0;">No important senders yet.</div>';
+    } else {
+      vipList.innerHTML = vips.map(v => `
+        <div class="vip-item">
+          <span>${v}</span>
+          <button onclick="removeVip('${v}')">✕</button>
+        </div>`).join('');
+    }
   }
 }
 
@@ -3191,17 +3197,23 @@ window.removeVip = async (v) => {
   renderConnectors();
 };
 
-document.getElementById('vipAddBtn').addEventListener('click', async () => {
-  const val = document.getElementById('vipInput').value.trim();
-  if (!val) return;
-  await window.jarvis.connectorAddVip(val);
-  document.getElementById('vipInput').value = '';
-  renderConnectors();
-});
+const _vipAddBtn = document.getElementById('vipAddBtn');
+if (_vipAddBtn) {
+  _vipAddBtn.addEventListener('click', async () => {
+    const val = document.getElementById('vipInput').value.trim();
+    if (!val) return;
+    await window.jarvis.connectorAddVip(val);
+    document.getElementById('vipInput').value = '';
+    renderConnectors();
+  });
+}
 
-document.getElementById('vipInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('vipAddBtn').click();
-});
+const _vipInput = document.getElementById('vipInput');
+if (_vipInput) {
+  _vipInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('vipAddBtn').click();
+  });
+}
 
 // ===================== MUSIC SERVICE SELECTOR =====================
 function renderMusicService(status) {
