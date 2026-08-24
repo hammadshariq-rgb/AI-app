@@ -680,8 +680,18 @@ function addMessage(role, text) {
   div.appendChild(textSpan);
 
   if (role === 'assistant') {
-    // No inline stop button in the bubble — stop lives only in the input bar corner
-    div._stopBtn = null; // kept for compat with showStopBtn()
+    // Stop button — same size as copy, sits left of it, only visible while AI responds
+    const stopInlineBtn = document.createElement('button');
+    stopInlineBtn.className = 'msg-stop-btn';
+    stopInlineBtn.title = 'Stop responding';
+    stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+    stopInlineBtn.style.display = 'none';
+    stopInlineBtn.addEventListener('click', () => {
+      document.getElementById('stopResponseBtn')?.click();
+      stopInlineBtn.style.display = 'none';
+    });
+    div.appendChild(stopInlineBtn);
+    div._stopBtn = stopInlineBtn;
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';

@@ -4750,19 +4750,20 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   justify-content: center;
   position: absolute;
   bottom: 7px;
-  right: 34px; /* 22px copy btn + 8px gap + 4px */
-  background: rgba(200,40,55,0.18);
-  border: 1px solid rgba(220,60,80,0.35);
+  right: 34px; /* left of copy: 8px + 22px copy + 4px gap */
+  background: none;
+  border: none;
   border-radius: 4px;
-  padding: 0;
-  color: rgba(255,100,110,0.85);
+  padding: 3px;
+  color: rgba(255, 120, 130, 0.55);
   width: 22px;
   height: 22px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  opacity: 1;
+  transition: color 0.15s, background 0.15s;
   -webkit-app-region: no-drag;
 }
-.msg-stop-btn:hover { background: rgba(220,50,70,0.35); color: rgba(255,130,140,1); }
+.msg-stop-btn:hover { background: rgba(220,50,70,0.15); color: rgba(255,100,110,0.95); }
 
 /* ── Copy button ── */
 .msg-copy-btn {
