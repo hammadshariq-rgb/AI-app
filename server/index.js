@@ -378,9 +378,7 @@ app.post('/connect/google/exchange', async (req, res) => {
   }
 });
 
-// ── Gmail connector — REMOVED from OAuth flow ────────────────────────────────
-// Gmail scopes (https://mail.google.com/) have been removed from this application.
-// The Gmail connector is disabled pending future verification if needed.
+// ── Gmail connector — disabled, not included in this version ─────────────────
 app.get('/connect/gmail', (_req, res) => res.status(410).json({ error: 'Gmail connector not available in this version.' }));
 app.get('/connect/gmail/callback', (_req, res) => res.status(410).send('Gmail connector not available.'));
 app.get('/connect/gmail/poll', (_req, res) => res.json({ ok: false }));
@@ -650,11 +648,7 @@ app.get('/connect/drive', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
     response_type: 'code',
-    scope: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/documents',
-      'https://www.googleapis.com/auth/presentations',
-    ].join(' '),
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
     access_type: 'offline',
     prompt: 'consent',
   });
@@ -716,10 +710,7 @@ app.get('/connect/youtube', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/youtube/callback`,
     response_type: 'code',
-    scope: [
-      'https://www.googleapis.com/auth/youtube.readonly',
-      'https://www.googleapis.com/auth/yt-analytics.readonly',
-    ].join(' '),
+    scope: 'https://www.googleapis.com/auth/youtube.readonly',
     access_type: 'offline',
     prompt: 'consent',
   });
