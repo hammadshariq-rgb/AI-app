@@ -680,6 +680,21 @@ function addMessage(role, text) {
   div.appendChild(textSpan);
 
   if (role === 'assistant') {
+    // Stop button — shown while AI is responding, hidden once done
+    const stopInlineBtn = document.createElement('button');
+    stopInlineBtn.className = 'msg-stop-btn';
+    stopInlineBtn.title = 'Stop responding';
+    stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+    stopInlineBtn.style.display = 'none'; // hidden until AI starts responding
+    stopInlineBtn.addEventListener('click', () => {
+      // Trigger the existing stop mechanism
+      document.getElementById('stopResponseBtn')?.click();
+      stopInlineBtn.style.display = 'none';
+    });
+    div.appendChild(stopInlineBtn);
+    // Expose so showStopBtn can toggle it
+    div._stopBtn = stopInlineBtn;
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';
     copyBtn.title = 'Copy';
@@ -704,9 +719,17 @@ function addMessage(role, text) {
 }
 
 function showStopBtn(visible) {
-  let btn = document.getElementById('stopResponseBtn');
-  if (!btn) return;
-  btn.style.display = visible ? 'flex' : 'none';
+  const stopBtn = document.getElementById('stopResponseBtn');
+  const sendBtn = document.getElementById('typeSendBtn');
+  if (stopBtn) stopBtn.style.display = visible ? 'flex' : 'none';
+  if (sendBtn) sendBtn.style.display = visible ? 'none' : 'flex';
+
+  // Show/hide the inline stop button on the latest AI message bubble
+  const allBubbles = chat.querySelectorAll('.msg.assistant');
+  const lastBubble = allBubbles[allBubbles.length - 1];
+  if (lastBubble?._stopBtn) {
+    lastBubble._stopBtn.style.display = visible ? 'inline-flex' : 'none';
+  }
 }
 
 function setState(state) {
@@ -2414,6 +2437,7 @@ let audioQueue = [];
 let audioPlaying = false;
 
 let voiceVolume = parseFloat(localStorage.getItem('voiceVolume') || '1.5');
+let voicePitch  = parseFloat(localStorage.getItem('voicePitch')  || '1.0');
 
 function playAudioChunks(chunks) {
   audioQueue.push(...chunks);
@@ -2425,6 +2449,8 @@ function drainAudioQueue() {
   audioPlaying = true;
   const chunk = audioQueue.shift();
   const audio = new Audio(`data:audio/mp3;base64,${chunk}`);
+  // Apply pitch (playbackRate) — lower = deeper voice
+  if (voicePitch < 0.99) audio.playbackRate = voicePitch;
   // Use Web Audio API to boost volume beyond 100%
   try {
     const ctx = new AudioContext();
@@ -4199,6 +4225,45 @@ voiceVolumeSlider.addEventListener('input', () => {
     localStorage.setItem('voiceVolume', val);
   });
 
+  // ── DEEP (pitch) slider ──
+  const profilePitchSlider = document.getElementById('profilePitchSlider');
+  const profilePitchVal    = document.getElementById('profilePitchVal');
+  const savedPitch = parseFloat(localStorage.getItem('voicePitch') || '1.0');
+  if (profilePitchSlider) {
+    profilePitchSlider.value = savedPitch;
+    profilePitchVal.textContent = savedPitch >= 0.99 ? 'OFF' : Math.round((1 - savedPitch) * 100) + '%';
+    profilePitchSlider.addEventListener('input', () => {
+      const val = parseFloat(profilePitchSlider.value);
+      profilePitchVal.textContent = val >= 0.99 ? 'OFF' : Math.round((1 - val) * 100) + '%';
+      voicePitch = val;
+      localStorage.setItem('voicePitch', val);
+    });
+  }
+
+  // Reset buttons
+  document.getElementById('profileSpeedReset')?.addEventListener('click', async () => {
+    profileSpeedSlider.value = 0.88;
+    profileSpeedVal.textContent = '0.88x';
+    voiceSpeedSlider.value = 0.88;
+    voiceSpeedVal.textContent = '0.88x';
+    await window.jarvis.setVoiceSpeed(0.88);
+  });
+  document.getElementById('profileVolReset')?.addEventListener('click', () => {
+    profileVolSlider.value = 1.5;
+    profileVolVal.textContent = '1.5x';
+    voiceVolumeSlider.value = 1.5;
+    voiceVolumeVal.textContent = '1.5x';
+    voiceVolume = 1.5;
+    localStorage.setItem('voiceVolume', '1.5');
+  });
+  document.getElementById('profilePitchReset')?.addEventListener('click', () => {
+    if (!profilePitchSlider) return;
+    profilePitchSlider.value = 1.0;
+    profilePitchVal.textContent = 'OFF';
+    voicePitch = 1.0;
+    localStorage.setItem('voicePitch', '1.0');
+  });
+
   // Voice type toggle in account panel
   const savedVoicePref = (await window.jarvis.getProfile())?.voice || 'male';
   const pvMale   = document.getElementById('profileVoiceMale');
@@ -4684,10 +4749,8 @@ micBtn.addEventListener('click', () => {
       }
     `;
 
-    // 3. shaderBg — the flowing glowing wave lines (the main background wave)
+    // 3. Orb keyframe / ring colour only — wave handled separately by wave picker
     window._shaderLineColor = rgb;
-    if (window._shaderBg) window._shaderBg.setColor(rgb);
-    else setTimeout(() => { if (window._shaderBg) window._shaderBg.setColor(rgb); }, 300);
 
     // 4. Dot surface — secondary dot particles
     if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
@@ -4770,6 +4833,59 @@ micBtn.addEventListener('click', () => {
     document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
     applyOrbColor(customInput.value);
   });
+
+  // ── Wave colour picker ────────────────────────────────────────────────────
+  function applyWaveColor(hex) {
+    const tint = document.getElementById('shaderBgTint');
+    if (tint) {
+      tint.style.background = hex;
+      tint.style.opacity = '1';
+    }
+    localStorage.setItem('waveColor', hex);
+  }
+
+  function resetWaveColor() {
+    const tint = document.getElementById('shaderBgTint');
+    if (tint) { tint.style.opacity = '0'; tint.style.background = ''; }
+    localStorage.removeItem('waveColor');
+    document.querySelectorAll('.wave-swatch').forEach(s => s.classList.remove('active'));
+    document.getElementById('waveColorReset')?.classList.add('active');
+    const wc = document.getElementById('waveColorCustom');
+    if (wc) wc.value = '#00c8ff';
+  }
+
+  document.getElementById('waveColorReset')?.addEventListener('click', resetWaveColor);
+
+  // Swatch clicks
+  document.querySelectorAll('.wave-swatch:not(#waveColorReset)').forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      document.querySelectorAll('.wave-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      const hex = swatch.dataset.color;
+      const wc = document.getElementById('waveColorCustom');
+      if (wc) wc.value = hex;
+      applyWaveColor(hex);
+    });
+  });
+
+  // Custom colour wheel
+  const waveCustomInput = document.getElementById('waveColorCustom');
+  waveCustomInput?.addEventListener('input', () => {
+    document.querySelectorAll('.wave-swatch').forEach(s => s.classList.remove('active'));
+    applyWaveColor(waveCustomInput.value);
+  });
+
+  // Load saved wave colour on startup
+  const savedWave = localStorage.getItem('waveColor');
+  if (savedWave) {
+    document.querySelectorAll('.wave-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.color === savedWave);
+    });
+    document.getElementById('waveColorReset')?.classList.remove('active');
+    const wc = document.getElementById('waveColorCustom');
+    if (wc) wc.value = savedWave;
+    setTimeout(() => applyWaveColor(savedWave), 300);
+  }
 })();
 
 // ── Orb mouse tilt ───────────────────────────────────────────────────────────

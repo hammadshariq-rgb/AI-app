@@ -1034,6 +1034,8 @@
 <body>
   <!-- WebGL shader background -->
   <canvas id="shaderBg"></canvas>
+  <!-- Wave colour tint overlay (mix-blend-mode:hue recolours the glowing lines) -->
+  <div id="shaderBgTint" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;mix-blend-mode:hue;opacity:0;transition:background 0.3s,opacity 0.3s;"></div>
 
   <!-- Ambient color accents — fixed behind everything -->
   <div id="colorAccents"></div>
@@ -1411,29 +1413,17 @@
           </div>
 
           <!-- ── CONNECTORS PANE ── -->
+          <!-- HIDDEN CONNECTORS (pending verification/setup): gmail, outlook, drive -->
           <div class="lnav-pane hidden" id="lnavPaneConnectors">
             <div class="connector-section">
-              <div class="connector-row" id="gmailRow">
-                <div class="connector-icon gmail"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg></div>
-                <div class="connector-info"><div class="connector-name">GMAIL</div><div class="connector-status" id="gmailStatus">Not connected</div></div>
-                <button class="connector-btn" id="gmailBtn">CONNECT</button>
-              </div>
-              <div class="connector-row" id="outlookRow">
-                <div class="connector-icon outlook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/><line x1="2" y1="20" x2="8" y2="14"/><line x1="22" y1="20" x2="16" y2="14"/></svg></div>
-                <div class="connector-info"><div class="connector-name">OUTLOOK</div><div class="connector-status" id="outlookStatus">Not connected</div></div>
-                <button class="connector-btn" id="outlookBtn">CONNECT</button>
-              </div>
               <div class="connector-row" id="calendarRow">
                 <div class="connector-icon calendar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5"/></svg></div>
                 <div class="connector-info"><div class="connector-name">GOOGLE CALENDAR</div><div class="connector-status" id="calendarStatus">Not connected</div></div>
                 <button class="connector-btn" id="calendarBtn">CONNECT</button>
               </div>
-              <div class="connector-row" id="driveRow">
-                <div class="connector-icon drive"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a2 2 0 0 1-1.7-3l4.5-8a2 2 0 0 1 1.7-1h10a2 2 0 0 1 1.7 1l4.5 8a2 2 0 0 1-1.7 3z"/><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
-                <div class="connector-info"><div class="connector-name">GOOGLE DRIVE</div><div class="connector-status" id="driveStatus">Not connected</div></div>
-                <button class="connector-btn" id="driveBtn">CONNECT</button>
-              </div>
             </div>
+            <!-- IMPORTANT SENDERS section hidden until email connectors are live -->
+            <!--
             <div class="connector-section">
               <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
               <p class="connector-hint">Emails from these people will be read out in detail. Say their first name when emailing — Jarvis will find their address automatically.</p>
@@ -1443,6 +1433,7 @@
                 <button id="vipAddBtn">+ ADD</button>
               </div>
             </div>
+            -->
             <div class="connector-section">
               <div class="connector-section-title">📊 BUSINESS &amp; ANALYTICS</div>
               <p class="connector-hint">Connect your platforms so you can ask about sales, revenue, views, and followers at any time.</p>
@@ -1532,13 +1523,11 @@
                 </div>
               </div>
 
-              <!-- ORB & WAVE COLOUR -->
+              <!-- ORB COLOUR -->
               <div class="profile-section">
-                <div class="profile-label">ORB &amp; WAVE COLOUR</div>
+                <div class="profile-label">ORB COLOUR</div>
                 <div id="orbColorPicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
-                  <!-- Reset to original -->
                   <button class="orb-swatch orb-swatch-reset active" id="orbColorReset" title="Original (default)" style="background:radial-gradient(circle at 35% 30%,#6ea0ff,#0f37b4 48%,#040c3c 100%);border:2px solid #fff;box-shadow:0 0 10px rgba(255,255,255,0.5)"></button>
-                  <!-- Preset swatches -->
                   <button class="orb-swatch" data-color="#00c8ff" style="background:#00c8ff" title="Cyan"></button>
                   <button class="orb-swatch" data-color="#7c3aed" style="background:#7c3aed" title="Purple"></button>
                   <button class="orb-swatch" data-color="#e11d48" style="background:#e11d48" title="Red"></button>
@@ -1546,10 +1535,26 @@
                   <button class="orb-swatch" data-color="#10b981" style="background:#10b981" title="Green"></button>
                   <button class="orb-swatch" data-color="#f97316" style="background:#f97316" title="Orange"></button>
                   <button class="orb-swatch" data-color="#ec4899" style="background:#ec4899" title="Pink"></button>
-                  <!-- Custom colour input -->
                   <label style="position:relative;width:28px;height:28px;border-radius:50%;overflow:hidden;cursor:pointer;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px" title="Custom colour">
-                    🎨
-                    <input type="color" id="orbColorCustom" value="#00c8ff" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+                    🎨<input type="color" id="orbColorCustom" value="#00c8ff" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+                  </label>
+                </div>
+              </div>
+
+              <!-- WAVE COLOUR -->
+              <div class="profile-section">
+                <div class="profile-label">WAVE COLOUR</div>
+                <div id="waveColorPicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
+                  <button class="wave-swatch wave-swatch-reset active" id="waveColorReset" title="Original (default)" style="background:radial-gradient(circle at 35% 30%,#6ea0ff,#0f37b4 48%,#040c3c 100%);border:2px solid #fff;box-shadow:0 0 10px rgba(255,255,255,0.5)"></button>
+                  <button class="wave-swatch" data-color="#00c8ff" style="background:#00c8ff" title="Cyan"></button>
+                  <button class="wave-swatch" data-color="#7c3aed" style="background:#7c3aed" title="Purple"></button>
+                  <button class="wave-swatch" data-color="#e11d48" style="background:#e11d48" title="Red"></button>
+                  <button class="wave-swatch" data-color="#f59e0b" style="background:#f59e0b" title="Gold"></button>
+                  <button class="wave-swatch" data-color="#10b981" style="background:#10b981" title="Green"></button>
+                  <button class="wave-swatch" data-color="#f97316" style="background:#f97316" title="Orange"></button>
+                  <button class="wave-swatch" data-color="#ec4899" style="background:#ec4899" title="Pink"></button>
+                  <label style="position:relative;width:28px;height:28px;border-radius:50%;overflow:hidden;cursor:pointer;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px" title="Custom colour">
+                    🎨<input type="color" id="waveColorCustom" value="#00c8ff" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
                   </label>
                 </div>
               </div>
@@ -1588,11 +1593,19 @@
                     <span class="profile-slider-label">SPEED</span>
                     <input type="range" id="profileSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" />
                     <span class="profile-slider-val" id="profileSpeedVal">0.88x</span>
+                    <button class="slider-reset-btn" id="profileSpeedReset" title="Reset to original">↺</button>
                   </div>
                   <div class="profile-slider-row">
                     <span class="profile-slider-label">VOL</span>
                     <input type="range" id="profileVolSlider" min="0.5" max="3.0" step="0.1" value="1.5" />
                     <span class="profile-slider-val" id="profileVolVal">1.5x</span>
+                    <button class="slider-reset-btn" id="profileVolReset" title="Reset to original">↺</button>
+                  </div>
+                  <div class="profile-slider-row">
+                    <span class="profile-slider-label">DEEP</span>
+                    <input type="range" id="profilePitchSlider" min="0.6" max="1.0" step="0.02" value="1.0" />
+                    <span class="profile-slider-val" id="profilePitchVal">OFF</span>
+                    <button class="slider-reset-btn" id="profilePitchReset" title="Reset to original">↺</button>
                   </div>
                 </div>
               </div>
@@ -1764,11 +1777,7 @@
           <!-- Shift to typing toggle (voice mode) -->
           <button id="typeModeToggle" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
 
-          <!-- Stop response button — shown while AI is thinking -->
-          <button id="stopResponseBtn" style="display:none;margin-top:10px;align-items:center;gap:6px;padding:8px 18px;background:rgba(180,40,60,0.18);border:1px solid rgba(220,60,80,0.4);border-radius:20px;color:rgba(255,100,110,0.9);font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:1px;cursor:pointer;transition:background 0.2s,border-color 0.2s">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-            STOP
-          </button>
+          <!-- Stop button now lives inside the typing input bar -->
 
           <!-- Typing input panel (hidden by default) -->
           <div id="typeInputWrap" class="hidden" style="margin-top:10px;width:100%;max-width:420px">
@@ -1776,9 +1785,14 @@
             <div style="position:relative;background:rgba(10,15,40,0.7);border:1px solid rgba(0,160,220,0.25);border-radius:16px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:0 0 0 0 rgba(0,180,255,0)" id="typeBoxBorder">
               <textarea id="userInput" placeholder="Type a message…" autocomplete="off" rows="2"
                 style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:16px 60px 16px 18px;font-size:14px;color:rgba(220,235,255,0.95);font-family:'Inter',sans-serif;line-height:1.6;min-height:64px;max-height:160px;overflow-y:auto;display:block;vertical-align:top"></textarea>
+              <!-- Send button (hidden while AI responds) -->
               <button id="typeSendBtn" title="Send"
                 style="position:absolute;right:12px;bottom:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,160,220,0.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 10px rgba(0,180,255,0.3)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              </button>
+              <!-- Stop button (shown while AI is responding — sits in same corner as send) -->
+              <button id="stopResponseBtn" title="Stop response" style="display:none;position:absolute;right:12px;bottom:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(200,40,55,0.85);color:#fff;cursor:pointer;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 12px rgba(220,50,70,0.5)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
               </button>
             </div>
             <!-- Shift to voice — below the input box -->
@@ -1798,6 +1812,8 @@
           <span id="voiceSpeedVal" style="display:none"></span>
           <input type="range" id="voiceVolumeSlider" min="0.5" max="3.0" step="0.1" value="1.5" style="display:none">
           <span id="voiceVolumeVal" style="display:none"></span>
+          <input type="range" id="voicePitchSlider" min="0.6" max="1.0" step="0.02" value="1.0" style="display:none">
+          <span id="voicePitchVal" style="display:none"></span>
         </div>
       </div>
 
