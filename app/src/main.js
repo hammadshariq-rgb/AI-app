@@ -1470,9 +1470,9 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background
 </body></html>`;
 }
 
+// Only the minimum scopes registered in Google Cloud Console — no gmail, no broad calendar
 const GOOGLE_OAUTH_SCOPES = {
-  gmail:    'https://mail.google.com/',
-  calendar: 'https://www.googleapis.com/auth/calendar',
+  calendar: 'https://www.googleapis.com/auth/calendar.readonly',
   drive:    'https://www.googleapis.com/auth/drive.readonly',
   youtube:  'https://www.googleapis.com/auth/youtube.readonly',
   analytics:'https://www.googleapis.com/auth/analytics.readonly',
