@@ -46,7 +46,7 @@ async function verifyToken(token) {
     const res = await fetchWithTimeout(`${SERVER}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return res.json();
+    return await res.json();
   } catch {
     return { error: 'Server unreachable' };
   }
