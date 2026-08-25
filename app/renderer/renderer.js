@@ -679,27 +679,8 @@ function addMessage(role, text) {
   textSpan.textContent = text;
   div.appendChild(textSpan);
 
-  row.appendChild(div);
-
   if (role === 'assistant') {
-    // Action buttons sit OUTSIDE the bubble, to its right, in the row
-    const actions = document.createElement('div');
-    actions.className = 'msg-actions';
-
-    // Stop button — hidden by default, shown only while AI is responding
-    const stopInlineBtn = document.createElement('button');
-    stopInlineBtn.className = 'msg-stop-btn';
-    stopInlineBtn.title = 'Stop responding';
-    stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
-    stopInlineBtn.style.display = 'none';
-    stopInlineBtn.addEventListener('click', () => {
-      document.getElementById('stopResponseBtn')?.click();
-      stopInlineBtn.style.display = 'none';
-    });
-    actions.appendChild(stopInlineBtn);
-    row._stopBtn = stopInlineBtn; // track on row so showStopBtn can find it
-
-    // Copy button — shows on hover
+    // Copy button — inside the bubble, bottom-right, original position
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';
     copyBtn.title = 'Copy';
@@ -710,11 +691,30 @@ function addMessage(role, text) {
         setTimeout(() => { copyBtn.innerHTML = COPY_SVG; }, 1500);
       });
     });
-    actions.appendChild(copyBtn);
-
-    row.appendChild(actions);
-    div._stopBtn = stopInlineBtn; // also keep on div for compat
+    div.appendChild(copyBtn);
   }
+
+  row.appendChild(div);
+
+  if (role === 'assistant') {
+    // Stop button — outside bubble to the right, only shown while AI is responding
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    const stopInlineBtn = document.createElement('button');
+    stopInlineBtn.className = 'msg-stop-btn';
+    stopInlineBtn.title = 'Stop responding';
+    stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+    stopInlineBtn.style.display = 'none';
+    stopInlineBtn.addEventListener('click', () => {
+      document.getElementById('stopResponseBtn')?.click();
+      stopInlineBtn.style.display = 'none';
+    });
+    actions.appendChild(stopInlineBtn);
+    row.appendChild(actions);
+    row._stopBtn = stopInlineBtn;
+    div._stopBtn = stopInlineBtn;
+  }
+
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
   if (chat.children.length >= 1) orbContainer.classList.add('compact');

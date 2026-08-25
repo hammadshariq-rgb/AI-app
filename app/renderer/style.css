@@ -4778,22 +4778,27 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
 /* When stop btn is visible, also show the actions container */
 .msg-row.assistant .msg-actions:has(.msg-stop-btn[style*="inline-flex"]) { opacity: 1; }
 
-/* ── Copy button (outside bubble) ── */
+/* ── Copy button (inside bubble, bottom-right, appears on hover) ── */
 .msg-copy-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  bottom: 7px;
+  right: 8px;
   background: none;
   border: none;
   padding: 3px;
   cursor: pointer;
-  color: rgba(180, 200, 255, 0.35);
-  transition: color 0.15s, background 0.15s;
+  color: rgba(180, 200, 255, 0.22);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
   border-radius: 4px;
   width: 22px;
   height: 22px;
   -webkit-app-region: no-drag;
 }
+.msg.assistant:hover .msg-copy-btn { opacity: 1; }
 .msg-copy-btn:hover { color: rgba(160,180,255,0.90); background: rgba(140,160,255,0.10); }
 
 /* ===================== LICENSE GATE ===================== */
