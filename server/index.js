@@ -356,7 +356,6 @@ app.post('/connect/google/exchange', async (req, res) => {
   if (!code || !redirectUri) return res.status(400).json({ error: 'code and redirectUri required' });
   const scope = {
     calendar: 'https://www.googleapis.com/auth/calendar.readonly',
-    drive:    'https://www.googleapis.com/auth/drive.readonly',
     youtube:  'https://www.googleapis.com/auth/youtube.readonly',
     analytics:'https://www.googleapis.com/auth/analytics.readonly',
   }[service] || '';
@@ -642,66 +641,13 @@ app.get('/account', (req, res) => {
   `);
 });
 
-// ── Google Drive connector OAuth ──────────────────────────────────────────────
-app.get('/connect/drive', (req, res) => {
-  const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
-    response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.readonly',
-    access_type: 'offline',
-    prompt: 'consent',
-  });
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
-});
-
-app.get('/connect/drive/callback', async (req, res) => {
-  const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
-  try {
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${PUBLIC_URL}/connect/drive/callback`,
-        grant_type: 'authorization_code',
-      }),
-    });
-    const tokens = await tokenRes.json();
-    if (!tokens.access_token) throw new Error('No access token');
-    pendingTokens['drive'] = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600, ts: Date.now() };
-    res.send(connectedPage('Google Drive'));
-  } catch (err) {
-    res.send(`<p>Drive connection failed: ${err.message}</p>`);
-  }
-});
-
-app.get('/connect/drive/poll', (req, res) => {
-  const t = pendingTokens['drive'];
-  if (t && Date.now() - t.ts < 300000) { delete pendingTokens['drive']; return res.json({ ok: true, ...t }); }
-  res.json({ ok: false });
-});
-
-app.post('/connect/drive/refresh', async (req, res) => {
-  const { refresh_token } = req.body;
-  if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
-  try {
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        refresh_token,
-        grant_type: 'refresh_token',
-      }),
-    });
-    res.json(await tokenRes.json());
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+// ── Google Drive connector — REMOVED (pending ADA-CASA verification) ──────────
+// drive.readonly is a RESTRICTED scope requiring ADA-CASA AL1 assessment.
+// All Drive routes return 404 to avoid scope detection by Google's scanner.
+app.get('/connect/drive', (_req, res) => res.status(404).json({ error: 'Drive connector not available in this version.' }));
+app.get('/connect/drive/callback', (_req, res) => res.status(404).send('Not found.'));
+app.get('/connect/drive/poll', (_req, res) => res.status(404).json({ ok: false }));
+app.post('/connect/drive/refresh', (_req, res) => res.status(404).json({ error: 'Drive not available.' }));
 
 // ── YouTube Studio connector OAuth ────────────────────────────────────────────
 // Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — just adds YouTube scopes
