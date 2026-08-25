@@ -4743,49 +4743,57 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   color: rgba(255,140,140,0.95) !important;
 }
 
-/* ── Inline stop button (left of copy, shown while AI is responding) ── */
+/* ── Action buttons container (outside bubble, to the right of it) ── */
+.msg-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-bottom: 6px;
+  padding-left: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.msg-row.assistant:hover .msg-actions { opacity: 1; }
+
+/* ── Stop button (outside bubble, shown only while AI is responding) ── */
 .msg-stop-btn {
-  display: none; /* toggled by showStopBtn() */
+  display: none; /* shown via showStopBtn() */
   align-items: center;
   justify-content: center;
-  position: absolute;
-  bottom: 7px;
-  right: 34px; /* left of copy: 8px + 22px copy + 4px gap */
   background: none;
   border: none;
   border-radius: 4px;
   padding: 3px;
-  color: rgba(255, 120, 130, 0.55);
+  color: rgba(255, 110, 120, 0.70);
   width: 22px;
   height: 22px;
   cursor: pointer;
-  opacity: 1;
   transition: color 0.15s, background 0.15s;
   -webkit-app-region: no-drag;
 }
 .msg-stop-btn:hover { background: rgba(220,50,70,0.15); color: rgba(255,100,110,0.95); }
+/* When stop btn is visible, also show the actions container */
+.msg-row.assistant .msg-actions:has(.msg-stop-btn[style*="inline-flex"]) { opacity: 1; }
 
-/* ── Copy button ── */
+/* ── Copy button (outside bubble) ── */
 .msg-copy-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  position: absolute;
-  bottom: 7px;
-  right: 8px;
   background: none;
   border: none;
   padding: 3px;
   cursor: pointer;
-  color: rgba(180, 200, 255, 0.22);
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
+  color: rgba(180, 200, 255, 0.35);
+  transition: color 0.15s, background 0.15s;
   border-radius: 4px;
   width: 22px;
   height: 22px;
   -webkit-app-region: no-drag;
 }
-.msg.assistant:hover .msg-copy-btn { opacity: 1; }
 .msg-copy-btn:hover { color: rgba(160,180,255,0.90); background: rgba(140,160,255,0.10); }
 
 /* ===================== LICENSE GATE ===================== */

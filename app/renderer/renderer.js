@@ -679,8 +679,14 @@ function addMessage(role, text) {
   textSpan.textContent = text;
   div.appendChild(textSpan);
 
+  row.appendChild(div);
+
   if (role === 'assistant') {
-    // Stop button — same size as copy, sits left of it, only visible while AI responds
+    // Action buttons sit OUTSIDE the bubble, to its right, in the row
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+
+    // Stop button — hidden by default, shown only while AI is responding
     const stopInlineBtn = document.createElement('button');
     stopInlineBtn.className = 'msg-stop-btn';
     stopInlineBtn.title = 'Stop responding';
@@ -690,9 +696,10 @@ function addMessage(role, text) {
       document.getElementById('stopResponseBtn')?.click();
       stopInlineBtn.style.display = 'none';
     });
-    div.appendChild(stopInlineBtn);
-    div._stopBtn = stopInlineBtn;
+    actions.appendChild(stopInlineBtn);
+    row._stopBtn = stopInlineBtn; // track on row so showStopBtn can find it
 
+    // Copy button — shows on hover
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';
     copyBtn.title = 'Copy';
@@ -703,10 +710,11 @@ function addMessage(role, text) {
         setTimeout(() => { copyBtn.innerHTML = COPY_SVG; }, 1500);
       });
     });
-    div.appendChild(copyBtn);
-  }
+    actions.appendChild(copyBtn);
 
-  row.appendChild(div);
+    row.appendChild(actions);
+    div._stopBtn = stopInlineBtn; // also keep on div for compat
+  }
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
   if (chat.children.length >= 1) orbContainer.classList.add('compact');
@@ -722,11 +730,11 @@ function showStopBtn(visible) {
   if (stopBtn) stopBtn.style.display = visible ? 'flex' : 'none';
   if (sendBtn) sendBtn.style.display = visible ? 'none' : 'flex';
 
-  // Show/hide the inline stop button on the latest AI message bubble
-  const allBubbles = chat.querySelectorAll('.msg.assistant');
-  const lastBubble = allBubbles[allBubbles.length - 1];
-  if (lastBubble?._stopBtn) {
-    lastBubble._stopBtn.style.display = visible ? 'inline-flex' : 'none';
+  // Show/hide the inline stop button on the latest assistant ROW (outside bubble)
+  const allRows = chat.querySelectorAll('.msg-row.assistant');
+  const lastRow = allRows[allRows.length - 1];
+  if (lastRow?._stopBtn) {
+    lastRow._stopBtn.style.display = visible ? 'inline-flex' : 'none';
   }
 }
 
@@ -2191,6 +2199,27 @@ async function sendToJarvis(text) {
   setState('thinking');
   showStopBtn(true);
 
+  // Create a temporary thinking row so the stop button has somewhere to live
+  // while the AI hasn't responded yet. It gets removed when addMessage fires.
+  const thinkingRow = document.createElement('div');
+  thinkingRow.className = 'msg-row assistant';
+  thinkingRow.id = '_thinkingRow';
+  const thinkingActions = document.createElement('div');
+  thinkingActions.className = 'msg-actions';
+  const thinkingStopBtn = document.createElement('button');
+  thinkingStopBtn.className = 'msg-stop-btn';
+  thinkingStopBtn.title = 'Stop responding';
+  thinkingStopBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+  thinkingStopBtn.style.display = 'inline-flex';
+  thinkingStopBtn.addEventListener('click', () => {
+    document.getElementById('stopResponseBtn')?.click();
+  });
+  thinkingActions.appendChild(thinkingStopBtn);
+  thinkingRow.appendChild(thinkingActions);
+  thinkingRow._stopBtn = thinkingStopBtn;
+  chat.appendChild(thinkingRow);
+  chat.scrollTop = chat.scrollHeight;
+
   let res;
   try {
     res = await window.jarvis.chat(text, history.slice(-30), attachments);
@@ -2203,6 +2232,7 @@ async function sendToJarvis(text) {
     } else if (msg.includes('ENOTFOUND') || msg.includes('ENETUNREACH') || msg.includes('ECONNREFUSED')) {
       friendly = "I can't reach the internet right now. Check your connection and try again.";
     }
+    document.getElementById('_thinkingRow')?.remove();
     addMessage('assistant', friendly);
     showStopBtn(false); setState('idle');
     return;
@@ -2214,9 +2244,13 @@ async function sendToJarvis(text) {
       // Structured error from classifyAIError — message already spoken via TTS in main.js
       addMessage('assistant', res.userMsg);
     }
+    document.getElementById('_thinkingRow')?.remove();
     showStopBtn(false); setState('idle');
     return;
   }
+
+  // Remove the temporary thinking row now that real response is here
+  document.getElementById('_thinkingRow')?.remove();
 
   history.push({ role: 'assistant', content: res.text });
   // Don't render a blank bubble — if there's a card it'll display the data visually
@@ -4704,8 +4738,9 @@ micBtn.addEventListener('click', () => {
   // Auto-resize textarea + orb compact on typing
   function resizeInput() {
     userInput.style.height = 'auto';
-    userInput.style.height = Math.min(userInput.scrollHeight, 140) + 'px';
+    userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
   }
+  resizeInput(); // set correct initial height
   userInput.addEventListener('input', () => {
     resizeInput();
     if (userInput.value.trim()) orbContainer.classList.add('compact');

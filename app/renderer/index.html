@@ -1783,11 +1783,11 @@
           <div id="typeInputWrap" class="hidden" style="margin-top:10px;width:100%;max-width:520px">
             <!-- Input box -->
             <div style="position:relative;background:rgba(10,15,40,0.7);border:1px solid rgba(0,160,220,0.25);border-radius:16px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:0 0 0 0 rgba(0,180,255,0)" id="typeBoxBorder">
-              <textarea id="userInput" placeholder="Type a message…" autocomplete="off" rows="2"
-                style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:16px 60px 16px 52px;font-size:14px;color:rgba(220,235,255,0.95);font-family:'Inter',sans-serif;line-height:1.6;min-height:64px;max-height:160px;overflow-y:auto;display:block;vertical-align:top"></textarea>
+              <textarea id="userInput" placeholder="Type a message…" autocomplete="off" rows="1"
+                style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:11px 52px 11px 52px;font-size:14px;color:rgba(220,235,255,0.95);font-family:'Inter',sans-serif;line-height:1.5;min-height:44px;max-height:160px;overflow-y:auto;display:block;vertical-align:top"></textarea>
 
               <!-- Left action buttons: + attach and trash clear -->
-              <div style="position:absolute;left:10px;bottom:11px;display:flex;flex-direction:column;gap:5px;align-items:center">
+              <div style="position:absolute;left:10px;bottom:7px;display:flex;flex-direction:column;gap:4px;align-items:center">
                 <!-- + Attach file -->
                 <button id="fileBtn" title="Attach file"
                   style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,160,220,0.25);background:rgba(0,160,220,0.08);color:rgba(120,190,255,0.75);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,border-color 0.2s,color 0.2s;-webkit-app-region:no-drag">
@@ -1802,11 +1802,11 @@
 
               <!-- Send button (hidden while AI responds) -->
               <button id="typeSendBtn" title="Send"
-                style="position:absolute;right:12px;bottom:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,160,220,0.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 10px rgba(0,180,255,0.3)">
+                style="position:absolute;right:8px;bottom:6px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,160,220,0.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 10px rgba(0,180,255,0.3)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
               </button>
               <!-- Stop button (shown while AI is responding — sits in same corner as send) -->
-              <button id="stopResponseBtn" title="Stop response" style="display:none;position:absolute;right:12px;bottom:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(200,40,55,0.85);color:#fff;cursor:pointer;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 12px rgba(220,50,70,0.5)">
+              <button id="stopResponseBtn" title="Stop response" style="display:none;position:absolute;right:8px;bottom:6px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(200,40,55,0.85);color:#fff;cursor:pointer;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 12px rgba(220,50,70,0.5)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
               </button>
             </div>
