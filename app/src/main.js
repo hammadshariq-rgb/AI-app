@@ -798,8 +798,22 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   Promise.all(sentencePending).catch(() => {});
 
   if (result.memory) {
-    memories.push(result.memory);
-    store.set('memories', memories);
+    // Deduplicate — don't save if a very similar memory already exists
+    const newFact = result.memory.toLowerCase().trim();
+    const isDuplicate = memories.some(m => {
+      const existing = m.toLowerCase().trim();
+      // Exact match or one contains the other (>80% overlap)
+      if (existing === newFact) return true;
+      const shorter = existing.length < newFact.length ? existing : newFact;
+      const longer  = existing.length < newFact.length ? newFact  : existing;
+      return longer.includes(shorter) && shorter.length > 10;
+    });
+    if (!isDuplicate) {
+      memories.push(result.memory);
+      // Cap at 120 memories — remove oldest if over limit
+      if (memories.length > 120) memories.splice(0, memories.length - 120);
+      store.set('memories', memories);
+    }
   }
 
   let finalText = result.text;
@@ -1052,8 +1066,19 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   if (finalAction?.type === 'remember_fact') {
     const fact = finalAction.arg || '';
     if (fact) {
-      memories.push(fact);
-      store.set('memories', memories);
+      const newFact = fact.toLowerCase().trim();
+      const isDuplicate = memories.some(m => {
+        const existing = m.toLowerCase().trim();
+        if (existing === newFact) return true;
+        const shorter = existing.length < newFact.length ? existing : newFact;
+        const longer  = existing.length < newFact.length ? newFact  : existing;
+        return longer.includes(shorter) && shorter.length > 10;
+      });
+      if (!isDuplicate) {
+        memories.push(fact);
+        if (memories.length > 120) memories.splice(0, memories.length - 120);
+        store.set('memories', memories);
+      }
     }
     const spokenText = finalText || 'Noted. I\'ll remember that.';
     _sendTTS(_e.sender, spokenText);
