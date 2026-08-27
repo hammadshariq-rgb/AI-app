@@ -796,7 +796,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const hasImages = attachments.some(a => a.kind === 'image');
   const body = {
     model: hasImages ? 'gpt-4o' : 'gpt-4o-mini',
-    max_tokens: needsTools ? 1500 : (hasImages ? 2048 : 1024),
+    max_tokens: needsTools ? 1500 : (hasImages ? 3000 : 1024),
     messages,
   };
   if (needsTools) { body.tools = TOOLS; body.tool_choice = 'required'; }
@@ -855,8 +855,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
   // Hard 15-second cap on the entire streaming operation
   const STREAM_TIMEOUT_MS = 25000;
 
+  const hasImages = attachments.some(a => a.kind === 'image');
+
+  // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
   const needsTools = !skipToolFallback && (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message));
-  if (needsTools) {
+  if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }
 
@@ -869,9 +872,9 @@ async function respondStreaming({ message, history = [], assistantName, memories
   let streamCtrl;
   const streamResult = await Promise.race([
     (async () => {
-      // Educational/study queries need full budget; all other replies are 1-3 sentences
-      const EDUCATIONAL_REGEX = /\b(explain|how does|how do|why does|why is|what is|what are|teach me|study|quiz|flashcard|revise|revision|step by step|in detail|describe|define|history of|science|math|chemistry|physics|biology|formula|equation|calculate|solve)\b/i;
-      const streamTokens = EDUCATIONAL_REGEX.test(message) ? 1200 : 500;
+      // Educational/study/homework queries need full budget; all other replies are 1-3 sentences
+      const EDUCATIONAL_REGEX = /\b(explain|how does|how do|why does|why is|what is|what are|teach me|study|quiz|flashcard|revise|revision|step by step|in detail|describe|define|history of|science|math|chemistry|physics|biology|formula|equation|calculate|solve|homework|assignment|essay|question|answer|problem|working|workings?|proof|derive|derivation|simplify|factorise|factorize|integrate|differentiate|expand|balance|reaction|compound|element|periodic)\b/i;
+      const streamTokens = EDUCATIONAL_REGEX.test(message) ? 2000 : 500;
       const res = await serverFetch('chat/stream', {
         model: 'gpt-4o-mini', max_tokens: streamTokens, temperature: 0.3, messages,
       }, { timeout: 25000, retries: 1 });

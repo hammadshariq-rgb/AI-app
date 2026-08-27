@@ -2095,13 +2095,26 @@ function processFiles(files) {
   files.forEach((file) => {
     const reader = new FileReader();
     const isImage = file.type.startsWith('image/');
+    const isText  = file.type.startsWith('text/') || /\.(txt|csv|md|json|js|py|html|css|xml|yaml|yml|log|sh|ts|jsx|tsx|cpp|c|h|java|rb|go|rs|swift|kt)$/i.test(file.name);
+    const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isDoc   = /\.(doc|docx)$/i.test(file.name);
 
     reader.onload = (ev) => {
-      const result = ev.target.result; // data URL for images, text for others
-      const attachment = isImage
-        ? { name: file.name, kind: 'image', mimeType: file.type, dataUrl: result, base64: result.split(',')[1] }
-        : { name: file.name, kind: 'text',  content: result };
-
+      let attachment;
+      if (isImage) {
+        const result = ev.target.result;
+        attachment = { name: file.name, kind: 'image', mimeType: file.type, dataUrl: result, base64: result.split(',')[1] };
+      } else if (isPdf) {
+        // PDFs: send as image (screenshot) — tell user we read it as an image
+        // For now store as unsupported with a note
+        attachment = { name: file.name, kind: 'text', content: `[PDF file attached: ${file.name}. Note: PDF text extraction is not available — please take a screenshot of the relevant pages and attach that instead, or copy-paste the text.]` };
+      } else if (isDoc) {
+        attachment = { name: file.name, kind: 'text', content: `[Word document attached: ${file.name}. Note: .docx reading is not available — please copy and paste the text content directly into the chat.]` };
+      } else if (isText) {
+        attachment = { name: file.name, kind: 'text', content: ev.target.result };
+      } else {
+        attachment = { name: file.name, kind: 'text', content: `[File attached: ${file.name} — file type not supported for reading. Please copy-paste the content or take a screenshot.]` };
+      }
       pendingAttachments.push(attachment);
       renderAttachPreview();
     };
