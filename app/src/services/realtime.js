@@ -1367,8 +1367,9 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
-  // Location / city / country — "show me Paris", "pictures of Tokyo", "tell me about Dubai"
-  if (/\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about|about)\b/i.test(q) && !COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q)) {
+  // Location / place / landmark — any query mentioning a place, even parks and local spots
+  const LOCATION_TRIGGER = /\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about|about|what('s| is)|where is|how big is|what does .{0,30} look like|info on|overview of|facts about)\b.{0,80}\b(park|garden|beach|mountain|lake|river|forest|valley|canyon|island|desert|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|church|stadium|square|plaza|street|avenue|boulevard|district|neighbourhood|neighborhood|quarter|area|city|country|capital|town|village|landmark|monument|bay|harbor|harbour|cliff|hill|peninsula|coast|shore|reserve|nature reserve|national park|botanical|zoo|museum|gallery|arena|amphitheatre)\b|\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about)\b/i;
+  if (LOCATION_TRIGGER.test(q) && !COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q)) {
     const card = await getLocationCard(query);
     if (card) return card;
   }

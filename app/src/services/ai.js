@@ -545,7 +545,7 @@ SHOW_IMAGE TOOL (CRITICAL — use it proactively):
 - Whenever the user asks about a VIDEO GAME, GAME CHARACTER, or GAME TITLE → call show_image.
 - Whenever the user asks about a BRAND, FASHION LABEL, CLOTHING ITEM, OUTFIT, or SHOE → call show_image.
 - Whenever the user asks about a PLANT, FLOWER, TREE, or NATURE SUBJECT → call show_image.
-- Whenever the user asks about a PLACE, CITY, COUNTRY, LANDMARK, or MONUMENT → call show_image.
+- Whenever the user asks about a PLACE, CITY, COUNTRY, LANDMARK, MONUMENT, PARK, GARDEN, BEACH, MOUNTAIN, LAKE, RIVER, FOREST, WATERFALL, BRIDGE, TOWER, CASTLE, PALACE, CATHEDRAL, MOSQUE, TEMPLE, STADIUM, NATIONAL PARK, NATURE RESERVE, ISLAND, VALLEY, CANYON, DESERT, COAST, MUSEUM, ZOO, or ANY geographic location — even a local park or neighbourhood → call show_image.
 - Whenever the user asks about a COLOUR or "what does X look like" → call show_image.
 - The show_image tool is your default response for any visual subject. Always use it unless the user is clearly asking a calculation or opinion question with no visual component.
 
