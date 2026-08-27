@@ -185,27 +185,41 @@ app.whenReady().then(async () => {
 
   // Pre-warm the news cache in the background so first query has headlines ready instantly
   realtime.fetchNewsFeeds().catch(() => {});
-  // Refresh every 20 minutes while app is running
-  setInterval(() => {
-    realtime.fetchNewsFeeds().catch(() => {});
-    // Push fresh headlines to the renderer
-    sendNewsToRenderer();
-  }, 20 * 60 * 1000);
 
-  // Send headlines to renderer once loaded
+  // Send headlines to renderer — pulls latest from cache (or fetches fresh)
   function sendNewsToRenderer() {
     realtime.fetchNewsFeeds().then(data => {
       if (!overlayWindow || overlayWindow.isDestroyed()) return;
       if (!data || Object.keys(data).length === 0) return;
-      // Take up to 5 headlines from each category for a rich ticker
+      // Take up to 6 headlines per category for a rich ticker across all sources
       const headlines = Object.entries(data)
-        .flatMap(([, items]) => (Array.isArray(items) ? items.slice(0, 5) : []))
+        .flatMap(([cat, items]) => (Array.isArray(items) ? items.slice(0, 6).map(h => `[${cat.toUpperCase().replace('_', ' ')}] ${h}`) : []))
         .filter(Boolean);
       if (headlines.length > 0) {
         overlayWindow.webContents.send('jarvis:news-headlines', headlines);
       }
     }).catch(() => {});
   }
+
+  // Refresh ticker every 10 minutes
+  setInterval(() => {
+    realtime.fetchNewsFeeds().catch(() => {});
+    sendNewsToRenderer();
+  }, 10 * 60 * 1000);
+
+  // Force a completely fresh fetch at midnight every day so ticker starts fresh
+  function scheduleNextMidnightRefresh() {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 30, 0); // 00:00:30 next day
+    const msUntilMidnight = midnight - now;
+    setTimeout(() => {
+      realtime.fetchNewsFeeds().catch(() => {});
+      sendNewsToRenderer();
+      scheduleNextMidnightRefresh(); // schedule again for the next midnight
+    }, msUntilMidnight);
+  }
+  scheduleNextMidnightRefresh();
 
   // Wait for renderer ready then send — retry after 8s in case feeds were still loading
   setTimeout(sendNewsToRenderer, 4000);
