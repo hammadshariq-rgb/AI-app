@@ -4705,9 +4705,12 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
 
 /* ── Bubble ── */
 .msg {
-  padding: 10px 15px;
-  font-size: 13.5px;
-  line-height: 1.6;
+  padding: 11px 16px;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.68;
+  letter-spacing: 0.01em;
   max-width: 75%;
   position: relative;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -4718,6 +4721,7 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
   border-radius: 18px 18px 4px 18px;
   color: #f0eeff;
+  font-weight: 500;
   box-shadow: 0 8px 24px -4px rgba(99,102,241,0.45);
   align-self: flex-end;
 }
@@ -4725,7 +4729,7 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   background: rgba(30, 35, 55, 0.90);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 18px 18px 18px 4px;
-  color: #dde8ff;
+  color: #e2ecff;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 14px -2px rgba(0,0,0,0.40);
