@@ -1444,6 +1444,26 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
+  // ── Object image catch-all ────────────────────────────────────────────────────
+  // "show me a picture of a sofa", "what does a Lamborghini look like", "show me a helicopter"
+  const OBJECT_IMAGE_REGEX = /\b(show me|show me a|show me an|picture of|pictures of|photo of|photos of|image of|images of|what does .{0,40} look like|what do .{0,40} look like|can you show me|i want to see)\b/i;
+  if (OBJECT_IMAGE_REGEX.test(q) && !COMPANY_FINANCE_REGEX.test(q)) {
+    // Extract the object name by stripping the intent phrase
+    const subject = query
+      .replace(/\b(show me a picture of|show me pictures of|show me a photo of|show me photos of|show me an? image of|show me an?|show me|picture of|pictures of|photo of|photos of|image of|images of|can you show me an?|can you show me|i want to see an?|i want to see|what does|what do|look like)\b/gi, '')
+      .replace(/\b(a|an|the|some|me)\b/gi, '')
+      .replace(/[?!.]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (subject.length >= 2) {
+      // Try wikiCard first (has richer data), fallback to searchImages
+      const card = await wikiCard(subject).catch(() => null) || await searchImages(subject).catch(() => null);
+      if (card && (card.imageUrl || card.heroImage || card.thumbnail)) return card;
+      // searchImages always has imageUrl if it found something
+      if (card) return card;
+    }
+  }
+
   return null;
 }
 
