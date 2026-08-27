@@ -566,10 +566,25 @@ app.post('/connect/calendar/refresh', async (req, res) => {
 app.get('/auth/me', authMiddleware, async (req, res) => {
   const user = await users.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  console.log('[auth/me] user:', user.email, 'status:', user.subscriptionStatus, 'lastActive:', user.lastActiveAt);
+  console.log('[auth/me] user:', user.email, 'status:', user.subscriptionStatus, 'freeAccess:', user.freeAccess, 'lastActive:', user.lastActiveAt);
   const inactive = Date.now() - (user.lastActiveAt || Date.now()) > SEVEN_DAYS;
   if (inactive) return res.json({ requiresRelogin: true });
-  res.json({ user: safeUser(user), active: user.subscriptionStatus === 'active' });
+  const isActive = user.freeAccess === true || user.subscriptionStatus === 'active';
+  res.json({ user: safeUser(user), active: isActive });
+});
+
+// ── Admin: grant/revoke free access by email ──────────────────────────────────
+// Protected by ADMIN_SECRET env var — keep this secret, never share
+app.post('/admin/grant-free', async (req, res) => {
+  const { secret, email, revoke } = req.body;
+  if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const user = await users.findByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  await users.update(user.id, { freeAccess: revoke ? false : true });
+  console.log(`[admin] freeAccess=${!revoke} set for ${email}`);
+  res.json({ ok: true, email, freeAccess: !revoke });
 });
 
 // Update last active (called on each chat message)
