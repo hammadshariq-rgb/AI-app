@@ -5944,14 +5944,31 @@ body.light-mode .msg-copy-btn { color: rgba(80,90,120,0.28); }
 body.light-mode .msg.assistant:hover .msg-copy-btn { color: rgba(60,80,180,0.70); }
 
 /* ── Input / controls ── */
-body.light-mode #userInput {
-  background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(0,0,0,0.12);
-  color: #1a1d35;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+body.light-mode #typeBoxBorder {
+  background: #ffffff !important;
+  border: 1.5px solid rgba(0,0,0,0.13) !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important;
 }
-body.light-mode #userInput::placeholder { color: rgba(30,40,100,0.35); }
-body.light-mode #userInput:focus { border-color: rgba(0,80,200,0.4); }
+body.light-mode #typeBoxBorder:focus-within {
+  border-color: rgba(0,0,0,0.28) !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.12) !important;
+}
+body.light-mode #userInput {
+  background: transparent;
+  color: #111111;
+}
+body.light-mode #userInput::placeholder { color: rgba(0,0,0,0.32); }
+
+/* Left buttons in light mode */
+body.light-mode #fileBtn,
+body.light-mode #clearBtn {
+  background: rgba(0,0,0,0.06) !important;
+  border: 1px solid rgba(0,0,0,0.10) !important;
+}
+body.light-mode #fileBtn { color: #222 !important; }
+body.light-mode #fileBtn:hover { background: rgba(0,0,0,0.11) !important; color: #000 !important; }
+body.light-mode #clearBtn { color: #cc2222 !important; }
+body.light-mode #clearBtn:hover { background: rgba(200,0,0,0.08) !important; }
 
 /* ── Bottom controls: buttons stay dark even in light mode ── */
 body.light-mode #micBtn {
