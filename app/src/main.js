@@ -23,6 +23,64 @@ app.setAsDefaultProtocolClient('jarvis');
 
 const store = new Store();
 
+// ── Cloud prefs sync — saves user settings to MongoDB so they follow across devices ──
+const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+
+function _serverBase() { return process.env.LICENSE_SERVER_URL || 'http://localhost:4000'; }
+function _authHeader() {
+  const raw = store.get('authToken');
+  if (!raw) return {};
+  try {
+    const { safeStorage } = require('electron');
+    const token = (safeStorage.isEncryptionAvailable() && raw.length > 100)
+      ? safeStorage.decryptString(Buffer.from(raw, 'base64'))
+      : raw;
+    return { Authorization: `Bearer ${token}` };
+  } catch { return {}; }
+}
+
+async function cloudPullPrefs() {
+  try {
+    const res = await fetch(`${_serverBase()}/user/prefs`, { headers: _authHeader() });
+    if (!res.ok) return;
+    const { prefs } = await res.json();
+    if (!prefs || typeof prefs !== 'object') return;
+    // Restore each key into local store — only overwrite if cloud value exists
+    if (prefs.memories?.length)      store.set('memories', prefs.memories);
+    if (prefs.profile)               store.set('profile', prefs.profile);
+    if (prefs.chatSessions?.length)  store.set('chatSessions', prefs.chatSessions);
+    if (prefs.contacts?.length)      store.set('contacts', prefs.contacts);
+    if (prefs.language)              store.set('language', prefs.language);
+    if (prefs.voiceSpeed)            store.set('voiceSpeed', prefs.voiceSpeed);
+    if (prefs.aiName)                store.set('profile.name', prefs.aiName);
+    if (prefs.reminders?.length)     store.set('reminders', prefs.reminders);
+    console.log('[cloudSync] prefs loaded from cloud');
+  } catch (e) { console.warn('[cloudSync] pull failed:', e.message); }
+}
+
+async function cloudPushPrefs(patch = null) {
+  try {
+    const headers = { ..._authHeader(), 'Content-Type': 'application/json' };
+    if (patch) {
+      // Lightweight partial update
+      await fetch(`${_serverBase()}/user/prefs`, { method: 'PATCH', headers, body: JSON.stringify({ patch }) });
+    } else {
+      // Full sync
+      const prefs = {
+        memories:     store.get('memories') || [],
+        profile:      store.get('profile') || {},
+        chatSessions: (store.get('chatSessions') || []).slice(0, 30), // cap at 30 for size
+        contacts:     store.get('contacts') || [],
+        language:     store.get('language') || 'English',
+        voiceSpeed:   store.get('voiceSpeed') || 0.88,
+        aiName:       store.get('profile.name') || 'Jarvis',
+        reminders:    store.get('reminders') || [],
+      };
+      await fetch(`${_serverBase()}/user/prefs`, { method: 'POST', headers, body: JSON.stringify({ prefs }) });
+    }
+  } catch (e) { console.warn('[cloudSync] push failed:', e.message); }
+}
+
 function saveAuthToken(token) {
   if (!token) return;
   const enc = safeStorage.isEncryptionAvailable()
@@ -342,6 +400,7 @@ ipcMain.handle('profile:get', () => store.get('profile') || null);
 ipcMain.handle('profile:set', (_e, profile) => {
   store.set('profile', profile);
   store.set('hasCompletedSetup', true);
+  cloudPushPrefs({ profile }).catch(() => {});
   return true;
 });
 
@@ -359,6 +418,7 @@ ipcMain.handle('auth:login', async (_e, { email, password }) => {
   if (result.user) {
     const existing = store.get('profile') || {};
     store.set('profile', { name: existing.name || result.user.name, email: result.user.email });
+    cloudPullPrefs().catch(() => {});
   }
   return result;
 });
@@ -369,6 +429,8 @@ ipcMain.handle('auth:verify', async () => {
   const result = await authService.verifyToken(token);
   if (result.requiresRelogin) return { needsLogin: true, reason: 'inactive' };
   if (result.error) return { needsLogin: false, offline: true }; // allow offline use
+  // Restore cloud prefs silently on startup
+  cloudPullPrefs().catch(() => {});
   return result;
 });
 
@@ -827,6 +889,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       // Cap at 120 memories — remove oldest if over limit
       if (memories.length > 120) memories.splice(0, memories.length - 120);
       store.set('memories', memories);
+      cloudPushPrefs({ memories }).catch(() => {});
     }
   }
 
@@ -1092,6 +1155,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         memories.push(fact);
         if (memories.length > 120) memories.splice(0, memories.length - 120);
         store.set('memories', memories);
+        cloudPushPrefs({ memories }).catch(() => {});
       }
     }
     const spokenText = finalText || 'Noted. I\'ll remember that.';
@@ -1104,6 +1168,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const before = memories.length;
     const updated = memories.filter(m => !m.toLowerCase().includes(query));
     store.set('memories', updated);
+    cloudPushPrefs({ memories: updated }).catch(() => {});
     const removed = before - updated.length;
     const spokenText = finalText || (removed > 0 ? `Done — I've removed ${removed} item${removed !== 1 ? 's' : ''} from memory.` : 'I couldn\'t find anything matching that in my memory.');
     _sendTTS(_e.sender, spokenText);
@@ -1264,6 +1329,7 @@ ipcMain.handle('session:save', (_e, session) => {
   const sessions = store.get('chatSessions') || [];
   sessions.unshift({ id: Date.now(), date: new Date().toISOString(), preview: session.preview, messages: session.messages });
   store.set('chatSessions', sessions.slice(0, 50)); // keep last 50
+  cloudPushPrefs({ chatSessions: sessions.slice(0, 30) }).catch(() => {});
   return true;
 });
 ipcMain.handle('session:list', () => store.get('chatSessions') || []);
@@ -1283,11 +1349,13 @@ ipcMain.handle('contacts:add', (_e, contact) => {
   contact.id = Date.now();
   contacts.push(contact);
   store.set('contacts', contacts);
+  cloudPushPrefs({ contacts }).catch(() => {});
   return contacts;
 });
 ipcMain.handle('contacts:delete', (_e, id) => {
   const contacts = (store.get('contacts') || []).filter(c => c.id !== id);
   store.set('contacts', contacts);
+  cloudPushPrefs({ contacts }).catch(() => {});
   return contacts;
 });
 ipcMain.handle('contacts:call', async (_e, { phone, platform }) => {
@@ -1314,6 +1382,7 @@ ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);
 ipcMain.handle('voice:setSpeed', (_e, speed) => {
   store.set('voiceSpeed', speed);
   tts.setSpeed(speed);
+  cloudPushPrefs({ voiceSpeed: speed }).catch(() => {});
   return true;
 });
 
@@ -1878,4 +1947,4 @@ ipcMain.on('music:getService', (e) => { e.returnValue = store.get('music.service
 ipcMain.on('music:setService', (e, s) => { store.set('music.service', s); e.returnValue = true; });
 
 ipcMain.on('language:get', (e) => { e.returnValue = store.get('language') || 'English'; });
-ipcMain.on('language:set', (e, lang) => { store.set('language', lang); e.returnValue = true; });
+ipcMain.on('language:set', (e, lang) => { store.set('language', lang); cloudPushPrefs({ language: lang }).catch(() => {}); e.returnValue = true; });

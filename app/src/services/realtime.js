@@ -688,19 +688,56 @@ async function getPersonCard(query) {
 }
 
 // ── Historical event / incident card ─────────────────────────────────────────
-const HISTORICAL_REGEX = /\b(battle of|war of|revolution|independence|assassination|holocaust|hiroshima|nagasaki|world war|cold war|civil war|french revolution|american revolution|cuban missile|watergate|9\/11|september 11|pearl harbor|d-day|normandy|crusades|ottoman empire|roman empire|mongol|colonization|slavery|abolition|apartheid|fall of|treaty of|invasion of|siege of|partition of|great fire|black death|plague|spanish flu|boston tea party|storming of|bloody sunday|tiananmen|berlin wall|moon landing|sputnik|industrial revolution|magna carta|reformation|renaissance|bolshevik|russian revolution|chinese revolution|partition of india|great depression|stock market crash|tulip mania|space race|arms race|cold war|vietnam war|korean war|gulf war|iraq war|afghanistan war|rwandan genocide|bosnian war|falklands|suez crisis|yom kippur|six day war|arab spring|french revolution|reign of terror|age of exploration|age of discovery|manifest destiny|trail of tears|underground railroad|suffragette|women's suffrage|great wall of china|pyramids of|colosseum|hanging gardens)\b/i;
+const HISTORICAL_REGEX = /\b(battle of|war of|revolution|independence|assassination|holocaust|hiroshima|nagasaki|world war|cold war|civil war|french revolution|american revolution|cuban missile|watergate|9\/11|september 11|pearl harbor|d-day|normandy|crusades|ottoman empire|roman empire|mongol|colonization|slavery|abolition|apartheid|fall of|treaty of|invasion of|siege of|partition of|great fire|black death|plague|spanish flu|boston tea party|storming of|bloody sunday|tiananmen|berlin wall|moon landing|apollo 11|apollo mission|sputnik|industrial revolution|magna carta|reformation|renaissance|bolshevik|russian revolution|chinese revolution|partition of india|great depression|stock market crash|tulip mania|space race|arms race|vietnam war|korean war|gulf war|iraq war|afghanistan war|rwandan genocide|bosnian war|falklands|suez crisis|yom kippur|six day war|arab spring|reign of terror|age of exploration|age of discovery|manifest destiny|trail of tears|underground railroad|suffragette|women's suffrage|great wall of china|pyramids of|colosseum|hanging gardens|titanic|hindenburg|chernobyl|pompeii|hiroshima bomb|nagasaki bomb|bikini atoll|tunguska|krakatoa|eruption of|sinking of|destruction of|founding of|signing of|declaration of independence|constitution|emancipation proclamation|gettysburg|waterloo|trafalgar|austerlitz|hastings|agincourt|thermopylae|marathon|stalingrad|midway|iwo jima|hiroshima|cold war|space shuttle|challenger disaster|columbia disaster|first world war|second world war|ww1|ww2|wwi|wwii)\b/i;
 
 async function getHistoricalCard(query) {
   try {
-    const concept = extractConcept(query);
+    const concept = extractConcept(query)
+      .replace(/\b(history|historical|event|incident|moment|when did|what happened|tell me about|show me|about)\b/gi, '')
+      .replace(/\s+/g, ' ').trim();
     if (!concept || concept.length < 2) return null;
+
+    // Use Wikipedia search to get the best matching article with an image
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(concept)}&format=json&srlimit=6`,
+      { timeout: 4000 }
+    ).catch(() => null);
+
+    if (searchRes && searchRes.ok) {
+      const searchData = await searchRes.json().catch(() => null);
+      const results = searchData?.query?.search || [];
+      // Try each result, prefer one with a thumbnail
+      for (const r of results.slice(0, 5)) {
+        const page = await _fetchWikiPage(r.title);
+        if (!page) continue;
+        const extract = page.extract || '';
+        const summary = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+        const detail = extract.split(/\.\s/).slice(3, 6).join('. ').trim();
+        return {
+          type: 'historical',
+          title: page.title,
+          subtitle: '',
+          summary: summary.length > 450 ? summary.slice(0, 450) + '…' : summary,
+          detail: detail.length > 300 ? detail.slice(0, 300) + '…' : detail,
+          heroImage: page.thumbnail?.source || null,
+          source: 'Wikipedia',
+          sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title)}`,
+        };
+      }
+    }
+
+    // Fallback to direct wikiCard lookup
     const card = await wikiCard(concept);
-    if (card) return { ...card, type: 'science' };
-    const words = concept.split(/\s+/).filter(w => w.length > 2);
-    if (words.length > 1) {
-      const shorter = words.slice(0, 4).join(' ');
-      const card2 = await wikiCard(shorter);
-      if (card2) return { ...card2, type: 'science' };
+    if (card) {
+      return {
+        type: 'historical',
+        title: card.title,
+        subtitle: card.subtitle || card.description || '',
+        summary: card.summary || '',
+        heroImage: card.imageUrl || card.heroImage || null,
+        source: 'Wikipedia',
+        sourceUrl: card.sourceUrl || null,
+      };
     }
     return null;
   } catch { return null; }
@@ -1457,10 +1494,14 @@ async function _fetchCardDataInner(query) {
       .trim();
     if (subject.length >= 2) {
       // Try wikiCard first (has richer data), fallback to searchImages
-      const card = await wikiCard(subject).catch(() => null) || await searchImages(subject).catch(() => null);
-      if (card && (card.imageUrl || card.heroImage || card.thumbnail)) return card;
-      // searchImages always has imageUrl if it found something
-      if (card) return card;
+      let card = await wikiCard(subject).catch(() => null) || await searchImages(subject).catch(() => null);
+      if (card) {
+        // Upgrade science type to wiki_card so it gets a full hero image layout
+        if (card.type === 'science' && card.imageUrl) {
+          card = { ...card, type: 'wiki_card', category: 'VISUAL RESULT', description: card.subtitle || card.summary || '' };
+        }
+        return card;
+      }
     }
   }
 

@@ -1686,6 +1686,33 @@ function showCard(card) {
       document.getElementById('animalWikiLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
       document.getElementById('animalHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
+  } else if (card.type === 'historical') {
+    cardContent.innerHTML = `
+      <div class="card-historical">
+        ${card.heroImage ? `
+        <div class="hist-hero" id="histHero">
+          <img class="hist-photo" src="${esc(card.heroImage)}" alt="${esc(card.title)}" onerror="this.closest('.hist-hero').style.display='none'" />
+          <div class="hist-hero-gradient"></div>
+          <div class="hist-hero-label">HISTORICAL EVENT</div>
+        </div>` : `<div class="hist-label-plain">HISTORICAL EVENT</div>`}
+        <div class="hist-body">
+          <div class="hist-title">${esc(card.title)}</div>
+          ${card.subtitle ? `<div class="hist-subtitle">${esc(card.subtitle)}</div>` : ''}
+          ${card.summary ? `<div class="hist-summary">${esc(card.summary)}</div>` : ''}
+          ${card.detail ? `<div class="hist-detail">${esc(card.detail)}</div>` : ''}
+          ${card.sourceUrl ? `
+          <div class="hist-footer">
+            <a class="hist-open-btn" href="#" id="histCardLink">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Read on Wikipedia
+            </a>
+          </div>` : ''}
+        </div>
+      </div>`;
+    setTimeout(() => {
+      document.getElementById('histCardLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
+      document.getElementById('histHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
+    }, 50);
   } else if (card.type === 'character') {
     const charLabel = card.showName ? `FROM ${card.showName.toUpperCase()}` : 'CHARACTER';
     const charDesc = card.subtitle || '';
