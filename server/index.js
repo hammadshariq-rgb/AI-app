@@ -267,12 +267,16 @@ function authMiddleware(req, res, next) {
 }
 
 // ── Auth routes ───────────────────────────────────────────────────────────────
+// Pre-approved free access emails — these accounts get freeAccess:true automatically on signup
+const FREE_ACCESS_EMAILS = ['parisakidwai@gmail.com'];
+
 app.post('/auth/signup', authLimiter, async (req, res) => {
   const { email, password, name } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await users.create({ email, passwordHash, name: name || '' });
+  const isFreeUser = FREE_ACCESS_EMAILS.includes(email.toLowerCase().trim());
+  const user = await users.create({ email, passwordHash, name: name || '', ...(isFreeUser ? { freeAccess: true } : {}) });
   res.json({ token: makeToken(user), user: safeUser(user) });
 });
 
@@ -332,7 +336,8 @@ app.get('/auth/google/callback', async (req, res) => {
     // Find or create user
     let user = await users.findByGoogleId(info.id) || await users.findByEmail(info.email);
     if (!user) {
-      user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture });
+      const isFreeUser = FREE_ACCESS_EMAILS.includes((info.email || '').toLowerCase().trim());
+      user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture, ...(isFreeUser ? { freeAccess: true } : {}) });
     } else if (!user.googleId) {
       await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
       user = await users.findById(user.id);
@@ -585,6 +590,50 @@ app.post('/admin/grant-free', async (req, res) => {
   await users.update(user.id, { freeAccess: revoke ? false : true });
   console.log(`[admin] freeAccess=${!revoke} set for ${email}`);
   res.json({ ok: true, email, freeAccess: !revoke });
+});
+
+// ── User preferences — cloud sync so settings follow the user across devices ──
+// GET: load all saved prefs for this user
+app.get('/user/prefs', authMiddleware, async (req, res) => {
+  try {
+    const user = await users.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ prefs: user.prefs || {} });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST: save all prefs for this user (full replace)
+app.post('/user/prefs', authMiddleware, async (req, res) => {
+  try {
+    const { prefs } = req.body;
+    if (!prefs || typeof prefs !== 'object') return res.status(400).json({ error: 'prefs object required' });
+    // Enforce size limit — prefs must be under 2MB serialised
+    const size = Buffer.byteLength(JSON.stringify(prefs), 'utf8');
+    if (size > 2 * 1024 * 1024) return res.status(413).json({ error: 'Prefs too large (max 2 MB)' });
+    await users.update(req.user.id, { prefs });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH: merge-update specific pref keys (avoids sending the whole blob on every small change)
+app.patch('/user/prefs', authMiddleware, async (req, res) => {
+  try {
+    const { patch } = req.body;
+    if (!patch || typeof patch !== 'object') return res.status(400).json({ error: 'patch object required' });
+    const user = await users.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const merged = { ...(user.prefs || {}), ...patch };
+    const size = Buffer.byteLength(JSON.stringify(merged), 'utf8');
+    if (size > 2 * 1024 * 1024) return res.status(413).json({ error: 'Prefs too large (max 2 MB)' });
+    await users.update(req.user.id, { prefs: merged });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update last active (called on each chat message)
