@@ -944,9 +944,8 @@ const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis, hi Jarvis, Callisto. Open Spoti
 app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
-    const params = { model: model || 'gpt-4o-mini', messages, max_tokens: max_tokens || 1024 };
+    const params = { model: model || 'gpt-4o-mini', messages, max_tokens: max_tokens || 512, temperature: temperature ?? 0.2, top_p: 0.9 };
     if (tools) { params.tools = tools; params.tool_choice = tool_choice || 'required'; }
-    if (temperature !== undefined) params.temperature = temperature;
     const result = await openai.chat.completions.create(params);
     res.json(result);
   } catch (err) {
@@ -964,8 +963,9 @@ app.post('/ai/chat/stream', authMiddleware, aiLimiter, async (req, res) => {
     const stream = await openai.chat.completions.create({
       model: model || 'gpt-4o-mini',
       messages,
-      max_tokens: max_tokens || 2048,
-      temperature: temperature ?? 0.4,
+      max_tokens: max_tokens || 1024,
+      temperature: temperature ?? 0.2,
+      top_p: 0.9,
       stream: true,
     });
     for await (const chunk of stream) {
@@ -1012,12 +1012,12 @@ app.post('/ai/stt', authMiddleware, aiLimiter, async (req, res) => {
     try {
       const result = await openai.audio.transcriptions.create({
         file, model: 'gpt-4o-transcribe', language: 'en',
-        prompt: WHISPER_PROMPT, response_format: 'text',
+        prompt: WHISPER_PROMPT, response_format: 'text', temperature: 0,
       });
       text = typeof result === 'string' ? result.trim() : (result.text || '').trim();
     } catch {
       const result = await openai.audio.transcriptions.create({
-        file, model: 'whisper-1', language: 'en', prompt: WHISPER_PROMPT,
+        file, model: 'whisper-1', language: 'en', prompt: WHISPER_PROMPT, temperature: 0,
       });
       text = (result.text || '').trim();
     }
