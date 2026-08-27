@@ -1469,14 +1469,19 @@ async function _fetchCardDataInner(query) {
 
 // ── Live news feed system — BBC RSS (free, no API key) ────────────────────────
 const NEWS_FEEDS = {
-  world:      'https://feeds.bbci.co.uk/news/world/rss.xml',
-  business:   'https://feeds.bbci.co.uk/news/business/rss.xml',
-  technology: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
-  science:    'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
-  sport:      'https://feeds.bbci.co.uk/sport/rss.xml',
-  politics:   'https://feeds.bbci.co.uk/news/politics/rss.xml',
-  us:         'https://feeds.bbci.co.uk/news/us_and_canada/rss.xml',
-  health:     'https://feeds.bbci.co.uk/news/health/rss.xml',
+  world:        'https://feeds.bbci.co.uk/news/world/rss.xml',
+  business:     'https://feeds.bbci.co.uk/news/business/rss.xml',
+  technology:   'https://feeds.bbci.co.uk/news/technology/rss.xml',
+  science:      'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
+  sport:        'https://feeds.bbci.co.uk/sport/rss.xml',
+  politics:     'https://feeds.bbci.co.uk/news/politics/rss.xml',
+  us:           'https://feeds.bbci.co.uk/news/us_and_canada/rss.xml',
+  health:       'https://feeds.bbci.co.uk/news/health/rss.xml',
+  uk:           'https://feeds.bbci.co.uk/news/uk/rss.xml',
+  entertainment:'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',
+  reuters_world:'https://feeds.reuters.com/reuters/worldNews',
+  reuters_biz:  'https://feeds.reuters.com/reuters/businessNews',
+  sky_news:     'https://feeds.skynews.com/feeds/rss/home.xml',
 };
 
 let _newsCache = { data: {}, ts: 0 };
