@@ -989,6 +989,68 @@ app.post('/license/check', (req, res) => res.json({ active: false }));
 // ── AI proxy routes (keys never leave this server) ────────────────────────────
 const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis, hi Jarvis, Callisto. Open Spotify, open Chrome, open WhatsApp, open Instagram, open YouTube, open Netflix, open Discord, open Telegram, open Gmail, open Google Drive, open Google Chrome, open Safari, open Firefox. Play music, pause, stop, next song, previous song, shuffle, repeat, add to queue. Search Google for, find, google, look up, search for, browse to. Call Ahmed, message Sarah, send a WhatsApp to John, send a text to. What is the weather in London? What time is it? What's today's date? Set a reminder for tomorrow at 3 PM, remind me to, don't let me forget, give me a heads-up at. Add to my calendar, add an event, schedule a meeting, book an appointment. Clear my schedule, remove event, cancel my meeting. Send an email to Sarah, reply to, forward this email. Create a document about, write a document on, make a report about, create a presentation about, make slides for, draft a letter to. Show me, tell me about, who is, what is, how much is, when was, where is, how does, what happened, explain to me, give me the history of, what are the symptoms of, how do I fix, how do I solve, step by step. Stock price, Bitcoin, Ethereum, crypto, share price. Premier League, Champions League, World Cup, NBA score, match result, final score, live score. News, latest news, what happened today, breaking news, current events. Generate an image of, create a picture of, draw me, illustrate, design. Open my files, open folder, open downloads, open documents, open desktop. Who is the prime minister, who is the president, who is the CEO. What is the capital of, tell me about the history of, what caused, who invented, how was discovered. Volume up, volume down, mute, unmute, set volume to fifty percent, louder, quieter. Shut down, restart, sleep, hibernate, log off. Windows error, Blue Screen of Death, BSOD, device not responding, not working, keeps crashing, won't start, won't open, freezing, running slow. PS4, PS5, Xbox, PlayStation, controller, error code, game won't load, PSN down, Xbox Live. How do I solve, what's the formula for, calculate, differentiate, integrate, factorise, simplify. I'm feeling, I'm stressed, I'm anxious, I'm overwhelmed, I need help, I don't know what to do, I'm struggling.`;
 
+// ── Daily message limit (15/day for free users) ───────────────────────────────
+const FREE_DAILY_LIMIT = 15;
+
+async function checkDailyLimit(req, res, next) {
+  try {
+    const user = await users.findById(req.userId);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    // Premium or free-access users — unlimited
+    const isActive = user.freeAccess === true || user.subscriptionStatus === 'active';
+    if (isActive) return next();
+    // Check daily count
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const lastDay = user.msgCountDate || '';
+    const count = lastDay === today ? (user.msgCount || 0) : 0;
+    if (count >= FREE_DAILY_LIMIT) {
+      return res.status(429).json({ error: 'daily_limit_reached', limit: FREE_DAILY_LIMIT, used: count });
+    }
+    // Increment count
+    await users.update(user.id, { msgCount: count + 1, msgCountDate: today });
+    next();
+  } catch (err) {
+    next(); // don't block on error
+  }
+}
+
+// ── Web chat endpoint (used by callistoai.net browser app) ───────────────────
+app.post('/web/chat', authMiddleware, checkDailyLimit, aiLimiter, async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
+    const user = await users.findById(req.userId);
+    const today = new Date().toISOString().slice(0, 10);
+    const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
+    const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
+    const remaining = isActive ? null : Math.max(0, FREE_DAILY_LIMIT - used);
+    const result = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 1024,
+      temperature: 0.2,
+      top_p: 0.9,
+    });
+    const text = result.choices[0]?.message?.content || '';
+    res.json({ text, remaining, isPremium: isActive });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Get user message usage ────────────────────────────────────────────────────
+app.get('/web/usage', authMiddleware, async (req, res) => {
+  try {
+    const user = await users.findById(req.userId);
+    const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
+    const today = new Date().toISOString().slice(0, 10);
+    const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
+    res.json({ used, limit: FREE_DAILY_LIMIT, isPremium: isActive, remaining: isActive ? null : Math.max(0, FREE_DAILY_LIMIT - used) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Chat completion (non-streaming, used for tool calls)
 app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
   try {
