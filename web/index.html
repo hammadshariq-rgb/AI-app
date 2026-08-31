@@ -310,9 +310,17 @@
       <span class="nav-name">CALLISTO</span>
     </a>
     <div class="nav-actions">
-      <button class="btn-premium" id="navPremiumBtn">
-        ⭐ Get Premium
-      </button>
+      <div style="position:relative" id="premiumDropdownWrap">
+        <button class="btn-premium" id="navPremiumBtn">⭐ Get Premium ▾</button>
+        <div id="premiumDropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#1c2240;border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:8px;min-width:210px;z-index:999;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+          <a id="monthlyBtn" href="#" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;transition:background 0.15s" onmouseover="this.style.background='rgba(99,102,241,0.15)'" onmouseout="this.style.background='transparent'">
+            <span>Monthly</span><span style="color:#f59e0b;font-weight:700">$20 CAD/mo</span>
+          </a>
+          <a id="yearlyBtn" href="#" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;transition:background 0.15s" onmouseover="this.style.background='rgba(99,102,241,0.15)'" onmouseout="this.style.background='transparent'">
+            <span>Yearly <span style="font-size:10px;background:rgba(34,197,94,0.2);color:#22c55e;padding:2px 6px;border-radius:4px;margin-left:4px">Save 17%</span></span><span style="color:#f59e0b;font-weight:700">$200 CAD/yr</span>
+          </a>
+        </div>
+      </div>
       <a class="btn-download" id="navDownloadBtn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.1.2/Your.Own.Personal.AI.Setup.1.1.2.exe">
         ⬇ Download App
       </a>
@@ -392,7 +400,8 @@
     <div class="limit-icon">🚀</div>
     <div class="limit-title">You've used your 15 free messages</div>
     <div class="limit-sub">Upgrade to Premium for unlimited messages, plus access to voice, memory, calendar, and more — on all your devices.</div>
-    <button class="limit-btn-primary" id="limitUpgradeBtn">⭐ Upgrade to Premium</button>
+    <button class="limit-btn-primary" id="limitUpgradeBtn" style="margin-bottom:6px">⭐ Monthly — $20 CAD/mo</button>
+    <button class="limit-btn-primary" id="limitUpgradeBtnYearly" style="background:linear-gradient(135deg,#6366f1,#4f46e5);margin-bottom:10px">⭐ Yearly — $200 CAD/yr <span style="font-size:10px;opacity:0.8">(Save 17%)</span></button>
     <button class="limit-btn-secondary" id="limitCloseBtn">Maybe tomorrow</button>
   </div>
 </div>
@@ -410,7 +419,8 @@
 
 <script>
   const SERVER = 'https://ai-app-production-9224.up.railway.app';
-  const STRIPE_URL = 'https://buy.stripe.com/YOUR_STRIPE_LINK'; // replace with your Stripe payment link
+  const STRIPE_MONTHLY = 'https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00';
+  const STRIPE_YEARLY  = 'https://buy.stripe.com/3cI9AS2RqeYW2uM1fja7C01';
 
   let authToken = localStorage.getItem('callisto_token') || null;
   let currentUser = null;
@@ -735,11 +745,23 @@
   // ── MODALS ────────────────────────────────────────────────────────────────
   function showLimitModal() { document.getElementById('limitModal').classList.remove('hidden'); }
 
-  document.getElementById('limitUpgradeBtn').addEventListener('click', () => { window.location.href = STRIPE_URL + '?client_reference_id=' + (currentUser?.id || ''); });
+  function goStripe(url) { window.location.href = url + '?client_reference_id=' + (currentUser?.id || ''); }
+
+  // Nav premium dropdown toggle
+  document.getElementById('navPremiumBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dd = document.getElementById('premiumDropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  });
+  document.getElementById('monthlyBtn').addEventListener('click', (e) => { e.preventDefault(); goStripe(STRIPE_MONTHLY); });
+  document.getElementById('yearlyBtn').addEventListener('click', (e) => { e.preventDefault(); goStripe(STRIPE_YEARLY); });
+  document.addEventListener('click', () => { document.getElementById('premiumDropdown').style.display = 'none'; });
+
+  document.getElementById('limitUpgradeBtn').addEventListener('click', () => { goStripe(STRIPE_MONTHLY); });
+  document.getElementById('limitUpgradeBtnYearly').addEventListener('click', () => { goStripe(STRIPE_YEARLY); });
   document.getElementById('limitCloseBtn').addEventListener('click', () => { document.getElementById('limitModal').classList.add('hidden'); });
-  document.getElementById('navPremiumBtn').addEventListener('click', () => { window.location.href = STRIPE_URL + '?client_reference_id=' + (currentUser?.id || ''); });
-  document.getElementById('sidebarUpgradeBtn').addEventListener('click', () => { window.location.href = STRIPE_URL + '?client_reference_id=' + (currentUser?.id || ''); });
-  document.getElementById('lockedUpgradeBtn').addEventListener('click', () => { window.location.href = STRIPE_URL + '?client_reference_id=' + (currentUser?.id || ''); });
+  document.getElementById('sidebarUpgradeBtn').addEventListener('click', () => { goStripe(STRIPE_MONTHLY); });
+  document.getElementById('lockedUpgradeBtn').addEventListener('click', () => { goStripe(STRIPE_MONTHLY); });
   document.getElementById('premiumContinueBtn').addEventListener('click', () => { document.getElementById('premiumModal').classList.add('hidden'); loadUsage(); });
 
   // nav user click = logout option
