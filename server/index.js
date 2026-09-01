@@ -1024,17 +1024,42 @@ app.post('/web/chat', authMiddleware, checkDailyLimit, aiLimiter, async (req, re
     const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
     const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
     const remaining = isActive ? null : Math.max(0, FREE_DAILY_LIMIT - used);
-    const result = await openai.chat.completions.create({
+
+    // Streaming SSE for instant response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const stream = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       max_tokens: 1024,
       temperature: 0.2,
       top_p: 0.9,
+      stream: true,
     });
-    const text = result.choices[0]?.message?.content || '';
-    res.json({ text, remaining, isPremium: isActive });
+
+    let fullText = '';
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta) {
+        fullText += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    // Update message count
+    if (!isActive) {
+      const newCount = (user?.msgCountDate === today ? (user?.msgCount || 0) : 0) + 1;
+      await users.updateById(req.userId, { msgCount: newCount, msgCountDate: today });
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true, remaining, isPremium: isActive })}\n\n`);
+    res.end();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
   }
 });
 
