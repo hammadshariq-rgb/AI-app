@@ -6159,11 +6159,11 @@ body.light-mode .connector-icon {
   background: rgba(255,255,255,0.06);
 }
 body.light-mode .connector-btn {
-  border-color: rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.06);
-  color: #fff;
+  border-color: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.06);
+  color: #111;
 }
-body.light-mode .connector-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.35); }
+body.light-mode .connector-btn:hover { background: rgba(0,0,0,0.12); border-color: rgba(0,0,0,0.25); color: #000; }
 body.light-mode .connector-btn.disconnect {
   border-color: rgba(40,200,100,0.4);
   background: rgba(30,160,80,0.12);

@@ -1396,7 +1396,6 @@
             <div class="sidebar-widget" id="widgetQuickCmds">
               <div class="sw-title">🎙 QUICK COMMANDS</div>
               <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Open my calendar'; document.getElementById('userInput').focus()">"Open my calendar"</button>
-              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Summarise my emails'; document.getElementById('userInput').focus()">"Summarise my emails"</button>
               <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Play focus music'; document.getElementById('userInput').focus()">"Play focus music"</button>
               <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value=\"What's on my schedule?\"; document.getElementById('userInput').focus()">"What's on my schedule?"</button>
               <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Set a reminder for...'; document.getElementById('userInput').focus()">"Set a reminder for..."</button>
@@ -2123,5 +2122,92 @@
       </filter>
     </defs>
   </svg>
+
+  <!-- ── SHORTCUT TOAST (first launch only) ── -->
+  <div id="shortcutToast" style="
+    display:none;
+    position:fixed; bottom:24px; right:24px; z-index:99999;
+    background:rgba(10,14,35,0.92); backdrop-filter:blur(14px);
+    border:1px solid rgba(99,102,241,0.3); border-radius:12px;
+    padding:12px 16px; max-width:230px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.1);
+    animation:toastIn 0.3s ease;
+    pointer-events:none;
+  ">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <div style="width:7px;height:7px;border-radius:50%;background:#6366f1;box-shadow:0 0 8px #6366f1;flex-shrink:0"></div>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(150,170,255,0.7)">TIP</span>
+    </div>
+    <div style="font-size:12.5px;color:#c8d4ff;line-height:1.5">
+      Press <kbd style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace">Ctrl+Shift+S</kbd> on any tab to speak to Callisto
+    </div>
+  </div>
+
+  <!-- ── EMAIL COMPOSE PANEL (stub — activates after Google verify) ── -->
+  <div id="emailComposePanel" style="display:none;position:fixed;bottom:80px;right:24px;z-index:9999;width:380px;background:rgba(10,14,35,0.97);border:1px solid rgba(99,102,241,0.25);border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,0.6);overflow:hidden;animation:toastIn 0.25s ease">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);background:rgba(99,102,241,0.08)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">📧</span>
+        <span style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#c8d4ff">COMPOSE EMAIL</span>
+      </div>
+      <button onclick="document.getElementById('emailComposePanel').style.display='none'" style="background:none;border:none;color:rgba(150,170,255,0.5);font-size:16px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div style="font-size:10px;letter-spacing:1.5px;color:rgba(150,170,255,0.5);margin-bottom:4px;font-family:'Rajdhani',sans-serif;font-weight:600">TO</div>
+        <div id="emailTo" style="font-size:13px;color:#c8d4ff;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:7px 10px;min-height:28px"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;letter-spacing:1.5px;color:rgba(150,170,255,0.5);margin-bottom:4px;font-family:'Rajdhani',sans-serif;font-weight:600">SUBJECT</div>
+        <div id="emailSubject" style="font-size:13px;color:#c8d4ff;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:7px 10px;min-height:28px"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;letter-spacing:1.5px;color:rgba(150,170,255,0.5);margin-bottom:4px;font-family:'Rajdhani',sans-serif;font-weight:600">MESSAGE</div>
+        <div id="emailBody" style="font-size:12.5px;color:#c8d4ff;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:8px 10px;min-height:80px;white-space:pre-wrap;line-height:1.5"></div>
+      </div>
+      <div id="emailAttachRow" style="display:none">
+        <div style="font-size:10px;letter-spacing:1.5px;color:rgba(150,170,255,0.5);margin-bottom:4px;font-family:'Rajdhani',sans-serif;font-weight:600">ATTACHMENT</div>
+        <div id="emailAttach" style="font-size:12px;color:rgba(150,200,255,0.7);background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.15);border-radius:7px;padding:6px 10px"></div>
+      </div>
+      <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.18);border-radius:8px;padding:8px 12px;font-size:11.5px;color:rgba(220,160,50,0.8);line-height:1.5">
+        ⚠ Email sending unlocks after Google verification. Your draft is ready — connect Gmail to send.
+      </div>
+      <button style="width:100%;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:9px;color:rgba(150,170,255,0.6);font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:not-allowed;opacity:0.6">Send Email (Coming Soon)</button>
+    </div>
+  </div>
+
+  <style>
+    @keyframes toastIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    @keyframes toastOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(8px)} }
+  </style>
+
+  <script>
+    // ── First-launch shortcut toast ──
+    (function(){
+      if(!localStorage.getItem('cal_shortcut_shown')){
+        const t=document.getElementById('shortcutToast');
+        t.style.display='block';
+        localStorage.setItem('cal_shortcut_shown','1');
+        setTimeout(()=>{
+          t.style.animation='toastOut 0.3s ease forwards';
+          setTimeout(()=>t.style.display='none',300);
+        },3000);
+      }
+    })();
+
+    // ── Email compose detector ──
+    // Called from renderer.js when AI detects an email intent
+    window.callistoOpenEmailCompose = function(to, subject, body, attachment){
+      document.getElementById('emailTo').textContent = to || '';
+      document.getElementById('emailSubject').textContent = subject || '';
+      document.getElementById('emailBody').textContent = body || '';
+      const attachRow = document.getElementById('emailAttachRow');
+      if(attachment){ document.getElementById('emailAttach').textContent = attachment; attachRow.style.display='block'; }
+      else { attachRow.style.display='none'; }
+      const panel = document.getElementById('emailComposePanel');
+      panel.style.display='block';
+      panel.style.animation='toastIn 0.25s ease';
+    };
+  </script>
 </body>
 </html>

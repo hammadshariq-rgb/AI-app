@@ -4822,6 +4822,21 @@ micBtn.addEventListener('click', () => {
     if (!text) return;
     userInput.value = '';
     userInput.style.height = '58px';
+
+    // ── Email compose detection ──
+    // Detects: "send an email to X about Y" / "send email to X regarding Y attach Z"
+    const emailRegex = /send\s+(?:an?\s+)?email\s+to\s+([^,\n]+?)(?:\s+(?:about|regarding|re:|subject:|re\s))\s+([^,\n]+?)(?:\s+(?:and\s+)?attach(?:ing|ment)?\s+(.+))?$/i;
+    const emailMatch = text.match(emailRegex);
+    if (emailMatch) {
+      const to = emailMatch[1]?.trim() || '';
+      const subject = emailMatch[2]?.trim() || '';
+      const attachment = emailMatch[3]?.trim() || null;
+      const body = `Hi,\n\nI wanted to reach out regarding ${subject}.\n\nPlease let me know if you have any questions.\n\nBest regards`;
+      if (window.callistoOpenEmailCompose) {
+        window.callistoOpenEmailCompose(to, subject, body, attachment);
+      }
+    }
+
     await sendToJarvis(text);
   }
 
