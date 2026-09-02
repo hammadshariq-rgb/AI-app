@@ -333,6 +333,47 @@
     .prem-cont { width: 100%; background: transparent; color: var(--text2); font-family: var(--body); font-size: 12px; border: 1px solid var(--border2); border-radius: 9px; padding: 10px; cursor: pointer; }
 
     .hidden { display: none !important; }
+
+    /* ═══ LIGHT MODE ═══ */
+    body.light {
+      --bg: #eef1fa; --bg2: #e8ecf7; --navy: #dde3f5; --indigo: #d0d8f0;
+      --surface: rgba(0,0,0,0.04); --surface2: rgba(0,0,0,0.07);
+      --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.13);
+      --text: #1a1f3c; --text2: rgba(50,70,160,0.6);
+    }
+    body.light #nav { background: rgba(238,241,250,0.85); border-bottom-color: rgba(61,92,255,0.15); }
+    body.light #hero { background: radial-gradient(ellipse 120% 80% at 50% -10%, #c5d0ff 0%, #dde3f5 50%, #eef1fa 100%); }
+    body.light .feat-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.07); }
+    body.light .feat-card:hover { background: rgba(61,92,255,0.06); }
+    body.light #chatApp { background: #eef1fa; }
+    body.light #chatSidebar { background: rgba(220,228,248,0.9); border-right-color: rgba(0,0,0,0.1); }
+    body.light .mbub.ai { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); color: #1a1f3c; }
+    body.light .mbub.user { background: rgba(61,92,255,0.12); color: #1a1f3c; }
+    body.light #inputBar { background: rgba(255,255,255,0.7); border-color: rgba(0,0,0,0.12); }
+    body.light #userInput { color: #1a1f3c; }
+    body.light #ticker { background: rgba(200,210,240,0.6); }
+    body.light .ticker-item { color: rgba(40,60,160,0.6); }
+    body.light .sb-nav-item { color: rgba(40,70,160,0.7); }
+    body.light .sb-nav-item:hover, body.light .sb-nav-item.active { background: rgba(61,92,255,0.12); color: #1a1f3c; }
+    body.light .hist-item { color: rgba(40,70,160,0.7); }
+    body.light .hist-item:hover { color: #1a1f3c; background: rgba(61,92,255,0.08); }
+    body.light .auth-box { background: rgba(238,241,250,0.98); }
+    body.light .auth-input { background: rgba(255,255,255,0.8); color: #1a1f3c; border-color: rgba(0,0,0,0.15); }
+    body.light .auth-sub { color: rgba(50,70,160,0.6); }
+
+    /* ═══ LIGHT MODE TOGGLE ═══ */
+    #themeToggle { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 1px solid var(--border2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.2s; }
+    #themeToggle:hover { background: rgba(255,255,255,0.12); }
+
+    /* ═══ SIDEBAR NAV TABS (like app) ═══ */
+    .sb-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+    .sb-nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--text2); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+    .sb-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .sb-nav-item.active { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.2); color: rgba(150,180,255,0.9); }
+    .sb-nav-item.gold-nav { color: rgba(245,158,11,0.8); }
+    .sb-nav-item.gold-nav.active, .sb-nav-item.gold-nav:hover { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #f59e0b; }
+    .sb-nav-icon { font-size: 14px; flex-shrink: 0; }
+    .sb-section-label { font-family: var(--brand); font-size: 8.5px; letter-spacing: 3px; font-weight: 700; color: rgba(100,130,200,0.35); padding: 6px 10px 2px; }
   </style>
 </head>
 <body>
@@ -348,6 +389,7 @@
       <span class="nav-name">CALLISTO</span>
     </a>
     <div class="nav-right">
+      <button id="themeToggle" title="Toggle light/dark mode">🌙</button>
       <button class="btn-nav ghost" id="signinBtn">Sign In</button>
       <div class="dropdown-wrap">
         <button class="btn-nav gold" id="premBtn">⭐ Get Premium ▾</button>
@@ -553,12 +595,53 @@
   </nav>
   <div id="chatBody">
     <div id="chatSidebar">
-      <button class="new-chat" id="newChatBtn">+ New Chat</button>
-      <div class="sb-hist" id="sbHist"></div>
-      <div class="usage-box" id="usageBox">
-        <div class="usage-lbl"><span>Daily messages</span><span id="usageCt">0 / 15</span></div>
-        <div class="usage-bar"><div class="usage-fill" id="usageFill" style="width:0%"></div></div>
-        <button class="up-btn" id="sbUpgrade">⭐ Upgrade to Unlimited</button>
+      <!-- App-style nav tabs -->
+      <div class="sb-nav">
+        <div class="sb-nav-item active" id="navHistory" onclick="switchSbTab('history')"><span class="sb-nav-icon">🕐</span><span>Chat History</span></div>
+        <div class="sb-nav-item gold-nav" id="navFavs" onclick="switchSbTab('favs')"><span class="sb-nav-icon">☆</span><span>Favourites</span></div>
+        <div class="sb-nav-item" id="navConn" onclick="switchSbTab('conn')"><span class="sb-nav-icon">⇆</span><span>Connectors</span></div>
+        <div class="sb-nav-item" id="navAcct" onclick="switchSbTab('acct')"><span class="sb-nav-icon">👤</span><span>Account</span></div>
+      </div>
+      <!-- History panel -->
+      <div id="sbPanelHistory" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <button class="new-chat" id="newChatBtn">＋ New Chat</button>
+        <div class="sb-section-label">EARLIER</div>
+        <div class="sb-hist" id="sbHist"></div>
+        <div class="usage-box" id="usageBox">
+          <div class="usage-lbl"><span>Messages today</span><span id="usageCt">0 / 15</span></div>
+          <div class="usage-bar"><div class="usage-fill" id="usageFill" style="width:0%"></div></div>
+          <button class="up-btn" id="sbUpgrade">⭐ Upgrade to Premium</button>
+        </div>
+      </div>
+      <!-- Favourites / Quick Commands panel -->
+      <div id="sbPanelFavs" style="display:none;flex:1;padding:12px 10px;overflow-y:auto">
+        <div class="sb-section-label" style="padding:0 0 8px">QUICK COMMANDS</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="chip" style="border-radius:8px;padding:9px 11px;cursor:pointer;text-align:left" onclick="document.getElementById('userInput').value='Open my calendar';send()">"Open my calendar"</div>
+          <div class="chip" style="border-radius:8px;padding:9px 11px;cursor:pointer;text-align:left" onclick="document.getElementById('userInput').value='Play focus music';send()">"Play focus music"</div>
+          <div class="chip" style="border-radius:8px;padding:9px 11px;cursor:pointer;text-align:left" onclick="document.getElementById('userInput').value='What\'s on my schedule?';send()">"What's on my schedule?"</div>
+          <div class="chip" style="border-radius:8px;padding:9px 11px;cursor:pointer;text-align:left" onclick="document.getElementById('userInput').value='Set a reminder for ';document.getElementById('userInput').focus()">"Set a reminder for..."</div>
+        </div>
+      </div>
+      <!-- Connectors panel -->
+      <div id="sbPanelConn" style="display:none;flex:1;padding:12px 10px;overflow-y:auto">
+        <div class="sb-section-label" style="padding:0 0 8px">CONNECTORS</div>
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--text2)">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📅 <span>Google Calendar</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">🎵 <span>Spotify</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📧 <span>Gmail</span><span style="margin-left:auto;font-size:10px;color:rgba(245,158,11,0.7)">SOON</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">💬 <span>WhatsApp</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+        </div>
+      </div>
+      <!-- Account panel -->
+      <div id="sbPanelAcct" style="display:none;flex:1;padding:12px 10px;overflow-y:auto">
+        <div class="sb-section-label" style="padding:0 0 8px">ACCOUNT</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div id="acctName" style="font-weight:600;color:var(--text);font-size:13px;padding:2px 0"></div>
+          <div id="acctEmail" style="font-size:11px;color:var(--text2)"></div>
+          <div id="acctPlan" style="margin-top:4px;padding:7px 10px;border-radius:8px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.2);font-size:11px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
+          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">Sign Out</button>
+        </div>
       </div>
     </div>
     <div id="chatMain">
@@ -644,13 +727,13 @@
     resize(); window.addEventListener('resize',resize);
     function draw(){
       ctx.clearRect(0,0,w,h);
-      const waves=[{amp:22,freq:0.018,speed:0.006,alpha:0.5,color:'rgba(0,180,255,0.5)'},{amp:14,freq:0.025,speed:0.008,alpha:0.35,color:'rgba(60,120,255,0.4)'},{amp:10,freq:0.012,speed:0.004,alpha:0.25,color:'rgba(0,220,255,0.3)'}];
+      const waves=[{amp:22,freq:0.018,speed:0.55,color:'rgba(0,180,255,0.5)'},{amp:14,freq:0.025,speed:0.75,color:'rgba(60,120,255,0.4)'},{amp:10,freq:0.012,speed:0.38,color:'rgba(0,220,255,0.3)'}];
       waves.forEach(wv=>{
         ctx.beginPath();
-        for(let x=0;x<=w;x+=2){const y=h/2+Math.sin(x*wv.freq+t*wv.speed*100)*wv.amp+Math.sin(x*wv.freq*0.7+t*wv.speed*80)*wv.amp*0.5;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+        for(let x=0;x<=w;x+=2){const y=h/2+Math.sin(x*wv.freq+t*wv.speed)*wv.amp+Math.sin(x*wv.freq*0.7+t*wv.speed*0.8)*wv.amp*0.5;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
         ctx.strokeStyle=wv.color; ctx.lineWidth=1.5; ctx.stroke();
       });
-      t+=0.3; requestAnimationFrame(draw);
+      t+=0.04; requestAnimationFrame(draw);
     }
     draw();
   })();
@@ -675,13 +758,39 @@
   document.getElementById('limCl').addEventListener('click',()=>document.getElementById('limitModal').classList.add('hidden'));
   document.getElementById('premCont').addEventListener('click',()=>{document.getElementById('premModal').classList.add('hidden');loadUsage();});
 
+  // Theme toggle
+  const themeBtn=document.getElementById('themeToggle');
+  let isDark=localStorage.getItem('cal_theme')!=='light';
+  function applyTheme(){if(isDark){document.body.classList.remove('light');themeBtn.textContent='🌙';}else{document.body.classList.add('light');themeBtn.textContent='☀️';}}
+  applyTheme();
+  themeBtn.addEventListener('click',()=>{isDark=!isDark;localStorage.setItem('cal_theme',isDark?'dark':'light');applyTheme();});
+
+  // Sidebar tab switcher
+  function switchSbTab(tab){
+    ['history','favs','conn','acct'].forEach(t=>{
+      document.getElementById('sbPanel'+t.charAt(0).toUpperCase()+t.slice(1)).style.display='none';
+      document.getElementById('nav'+t.charAt(0).toUpperCase()+t.slice(1)).classList.remove('active');
+    });
+    document.getElementById('sbPanel'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='flex';
+    document.getElementById('nav'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active');
+    if(tab==='acct'&&user){document.getElementById('acctName').textContent=user.name||'';document.getElementById('acctEmail').textContent=user.email||'';document.getElementById('acctPlan').textContent=isPrem?'⭐ Premium — Unlimited':'Free Plan — 15 messages/day';}
+  }
+
   // Auth
   const showAuth = ()=>document.getElementById('authOverlay').classList.remove('hidden');
   const hideAuth = ()=>document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('signinBtn').addEventListener('click',showAuth);
-  document.getElementById('heroMicBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
-  document.getElementById('heroNewChat').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
-  document.getElementById('shiftBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
+  function promptSignIn(label){
+    const orb=document.getElementById('mainOrb');
+    orb.style.boxShadow='0 0 0 3px rgba(61,92,255,0.6),0 0 60px rgba(61,92,255,0.8),0 0 120px rgba(61,92,255,0.4)';
+    setTimeout(()=>orb.style.boxShadow='',900);
+    document.getElementById('orbStatus').textContent=label||'SIGN IN TO CHAT';
+    setTimeout(()=>document.getElementById('orbStatus').textContent='STANDBY',2200);
+    setTimeout(showAuth,400);
+  }
+  document.getElementById('heroMicBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('INITIALISING...'); });
+  document.getElementById('heroNewChat').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('SIGN IN TO CHAT'); });
+  document.getElementById('shiftBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('SIGN IN TO CHAT'); });
   document.getElementById('freeBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
   document.getElementById('authClose').addEventListener('click',hideAuth);
   document.getElementById('authOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('authOverlay'))hideAuth();});
