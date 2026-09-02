@@ -28,13 +28,11 @@ jobs:
       - name: Create .env for build
         working-directory: app
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          SERVER_URL: ${{ secrets.SERVER_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: |
-          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
-          echo "MONGODB_URI=${MONGODB_URI}" >> .env
-          echo "SERVER_URL=${SERVER_URL}" >> .env
+          echo "LICENSE_SERVER_URL=https://ai-app-production-9224.up.railway.app" >> .env
+          echo "ASSISTANT_NAME=Jarvis" >> .env
+          echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
 
       - name: Build Mac DMG
         working-directory: app
