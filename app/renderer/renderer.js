@@ -1223,7 +1223,7 @@ const WeatherWidget = (function() {
               `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
               { headers: { 'Accept-Language': 'en' } }
             ).then(r => r.json());
-            const city    = nom.address?.city || nom.address?.town || nom.address?.village || nom.address?.county || '—';
+            const city    = nom.address?.city || nom.address?.municipality || nom.address?.town || nom.address?.village || nom.address?.county || '—';
             const country = (nom.address?.country_code || '').toUpperCase();
             resolve({ lat, lon, city, country });
           } catch { reject(); }

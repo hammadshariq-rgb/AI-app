@@ -187,7 +187,7 @@ async function wikiCard(topic) {
 }
 
 // ── Places / business search using Nominatim (free, no API key) ───────────────
-const PLACES_SEARCH_REGEX = /\b(best|top|nearest|closest|good|find|where('s| is| are)|recommend|great|popular|famous)\b.{0,40}\b(restaurant|pizza|burger|food|sushi|coffee|cafe|bar|pub|gym|bowling|cinema|theatre?|hotel|hospital|pharmacy|bank|atm|mall|supermarket|museum|park|beach|nightclub|club|spa|salon|dentist|doctor|mechanic|gas station|petrol|station)\b/i;
+const PLACES_SEARCH_REGEX = /\b(best|top|nearest|closest|good|find me(?: the best)?|find|where('s| is| are)|recommend|great|popular|famous|show me)\b.{0,50}\b(restaurant|pizza|burger|food|sushi|coffee|cafe|bar|pub|gym|bowling|cinema|theatre?|hotel|hospital|pharmacy|bank|atm|mall|supermarket|museum|park|beach|nightclub|club|spa|salon|dentist|doctor|mechanic|gas station|petrol|station|shawarma|kebab|tacos?|ramen|pho|indian|chinese|thai|italian|greek|sushi|steak|bbq|barbecue|poutine|falafel|halal|vegan|brunch|bakery|dessert|ice cream|bubble tea|boba|sushi|noodles?|wings|chicken|sandwich|deli)\b/i;
 const LOCATION_QUERY_REGEX = /\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|what('s| is).{0,20}like|tell me about|about)\b.{0,50}\b(city|country|capital|island|town|village|landmark|monument|beach|mountain|lake|river|park|region|state|province)\b|\b(in|of|from)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)?\s*\??\s*$/;
 
 async function getPlacesCard(query) {
