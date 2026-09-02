@@ -361,6 +361,11 @@
     body.light .auth-input { background: rgba(255,255,255,0.8); color: #1a1f3c; border-color: rgba(0,0,0,0.15); }
     body.light .auth-sub { color: rgba(50,70,160,0.6); }
 
+    /* ═══ HERO NAV PANEL ITEMS ═══ */
+    .hnav-item { display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;transition:all 0.15s;border:1px solid transparent; }
+    .hnav-item:hover { background:rgba(255,255,255,0.05);color:var(--text); }
+    .hnav-item.active { background:rgba(61,92,255,0.12);border-color:rgba(61,92,255,0.2);color:rgba(150,180,255,0.95); }
+
     /* ═══ LIGHT MODE TOGGLE ═══ */
     #themeToggle { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 1px solid var(--border2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.2s; }
     #themeToggle:hover { background: rgba(255,255,255,0.12); }
@@ -404,6 +409,65 @@
 
   <!-- HERO — app-style -->
   <div id="hero">
+    <!-- hero nav buttons (like app: ≡ top-left, ☀ top-right) -->
+    <div style="position:absolute;top:8px;left:12px;z-index:50;display:flex;gap:8px">
+      <button id="heroNavBtn" style="width:38px;height:38px;border-radius:10px;background:rgba(10,15,40,0.7);border:1px solid rgba(100,140,255,0.2);backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.18s;color:rgba(150,180,255,0.8);font-size:16px" title="Menu">☰</button>
+    </div>
+    <!-- slide-in nav panel (like app sidebar) -->
+    <div id="heroNavPanel" style="position:fixed;top:0;left:-260px;width:240px;height:100vh;z-index:500;background:rgba(6,9,22,0.97);border-right:1px solid rgba(61,92,255,0.15);backdrop-filter:blur(20px);display:flex;flex-direction:column;padding:16px 0;transition:left 0.25s cubic-bezier(0.4,0,0.2,1)">
+      <div style="display:flex;align-items:center;gap:10px;padding:4px 16px 16px;border-bottom:1px solid rgba(255,255,255,0.06)">
+        <div style="width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#8aacff,#3060ff 45%,#1a3bff);box-shadow:0 0 12px rgba(30,70,255,0.5);flex-shrink:0"></div>
+        <span style="font-family:var(--brand);font-size:18px;font-weight:700;letter-spacing:3px;color:#fff">CALLISTO</span>
+        <button id="heroNavClose" style="margin-left:auto;background:none;border:none;color:rgba(150,170,255,0.5);font-size:18px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:12px 10px">
+        <div class="hnav-item active" id="hnavHistory" onclick="switchHeroTab('history')"><span style="font-size:15px">🕐</span><span>Chat History</span></div>
+        <div class="hnav-item" style="color:rgba(245,158,11,0.85)" id="hnavFavs" onclick="switchHeroTab('favs')"><span style="font-size:15px">☆</span><span>Favourites</span></div>
+        <div class="hnav-item" id="hnavConn" onclick="switchHeroTab('conn')"><span style="font-size:15px">⇆</span><span>Connectors</span></div>
+        <div class="hnav-item" id="hnavAcct" onclick="switchHeroTab('acct')"><span style="font-size:15px">👤</span><span>Account</span></div>
+      </div>
+      <!-- Tab content panels -->
+      <div id="hnavPanelHistory" style="flex:1;overflow-y:auto;padding:0 10px">
+        <div style="font-family:var(--brand);font-size:8.5px;letter-spacing:3px;font-weight:700;color:rgba(100,130,200,0.35);padding:6px 4px 8px">EARLIER</div>
+        <div id="hnavHistList" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text2)"><div style="padding:20px 4px;text-align:center;color:rgba(100,130,200,0.3);font-size:11px">No history yet</div></div>
+        <button onclick="if(token&&user)openChat();else showAuth();" style="width:100%;margin-top:10px;padding:8px;border-radius:8px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.2);color:rgba(130,170,255,0.8);font-size:12px;font-weight:600;cursor:pointer">＋ New Chat</button>
+      </div>
+      <div id="hnavPanelFavs" style="display:none;flex:1;overflow-y:auto;padding:0 10px">
+        <div style="font-family:var(--brand);font-size:8.5px;letter-spacing:3px;font-weight:700;color:rgba(100,130,200,0.35);padding:6px 4px 8px">QUICK COMMANDS</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-260px';openChat();setTimeout(()=>{document.getElementById('userInput').value='Open my calendar';send();},300);}else showAuth();" style="padding:9px 11px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);font-size:12px;color:var(--text2);cursor:pointer">"Open my calendar"</div>
+          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-260px';openChat();setTimeout(()=>{document.getElementById('userInput').value='Play focus music';send();},300);}else showAuth();" style="padding:9px 11px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);font-size:12px;color:var(--text2);cursor:pointer">"Play focus music"</div>
+          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-260px';openChat();setTimeout(()=>{document.getElementById('userInput').value='What\'s on my schedule?';send();},300);}else showAuth();" style="padding:9px 11px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);font-size:12px;color:var(--text2);cursor:pointer">"What's on my schedule?"</div>
+          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-260px';openChat();}else showAuth();" style="padding:9px 11px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);font-size:12px;color:var(--text2);cursor:pointer">"Set a reminder for..."</div>
+        </div>
+      </div>
+      <div id="hnavPanelConn" style="display:none;flex:1;overflow-y:auto;padding:0 10px">
+        <div style="font-family:var(--brand);font-size:8.5px;letter-spacing:3px;font-weight:700;color:rgba(100,130,200,0.35);padding:6px 4px 8px">CONNECTORS</div>
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--text2)">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">📅<span>Google Calendar</span><span style="margin-left:auto;font-size:10px;color:#22c55e">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">🎵<span>Spotify</span><span style="margin-left:auto;font-size:10px;color:#22c55e">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">📧<span>Gmail</span><span style="margin-left:auto;font-size:10px;color:rgba(245,158,11,0.8)">SOON</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">💬<span>WhatsApp</span><span style="margin-left:auto;font-size:10px;color:#22c55e">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">📞<span>Contacts</span><span style="margin-left:auto;font-size:10px;color:#22c55e">APP</span></div>
+        </div>
+      </div>
+      <div id="hnavPanelAcct" style="display:none;flex:1;overflow-y:auto;padding:0 10px">
+        <div style="font-family:var(--brand);font-size:8.5px;letter-spacing:3px;font-weight:700;color:rgba(100,130,200,0.35);padding:6px 4px 8px">ACCOUNT</div>
+        <div id="hnavAcctContent" style="display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+          <div id="hnavName" style="font-weight:600;color:#fff;font-size:13px"></div>
+          <div id="hnavEmail" style="font-size:11px;color:var(--text2)"></div>
+          <div id="hnavPlan" style="padding:7px 10px;border-radius:8px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.2);font-size:11px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
+          <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:8px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:12px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--text2);cursor:pointer;font-size:12px">Sign Out</button>
+          <div style="text-align:center;padding-top:4px"><a href="#downloadSec" onclick="document.getElementById('heroNavPanel').style.left='-260px'" style="font-size:11px;color:rgba(100,140,255,0.6);text-decoration:none">⬇ Download Desktop App</a></div>
+        </div>
+        <div id="hnavSignInPrompt" style="display:none;padding-top:8px">
+          <button onclick="showAuth()" style="width:100%;padding:9px;border-radius:8px;background:var(--accent);color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer">Sign In</button>
+        </div>
+      </div>
+    </div>
+    <!-- overlay to close nav -->
+    <div id="heroNavOverlay" style="display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.4)" onclick="document.getElementById('heroNavPanel').style.left='-260px';document.getElementById('heroNavOverlay').style.display='none'"></div>
     <!-- news ticker -->
     <div id="ticker">
       <div class="ticker-live">
@@ -627,10 +691,11 @@
       <div id="sbPanelConn" style="display:none;flex:1;padding:12px 10px;overflow-y:auto">
         <div class="sb-section-label" style="padding:0 0 8px">CONNECTORS</div>
         <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--text2)">
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📅 <span>Google Calendar</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">🎵 <span>Spotify</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📧 <span>Gmail</span><span style="margin-left:auto;font-size:10px;color:rgba(245,158,11,0.7)">SOON</span></div>
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">💬 <span>WhatsApp</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📅 <span>Google Calendar</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">🎵 <span>Spotify</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📧 <span>Gmail</span><span style="margin-left:auto;font-size:10px;color:rgba(245,158,11,0.8)">SOON</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">💬 <span>WhatsApp</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">📞 <span>Contacts</span><span style="margin-left:auto;font-size:10px;color:var(--success)">APP</span></div>
         </div>
       </div>
       <!-- Account panel -->
@@ -640,7 +705,9 @@
           <div id="acctName" style="font-weight:600;color:var(--text);font-size:13px;padding:2px 0"></div>
           <div id="acctEmail" style="font-size:11px;color:var(--text2)"></div>
           <div id="acctPlan" style="margin-top:4px;padding:7px 10px;border-radius:8px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.2);font-size:11px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
-          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">Sign Out</button>
+          <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:8px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:12px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px">Sign Out</button>
+          <div style="text-align:center;padding-top:2px"><a href="#downloadSec" style="font-size:11px;color:rgba(100,140,255,0.6);text-decoration:none">⬇ Download Desktop App</a></div>
         </div>
       </div>
     </div>
@@ -780,18 +847,36 @@
   const showAuth = ()=>document.getElementById('authOverlay').classList.remove('hidden');
   const hideAuth = ()=>document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('signinBtn').addEventListener('click',showAuth);
-  function promptSignIn(label){
+  function orbPulse(){
     const orb=document.getElementById('mainOrb');
-    orb.style.boxShadow='0 0 0 3px rgba(61,92,255,0.6),0 0 60px rgba(61,92,255,0.8),0 0 120px rgba(61,92,255,0.4)';
-    setTimeout(()=>orb.style.boxShadow='',900);
-    document.getElementById('orbStatus').textContent=label||'SIGN IN TO CHAT';
-    setTimeout(()=>document.getElementById('orbStatus').textContent='STANDBY',2200);
-    setTimeout(showAuth,400);
+    orb.style.boxShadow='0 0 0 3px rgba(61,92,255,0.6),0 0 80px rgba(61,92,255,0.9),0 0 160px rgba(61,92,255,0.5)';
+    document.getElementById('orbStatus').textContent='INITIALISING...';
+    setTimeout(()=>{orb.style.boxShadow='';document.getElementById('orbStatus').textContent='STANDBY';},800);
   }
-  document.getElementById('heroMicBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('INITIALISING...'); });
-  document.getElementById('heroNewChat').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('SIGN IN TO CHAT'); });
-  document.getElementById('shiftBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else promptSignIn('SIGN IN TO CHAT'); });
+  document.getElementById('heroMicBtn').addEventListener('click',()=>{ orbPulse(); setTimeout(()=>{ if(token&&user)openChat(); else showAuth(); },300); });
+  document.getElementById('heroNewChat').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
+  document.getElementById('shiftBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
   document.getElementById('freeBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
+
+  // Hero nav panel open/close
+  document.getElementById('heroNavBtn').addEventListener('click',()=>{
+    document.getElementById('heroNavPanel').style.left='0';
+    document.getElementById('heroNavOverlay').style.display='block';
+    if(user){document.getElementById('hnavName').textContent=user.name||'';document.getElementById('hnavEmail').textContent=user.email||'';document.getElementById('hnavPlan').textContent=isPrem?'⭐ Premium — Unlimited':'Free Plan — 15 messages/day';document.getElementById('hnavAcctContent').style.display='flex';document.getElementById('hnavSignInPrompt').style.display='none';}else{document.getElementById('hnavAcctContent').style.display='none';document.getElementById('hnavSignInPrompt').style.display='block';}
+  });
+  document.getElementById('heroNavClose').addEventListener('click',()=>{document.getElementById('heroNavPanel').style.left='-260px';document.getElementById('heroNavOverlay').style.display='none';});
+  function switchHeroTab(tab){
+    ['history','favs','conn','acct'].forEach(t=>{
+      const p=document.getElementById('hnavPanel'+t.charAt(0).toUpperCase()+t.slice(1));
+      const n=document.getElementById('hnav'+t.charAt(0).toUpperCase()+t.slice(1));
+      if(p)p.style.display='none';
+      if(n)n.classList.remove('active');
+    });
+    const activeP=document.getElementById('hnavPanel'+tab.charAt(0).toUpperCase()+tab.slice(1));
+    const activeN=document.getElementById('hnav'+tab.charAt(0).toUpperCase()+tab.slice(1));
+    if(activeP)activeP.style.display='flex';
+    if(activeN)activeN.classList.add('active');
+  }
   document.getElementById('authClose').addEventListener('click',hideAuth);
   document.getElementById('authOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('authOverlay'))hideAuth();});
 
