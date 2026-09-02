@@ -71,7 +71,7 @@
           ]
         }
       ],
-      "icon": "assets/icon-mac.png",
+      "icon": "assets/icon.png",
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
