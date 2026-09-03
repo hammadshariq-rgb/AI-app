@@ -1246,8 +1246,26 @@
 
   function goChat(){ orbPulse(); setTimeout(openChat, 200); }
   document.getElementById('heroMicBtn').addEventListener('click', startLandingVoice);
-  document.getElementById('heroNewChat').addEventListener('click', goChat);
   document.getElementById('shiftBtn').addEventListener('click', goChat);
+
+  // + button → file picker
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*,.pdf,.txt,.doc,.docx,.csv';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener('change', ()=>{
+    const file = fileInput.files[0];
+    if(!file) return;
+    // Open typing chat with file name pre-filled as context
+    openChat();
+    setTimeout(()=>{
+      const uInput = document.getElementById('userInput');
+      if(uInput){ uInput.value = `[File: ${file.name}] `; uInput.focus(); }
+    }, 300);
+    fileInput.value = '';
+  });
+  document.getElementById('heroNewChat').addEventListener('click', ()=> fileInput.click());
   document.getElementById('freeBtn').addEventListener('click', goChat);
 
   // Hero nav panel open/close
