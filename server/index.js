@@ -1014,6 +1014,39 @@ async function checkDailyLimit(req, res, next) {
   }
 }
 
+// ── Guest voice endpoint — no auth required, returns text + fable TTS audio ──
+app.post('/web/voice', aiLimiter, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+
+    const sys = `You are Callisto, a friendly personal AI assistant. Be concise — 1 to 3 sentences max. Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+
+    // Get AI reply
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: text }],
+      max_tokens: 180,
+    });
+    const reply = completion.choices[0]?.message?.content?.trim() || 'Sorry, I could not respond.';
+
+    // Generate fable TTS audio
+    const ttsResult = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: 'fable',
+      input: reply,
+      response_format: 'mp3',
+    });
+    const audioBuffer = Buffer.from(await ttsResult.arrayBuffer());
+    const audioB64 = audioBuffer.toString('base64');
+
+    res.json({ reply, audio: audioB64 });
+  } catch (err) {
+    console.error('[web/voice]', err);
+    res.status(500).json({ error: 'Voice processing failed' });
+  }
+});
+
 // ── Web chat endpoint (used by callistoai.net browser app) ───────────────────
 app.post('/web/chat', authMiddleware, checkDailyLimit, aiLimiter, async (req, res) => {
   try {
