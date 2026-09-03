@@ -355,18 +355,20 @@
     .chips { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; max-width: 480px; margin: 0 auto; }
     .chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border2); border-radius: 16px; padding: 6px 13px; font-size: 12px; color: var(--text2); cursor: pointer; transition: all 0.18s; }
     .chip:hover { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.3); color: rgba(130,170,255,0.9); }
-    /* lock-banner removed */
-    /* lock-txt removed */
-    /* lock-btn removed */
     #inputArea { padding: 8px 18px 16px; flex-shrink: 0; }
     #inputBar { display: flex; align-items: flex-end; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2); border-radius: 13px; padding: 7px 7px 7px 13px; transition: border-color 0.2s; }
     #inputBar:focus-within { border-color: rgba(61,92,255,0.4); }
+    #inputBar.recording { border-color: rgba(255,60,60,0.5); background: rgba(255,30,30,0.04); }
     #userInput { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--body); font-size: 13.5px; resize: none; max-height: 110px; line-height: 1.5; scrollbar-width: none; }
     #userInput::placeholder { color: rgba(100,130,200,0.35); }
     #userInput::-webkit-scrollbar { display: none; }
     #sendBtn { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity 0.18s; flex-shrink: 0; }
     #sendBtn:hover { opacity: 0.85; }
     #sendBtn:disabled { opacity: 0.25; cursor: not-allowed; }
+    #micBtn { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.18s; flex-shrink: 0; color: rgba(130,160,255,0.7); }
+    #micBtn:hover { background: rgba(61,92,255,0.15); border-color: rgba(61,92,255,0.3); color: rgba(150,190,255,0.95); }
+    #micBtn.recording { background: rgba(255,40,40,0.15); border-color: rgba(255,60,60,0.4); color: rgba(255,100,100,0.95); animation: micPulseBtn 1s ease-in-out infinite; }
+    @keyframes micPulseBtn { 0%,100%{box-shadow:0 0 0 0 rgba(255,60,60,0.3);} 50%{box-shadow:0 0 0 6px rgba(255,60,60,0);} }
     .input-hint { text-align: center; font-size: 10.5px; color: rgba(100,130,200,0.2); margin-top: 5px; }
 
     /* Limit modal */
@@ -844,6 +846,9 @@
       <div id="inputArea">
         <div id="inputBar">
           <textarea id="userInput" rows="1" placeholder="Message Callisto..." maxlength="4000"></textarea>
+          <button id="micBtn" title="Voice input">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
           <button id="sendBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
@@ -1097,7 +1102,8 @@
     setTimeout(()=>{orb.style.boxShadow='';document.getElementById('orbStatus').textContent='STANDBY';},800);
   }
   function goChat(){ orbPulse(); setTimeout(openChat, 200); }
-  document.getElementById('heroMicBtn').addEventListener('click', goChat);
+  function goChatAndVoice(){ orbPulse(); setTimeout(()=>{ openChat(); setTimeout(startVoice, 400); }, 200); }
+  document.getElementById('heroMicBtn').addEventListener('click', goChatAndVoice);
   document.getElementById('heroNewChat').addEventListener('click', goChat);
   document.getElementById('shiftBtn').addEventListener('click', goChat);
   document.getElementById('freeBtn').addEventListener('click', goChat);
@@ -1417,6 +1423,96 @@
 
   // Show after 800ms so landing page renders first
   setTimeout(()=>{ el.classList.remove('hidden'); render(); }, 800);
+})();
+
+// ── Web Speech API Voice Input ───────────────────────────────────────────────
+(function(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById('micBtn');
+  const inputBar = document.getElementById('inputBar');
+  const uInput = document.getElementById('userInput');
+
+  let recog = null;
+  let isRecording = false;
+
+  if (!SpeechRecognition) {
+    // Browser doesn't support speech — hide mic button
+    if (micBtn) micBtn.style.display = 'none';
+    window.startVoice = function(){ alert('Your browser does not support voice input. Please use Chrome.'); };
+    return;
+  }
+
+  function buildRecognition() {
+    const r = new SpeechRecognition();
+    r.lang = 'en-US';
+    r.continuous = false;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+
+    r.onstart = function() {
+      isRecording = true;
+      micBtn.classList.add('recording');
+      inputBar.classList.add('recording');
+      uInput.placeholder = '🎙 Listening…';
+    };
+
+    r.onresult = function(e) {
+      let interim = '', final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      uInput.value = final || interim;
+      uInput.style.height = 'auto';
+      uInput.style.height = Math.min(uInput.scrollHeight, 110) + 'px';
+    };
+
+    r.onend = function() {
+      stopUI();
+      const txt = uInput.value.trim();
+      if (txt) {
+        // Auto-send after voice input
+        setTimeout(() => {
+          if (typeof send === 'function') send();
+        }, 200);
+      }
+    };
+
+    r.onerror = function(e) {
+      stopUI();
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        uInput.placeholder = 'Voice error: ' + e.error + '. Try again.';
+        setTimeout(() => { uInput.placeholder = 'Message Callisto…'; }, 3000);
+      }
+    };
+
+    return r;
+  }
+
+  function stopUI() {
+    isRecording = false;
+    if (micBtn) micBtn.classList.remove('recording');
+    if (inputBar) inputBar.classList.remove('recording');
+    uInput.placeholder = 'Message Callisto…';
+  }
+
+  function startVoice() {
+    if (isRecording) {
+      if (recog) recog.stop();
+      return;
+    }
+    uInput.value = '';
+    recog = buildRecognition();
+    try { recog.start(); } catch(e) { stopUI(); }
+  }
+
+  // Expose globally so goChatAndVoice() can call it
+  window.startVoice = startVoice;
+
+  if (micBtn) {
+    micBtn.addEventListener('click', startVoice);
+  }
 })();
 </script>
 </body>
