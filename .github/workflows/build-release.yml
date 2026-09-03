@@ -45,9 +45,7 @@ jobs:
 
       - name: Build Windows installer
         working-directory: app
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:win
+        run: npx electron-builder --win --publish never
 
       # Always upload to the fixed v1.1.3 release (overwrites old files with same name)
       - name: Upload EXE to v1.1.3 release
@@ -105,9 +103,8 @@ jobs:
       - name: Build Mac DMG
         working-directory: app
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false   # unsigned — skip code signing
-        run: npm run dist:mac
+        run: npx electron-builder --mac --publish never
 
       # Always upload to the fixed v1.1.3 release
       - name: Upload DMG to v1.1.3 release
