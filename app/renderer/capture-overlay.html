@@ -132,9 +132,9 @@ function drawTubes() {
 
   // Draw 3 tube passes: outer glow, mid glow, bright core
   const passes = [
-    { width: 8,  alpha: 0.07, blur: 12 },
-    { width: 3,  alpha: 0.18, blur: 6  },
-    { width: 1.2,alpha: 0.95, blur: 3  },
+    { width: 18, alpha: 0.09, blur: 18 },
+    { width: 6,  alpha: 0.22, blur: 8  },
+    { width: 2.5,alpha: 0.97, blur: 4  },
   ];
 
   for (const pass of passes) {
@@ -164,7 +164,7 @@ function drawTubes() {
 
   // Cursor dot
   tCtx.beginPath();
-  tCtx.arc(mouseX, mouseY, 3, 0, Math.PI * 2);
+  tCtx.arc(mouseX, mouseY, 5, 0, Math.PI * 2);
   tCtx.fillStyle = `hsla(${hue},85%,80%,0.95)`;
   tCtx.shadowBlur = 16;
   tCtx.shadowColor = `hsla(${hue},90%,70%,0.9)`;

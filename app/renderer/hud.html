@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Callisto HUD</title>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -10,242 +9,333 @@
       width:100%;height:100%;
       background:transparent;
       overflow:hidden;
-      font-family:-apple-system,'Segoe UI',sans-serif;
+      font-family:-apple-system,'Segoe UI',system-ui,sans-serif;
       -webkit-app-region:no-drag;
       user-select:none;
     }
 
-    /* Cards stack from bottom-right */
+    /* ── Card stack — bottom-right ───────────────────────────────────────── */
     #stack{
       position:fixed;
-      bottom:24px;right:24px;
-      width:320px;
+      bottom:28px;right:28px;
+      width:360px;
       display:flex;
       flex-direction:column-reverse;
-      gap:10px;
+      gap:12px;
       pointer-events:all;
     }
 
+    /* ── Base card ───────────────────────────────────────────────────────── */
     .hud-card{
-      background:rgba(6,9,24,0.92);
-      border:1px solid rgba(61,92,255,0.3);
-      border-radius:14px;
-      padding:12px 14px;
-      backdrop-filter:blur(20px);
-      box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);
-      animation:slideIn 0.22s cubic-bezier(0.34,1.56,0.64,1) forwards;
+      position:relative;
+      border-radius:20px;
+      overflow:hidden;
+      background:rgba(8,10,28,0.88);
+      border:1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 24px 60px rgba(0,0,0,0.7),
+        0 0 0 1px rgba(255,255,255,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.07);
+      backdrop-filter:blur(28px) saturate(1.4);
+      animation:slideIn 0.28s cubic-bezier(0.34,1.46,0.64,1) forwards;
+      transition:opacity 0.25s, transform 0.25s;
+      cursor:default;
+    }
+    .hud-card.dismissing{opacity:0;transform:translateX(24px) scale(0.94);}
+
+    /* top accent line — colour set per type */
+    .hud-card::before{
+      content:'';
+      position:absolute;top:0;left:0;right:0;height:1.5px;
+      background:var(--accent-line,linear-gradient(90deg,transparent,rgba(100,140,255,0.7),rgba(0,210,255,0.5),transparent));
+      z-index:2;
+    }
+
+    /* ── IMAGE BANNER (top of every card when image available) ──────────── */
+    .card-banner{
+      width:100%;
+      height:160px;
       position:relative;
       overflow:hidden;
-      cursor:default;
-      transition:opacity 0.3s,transform 0.3s;
+      background:rgba(15,18,40,0.9);
     }
-    .hud-card::before{
-      content:'';position:absolute;top:0;left:0;right:0;height:2px;
-      background:linear-gradient(90deg,transparent,rgba(61,92,255,0.6),rgba(0,200,255,0.4),transparent);
+    .card-banner img{
+      width:100%;height:100%;
+      object-fit:cover;
+      display:block;
+      filter:brightness(0.88) saturate(1.1);
     }
-    .hud-card.dismissing{opacity:0;transform:translateX(20px) scale(0.96);}
+    /* gradient overlay so text sits on top nicely */
+    .card-banner::after{
+      content:'';
+      position:absolute;inset:0;
+      background:linear-gradient(to bottom,
+        rgba(8,10,28,0)   0%,
+        rgba(8,10,28,0.15) 50%,
+        rgba(8,10,28,0.82) 100%);
+    }
+    /* title pinned to bottom of banner */
+    .banner-title{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:12px 14px;
+      z-index:1;
+    }
+    .banner-title h2{
+      font-size:15px;font-weight:700;
+      color:#fff;
+      line-height:1.2;
+      text-shadow:0 1px 8px rgba(0,0,0,0.6);
+      margin-bottom:2px;
+    }
+    .banner-title .sub{
+      font-size:10.5px;font-weight:500;
+      color:rgba(180,210,255,0.75);
+      letter-spacing:.3px;
+    }
 
-    /* Card types */
-    .hud-card.info  {border-color:rgba(61,92,255,0.35);}
-    .hud-card.calendar{border-color:rgba(66,133,244,0.4);}
-    .hud-card.calendar::before{background:linear-gradient(90deg,transparent,rgba(66,133,244,0.6),transparent);}
-    .hud-card.reminder{border-color:rgba(245,158,11,0.4);}
-    .hud-card.reminder::before{background:linear-gradient(90deg,transparent,rgba(245,158,11,0.6),transparent);}
-    .hud-card.email{border-color:rgba(234,67,53,0.35);}
-    .hud-card.email::before{background:linear-gradient(90deg,transparent,rgba(234,67,53,0.5),transparent);}
-    .hud-card.wiki{border-color:rgba(80,200,120,0.35);}
-    .hud-card.wiki::before{background:linear-gradient(90deg,transparent,rgba(80,200,120,0.5),transparent);}
+    /* ── NO IMAGE placeholder ───────────────────────────────────────────── */
+    .card-banner.no-img{
+      height:auto;
+      display:flex;align-items:center;gap:10px;
+      padding:14px 14px 0;
+      background:transparent;
+    }
+    .card-banner.no-img::after{display:none;}
+    .card-icon-big{
+      width:42px;height:42px;border-radius:12px;
+      background:rgba(61,92,255,0.15);
+      border:1px solid rgba(61,92,255,0.25);
+      display:flex;align-items:center;justify-content:center;
+      font-size:20px;flex-shrink:0;
+    }
+    .card-banner.no-img .banner-title{
+      position:static;padding:0;
+    }
+    .card-banner.no-img .banner-title h2{font-size:13.5px;}
 
-    /* Card layout */
-    .card-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-    .card-icon{font-size:16px;flex-shrink:0;}
-    .card-title{font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(100,140,255,0.7);text-transform:uppercase;flex:1;}
-    .card-close{background:none;border:none;color:rgba(150,170,255,0.3);font-size:14px;cursor:pointer;line-height:1;padding:0;flex-shrink:0;}
-    .card-close:hover{color:rgba(255,255,255,0.6);}
+    /* ── Body / text area ───────────────────────────────────────────────── */
+    .card-body{
+      padding:12px 14px 14px;
+    }
+    .card-desc{
+      font-size:12.5px;
+      line-height:1.6;
+      color:rgba(190,210,255,0.82);
+      max-height:120px;
+      overflow-y:auto;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(94,114,228,0.25) transparent;
+    }
+    .card-desc::-webkit-scrollbar{width:3px;}
+    .card-desc::-webkit-scrollbar-thumb{background:rgba(94,114,228,0.3);border-radius:2px;}
+    .card-desc strong{color:#fff;}
 
-    /* Text bubble */
-    .card-text{font-size:13px;line-height:1.55;color:rgba(200,215,255,0.9);max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(94,114,228,0.3) transparent;}
-    .card-text::-webkit-scrollbar{width:3px;}
-    .card-text::-webkit-scrollbar-thumb{background:rgba(94,114,228,0.35);border-radius:2px;}
-    .card-text strong{color:#fff;}
+    /* ── Header row (close + label) ─────────────────────────────────────── */
+    .card-header{
+      display:flex;align-items:center;
+      padding:10px 12px 0;
+      gap:6px;
+    }
+    .card-label{
+      font-size:9px;font-weight:700;
+      letter-spacing:2px;text-transform:uppercase;
+      color:rgba(100,140,255,0.6);
+      flex:1;
+    }
+    .card-close{
+      background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:50%;
+      width:20px;height:20px;
+      color:rgba(180,200,255,0.4);
+      font-size:10px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      transition:all .15s;
+    }
+    .card-close:hover{
+      background:rgba(255,80,80,0.15);
+      border-color:rgba(255,80,80,0.3);
+      color:rgba(255,120,120,0.9);
+    }
 
-    /* Wiki card with image */
-    .wiki-body{display:flex;gap:10px;align-items:flex-start;}
-    .wiki-img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,0.06);}
-    .wiki-text{flex:1;min-width:0;}
-    .wiki-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .wiki-desc{font-size:11.5px;color:rgba(180,200,255,0.7);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+    /* ── Event row (calendar / reminder / email) ─────────────────────────── */
+    .event-body{
+      display:flex;align-items:center;gap:12px;
+      padding:12px 14px 14px;
+    }
+    .event-icon-wrap{
+      width:44px;height:44px;border-radius:14px;
+      display:flex;align-items:center;justify-content:center;
+      font-size:22px;flex-shrink:0;
+    }
+    .event-name{font-size:13.5px;font-weight:700;color:#fff;margin-bottom:3px;}
+    .event-sub{font-size:11px;color:rgba(150,180,255,0.65);}
+    .event-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      margin-top:6px;font-size:9px;font-weight:700;
+      letter-spacing:1.2px;padding:3px 8px;border-radius:5px;
+      text-transform:uppercase;
+    }
 
-    /* Calendar/Reminder card */
-    .event-row{display:flex;align-items:center;gap:8px;}
-    .event-icon{font-size:22px;}
-    .event-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;}
-    .event-sub{font-size:11px;color:rgba(150,180,255,0.6);}
-    .event-badge{display:inline-block;margin-top:6px;font-size:9px;font-weight:700;letter-spacing:1.5px;padding:2px 7px;border-radius:4px;background:rgba(34,197,94,0.15);color:#22c55e;}
-
-    /* Progress bar (auto-dismiss timer) */
-    .timer-bar{position:absolute;bottom:0;left:0;height:2px;background:rgba(61,92,255,0.4);border-radius:0 0 14px 14px;animation:timerBar var(--dur,7s) linear forwards;}
-    @keyframes timerBar{from{width:100%}to{width:0%}}
+    /* ── Timer drain bar ─────────────────────────────────────────────────── */
+    .timer-bar{
+      position:absolute;bottom:0;left:0;
+      height:2px;
+      background:linear-gradient(90deg,rgba(61,92,255,0.5),rgba(0,210,255,0.4));
+      border-radius:0 0 20px 20px;
+      animation:timerDrain var(--dur,8s) linear forwards;
+    }
+    @keyframes timerDrain{from{width:100%}to{width:0%}}
 
     @keyframes slideIn{
-      from{opacity:0;transform:translateX(30px) scale(0.95);}
+      from{opacity:0;transform:translateX(32px) scale(0.93);}
       to{opacity:1;transform:none;}
     }
 
-    /* Listening indicator */
+    /* ── Listening indicator ─────────────────────────────────────────────── */
     #listening{
-      position:fixed;bottom:24px;right:24px;
-      background:rgba(6,9,24,0.92);
-      border:1px solid rgba(61,92,255,0.4);
-      border-radius:12px;padding:10px 16px;
+      position:fixed;bottom:28px;right:28px;
+      background:rgba(8,10,28,0.92);
+      border:1px solid rgba(61,92,255,0.35);
+      border-radius:14px;
+      padding:10px 18px;
       display:none;align-items:center;gap:10px;
-      backdrop-filter:blur(20px);
-      box-shadow:0 8px 32px rgba(0,0,0,0.5);
+      backdrop-filter:blur(24px);
+      box-shadow:0 8px 32px rgba(0,0,0,0.55);
     }
-    .mic-anim{display:flex;gap:3px;align-items:flex-end;height:16px;}
-    .mic-bar{width:3px;border-radius:2px;background:rgba(0,200,255,0.8);animation:micPulse 0.6s ease-in-out infinite;}
-    .mic-bar:nth-child(1){height:6px;animation-delay:0s;}
-    .mic-bar:nth-child(2){height:12px;animation-delay:0.1s;}
-    .mic-bar:nth-child(3){height:16px;animation-delay:0.2s;}
-    .mic-bar:nth-child(4){height:10px;animation-delay:0.1s;}
-    .mic-bar:nth-child(5){height:6px;animation-delay:0s;}
-    @keyframes micPulse{0%,100%{opacity:0.4;transform:scaleY(0.6);}50%{opacity:1;transform:scaleY(1);}}
-    .listen-text{font-size:12px;font-weight:600;color:rgba(150,180,255,0.8);}
+    .mic-anim{display:flex;gap:3px;align-items:flex-end;height:18px;}
+    .mic-bar{width:3px;border-radius:2px;background:rgba(0,200,255,0.85);animation:micPulse .6s ease-in-out infinite;}
+    .mic-bar:nth-child(1){height:5px;animation-delay:0s;}
+    .mic-bar:nth-child(2){height:11px;animation-delay:.1s;}
+    .mic-bar:nth-child(3){height:17px;animation-delay:.2s;}
+    .mic-bar:nth-child(4){height:10px;animation-delay:.1s;}
+    .mic-bar:nth-child(5){height:5px;animation-delay:0s;}
+    @keyframes micPulse{0%,100%{opacity:.35;transform:scaleY(.55);}50%{opacity:1;transform:scaleY(1);}}
+    .listen-text{font-size:12px;font-weight:600;color:rgba(140,170,255,0.85);}
   </style>
 </head>
 <body>
 
-<!-- Listening indicator (shown when mic is active) -->
 <div id="listening">
   <div class="mic-anim">
-    <div class="mic-bar"></div>
-    <div class="mic-bar"></div>
-    <div class="mic-bar"></div>
-    <div class="mic-bar"></div>
+    <div class="mic-bar"></div><div class="mic-bar"></div>
+    <div class="mic-bar"></div><div class="mic-bar"></div>
     <div class="mic-bar"></div>
   </div>
-  <span class="listen-text">Listening...</span>
+  <span class="listen-text">Listening…</span>
 </div>
 
-<!-- Card stack -->
 <div id="stack"></div>
 
 <script>
-  const { ipcRenderer } = require('electron');
-  const stack = document.getElementById('stack');
-  const listeningEl = document.getElementById('listening');
+const { ipcRenderer } = require('electron');
+const stack = document.getElementById('stack');
+const listenEl = document.getElementById('listening');
 
-  // ── Show / hide listening indicator ─────────────────────────────────────────
-  ipcRenderer.on('hud:listening', () => {
-    listeningEl.style.display = 'flex';
-    // Auto-hide after 10s as safety net
-    setTimeout(() => { listeningEl.style.display = 'none'; }, 10000);
-  });
-  ipcRenderer.on('hud:listening-stop', () => {
-    listeningEl.style.display = 'none';
-  });
+ipcRenderer.on('hud:listening', () => {
+  listenEl.style.display = 'flex';
+  setTimeout(() => { listenEl.style.display = 'none'; }, 12000);
+});
+ipcRenderer.on('hud:listening-stop', () => { listenEl.style.display = 'none'; });
+ipcRenderer.on('hud:card', (_e, data) => { listenEl.style.display = 'none'; showCard(data); });
 
-  // ── Show a card ─────────────────────────────────────────────────────────────
-  ipcRenderer.on('hud:card', (_e, data) => {
-    listeningEl.style.display = 'none';
-    showCard(data);
-  });
+// ── Colour config per card type ──────────────────────────────────────────────
+const TYPE_CFG = {
+  wiki:     { label:'Callisto',  icon:'🔍', line:'linear-gradient(90deg,transparent,rgba(80,200,120,0.7),rgba(0,220,180,0.4),transparent)', badge:null },
+  info:     { label:'Callisto',  icon:'◆',  line:'linear-gradient(90deg,transparent,rgba(100,140,255,0.7),rgba(0,210,255,0.5),transparent)', badge:null },
+  calendar: { label:'Calendar',  icon:'📅', line:'linear-gradient(90deg,transparent,rgba(66,133,244,0.7),transparent)', badge:{text:'✓ ADDED',   bg:'rgba(34,197,94,0.14)',  color:'#22c55e'} },
+  reminder: { label:'Reminder',  icon:'🔔', line:'linear-gradient(90deg,transparent,rgba(245,158,11,0.7),transparent)', badge:{text:'✓ SET',     bg:'rgba(245,158,11,0.14)', color:'#f59e0b'} },
+  email:    { label:'Email',     icon:'📧', line:'linear-gradient(90deg,transparent,rgba(234,67,53,0.6),transparent)',  badge:{text:'✓ DRAFTED', bg:'rgba(234,67,53,0.12)',  color:'#ea4335'} },
+};
 
-  function showCard(data) {
-    const { type, text, card, title } = data;
-    const el = document.createElement('div');
-    el.className = `hud-card ${type || 'info'}`;
-    const dur = type === 'wiki' ? 10 : 7;
-    el.style.setProperty('--dur', dur + 's');
+function showCard(data) {
+  const { type, text, card, title } = data;
+  const cfg = TYPE_CFG[type] || TYPE_CFG.info;
+  const dur = (type === 'wiki' || type === 'info') ? 10 : 7;
 
-    let inner = '';
+  // Gather image URL — try card.imageUrl first, then card.image, then card.photo
+  const imgUrl = card?.imageUrl || card?.image || card?.photo || null;
 
-    if (type === 'wiki' && card) {
-      inner = `
-        <div class="card-header">
-          <span class="card-icon">🔍</span>
-          <span class="card-title">Callisto</span>
-          <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
+  // Card title / subtitle
+  const cardTitle = card?.title || title || (type === 'wiki' ? 'Identified' : cfg.label);
+  const cardSub   = card?.source || card?.category || '';
+  const bodyText  = card?.summary || card?.description || text || '';
+
+  const el = document.createElement('div');
+  el.className = `hud-card ${type || 'info'}`;
+  el.style.setProperty('--dur', dur + 's');
+  el.style.setProperty('--accent-line', cfg.line);
+
+  let html = '';
+
+  // ── Header row (always) ──────────────────────────────────────────────────
+  html += `
+    <div class="card-header">
+      <span class="card-label">${cfg.label}</span>
+      <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
+    </div>`;
+
+  // ── Event-style cards (calendar / reminder / email) ──────────────────────
+  if (['calendar','reminder','email'].includes(type)) {
+    const iconBg = type==='calendar'?'rgba(66,133,244,0.14)':type==='reminder'?'rgba(245,158,11,0.13)':'rgba(234,67,53,0.13)';
+    html += `
+      <div class="event-body">
+        <div class="event-icon-wrap" style="background:${iconBg}">${cfg.icon}</div>
+        <div>
+          <div class="event-name">${cardTitle}</div>
+          <div class="event-sub">${card?.when || card?.to ? (card.when || 'To: '+card.to) : (bodyText.slice(0,80)||'')}</div>
+          ${cfg.badge ? `<span class="event-badge" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>` : ''}
         </div>
-        <div class="wiki-body">
-          ${card.imageUrl ? `<img class="wiki-img" src="${card.imageUrl}" onerror="this.style.display='none'"/>` : ''}
-          <div class="wiki-text">
-            <div class="wiki-name">${card.title || ''}</div>
-            <div class="wiki-desc">${card.summary || text || ''}</div>
+      </div>`;
+
+  // ── Knowledge / info cards — image banner ───────────────────────────────
+  } else {
+    if (imgUrl) {
+      // Big banner image with title overlaid
+      html += `
+        <div class="card-banner">
+          <img src="${imgUrl}" alt="${cardTitle}" onerror="this.parentNode.classList.add('img-err');this.style.display='none'"/>
+          <div class="banner-title">
+            <h2>${cardTitle}</h2>
+            ${cardSub ? `<div class="sub">${cardSub}</div>` : ''}
           </div>
-        </div>`;
-    } else if (type === 'calendar') {
-      inner = `
-        <div class="card-header">
-          <span class="card-icon">📅</span>
-          <span class="card-title">Calendar</span>
-          <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
         </div>
-        <div class="event-row">
-          <div>
-            <div class="event-name">${title || text || 'Event Added'}</div>
-            <div class="event-sub">${card?.when || 'Added to Google Calendar'}</div>
-            <span class="event-badge">✓ ADDED</span>
-          </div>
-        </div>`;
-    } else if (type === 'reminder') {
-      inner = `
-        <div class="card-header">
-          <span class="card-icon">🔔</span>
-          <span class="card-title">Reminder Set</span>
-          <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
-        </div>
-        <div class="event-row">
-          <div>
-            <div class="event-name">${title || text || 'Reminder'}</div>
-            <div class="event-sub">${card?.when || ''}</div>
-            <span class="event-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;">✓ SET</span>
-          </div>
-        </div>`;
-    } else if (type === 'email') {
-      inner = `
-        <div class="card-header">
-          <span class="card-icon">📧</span>
-          <span class="card-title">Email</span>
-          <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
-        </div>
-        <div class="event-row">
-          <div>
-            <div class="event-name">${title || 'Email Drafted'}</div>
-            <div class="event-sub">${card?.to ? 'To: ' + card.to : text || ''}</div>
-            <span class="event-badge" style="background:rgba(234,67,53,0.12);color:#ea4335;">✓ READY TO SEND</span>
-          </div>
+        <div class="card-body">
+          <div class="card-desc">${bodyText.replace(/\n/g,'<br>')}</div>
         </div>`;
     } else {
-      // Default: AI text response bubble
-      inner = `
-        <div class="card-header">
-          <span class="card-icon">◆</span>
-          <span class="card-title">Callisto</span>
-          <button class="card-close" onclick="dismiss(this.closest('.hud-card'))">✕</button>
+      // No image — icon + title inline, then text below
+      html += `
+        <div class="card-banner no-img">
+          <div class="card-icon-big">${cfg.icon}</div>
+          <div class="banner-title">
+            <h2>${cardTitle}</h2>
+            ${cardSub ? `<div class="sub">${cardSub}</div>` : ''}
+          </div>
         </div>
-        <div class="card-text">${(text||'').replace(/\n/g,'<br>')}</div>`;
+        <div class="card-body">
+          <div class="card-desc">${bodyText.replace(/\n/g,'<br>')}</div>
+        </div>`;
     }
-
-    el.innerHTML = inner + `<div class="timer-bar"></div>`;
-    stack.prepend(el);
-
-    // Cap at 4 cards
-    while (stack.children.length > 4) {
-      dismiss(stack.lastElementChild, true);
-    }
-
-    // Auto-dismiss
-    setTimeout(() => dismiss(el), dur * 1000);
   }
 
-  function dismiss(el, instant = false) {
-    if (!el || el._dismissing) return;
-    el._dismissing = true;
-    if (instant) { el.remove(); return; }
-    el.classList.add('dismissing');
-    setTimeout(() => el.remove(), 320);
-  }
+  html += `<div class="timer-bar"></div>`;
+  el.innerHTML = html;
+  stack.prepend(el);
+
+  // Cap at 4 cards
+  while (stack.children.length > 4) dismiss(stack.lastElementChild, true);
+
+  setTimeout(() => dismiss(el), dur * 1000);
+}
+
+function dismiss(el, instant = false) {
+  if (!el || el._dismissing) return;
+  el._dismissing = true;
+  if (instant) { el.remove(); return; }
+  el.classList.add('dismissing');
+  setTimeout(() => el.remove(), 280);
+}
 </script>
 </body>
 </html>
