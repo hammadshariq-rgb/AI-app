@@ -352,6 +352,26 @@
 
     .hidden { display: none !important; }
 
+    /* ═══ ACTION CARDS ═══ */
+    .action-card {
+      margin: 6px 18px 2px; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid rgba(61,92,255,0.25); background: rgba(20,30,70,0.6);
+      backdrop-filter: blur(10px); display: flex; align-items: center; gap: 12px;
+      animation: fadeUp 0.2s ease;
+    }
+    .action-card.spotify { border-color: rgba(30,215,96,0.3); background: rgba(10,40,20,0.6); }
+    .action-card.calendar { border-color: rgba(66,133,244,0.3); background: rgba(10,20,50,0.6); }
+    .action-card.gmail { border-color: rgba(234,67,53,0.3); background: rgba(50,15,10,0.6); }
+    .ac-icon { font-size: 26px; flex-shrink: 0; }
+    .ac-body { flex: 1; min-width: 0; }
+    .ac-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ac-sub { font-size: 11px; color: var(--text2); }
+    .ac-btn { flex-shrink: 0; padding: 7px 14px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity 0.18s; white-space: nowrap; }
+    .ac-btn:hover { opacity: 0.85; }
+    .ac-btn.spotify-btn { background: #1DB954; color: #000; }
+    .ac-btn.calendar-btn { background: #4285F4; color: #fff; }
+    .ac-btn.gmail-btn { background: #EA4335; color: #fff; }
+
     /* ═══ LIGHT MODE ═══ */
     body.light {
       --bg: #eef1fa; --bg2: #e8ecf7; --navy: #dde3f5; --indigo: #d0d8f0;
@@ -1048,10 +1068,75 @@
   function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>').replace(/^/,'<p>').replace(/$/,'</p>');}
   function showTyping(){const row=document.createElement('div');row.className='mrow ai';row.id='tRow';const av=document.createElement('div');av.className='mav ai';av.textContent='C';const b=document.createElement('div');b.className='mbub ai';b.innerHTML='<div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;}
 
+  // ── Web Action Detection ────────────────────────────────────────────────────
+  function detectAction(text){
+    const q=text.trim();
+
+    // SPOTIFY: "play X", "play X on spotify", "open spotify", "listen to X"
+    const spotifyRx=/(?:play|listen to|put on|open spotify(?: and play)?)\s+(.+?)(?:\s+on\s+spotify)?$/i;
+    const spOpen=/open\s+spotify$/i;
+    const spM=q.match(spotifyRx)||q.match(spOpen);
+    if(spM){
+      const song=(spM[1]||'').trim();
+      return {
+        type:'spotify', icon:'🎵', label: song?`Play "${song}" on Spotify`:'Open Spotify',
+        sub: song?'Opens Spotify Web Player with this track':'Opens Spotify',
+        btnText:'▶ Open Spotify', btnClass:'spotify-btn',
+        url: song?`https://open.spotify.com/search/${encodeURIComponent(song)}`:'https://open.spotify.com'
+      };
+    }
+
+    // GOOGLE CALENDAR: "add X to calendar", "schedule X on/for/at Y", "create event for X"
+    const calRx=/(?:add|put|schedule|create(?:\s+(?:a|an))?\s+(?:calendar\s+)?event\s+(?:for)?)\s+(.+?)\s+(?:to|on|for|at|in)\s+(?:(?:my\s+)?(?:google\s+)?calendar|(.+))/i;
+    const calRx2=/(?:add|schedule|remind me about)\s+(.+?)\s+(?:to\s+)?(?:my\s+)?(?:google\s+)?calendar/i;
+    const calM=q.match(calRx)||q.match(calRx2);
+    if(calM){
+      const ev=(calM[1]||'event').trim();
+      const dateM=q.match(/(?:on|for|at)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|\d{1,2}(?:st|nd|rd|th)?(?:\s+\w+)?(?:\s+\d{4})?)/i);
+      const timeM=q.match(/at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+      let calUrl=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(ev)}&details=${encodeURIComponent('Added via Callisto AI')}`;
+      if(dateM){calUrl+=`&dates=&sf=true`;}
+      return {
+        type:'calendar', icon:'📅', label:`Add "${ev}" to Google Calendar`,
+        sub: dateM?`Scheduled: ${dateM[1]}${timeM?' at '+timeM[1]:''}` : 'Opens Google Calendar with event pre-filled',
+        btnText:'📅 Open Calendar', btnClass:'calendar-btn', url:calUrl
+      };
+    }
+
+    // GMAIL: "send email to X", "email X about Y", "compose email to X"
+    const emailRx=/(?:send|compose|write|draft)(?:\s+an?)?\s+email\s+to\s+([^\s,]+(?:\s+[^\s,]+)?)/i;
+    const emailM=q.match(emailRx);
+    if(emailM){
+      const to=(emailM[1]||'').trim();
+      const subM=q.match(/(?:about|regarding|re:|subject:)\s+(.+?)(?:\s+(?:and|,|\.)|$)/i);
+      const bodyM=q.match(/(?:saying|message:|body:|content:|tell them)\s+(.+)/i);
+      const subject=subM?subM[1].trim():'';
+      const body=bodyM?bodyM[1].trim():'';
+      const gmailUrl=`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      return {
+        type:'gmail', icon:'📧', label:`Draft email to ${to}`,
+        sub: subject?`Subject: ${subject}`:'Opens Gmail with email ready to send',
+        btnText:'📧 Open Gmail', btnClass:'gmail-btn', url:gmailUrl
+      };
+    }
+
+    return null;
+  }
+
+  function showActionCard(action){
+    const card=document.createElement('div');
+    card.className=`action-card ${action.type}`;
+    card.innerHTML=`<div class="ac-icon">${action.icon}</div><div class="ac-body"><div class="ac-title">${action.label}</div><div class="ac-sub">${action.sub}</div></div><button class="ac-btn ${action.btnClass}" onclick="window.open('${action.url}','_blank')">${action.btnText}</button>`;
+    msgsEl.appendChild(card);
+    msgsEl.scrollTop=msgsEl.scrollHeight;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
     if(!token||!user){showAuth();return;}
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
+    const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
     try{
       const sys=`You are Callisto, a friendly and intelligent personal AI assistant. Be concise and fast. Today is ${new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.`;
@@ -1083,6 +1168,7 @@
             if(d.delta){fullText+=d.delta;bubble.innerHTML=fmt(fullText);msgsEl.scrollTop=msgsEl.scrollHeight;}
             if(d.done){
               msgs.push({role:'assistant',content:fullText});
+              if(pendingAction)showActionCard(pendingAction);
               if(!isPrem&&d.remaining!=null){usage.used=(usage.limit||15)-d.remaining;updateUsageUI();if(d.remaining>0&&d.remaining<=3){const w=document.createElement('div');w.style.cssText='text-align:center;font-size:11px;color:rgba(245,158,11,0.65);padding:4px 18px';w.textContent=`⚠ ${d.remaining} free message${d.remaining!==1?'s':''} left today`;msgsEl.appendChild(w);}}
               saveSess(t);
             }
