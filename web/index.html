@@ -129,7 +129,25 @@
     #orbStatus { font-family: var(--brand); font-size: 11px; font-weight: 500; letter-spacing: 5px; color: rgba(80,130,255,0.5); margin-top: 4px; }
 
     /* Wave canvas */
-    #waveCanvas { width: 100%; height: 140px; margin-top: 10px; }
+    #waveCanvas { width: 100%; height: 160px; margin-top: 10px; }
+
+    /* Reminders widget */
+    #remindersWidget { position:absolute; bottom:18px; right:18px; background:rgba(6,9,24,0.75); border:1px solid rgba(61,92,255,0.2); border-radius:10px; padding:8px 12px; min-width:200px; backdrop-filter:blur(12px); z-index:10; }
+    .rem-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+    .rem-label { font-family:var(--brand); font-size:8px; letter-spacing:3px; font-weight:700; color:rgba(100,140,255,0.5); }
+    .rem-add { font-family:var(--brand); font-size:8px; letter-spacing:2px; font-weight:700; color:rgba(100,160,255,0.7); background:rgba(61,92,255,0.1); border:1px solid rgba(61,92,255,0.2); border-radius:4px; padding:2px 7px; cursor:pointer; }
+    .rem-item { display:flex; align-items:center; gap:7px; font-size:11px; color:rgba(150,180,255,0.7); padding:3px 0; }
+    .rem-dot { width:5px; height:5px; border-radius:50%; background:rgba(61,92,255,0.7); flex-shrink:0; }
+    .rem-empty { font-size:11px; color:rgba(100,130,200,0.3); font-style:italic; }
+
+    /* Calendar widget */
+    #calWidget { position:absolute; bottom:18px; left:18px; background:rgba(6,9,24,0.75); border:1px solid rgba(61,92,255,0.2); border-radius:10px; padding:8px 12px; min-width:180px; backdrop-filter:blur(12px); z-index:10; }
+    .cal-header { font-family:var(--brand); font-size:8px; letter-spacing:3px; font-weight:700; color:rgba(100,140,255,0.5); margin-bottom:6px; }
+    .cal-day-row { display:flex; gap:4px; justify-content:space-between; }
+    .cal-day { display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .cal-dn { font-family:var(--brand); font-size:8px; letter-spacing:1px; color:rgba(100,130,200,0.4); }
+    .cal-dd { font-size:12px; font-weight:600; color:rgba(150,180,255,0.7); width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:6px; }
+    .cal-dd.today { background:rgba(61,92,255,0.3); color:#fff; border:1px solid rgba(61,92,255,0.5); }
 
     /* Buttons under orb */
     #orbActions { display: flex; align-items: center; gap: 16px; margin-top: -10px; }
@@ -498,7 +516,7 @@
       <span class="info-weather">🌤 19°C · Willow, CA</span>
     </div>
     <!-- ORB -->
-    <div id="orbWrap">
+    <div id="orbWrap" style="position:relative;width:100%">
       <div style="position:relative;display:flex;align-items:center;justify-content:center">
         <div class="orb-ring"></div>
         <div class="orb-ring"></div>
@@ -514,9 +532,23 @@
         <button class="orb-btn main" title="Start Chatting" id="heroMicBtn">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(100,160,255,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
-        <button class="orb-btn" title="Clear" style="color:rgba(200,80,80,0.6)">🗑</button>
+        <button class="orb-btn" id="heroTrash" title="Clear" style="color:rgba(200,80,80,0.6)">🗑</button>
       </div>
-      <button id="shiftBtn" onclick="">⌨ SHIFT TO TYPING</button>
+      <button id="shiftBtn">⌨ SHIFT TO TYPING</button>
+      <!-- Calendar widget bottom-left -->
+      <div id="calWidget">
+        <div class="cal-header">CALENDAR</div>
+        <div class="cal-day-row" id="calDayRow"></div>
+        <div style="margin-top:7px;font-size:10.5px;color:rgba(100,140,255,0.5);border-top:1px solid rgba(61,92,255,0.1);padding-top:5px" id="calTodayLabel"></div>
+      </div>
+      <!-- Reminders widget bottom-right -->
+      <div id="remindersWidget">
+        <div class="rem-header">
+          <span class="rem-label">REMINDERS</span>
+          <button class="rem-add" id="remAddBtn">+ ADD</button>
+        </div>
+        <div id="remList"><div class="rem-empty">No reminders set</div></div>
+      </div>
     </div>
   </div>
 
@@ -784,26 +816,102 @@
   function updateClock(){const n=new Date();document.getElementById('clockEl').textContent=n.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' · '+n.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});}
   setInterval(updateClock,1000); updateClock();
 
-  // Wave canvas
+  // Wave canvas — glowing fiber-optic strands like the app
   (()=>{
     const canvas=document.getElementById('waveCanvas');
     if(!canvas)return;
     const ctx=canvas.getContext('2d');
     let w,h,t=0;
-    function resize(){w=canvas.width=canvas.offsetWidth;h=canvas.height=canvas.offsetHeight;}
+    function resize(){w=canvas.width=canvas.offsetWidth;h=canvas.height=canvas.offsetHeight||160;}
     resize(); window.addEventListener('resize',resize);
+    // Define strands: each has baseline y offset, amplitude, frequency, phase, speed
+    const strands=[
+      {y:0.3,amp:0.22,freq:1.4,phase:0,speed:0.18,bright:true},
+      {y:0.45,amp:0.18,freq:1.7,phase:1.2,speed:0.14,bright:false},
+      {y:0.5,amp:0.25,freq:1.2,phase:2.4,speed:0.22,bright:true},
+      {y:0.55,amp:0.15,freq:2.0,phase:0.7,speed:0.12,bright:false},
+      {y:0.65,amp:0.20,freq:1.5,phase:3.1,speed:0.16,bright:true},
+      {y:0.4,amp:0.28,freq:1.0,phase:1.8,speed:0.10,bright:false},
+      {y:0.6,amp:0.16,freq:1.8,phase:4.0,speed:0.20,bright:false},
+      {y:0.35,amp:0.22,freq:1.3,phase:2.8,speed:0.15,bright:true},
+    ];
+    function drawStrand(s){
+      const baseY=h*s.y;
+      const ampY=h*s.amp;
+      ctx.beginPath();
+      for(let x=0;x<=w;x+=1){
+        const progress=x/w;
+        const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
+        x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      if(s.bright){
+        // Outer glow
+        ctx.shadowColor='rgba(0,200,255,0.6)';
+        ctx.shadowBlur=18;
+        ctx.strokeStyle='rgba(0,210,255,0.25)';
+        ctx.lineWidth=4;
+        ctx.stroke();
+        // Core bright line
+        ctx.beginPath();
+        for(let x=0;x<=w;x+=1){
+          const progress=x/w;
+          const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
+          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+        }
+        ctx.shadowColor='rgba(0,220,255,0.9)';
+        ctx.shadowBlur=8;
+        ctx.strokeStyle='rgba(80,220,255,0.9)';
+        ctx.lineWidth=1.2;
+        ctx.stroke();
+      } else {
+        ctx.shadowColor='rgba(40,100,255,0.5)';
+        ctx.shadowBlur=12;
+        ctx.strokeStyle='rgba(60,140,255,0.5)';
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
+      ctx.shadowBlur=0;
+    }
     function draw(){
       ctx.clearRect(0,0,w,h);
-      const waves=[{amp:22,freq:0.018,speed:0.55,color:'rgba(0,180,255,0.5)'},{amp:14,freq:0.025,speed:0.75,color:'rgba(60,120,255,0.4)'},{amp:10,freq:0.012,speed:0.38,color:'rgba(0,220,255,0.3)'}];
-      waves.forEach(wv=>{
-        ctx.beginPath();
-        for(let x=0;x<=w;x+=2){const y=h/2+Math.sin(x*wv.freq+t*wv.speed)*wv.amp+Math.sin(x*wv.freq*0.7+t*wv.speed*0.8)*wv.amp*0.5;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
-        ctx.strokeStyle=wv.color; ctx.lineWidth=1.5; ctx.stroke();
-      });
-      t+=0.04; requestAnimationFrame(draw);
+      strands.forEach(s=>drawStrand(s));
+      t+=0.012;
+      requestAnimationFrame(draw);
     }
     draw();
   })();
+
+  // Calendar widget
+  (()=>{
+    const now=new Date();
+    const today=now.getDate();
+    const month=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    const row=document.getElementById('calDayRow');
+    const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    for(let i=-2;i<=2;i++){
+      const d=new Date(now);d.setDate(today+i);
+      const div=document.createElement('div');div.className='cal-day';
+      const dn=document.createElement('div');dn.className='cal-dn';dn.textContent=days[d.getDay()];
+      const dd=document.createElement('div');dd.className='cal-dd'+(i===0?' today':'');dd.textContent=d.getDate();
+      div.appendChild(dn);div.appendChild(dd);row.appendChild(div);
+    }
+    document.getElementById('calTodayLabel').textContent=now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  })();
+
+  // Reminders widget
+  const reminders=JSON.parse(localStorage.getItem('cal_reminders')||'[]');
+  function renderReminders(){
+    const list=document.getElementById('remList');
+    list.innerHTML=reminders.length?reminders.map(r=>`<div class="rem-item"><div class="rem-dot"></div><span>${r}</span></div>`).join(''):'<div class="rem-empty">No reminders set</div>';
+  }
+  renderReminders();
+  document.getElementById('remAddBtn').addEventListener('click',()=>{
+    const txt=prompt('Add reminder:');
+    if(txt&&txt.trim()){reminders.unshift(txt.trim());if(reminders.length>5)reminders.pop();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
+  });
+  document.getElementById('heroTrash').addEventListener('click',()=>{
+    if(reminders.length){reminders.shift();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
+  });
 
   // Stripe
   const goStripe = url => { window.location.href = url + (user ? '?client_reference_id='+user.id : ''); };
@@ -853,10 +961,11 @@
     document.getElementById('orbStatus').textContent='INITIALISING...';
     setTimeout(()=>{orb.style.boxShadow='';document.getElementById('orbStatus').textContent='STANDBY';},800);
   }
-  document.getElementById('heroMicBtn').addEventListener('click',()=>{ orbPulse(); setTimeout(()=>{ if(token&&user)openChat(); else showAuth(); },300); });
-  document.getElementById('heroNewChat').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
-  document.getElementById('shiftBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
-  document.getElementById('freeBtn').addEventListener('click',()=>{ if(token&&user)openChat(); else showAuth(); });
+  function goChat(){ orbPulse(); setTimeout(openChat, 200); }
+  document.getElementById('heroMicBtn').addEventListener('click', goChat);
+  document.getElementById('heroNewChat').addEventListener('click', goChat);
+  document.getElementById('shiftBtn').addEventListener('click', goChat);
+  document.getElementById('freeBtn').addEventListener('click', goChat);
 
   // Hero nav panel open/close
   document.getElementById('heroNavBtn').addEventListener('click',()=>{
@@ -894,15 +1003,20 @@
     try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();openChat();}catch{err.textContent='Connection error.';}
   });
 
-  // Open chat
+  // Open chat — works even if not signed in yet
   async function openChat(){
     document.getElementById('landing').classList.add('hidden');
     document.getElementById('chatApp').classList.remove('hidden');
-    const init=(user.name||user.email||'?')[0].toUpperCase();
-    document.getElementById('cnAvatar').textContent=init;
-    document.getElementById('cnUname').textContent=user.name||user.email?.split('@')[0]||'';
-    await loadUsage();
-    renderSess();
+    if(user){
+      const init=(user.name||user.email||'?')[0].toUpperCase();
+      document.getElementById('cnAvatar').textContent=init;
+      document.getElementById('cnUname').textContent=user.name||user.email?.split('@')[0]||'';
+      await loadUsage();
+      renderSess();
+    } else {
+      document.getElementById('cnAvatar').textContent='?';
+      document.getElementById('cnUname').textContent='Guest';
+    }
     if(window.location.search.includes('premium=success')){setTimeout(()=>document.getElementById('premModal').classList.remove('hidden'),500);window.history.replaceState({},'','/');}
   }
 
@@ -936,6 +1050,7 @@
 
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
+    if(!token||!user){showAuth();return;}
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
     try{
