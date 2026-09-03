@@ -102,7 +102,10 @@ function getAssistantName() {
 }
 
 let overlayWindow = null;
+let hudWindow = null;
+let captureWindow = null;   // Ctrl+Shift+Y screen capture overlay
 let tray = null;
+let hudVoiceMode = false;   // true while waiting for a Ctrl+Shift+C response
 
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -140,6 +143,162 @@ function createOverlayWindow() {
     overlayWindow = null;
   });
 }
+
+// ── HUD overlay window — always-on-top transparent card overlay ─────────────
+function createHudWindow() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  hudWindow = new BrowserWindow({
+    width: 370,
+    height: height,
+    x: width - 380,
+    y: 0,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    level: 'screen-saver',
+    skipTaskbar: true,
+    focusable: false,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+  hudWindow.loadFile(path.join(__dirname, '..', 'renderer', 'hud.html'));
+  hudWindow.setIgnoreMouseEvents(false); // allow clicking close buttons
+  hudWindow.on('closed', () => { hudWindow = null; });
+}
+
+function ensureHud() {
+  if (!hudWindow || hudWindow.isDestroyed()) createHudWindow();
+  if (!hudWindow.isVisible()) hudWindow.showInactive();
+}
+
+function sendToHud(channel, data) {
+  ensureHud();
+  // wait for load if freshly created
+  if (hudWindow.webContents.isLoading()) {
+    hudWindow.webContents.once('did-finish-load', () => hudWindow.webContents.send(channel, data));
+  } else {
+    hudWindow.webContents.send(channel, data);
+  }
+}
+
+// ── Capture overlay — Ctrl+Shift+Y screen identification ─────────────────────
+function openCaptureOverlay() {
+  if (captureWindow && !captureWindow.isDestroyed()) {
+    captureWindow.focus();
+    return;
+  }
+  const { width, height } = screen.getPrimaryDisplay().size;
+  captureWindow = new BrowserWindow({
+    width,
+    height,
+    x: 0,
+    y: 0,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    level: 'screen-saver',
+    skipTaskbar: true,
+    focusable: true,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+  captureWindow.loadFile(path.join(__dirname, '..', 'renderer', 'capture-overlay.html'));
+  captureWindow.setIgnoreMouseEvents(false);
+  captureWindow.on('closed', () => { captureWindow = null; });
+}
+
+function closeCaptureOverlay() {
+  if (captureWindow && !captureWindow.isDestroyed()) {
+    captureWindow.close();
+    captureWindow = null;
+  }
+}
+
+// IPC: overlay signals it's done (after identification request sent)
+ipcMain.on('capture:done', () => closeCaptureOverlay());
+ipcMain.on('capture:cancel', () => closeCaptureOverlay());
+
+// IPC: overlay sends selection bounds → screenshot → crop → vision API → HUD + TTS
+ipcMain.handle('capture:identify', async (_e, bounds) => {
+  try {
+    // 1. Briefly hide capture window so it doesn't appear in the screenshot
+    if (captureWindow && !captureWindow.isDestroyed()) captureWindow.hide();
+    await new Promise(r => setTimeout(r, 80)); // let GPU flush
+
+    // 2. Capture screen using desktopCapturer
+    const { desktopCapturer, nativeImage } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: primaryDisplay.size.width * primaryDisplay.scaleFactor,
+        height: primaryDisplay.size.height * primaryDisplay.scaleFactor,
+      },
+    });
+    const source = sources.find(s => s.display_id === String(primaryDisplay.id)) || sources[0];
+    if (!source) throw new Error('No screen source found');
+
+    // 3. Crop to selection bounds (scale by display scale factor)
+    const sf = primaryDisplay.scaleFactor || 1;
+    const cropped = source.thumbnail.crop({
+      x: Math.round(bounds.x * sf),
+      y: Math.round(bounds.y * sf),
+      width: Math.round(bounds.width * sf),
+      height: Math.round(bounds.height * sf),
+    });
+    const imageBase64 = cropped.toDataURL(); // data:image/png;base64,...
+
+    // 4. Call vision API on server
+    const token = loadAuthToken();
+    if (!token) {
+      sendToHud('hud:card', { type: 'info', text: 'Sign in to use screen identification.' });
+      return { ok: false };
+    }
+
+    const res = await fetch(`${_serverBase()}/ai/vision`, {
+      method: 'POST',
+      headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64 }),
+    });
+    if (!res.ok) throw new Error(`Vision API error: ${res.status}`);
+    const { text, card } = await res.json();
+
+    // 5. Speak the result
+    const audio = await tts.synthesize(text).catch(() => null);
+    if (audio && overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('jarvis:sentence-audio', { audio });
+    }
+
+    // 6. Push HUD card — always visible regardless of which app is in focus
+    ensureHud();
+    sendToHud('hud:card', {
+      type: 'wiki',
+      text,
+      card: card || { type: 'wiki', title: 'Identified', summary: text },
+      title: card?.title || 'Identified',
+    });
+
+    // 7. Also push to main chat window if it's open
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+      overlayWindow.webContents.send('jarvis:hud-response', { text, card });
+    }
+
+    return { ok: true };
+  } catch (err) {
+    console.error('[capture:identify]', err.message);
+    sendToHud('hud:card', { type: 'info', text: 'Sorry, I couldn\'t identify that. ' + (err.message || '') });
+    return { ok: false, error: err.message };
+  }
+});
 
 function toggleOverlay() {
   if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
@@ -312,6 +471,8 @@ app.whenReady().then(async () => {
   console.log('tray created, creating overlay window...');
   createOverlayWindow();
   console.log('overlay window created.');
+  // Create HUD overlay in the background (not visible until Ctrl+Shift+C pressed)
+  createHudWindow();
 
   // Wake hotkey - true voice wake-word ("Hey Jarvis") needs a native engine (e.g. Picovoice
   // Porcupine); wiring that in is the natural next step. Hotkey ships as the v1 trigger.
@@ -331,6 +492,19 @@ app.whenReady().then(async () => {
     }
     // Send clipboard content as a prefilled message
     overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
+  });
+
+  // Ctrl+Shift+Y — Screen capture: glowing lasso overlay to circle & identify anything on screen
+  globalShortcut.register('Control+Shift+Y', () => {
+    openCaptureOverlay();
+  });
+
+  // Ctrl+Shift+C — HUD voice trigger: listen without showing main app; card appears on screen
+  globalShortcut.register('Control+Shift+C', () => {
+    hudVoiceMode = true;          // flag: next jarvis:chat response goes to HUD
+    sendToHud('hud:listening', {});
+    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
+    overlayWindow.webContents.send('jarvis:hud-voice-trigger');
   });
 
   // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
@@ -1313,6 +1487,17 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       if (autoCard?.imageUrl) finalCard = autoCard;
     }
   }
+  // ── HUD card forwarding ──────────────────────────────────────────────────────
+  // Send to HUD when: Ctrl+Shift+C triggered this chat, OR HUD is already visible
+  const shouldSendToHud = hudVoiceMode || (hudWindow && !hudWindow.isDestroyed() && hudWindow.isVisible());
+  if (shouldSendToHud) {
+    hudVoiceMode = false; // reset flag
+    const cardPayload = finalCard
+      ? { type: finalCard.type || 'wiki', text: finalText, card: finalCard, title: finalCard.title }
+      : { type: 'info', text: finalText };
+    sendToHud('hud:card', cardPayload);
+  }
+
   return { text: finalText, audio: null, card: finalCard, hasAction: didTakeAction, emailDraft };
 
   } catch (err) {
@@ -1322,6 +1507,15 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     _sendTTS(_e.sender, userMsg);
     return { error, userMsg };
   }
+});
+
+// Utility: fetch a CDN script as text (used by tubes-cursor.js to bypass sandbox)
+ipcMain.handle('util:fetchCdnScript', async (_e, url) => {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.text();
+  } catch { return null; }
 });
 
 // Chat history sessions

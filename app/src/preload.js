@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   setLanguage: (lang) => ipcRenderer.sendSync('language:set', lang),
   onActionFired: (cb) => ipcRenderer.on('jarvis:action-fired', (_e, d) => cb(d)),
   onVoiceTrigger: (cb) => ipcRenderer.on('jarvis:voice-trigger', () => cb()),
+  onHudVoiceTrigger: (cb) => ipcRenderer.on('jarvis:hud-voice-trigger', () => cb()),
+  onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
   onSentenceAudio: (cb) => ipcRenderer.on('jarvis:sentence-audio', (_e, d) => cb(d)),
   driveSearch: (query) => ipcRenderer.invoke('drive:search', query),
   driveOpen: (fileId, mimeType, webViewLink) => ipcRenderer.invoke('drive:open', { fileId, mimeType, webViewLink }),
@@ -74,4 +76,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
+  // Tubes cursor: fetch a CDN script via main process (bypasses sandbox restriction)
+  fetchCdnScript: (url) => ipcRenderer.invoke('util:fetchCdnScript', url),
 });

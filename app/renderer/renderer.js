@@ -2051,6 +2051,27 @@ window.jarvis.onVoiceTrigger(() => {
   else startRecording();
 });
 
+// Ctrl+Shift+C HUD voice trigger — mic runs in hidden app, card appears in HUD overlay
+if (window.jarvis.onHudVoiceTrigger) {
+  window.jarvis.onHudVoiceTrigger(() => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  });
+}
+
+// Ctrl+Shift+Y capture result — add as a chat bubble if the main window is open
+if (window.jarvis.onHudResponse) {
+  window.jarvis.onHudResponse(({ text, card }) => {
+    if (!text) return;
+    // Treat it like an incoming AI message — push into chat
+    const aiMsg = { role: 'assistant', content: text };
+    msgs.push(aiMsg);
+    addMessage('assistant', text, card || null);
+    chatHistory.push(aiMsg);
+    scrollToBottom();
+  });
+}
+
 // ===================== AUTO-UPDATE =====================
 const updateWrap = document.getElementById('updateWrap');
 const updateBtn  = document.getElementById('updateBtn');
@@ -3043,6 +3064,291 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       } catch (e) { console.error('[GREET]', e); }
     }
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ONBOARDING  — shown once, on first-ever launch after subscription confirmed
+// ══════════════════════════════════════════════════════════════════════════════
+const OB_KEY = 'callisto_onboard_v1';
+
+const ONBOARD_STEPS = [
+  // 0 — Welcome
+  {
+    icon: '◆',
+    tag: 'WELCOME',
+    h: 'Meet Callisto AI',
+    sub: 'Your personal AI that works everywhere — in your app, on your desktop, and in any app you use. Let\'s get you set up in 30 seconds.',
+    render: () => '',
+    validate: () => true,
+  },
+  // 1 — Name + title
+  {
+    icon: '👤',
+    tag: 'PERSONALISE',
+    h: 'What should I call you?',
+    sub: 'This is how I\'ll greet you every time we talk.',
+    render: () => `
+      <input class="ob-input" id="obName" placeholder="Your first name" maxlength="40" autocomplete="off"/>
+      <input class="ob-input" id="obTitle" placeholder="How I address you — e.g. sir, boss, your name (optional)" maxlength="40" autocomplete="off"/>
+    `,
+    validate: () => {
+      const n = document.getElementById('obName')?.value.trim();
+      if (!n) { document.getElementById('obName').style.borderColor = 'rgba(239,68,68,0.6)'; return false; }
+      return true;
+    },
+    onNext: () => {
+      const name  = document.getElementById('obName')?.value.trim();
+      const title = document.getElementById('obTitle')?.value.trim() || 'none';
+      profile.displayName = name;
+      profile.title = title;
+    },
+  },
+  // 2 — Shortcuts tutorial
+  {
+    icon: '⌨️',
+    tag: 'SHORTCUTS',
+    h: 'Your power shortcuts',
+    sub: 'These work system-wide — even when the app is minimised.',
+    render: () => `
+      <div class="ob-shortcuts">
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">🎤</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Voice from anywhere</div>
+            <div class="ob-shortcut-desc">Speak a command — AI responds by voice + card</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Shift+C</span>
+        </div>
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">🔍</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Circle to identify</div>
+            <div class="ob-shortcut-desc">Draw around anything on screen — AI tells you what it is</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Shift+Y</span>
+        </div>
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">💬</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Open / hide app</div>
+            <div class="ob-shortcut-desc">Summon or dismiss the Callisto window</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Shift+J</span>
+        </div>
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">📋</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Clipboard AI</div>
+            <div class="ob-shortcut-desc">Copy any text, press this — AI analyses it instantly</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Space</span>
+        </div>
+      </div>`,
+    validate: () => true,
+  },
+  // 3 — Connect apps
+  {
+    icon: '🔗',
+    tag: 'CONNECT',
+    h: 'Connect your apps',
+    sub: 'Optional — connect now or later from the Connectors panel.',
+    render: () => `
+      <div class="ob-connectors">
+        <div class="ob-connector" id="obCalBtn">
+          <span class="ob-connector-icon">📅</span>
+          <span class="ob-connector-name">Google Calendar</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obSpotBtn">
+          <span class="ob-connector-icon">🎵</span>
+          <span class="ob-connector-name">Spotify</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obGmailBtn">
+          <span class="ob-connector-icon">📧</span>
+          <span class="ob-connector-name">Gmail</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+      </div>`,
+    onRender: () => {
+      // Wire connector buttons
+      const pairs = [
+        ['obCalBtn',   'calendar'],
+        ['obSpotBtn',  'spotify'],
+        ['obGmailBtn', 'gmail'],
+      ];
+      pairs.forEach(([btnId, service]) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+          if (btn.classList.contains('connected')) return;
+          try {
+            await window.jarvis.connectorConnect(service);
+            btn.classList.add('connected');
+            btn.querySelector('.ob-connector-status').textContent = '✓ Connected';
+          } catch(_) {}
+        });
+      });
+    },
+    validate: () => true,
+  },
+  // 4 — Done
+  {
+    icon: '🚀',
+    tag: "YOU'RE ALL SET",
+    h: 'Callisto is ready',
+    sub: 'Your AI assistant is configured and listening. Press the shortcut or tap the orb anytime.',
+    render: () => '',
+    validate: () => true,
+    isFinal: true,
+  },
+];
+
+let obStep = 0;
+
+function obKey() {
+  return OB_KEY + '_' + (profile?.email || 'guest');
+}
+
+function shouldShowOnboarding() {
+  return !localStorage.getItem(obKey());
+}
+
+function showOnboarding() {
+  const view = document.getElementById('onboardView');
+  if (!view) return;
+  obStep = 0;
+  view.classList.remove('hidden');
+  obRender();
+}
+
+function obRender() {
+  const view = document.getElementById('onboardView');
+  const step = ONBOARD_STEPS[obStep];
+
+  // Dots
+  const dotsHtml = ONBOARD_STEPS.map((_, i) =>
+    `<div class="ob-dot${i === obStep ? ' active' : ''}"></div>`
+  ).join('');
+
+  // Next button label
+  const nextLabel = step.isFinal ? '✦ Enter Callisto' : 'Continue →';
+  const showSkip  = obStep > 0 && !step.isFinal;
+
+  view.innerHTML = `
+    <canvas id="obConfetti"></canvas>
+    <div id="obDots">${dotsHtml}</div>
+    <div id="obCard">
+      <span class="ob-icon">${step.icon}</span>
+      <div class="ob-tag">${step.tag}</div>
+      <div class="ob-h">${step.h}</div>
+      <div class="ob-sub">${step.sub}</div>
+      ${step.render()}
+      <div class="ob-btns">
+        ${showSkip ? '<button class="ob-btn-skip" id="obSkip">Skip</button>' : ''}
+        <button class="ob-btn-next" id="obNext">${nextLabel}</button>
+      </div>
+    </div>`;
+
+  // Focus first input if present
+  setTimeout(() => { view.querySelector('.ob-input')?.focus(); }, 80);
+
+  // Bind buttons
+  document.getElementById('obNext').addEventListener('click', obAdvance);
+  document.getElementById('obSkip')?.addEventListener('click', () => { obStep++; obRender(); });
+
+  // Enter key advances
+  view.querySelectorAll('.ob-input').forEach(inp => {
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') obAdvance(); });
+  });
+
+  // Custom render hook
+  if (step.onRender) setTimeout(step.onRender, 50);
+
+  // Confetti on final step
+  if (step.isFinal) setTimeout(obConfetti, 200);
+}
+
+function obAdvance() {
+  const step = ONBOARD_STEPS[obStep];
+  if (!step.validate()) return;
+  if (step.onNext) step.onNext();
+
+  if (step.isFinal) {
+    obFinish();
+    return;
+  }
+  obStep++;
+  // Rebuild card with animation
+  const card = document.getElementById('obCard');
+  if (card) { card.style.animation = 'none'; void card.offsetWidth; card.style.animation = ''; }
+  obRender();
+}
+
+async function obFinish() {
+  // Persist profile with display name
+  if (profile.displayName) {
+    await window.jarvis.setProfile(profile).catch(() => {});
+  }
+  localStorage.setItem(obKey(), '1');
+
+  const view = document.getElementById('onboardView');
+  view.style.opacity = '0';
+  view.style.transition = 'opacity 0.6s ease';
+  setTimeout(() => {
+    view.classList.add('hidden');
+    view.style.opacity = '';
+    view.style.transition = '';
+    // Proceed into main app
+    enterMain(true, false);
+  }, 650);
+}
+
+// Lightweight confetti burst
+function obConfetti() {
+  const canvas = document.getElementById('obConfetti');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const colors = ['#5e72e4','#8965e0','#f5365c','#2dce89','#fb6340','#11cdef'];
+  const pieces = Array.from({ length: 90 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -10 - Math.random() * 200,
+    r: 3 + Math.random() * 4,
+    c: colors[Math.floor(Math.random() * colors.length)],
+    vx: (Math.random() - 0.5) * 3,
+    vy: 2 + Math.random() * 4,
+    rot: Math.random() * 360,
+    vr: (Math.random() - 0.5) * 6,
+    life: 1,
+  }));
+
+  let frame;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    pieces.forEach(p => {
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.rot += p.vr;
+      p.life -= 0.008;
+      if (p.life <= 0 || p.y > canvas.height) return;
+      alive = true;
+      ctx.save();
+      ctx.globalAlpha = p.life;
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+      ctx.restore();
+    });
+    if (alive) frame = requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+  setTimeout(() => { cancelAnimationFrame(frame); ctx.clearRect(0, 0, canvas.width, canvas.height); }, 4000);
 }
 
 function initSpikySphere() {
@@ -4475,7 +4781,13 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   };
   if (authResult.active) {
     await showSplash(displayName);
-    await enterMain(true, _isReturningUser);
+    // First-ever launch → show onboarding instead of jumping straight to main
+    if (!_isReturningUser && shouldShowOnboarding()) {
+      setupView.classList.add('hidden');
+      showOnboarding();
+    } else {
+      await enterMain(true, _isReturningUser);
+    }
   } else {
     setupView.classList.remove('hidden');
     showTermsOrPayment();

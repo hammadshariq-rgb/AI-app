@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Callisto Capture</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{
+      width:100%;height:100%;
+      background:transparent;
+      overflow:hidden;
+      cursor:crosshair;
+      user-select:none;
+      -webkit-app-region:no-drag;
+    }
+
+    /* ── Tube trail canvas (WebGL-style via Canvas 2D) ── */
+    #tubeCanvas{
+      position:fixed;inset:0;
+      width:100%;height:100%;
+      pointer-events:none;
+      z-index:0;
+    }
+
+    /* ── Lasso drawing canvas ── */
+    #lassoCanvas{
+      position:fixed;inset:0;
+      width:100%;height:100%;
+      pointer-events:all;
+      z-index:1;
+    }
+
+    /* ── Instruction bar ── */
+    #hint{
+      position:fixed;
+      top:24px;left:50%;
+      transform:translateX(-50%);
+      background:rgba(6,9,24,0.88);
+      border:1px solid rgba(94,114,228,0.45);
+      border-radius:12px;
+      color:rgba(190,215,255,0.92);
+      font:600 13px/1 'Inter',system-ui,sans-serif;
+      letter-spacing:.4px;
+      padding:10px 22px;
+      z-index:10;
+      pointer-events:none;
+      backdrop-filter:blur(20px);
+      white-space:nowrap;
+      box-shadow:0 4px 24px rgba(0,0,0,.5);
+    }
+    #hint span{color:rgba(130,160,255,.7);font-weight:400;}
+
+    /* ── Processing spinner ── */
+    #processing{
+      position:fixed;inset:0;
+      display:none;
+      align-items:center;justify-content:center;
+      flex-direction:column;gap:16px;
+      z-index:20;
+      pointer-events:none;
+    }
+    .spinner{
+      width:48px;height:48px;
+      border:3px solid rgba(94,114,228,.2);
+      border-top-color:rgba(94,114,228,.9);
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #processingLabel{
+      color:rgba(180,205,255,.85);
+      font:600 13px 'Inter',sans-serif;
+      letter-spacing:.5px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="hint">Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span></div>
+
+<canvas id="tubeCanvas"></canvas>
+<canvas id="lassoCanvas"></canvas>
+
+<div id="processing">
+  <div class="spinner"></div>
+  <div id="processingLabel">Identifying…</div>
+</div>
+
+<script>
+const { ipcRenderer } = require('electron');
+
+// ═══════════════════════════════════════════════════════════
+//  TUBE CURSOR TRAIL  (Canvas 2D — no CDN needed)
+// ═══════════════════════════════════════════════════════════
+const tubeCanvas = document.getElementById('tubeCanvas');
+const tCtx = tubeCanvas.getContext('2d');
+
+function resizeCanvases() {
+  tubeCanvas.width  = window.innerWidth;
+  tubeCanvas.height = window.innerHeight;
+  lassoCanvas.width  = window.innerWidth;
+  lassoCanvas.height = window.innerHeight;
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+// Trail: array of {x, y, t, hue}
+const trail = [];
+const MAX_TRAIL = 80;
+let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+let hue = 220; // start blue-purple
+
+document.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  hue = (hue + 0.6) % 360;
+  trail.push({ x: mouseX, y: mouseY, t: Date.now(), hue });
+  if (trail.length > MAX_TRAIL) trail.shift();
+});
+
+function drawTubes() {
+  tCtx.clearRect(0, 0, tubeCanvas.width, tubeCanvas.height);
+  if (trail.length < 2) { requestAnimationFrame(drawTubes); return; }
+
+  const now = Date.now();
+
+  // Draw 3 tube passes: outer glow, mid glow, bright core
+  const passes = [
+    { width: 8,  alpha: 0.07, blur: 12 },
+    { width: 3,  alpha: 0.18, blur: 6  },
+    { width: 1.2,alpha: 0.95, blur: 3  },
+  ];
+
+  for (const pass of passes) {
+    tCtx.save();
+    tCtx.shadowBlur = pass.blur;
+
+    for (let i = 1; i < trail.length; i++) {
+      const p0 = trail[i - 1];
+      const p1 = trail[i];
+      const age = (now - p1.t) / 800; // 0 = fresh, 1 = old
+      if (age > 1) continue;
+      const alpha = pass.alpha * (1 - age);
+
+      tCtx.beginPath();
+      tCtx.moveTo(p0.x, p0.y);
+      tCtx.lineTo(p1.x, p1.y);
+
+      const h = p1.hue;
+      tCtx.strokeStyle = `hsla(${h},90%,75%,${alpha})`;
+      tCtx.shadowColor = `hsla(${h},90%,70%,${alpha * 0.8})`;
+      tCtx.lineWidth = pass.width * (1 - age * 0.5);
+      tCtx.lineCap = 'round';
+      tCtx.stroke();
+    }
+    tCtx.restore();
+  }
+
+  // Cursor dot
+  tCtx.beginPath();
+  tCtx.arc(mouseX, mouseY, 3, 0, Math.PI * 2);
+  tCtx.fillStyle = `hsla(${hue},85%,80%,0.95)`;
+  tCtx.shadowBlur = 16;
+  tCtx.shadowColor = `hsla(${hue},90%,70%,0.9)`;
+  tCtx.fill();
+
+  // Clean stale trail points
+  const cutoff = now - 900;
+  while (trail.length && trail[0].t < cutoff) trail.shift();
+
+  requestAnimationFrame(drawTubes);
+}
+drawTubes();
+
+
+// ═══════════════════════════════════════════════════════════
+//  LASSO DRAWING
+// ═══════════════════════════════════════════════════════════
+const lassoCanvas = document.getElementById('lassoCanvas');
+const lCtx = lassoCanvas.getContext('2d');
+
+let isDrawing = false;
+let path = [];   // [{x,y}]
+let lassoHue = 220;
+
+lassoCanvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isDrawing = true;
+  path = [{ x: e.clientX, y: e.clientY }];
+  lassoHue = Math.random() * 60 + 200; // blue-purple-violet range
+});
+
+lassoCanvas.addEventListener('mousemove', e => {
+  if (!isDrawing) return;
+  path.push({ x: e.clientX, y: e.clientY });
+  drawLasso();
+});
+
+lassoCanvas.addEventListener('mouseup', e => {
+  if (!isDrawing) return;
+  isDrawing = false;
+  if (path.length < 8) { lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height); return; }
+  finishSelection();
+});
+
+function drawLasso() {
+  lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height);
+  if (path.length < 2) return;
+
+  // Outer glow (thin)
+  lCtx.save();
+  lCtx.beginPath();
+  lCtx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) lCtx.lineTo(path[i].x, path[i].y);
+  lCtx.strokeStyle = `hsla(${lassoHue},85%,70%,0.18)`;
+  lCtx.lineWidth = 5;
+  lCtx.lineCap = 'round';
+  lCtx.lineJoin = 'round';
+  lCtx.shadowBlur = 10;
+  lCtx.shadowColor = `hsla(${lassoHue},90%,65%,0.4)`;
+  lCtx.stroke();
+  lCtx.restore();
+
+  // Core line — thin bright
+  lCtx.save();
+  lCtx.beginPath();
+  lCtx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) lCtx.lineTo(path[i].x, path[i].y);
+  lCtx.strokeStyle = `hsla(${lassoHue},90%,88%,0.98)`;
+  lCtx.lineWidth = 1.2;
+  lCtx.lineCap = 'round';
+  lCtx.lineJoin = 'round';
+  lCtx.shadowBlur = 5;
+  lCtx.shadowColor = `hsla(${lassoHue},90%,80%,0.7)`;
+  lCtx.stroke();
+
+  // Dashed closing line from last point back to first
+  if (path.length > 10) {
+    const first = path[0], last = path[path.length - 1];
+    lCtx.beginPath();
+    lCtx.setLineDash([5, 5]);
+    lCtx.moveTo(last.x, last.y);
+    lCtx.lineTo(first.x, first.y);
+    lCtx.strokeStyle = `hsla(${lassoHue},70%,75%,0.35)`;
+    lCtx.lineWidth = 1;
+    lCtx.stroke();
+    lCtx.setLineDash([]);
+  }
+  lCtx.restore();
+}
+
+function getBounds() {
+  const xs = path.map(p => p.x), ys = path.map(p => p.y);
+  const x = Math.max(0, Math.min(...xs) - 8);
+  const y = Math.max(0, Math.min(...ys) - 8);
+  const w = Math.min(lassoCanvas.width  - x, Math.max(...xs) - Math.min(...xs) + 16);
+  const h = Math.min(lassoCanvas.height - y, Math.max(...ys) - Math.min(...ys) + 16);
+  return { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h) };
+}
+
+function flashSelection() {
+  lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height);
+
+  // Fill inside path with glowing colour
+  lCtx.save();
+  lCtx.beginPath();
+  lCtx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) lCtx.lineTo(path[i].x, path[i].y);
+  lCtx.closePath();
+  lCtx.fillStyle = `hsla(${lassoHue},80%,65%,0.12)`;
+  lCtx.fill();
+
+  // Bright closing border
+  lCtx.beginPath();
+  lCtx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) lCtx.lineTo(path[i].x, path[i].y);
+  lCtx.closePath();
+  lCtx.strokeStyle = `hsla(${lassoHue},90%,88%,1)`;
+  lCtx.lineWidth = 1.5;
+  lCtx.shadowBlur = 10;
+  lCtx.shadowColor = `hsla(${lassoHue},90%,80%,0.8)`;
+  lCtx.stroke();
+  lCtx.restore();
+}
+
+async function finishSelection() {
+  const bounds = getBounds();
+  if (bounds.width < 20 || bounds.height < 20) {
+    lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height);
+    return;
+  }
+
+  flashSelection();
+
+  // Show processing state
+  document.getElementById('hint').style.display = 'none';
+  const proc = document.getElementById('processing');
+  proc.style.display = 'flex';
+
+  // Small delay so user sees the flash before overlay hides
+  setTimeout(async () => {
+    try {
+      // Ask main process to screenshot + crop + call AI vision
+      const result = await ipcRenderer.invoke('capture:identify', bounds);
+      // Main process handles TTS + HUD card and then closes this window
+      ipcRenderer.send('capture:done');
+    } catch (err) {
+      console.error('[capture] error:', err);
+      ipcRenderer.send('capture:done');
+    }
+  }, 350);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  ESC → cancel
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') ipcRenderer.send('capture:cancel');
+});
+</script>
+</body>
+</html>

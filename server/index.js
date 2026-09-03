@@ -1178,5 +1178,52 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
   }
 });
 
+// ── Vision: identify a screen-captured image ──────────────────────────────────
+// Called by the Electron desktop app when user does Ctrl+Shift+Y circle capture.
+// Accepts { imageBase64: "data:image/png;base64,..." } and returns { text, card }
+app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: imageBase64, detail: 'high' },
+          },
+          {
+            type: 'text',
+            text: `You are Callisto AI. A user has circled something on their screen and wants to know what it is.
+Identify it clearly and concisely in 1-3 sentences.
+- If it's a person or celebrity, say who they are and what they're known for.
+- If it's a car, say the make, model and year if visible.
+- If it's an animal, name the species and a fun fact.
+- If it's a product, brand or logo, identify it.
+- If it's text, read and summarize it.
+- If it's a place, identify the location.
+Keep it short, natural and conversational — like you're talking to a friend.`,
+          },
+        ],
+      }],
+    });
+
+    const text = response.choices[0]?.message?.content?.trim() || 'I couldn\'t identify that.';
+
+    // Try to extract a subject name for the card title (first noun phrase)
+    const titleMatch = text.match(/^(?:That(?:'s| is)|This(?:'s| is)|It(?:'s| is)|I see|Looks like|That looks like)?\s*(?:a |an |the )?([A-Z][^,.\n]{2,40})/);
+    const cardTitle = titleMatch ? titleMatch[1].trim() : 'Identified';
+
+    res.json({ text, card: { type: 'wiki', title: cardTitle, summary: text } });
+  } catch (err) {
+    console.error('[vision]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));

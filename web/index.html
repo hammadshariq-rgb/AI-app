@@ -1183,5 +1183,126 @@
   function saveSess(prev){if(!sessId){sessId=Date.now();sessions.unshift({id:sessId,preview:prev.slice(0,55),msgs:msgs.slice()});}else{const i=sessions.findIndex(s=>s.id===sessId);if(i!==-1)sessions[i].msgs=msgs.slice();}sessions=sessions.slice(0,30);localStorage.setItem('cal_sess',JSON.stringify(sessions));renderSess();}
   function renderSess(){const el=document.getElementById('sbHist');el.innerHTML='';if(!sessions.length){el.innerHTML='<div style="font-size:11px;color:rgba(100,130,200,0.25);padding:5px">No chats yet</div>';return;}sessions.forEach(s=>{const d=document.createElement('div');d.className='hist-item'+(s.id===sessId?' active':'');d.textContent=s.preview||'Chat';d.addEventListener('click',()=>{sessId=s.id;msgs=(s.msgs||[]).slice();welcomeEl.classList.add('hidden');msgsEl.innerHTML='';msgsEl.appendChild(welcomeEl);msgs.forEach(m=>addMsg(m.role==='user'?'user':'assistant',m.content));renderSess();});el.appendChild(d);});}
 </script>
+
+<!-- ══ WEBSITE FIRST-VISIT ONBOARDING MODAL ══ -->
+<style>
+  #webOnboard{
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(4,6,18,0.82);
+    backdrop-filter:blur(18px);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Inter',system-ui,sans-serif;
+    animation:wobFadeIn 0.4s ease;
+  }
+  @keyframes wobFadeIn{from{opacity:0}to{opacity:1}}
+  #webOnboard.hidden{display:none!important}
+  #wobCard{
+    width:480px;max-width:92vw;
+    background:rgba(8,11,28,0.95);
+    border:1px solid rgba(94,114,228,0.22);
+    border-radius:22px;padding:44px 40px 36px;
+    box-shadow:0 32px 80px rgba(0,0,0,0.8);
+    animation:wobSlide 0.4s cubic-bezier(0.34,1.3,0.64,1);
+  }
+  @keyframes wobSlide{from{transform:translateY(22px) scale(0.96);opacity:0}to{transform:none;opacity:1}}
+  .wob-dots{display:flex;gap:7px;margin-bottom:28px;}
+  .wob-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.12);transition:all .25s}
+  .wob-dot.on{background:rgba(94,114,228,.9);transform:scale(1.4)}
+  .wob-icon{font-size:38px;margin-bottom:16px;display:block}
+  .wob-tag{font-size:10px;font-weight:700;letter-spacing:3px;color:rgba(94,114,228,.65);text-transform:uppercase;margin-bottom:8px}
+  .wob-h{font-size:24px;font-weight:700;color:#fff;margin-bottom:10px;line-height:1.25}
+  .wob-p{font-size:14px;color:rgba(155,180,230,.65);line-height:1.65;margin-bottom:24px}
+  .wob-feats{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+  .wob-feat{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:11px;padding:11px 13px}
+  .wob-feat-icon{font-size:17px;flex-shrink:0}
+  .wob-feat-text{font-size:13px;color:rgba(195,215,255,.8);line-height:1.4}
+  .wob-feat-text b{color:#fff;font-weight:600}
+  .wob-steps{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+  .wob-step{display:flex;align-items:flex-start;gap:12px}
+  .wob-num{width:24px;height:24px;border-radius:50%;background:rgba(94,114,228,.18);border:1px solid rgba(94,114,228,.3);color:rgba(130,160,255,.9);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .wob-step-text{font-size:13px;color:rgba(175,200,250,.7);line-height:1.55}
+  .wob-step-text b{color:rgba(215,230,255,.9);font-weight:600}
+  .wob-btns{display:flex;gap:9px}
+  .wob-skip{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:rgba(150,175,225,.5);font-size:13px;font-weight:500;padding:12px;cursor:pointer;font-family:inherit;transition:all .2s}
+  .wob-skip:hover{background:rgba(255,255,255,.07);color:rgba(195,215,255,.8)}
+  .wob-next{flex:2;background:linear-gradient(135deg,#3d5cff 0%,#6c3dff 100%);border:none;border-radius:11px;color:#fff;font-size:14px;font-weight:700;padding:12px;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(61,92,255,.35);transition:transform .15s,box-shadow .15s}
+  .wob-next:hover{transform:translateY(-1px);box-shadow:0 6px 26px rgba(61,92,255,.5)}
+</style>
+
+<div id="webOnboard" class="hidden">
+  <div id="wobCard">
+    <div class="wob-dots" id="wobDots"></div>
+    <div id="wobContent"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const WOB_KEY = 'callisto_web_onboard_v1';
+  if(localStorage.getItem(WOB_KEY)) return; // already seen
+
+  const el    = document.getElementById('webOnboard');
+  const dots  = document.getElementById('wobDots');
+  const cont  = document.getElementById('wobContent');
+  const STEPS = [
+    {
+      icon:'◆', tag:'WELCOME', h:'Meet Callisto AI',
+      p:'Your personal AI that talks back, takes action, and works across all your apps — right from this page or the desktop app.',
+      body:`<div class="wob-feats">
+        <div class="wob-feat"><span class="wob-feat-icon">🎤</span><div class="wob-feat-text"><b>Talk to it</b> — ask anything, it answers by voice and text</div></div>
+        <div class="wob-feat"><span class="wob-feat-icon">📅</span><div class="wob-feat-text"><b>Manages your life</b> — calendar, reminders, Spotify, Gmail</div></div>
+        <div class="wob-feat"><span class="wob-feat-icon">🖥️</span><div class="wob-feat-text"><b>Desktop overlay</b> — press a shortcut and it appears over any app</div></div>
+        <div class="wob-feat"><span class="wob-feat-icon">🔍</span><div class="wob-feat-text"><b>Screen identification</b> — circle anything, AI tells you what it is</div></div>
+      </div>`,
+      next:'Get started →', skip:null,
+    },
+    {
+      icon:'💬', tag:'THE WEB VERSION', h:'Try it right now',
+      p:'No download needed. Just type or press the mic button and have a conversation.',
+      body:`<div class="wob-steps">
+        <div class="wob-step"><div class="wob-num">1</div><div class="wob-step-text">Press the <b>microphone button</b> or type in the chat box below</div></div>
+        <div class="wob-step"><div class="wob-num">2</div><div class="wob-step-text">Ask anything — <b>weather, questions, reminders, play music</b></div></div>
+        <div class="wob-step"><div class="wob-num">3</div><div class="wob-step-text">Sign up to save your chat history and unlock all features</div></div>
+      </div>`,
+      next:"Let's go →", skip:'Skip',
+    },
+  ];
+
+  let step = 0;
+
+  function render(){
+    const s = STEPS[step];
+    dots.innerHTML = STEPS.map((_,i)=>`<div class="wob-dot${i===step?' on':''}"></div>`).join('');
+    cont.innerHTML = `
+      <span class="wob-icon">${s.icon}</span>
+      <div class="wob-tag">${s.tag}</div>
+      <div class="wob-h">${s.h}</div>
+      <div class="wob-p">${s.p}</div>
+      ${s.body||''}
+      <div class="wob-btns">
+        ${s.skip?`<button class="wob-skip" id="wobSkip">${s.skip}</button>`:''}
+        <button class="wob-next" id="wobNext">${s.next}</button>
+      </div>`;
+    document.getElementById('wobNext').onclick = advance;
+    const sk = document.getElementById('wobSkip');
+    if(sk) sk.onclick = finish;
+  }
+
+  function advance(){
+    if(step < STEPS.length-1){ step++; render(); }
+    else finish();
+  }
+
+  function finish(){
+    localStorage.setItem(WOB_KEY,'1');
+    el.style.opacity='0';
+    el.style.transition='opacity 0.4s';
+    setTimeout(()=>{ el.classList.add('hidden'); el.style.opacity=''; el.style.transition=''; },420);
+  }
+
+  // Show after 800ms so landing page renders first
+  setTimeout(()=>{ el.classList.remove('hidden'); render(); }, 800);
+})();
+</script>
 </body>
 </html>
