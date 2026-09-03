@@ -131,23 +131,64 @@
     /* Wave canvas */
     #waveCanvas { width: 100%; height: 160px; margin-top: 10px; }
 
-    /* Reminders widget */
-    #remindersWidget { position:absolute; bottom:18px; right:18px; background:rgba(6,9,24,0.75); border:1px solid rgba(61,92,255,0.2); border-radius:10px; padding:8px 12px; min-width:200px; backdrop-filter:blur(12px); z-index:10; }
-    .rem-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-    .rem-label { font-family:var(--brand); font-size:8px; letter-spacing:3px; font-weight:700; color:rgba(100,140,255,0.5); }
-    .rem-add { font-family:var(--brand); font-size:8px; letter-spacing:2px; font-weight:700; color:rgba(100,160,255,0.7); background:rgba(61,92,255,0.1); border:1px solid rgba(61,92,255,0.2); border-radius:4px; padding:2px 7px; cursor:pointer; }
-    .rem-item { display:flex; align-items:center; gap:7px; font-size:11px; color:rgba(150,180,255,0.7); padding:3px 0; }
-    .rem-dot { width:5px; height:5px; border-radius:50%; background:rgba(61,92,255,0.7); flex-shrink:0; }
-    .rem-empty { font-size:11px; color:rgba(100,130,200,0.3); font-style:italic; }
+    /* ── Combined Calendar+Reminders panel (matches desktop app) ── */
+    #calPanel {
+      position:absolute; bottom:18px; left:18px;
+      width:260px;
+      background:rgba(6,9,24,0.82);
+      border:1px solid rgba(61,92,255,0.18);
+      border-radius:14px;
+      backdrop-filter:blur(18px);
+      z-index:10;
+      overflow:hidden;
+    }
 
-    /* Calendar widget */
-    #calWidget { position:absolute; bottom:18px; left:18px; background:rgba(6,9,24,0.75); border:1px solid rgba(61,92,255,0.2); border-radius:10px; padding:8px 12px; min-width:180px; backdrop-filter:blur(12px); z-index:10; }
-    .cal-header { font-family:var(--brand); font-size:8px; letter-spacing:3px; font-weight:700; color:rgba(100,140,255,0.5); margin-bottom:6px; }
-    .cal-day-row { display:flex; gap:4px; justify-content:space-between; }
-    .cal-day { display:flex; flex-direction:column; align-items:center; gap:2px; }
-    .cal-dn { font-family:var(--brand); font-size:8px; letter-spacing:1px; color:rgba(100,130,200,0.4); }
-    .cal-dd { font-size:12px; font-weight:600; color:rgba(150,180,255,0.7); width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:6px; }
-    .cal-dd.today { background:rgba(61,92,255,0.3); color:#fff; border:1px solid rgba(61,92,255,0.5); }
+    /* Reminders section */
+    .cp-reminders {
+      padding:10px 13px 8px;
+      border-bottom:1px solid rgba(61,92,255,0.1);
+    }
+    .cp-rem-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+    .cp-rem-label { font-family:var(--brand); font-size:8px; letter-spacing:3px; font-weight:700; color:rgba(100,140,255,0.5); }
+    .cp-rem-add { font-family:var(--brand); font-size:8px; letter-spacing:1.5px; font-weight:700; color:#fff; background:rgba(61,92,255,0.55); border:none; border-radius:5px; padding:3px 9px; cursor:pointer; }
+    .cp-rem-empty { font-size:11px; color:rgba(100,130,200,0.35); text-align:center; padding:4px 0 2px; }
+    .cp-rem-item { display:flex; align-items:center; gap:7px; font-size:11px; color:rgba(160,190,255,0.75); padding:3px 0; }
+    .cp-rem-dot { width:5px; height:5px; border-radius:50%; background:rgba(61,92,255,0.8); flex-shrink:0; }
+
+    /* Calendar section */
+    .cp-calendar { padding:10px 13px 10px; }
+
+    /* Weekly / Monthly toggle */
+    .cp-view-toggle { display:flex; align-items:center; gap:6px; margin-bottom:9px; }
+    .cp-view-btn { font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; border:none; cursor:pointer; transition:all .15s; }
+    .cp-view-btn.active { background:#fff; color:#0a0d1e; }
+    .cp-view-btn:not(.active) { background:transparent; color:rgba(150,180,255,0.55); }
+    .cp-settings { margin-left:auto; font-size:14px; color:rgba(100,130,200,0.4); cursor:pointer; }
+
+    /* Month header */
+    .cp-month-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .cp-month-name { font-size:22px; font-weight:700; color:#fff; letter-spacing:-.3px; }
+    .cp-nav { display:flex; gap:6px; }
+    .cp-nav button { background:none; border:none; color:rgba(150,180,255,0.5); font-size:14px; cursor:pointer; padding:2px 4px; border-radius:4px; }
+    .cp-nav button:hover { color:#fff; }
+
+    /* Day grid */
+    .cp-day-labels { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px; }
+    .cp-dl { font-family:var(--brand); font-size:8.5px; letter-spacing:.5px; font-weight:700; color:rgba(100,130,200,0.4); text-align:center; }
+    .cp-day-row { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+    .cp-day { display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .cp-dd { font-size:12px; font-weight:500; color:rgba(160,190,255,0.65); width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:50%; cursor:pointer; transition:background .12s; }
+    .cp-dd:hover { background:rgba(61,92,255,0.2); }
+    .cp-dd.today { background:rgba(220,50,50,0.85); color:#fff; font-weight:700; }
+    .cp-dd.other-month { color:rgba(100,130,200,0.3); }
+    .cp-dot { width:4px; height:4px; border-radius:50%; background:rgba(61,92,255,0.7); }
+
+    /* Bottom row */
+    .cp-bottom { display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:1px solid rgba(61,92,255,0.1); }
+    .cp-note { font-size:10.5px; color:rgba(100,130,200,0.4); display:flex; align-items:center; gap:5px; cursor:text; }
+    .cp-note::before { content:'—'; font-size:8px; }
+    .cp-new-event { font-size:10.5px; font-weight:600; color:rgba(100,160,255,0.75); cursor:pointer; background:none; border:none; }
+    .cp-new-event:hover { color:#fff; }
 
     /* Buttons under orb */
     #orbActions { display: flex; align-items: center; gap: 16px; margin-top: -10px; }
@@ -555,19 +596,40 @@
         <button class="orb-btn" id="heroTrash" title="Clear" style="color:rgba(200,80,80,0.6)">🗑</button>
       </div>
       <button id="shiftBtn">⌨ SHIFT TO TYPING</button>
-      <!-- Calendar widget bottom-left -->
-      <div id="calWidget">
-        <div class="cal-header">CALENDAR</div>
-        <div class="cal-day-row" id="calDayRow"></div>
-        <div style="margin-top:7px;font-size:10.5px;color:rgba(100,140,255,0.5);border-top:1px solid rgba(61,92,255,0.1);padding-top:5px" id="calTodayLabel"></div>
-      </div>
-      <!-- Reminders widget bottom-right -->
-      <div id="remindersWidget">
-        <div class="rem-header">
-          <span class="rem-label">REMINDERS</span>
-          <button class="rem-add" id="remAddBtn">+ ADD</button>
+      <!-- Combined Calendar + Reminders panel (matches desktop app) -->
+      <div id="calPanel">
+        <!-- Reminders -->
+        <div class="cp-reminders">
+          <div class="cp-rem-header">
+            <span class="cp-rem-label">REMINDERS</span>
+            <button class="cp-rem-add" id="remAddBtn">+ ADD</button>
+          </div>
+          <div id="remList"><div class="cp-rem-empty">No reminders yet</div></div>
         </div>
-        <div id="remList"><div class="rem-empty">No reminders set</div></div>
+        <!-- Calendar -->
+        <div class="cp-calendar">
+          <div class="cp-view-toggle">
+            <button class="cp-view-btn active" id="btnWeekly">Weekly</button>
+            <button class="cp-view-btn" id="btnMonthly">Monthly</button>
+            <span class="cp-settings">⚙</span>
+          </div>
+          <div class="cp-month-row">
+            <div class="cp-month-name" id="cpMonthName">September</div>
+            <div class="cp-nav">
+              <button id="cpPrev">&#8249;</button>
+              <button id="cpNext">&#8250;</button>
+            </div>
+          </div>
+          <div class="cp-day-labels">
+            <div class="cp-dl">M</div><div class="cp-dl">T</div><div class="cp-dl">W</div>
+            <div class="cp-dl">T</div><div class="cp-dl">F</div><div class="cp-dl">S</div><div class="cp-dl">S</div>
+          </div>
+          <div class="cp-day-row" id="cpDayRow"></div>
+          <div class="cp-bottom">
+            <span class="cp-note">Add a note...</span>
+            <button class="cp-new-event" onclick="if(token&&user){openChat();setTimeout(()=>{document.getElementById('userInput').value='Add a new calendar event';send();},300);}else showAuth();">+ New Event</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -898,31 +960,88 @@
   })();
 
   // Calendar widget
+  // ── Calendar + Reminders panel ───────────────────────────────────────────
   (()=>{
-    const now=new Date();
-    const today=now.getDate();
-    const month=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-    const row=document.getElementById('calDayRow');
-    const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-    for(let i=-2;i<=2;i++){
-      const d=new Date(now);d.setDate(today+i);
-      const div=document.createElement('div');div.className='cal-day';
-      const dn=document.createElement('div');dn.className='cal-dn';dn.textContent=days[d.getDay()];
-      const dd=document.createElement('div');dd.className='cal-dd'+(i===0?' today':'');dd.textContent=d.getDate();
-      div.appendChild(dn);div.appendChild(dd);row.appendChild(div);
+    const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    let view='weekly'; // 'weekly' | 'monthly'
+    let offset=0; // week/month offset from today
+    const realNow=new Date();
+
+    function buildWeekly(){
+      const base=new Date(realNow);
+      base.setDate(realNow.getDate() + offset*7);
+      // Find Monday of base's week
+      const day=base.getDay(); // 0=Sun
+      const mondayOffset=day===0?-6:1-day;
+      const monday=new Date(base);monday.setDate(base.getDate()+mondayOffset);
+
+      document.getElementById('cpMonthName').textContent=MONTHS[monday.getMonth()];
+      const row=document.getElementById('cpDayRow');row.innerHTML='';
+      for(let i=0;i<7;i++){
+        const d=new Date(monday);d.setDate(monday.getDate()+i);
+        const isToday=d.toDateString()===realNow.toDateString();
+        const cell=document.createElement('div');cell.className='cp-day';
+        const dd=document.createElement('div');
+        dd.className='cp-dd'+(isToday?' today':'');
+        dd.textContent=d.getDate();
+        cell.appendChild(dd);
+        // fake dot on some days for visual match
+        if(!isToday&&(i===4||i===6)){const dot=document.createElement('div');dot.className='cp-dot';cell.appendChild(dot);}
+        row.appendChild(cell);
+      }
     }
-    document.getElementById('calTodayLabel').textContent=now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+
+    function buildMonthly(){
+      const base=new Date(realNow.getFullYear(),realNow.getMonth()+offset,1);
+      document.getElementById('cpMonthName').textContent=MONTHS[base.getMonth()];
+      const row=document.getElementById('cpDayRow');row.innerHTML='';
+      // Find Monday before 1st
+      const firstDay=base.getDay();
+      const startOffset=firstDay===0?-6:1-firstDay;
+      const start=new Date(base);start.setDate(1+startOffset);
+      for(let i=0;i<14;i++){ // show 2 weeks
+        const d=new Date(start);d.setDate(start.getDate()+i);
+        const isToday=d.toDateString()===realNow.toDateString();
+        const isOther=d.getMonth()!==base.getMonth();
+        const cell=document.createElement('div');cell.className='cp-day';
+        const dd=document.createElement('div');
+        dd.className='cp-dd'+(isToday?' today':isOther?' other-month':'');
+        dd.textContent=d.getDate();
+        cell.appendChild(dd);
+        row.appendChild(cell);
+      }
+    }
+
+    function render(){ view==='weekly'?buildWeekly():buildMonthly(); }
+    render();
+
+    document.getElementById('btnWeekly').addEventListener('click',()=>{
+      view='weekly';offset=0;
+      document.getElementById('btnWeekly').classList.add('active');
+      document.getElementById('btnMonthly').classList.remove('active');
+      render();
+    });
+    document.getElementById('btnMonthly').addEventListener('click',()=>{
+      view='monthly';offset=0;
+      document.getElementById('btnMonthly').classList.add('active');
+      document.getElementById('btnWeekly').classList.remove('active');
+      render();
+    });
+    document.getElementById('cpPrev').addEventListener('click',()=>{offset--;render();});
+    document.getElementById('cpNext').addEventListener('click',()=>{offset++;render();});
   })();
 
-  // Reminders widget
+  // Reminders
   const reminders=JSON.parse(localStorage.getItem('cal_reminders')||'[]');
   function renderReminders(){
     const list=document.getElementById('remList');
-    list.innerHTML=reminders.length?reminders.map(r=>`<div class="rem-item"><div class="rem-dot"></div><span>${r}</span></div>`).join(''):'<div class="rem-empty">No reminders set</div>';
+    list.innerHTML=reminders.length
+      ? reminders.map(r=>`<div class="cp-rem-item"><div class="cp-rem-dot"></div><span>${r}</span></div>`).join('')
+      : '<div class="cp-rem-empty">No reminders yet</div>';
   }
   renderReminders();
   document.getElementById('remAddBtn').addEventListener('click',()=>{
-    const txt=prompt('Add reminder:');
+    const txt=prompt('New reminder:');
     if(txt&&txt.trim()){reminders.unshift(txt.trim());if(reminders.length>5)reminders.pop();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
   });
   document.getElementById('heroTrash').addEventListener('click',()=>{
