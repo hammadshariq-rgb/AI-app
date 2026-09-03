@@ -1014,33 +1014,54 @@ async function checkDailyLimit(req, res, next) {
   }
 }
 
-// ── Guest voice endpoint — no auth required, returns text + fable TTS audio ──
+// ── Guest voice endpoint — no auth, full Whisper STT → GPT → fable TTS ──────
 app.post('/web/voice', aiLimiter, async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+    const { audio_b64, text } = req.body;
+    let transcript = text || '';
+
+    // If audio sent, transcribe with Whisper (same as desktop app)
+    if (audio_b64) {
+      const { toFile } = require('openai');
+      const buffer = Buffer.from(audio_b64, 'base64');
+      const file = await toFile(buffer, 'audio.webm', { type: 'audio/webm' });
+      try {
+        const result = await openai.audio.transcriptions.create({
+          file, model: 'gpt-4o-transcribe', language: 'en',
+          prompt: WHISPER_PROMPT || 'Callisto AI assistant', response_format: 'text', temperature: 0,
+        });
+        transcript = typeof result === 'string' ? result.trim() : (result.text || '').trim();
+      } catch {
+        const result = await openai.audio.transcriptions.create({
+          file, model: 'whisper-1', language: 'en',
+          prompt: WHISPER_PROMPT || 'Callisto AI assistant', temperature: 0,
+        });
+        transcript = (result.text || '').trim();
+      }
+    }
+
+    if (!transcript) return res.status(400).json({ error: 'No speech detected' });
 
     const sys = `You are Callisto, a friendly personal AI assistant. Be concise — 1 to 3 sentences max. Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
 
-    // Get AI reply
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: sys }, { role: 'user', content: text }],
-      max_tokens: 180,
-    });
+    // Run AI + TTS in parallel for speed
+    const [completion, ] = await Promise.all([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: sys }, { role: 'user', content: transcript }],
+        max_tokens: 180,
+      }),
+    ]);
     const reply = completion.choices[0]?.message?.content?.trim() || 'Sorry, I could not respond.';
 
-    // Generate fable TTS audio
+    // Generate fable TTS (same voice + speed as desktop app)
     const ttsResult = await openai.audio.speech.create({
-      model: 'tts-1',
-      voice: 'fable',
-      input: reply,
-      response_format: 'mp3',
+      model: 'tts-1', voice: 'fable', speed: 0.92,
+      input: reply, response_format: 'mp3',
     });
     const audioBuffer = Buffer.from(await ttsResult.arrayBuffer());
-    const audioB64 = audioBuffer.toString('base64');
 
-    res.json({ reply, audio: audioB64 });
+    res.json({ transcript, reply, audio: audioBuffer.toString('base64') });
   } catch (err) {
     console.error('[web/voice]', err);
     res.status(500).json({ error: 'Voice processing failed' });

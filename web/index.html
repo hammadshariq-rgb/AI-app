@@ -1149,73 +1149,100 @@
     bubble._t = setTimeout(()=>{ bubble.remove(); }, 12000);
   }
 
-  // ── Landing-page voice mode (stays on landing, doesn't go to chat) ────────
-  let landingRecog = null;
+  // ── Landing-page voice mode — MediaRecorder → Whisper STT → GPT → Fable TTS
+  let mediaRec = null;
+  let audioChunks = [];
   let landingRecording = false;
   let landingBusy = false;
+  let currentAudio = null;
 
-  function startLandingVoice(){
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!SR){ alert('Voice requires Chrome browser.'); return; }
-    if(landingRecording){ if(landingRecog) landingRecog.stop(); return; }
+  async function startLandingVoice(){
+    // If currently playing response, stop it
+    if(currentAudio){ currentAudio.pause(); currentAudio=null; setOrbState('standby'); }
+
+    // If already recording → stop and process
+    if(landingRecording){
+      if(mediaRec && mediaRec.state==='recording') mediaRec.stop();
+      return;
+    }
     if(landingBusy) return;
 
-    landingRecog = new SR();
-    landingRecog.lang = 'en-US';
-    landingRecog.continuous = false;
-    landingRecog.interimResults = false;
+    // Request mic
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    } catch(e){
+      alert('Please allow microphone access.');
+      return;
+    }
 
-    landingRecog.onstart = ()=>{ landingRecording=true; setOrbState('listen'); };
+    audioChunks = [];
+    // Use webm/opus for best Whisper compatibility
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus' : 'audio/webm';
+    mediaRec = new MediaRecorder(stream, {mimeType});
 
-    landingRecog.onresult = async (e)=>{
-      const transcript = e.results[0][0].transcript.trim();
-      if(!transcript) return;
+    mediaRec.ondataavailable = e=>{ if(e.data.size>0) audioChunks.push(e.data); };
+
+    mediaRec.onstart = ()=>{ landingRecording=true; setOrbState('listen'); };
+
+    mediaRec.onstop = async ()=>{
       landingRecording = false;
       landingBusy = true;
+      stream.getTracks().forEach(t=>t.stop());
+
+      const blob = new Blob(audioChunks, {type: mimeType});
+      if(blob.size < 1000){ landingBusy=false; setOrbState('standby'); return; }
+
       setOrbState('think');
 
-      try{
-        // Use /web/voice — no auth needed, returns reply + fable TTS audio
-        const r = await fetch(`${SERVER}/web/voice`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({text:transcript})
-        });
-        if(!r.ok){ throw new Error('server error'); }
-        const d = await r.json();
-        const reply = d.reply || 'Sorry, no response.';
-        const audioB64 = d.audio;
+      // Convert to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async ()=>{
+        const b64 = reader.result.split(',')[1];
+        try{
+          const r = await fetch(`${SERVER}/web/voice`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({audio_b64: b64})
+          });
+          if(!r.ok) throw new Error('server');
+          const d = await r.json();
+          const reply = d.reply || 'Sorry, no response.';
+          const audioB64 = d.audio;
 
-        setOrbState('speak');
-        showVoiceResponse(reply);
+          setOrbState('speak');
+          showVoiceResponse(reply);
 
-        // Play fable TTS audio (same voice as the desktop app)
-        if(audioB64){
-          const audioBlob = new Blob([Uint8Array.from(atob(audioB64),c=>c.charCodeAt(0))],{type:'audio/mpeg'});
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          audio.onended = ()=>{ setOrbState('standby'); URL.revokeObjectURL(audioUrl); };
-          audio.onerror  = ()=>{ setOrbState('standby'); URL.revokeObjectURL(audioUrl); };
-          audio.play().catch(()=>setOrbState('standby'));
-        } else {
-          setTimeout(()=>setOrbState('standby'), 3000);
+          if(audioB64){
+            const bytes = Uint8Array.from(atob(audioB64), c=>c.charCodeAt(0));
+            const audioBlob = new Blob([bytes],{type:'audio/mpeg'});
+            const url = URL.createObjectURL(audioBlob);
+            currentAudio = new Audio(url);
+            currentAudio.onended = ()=>{ setOrbState('standby'); URL.revokeObjectURL(url); currentAudio=null; };
+            currentAudio.onerror  = ()=>{ setOrbState('standby'); URL.revokeObjectURL(url); currentAudio=null; };
+            currentAudio.play().catch(()=>setOrbState('standby'));
+          } else {
+            setTimeout(()=>setOrbState('standby'), 3000);
+          }
+        } catch(err){
+          setOrbState('standby');
+          showVoiceResponse('Connection error. Please try again.');
         }
-      } catch(err){
-        setOrbState('standby');
-        showVoiceResponse('Connection error. Please try again.');
-      }
-      landingBusy = false;
+        landingBusy = false;
+      };
     };
 
-    landingRecog.onerror = (e)=>{ landingRecording=false; landingBusy=false; setOrbState('standby'); };
-    landingRecog.onend = ()=>{ landingRecording=false; if(!landingBusy) setOrbState('standby'); };
-
-    try{ landingRecog.start(); } catch(e){ setOrbState('standby'); }
+    mediaRec.start();
+    // Auto-stop after 15s max
+    setTimeout(()=>{ if(mediaRec && mediaRec.state==='recording') mediaRec.stop(); }, 15000);
   }
 
   document.getElementById('heroTrash').addEventListener('click',()=>{
     document.getElementById('voiceRespBubble')?.remove();
-    speechSynthesis?.cancel();
+    if(currentAudio){ currentAudio.pause(); currentAudio=null; }
+    if(mediaRec && mediaRec.state==='recording') mediaRec.stop();
     setOrbState('standby');
   });
 
