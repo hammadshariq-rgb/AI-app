@@ -90,19 +90,25 @@
 const { ipcRenderer } = require('electron');
 
 // ═══════════════════════════════════════════════════════════
-//  TUBE CURSOR TRAIL  (Canvas 2D — no CDN needed)
+//  CANVAS ELEMENTS — declared first so all functions can use them
 // ═══════════════════════════════════════════════════════════
-const tubeCanvas = document.getElementById('tubeCanvas');
-const tCtx = tubeCanvas.getContext('2d');
+const tubeCanvas  = document.getElementById('tubeCanvas');
+const tCtx        = tubeCanvas.getContext('2d');
+const lassoCanvas = document.getElementById('lassoCanvas');
+const lCtx        = lassoCanvas.getContext('2d');
 
 function resizeCanvases() {
-  tubeCanvas.width  = window.innerWidth;
-  tubeCanvas.height = window.innerHeight;
+  tubeCanvas.width   = window.innerWidth;
+  tubeCanvas.height  = window.innerHeight;
   lassoCanvas.width  = window.innerWidth;
   lassoCanvas.height = window.innerHeight;
 }
 resizeCanvases();
 window.addEventListener('resize', resizeCanvases);
+
+// ═══════════════════════════════════════════════════════════
+//  TUBE CURSOR TRAIL  (Canvas 2D — no CDN needed)
+// ═══════════════════════════════════════════════════════════
 
 // Trail: array of {x, y, t, hue}
 const trail = [];
@@ -176,8 +182,6 @@ drawTubes();
 // ═══════════════════════════════════════════════════════════
 //  LASSO DRAWING
 // ═══════════════════════════════════════════════════════════
-const lassoCanvas = document.getElementById('lassoCanvas');
-const lCtx = lassoCanvas.getContext('2d');
 
 let isDrawing = false;
 let path = [];   // [{x,y}]

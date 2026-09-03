@@ -105,7 +105,8 @@ let overlayWindow = null;
 let hudWindow = null;
 let captureWindow = null;   // Ctrl+Shift+Y screen capture overlay
 let tray = null;
-let hudVoiceMode = false;   // true while waiting for a Ctrl+Shift+C response
+let hudVoiceMode  = false;   // true while waiting for a Ctrl+Shift+C response
+let hudListening  = false;   // tracks whether HUD mic is currently active
 
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -494,17 +495,26 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
   });
 
-  // Ctrl+Shift+Y — Screen capture: glowing lasso overlay to circle & identify anything on screen
-  globalShortcut.register('Control+Shift+Y', () => {
+  // Ctrl+Shift+X — Screen capture: glowing lasso overlay to circle & identify anything on screen
+  globalShortcut.register('Control+Shift+X', () => {
     openCaptureOverlay();
   });
 
-  // Ctrl+Shift+C — HUD voice trigger: listen without showing main app; card appears on screen
+  // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer
   globalShortcut.register('Control+Shift+C', () => {
-    hudVoiceMode = true;          // flag: next jarvis:chat response goes to HUD
-    sendToHud('hud:listening', {});
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    overlayWindow.webContents.send('jarvis:hud-voice-trigger');
+    if (hudListening) {
+      // Second press — stop listening, let renderer send the transcript to AI
+      hudListening = false;
+      sendToHud('hud:listening-stop', {});
+      overlayWindow.webContents.send('jarvis:hud-voice-trigger'); // stopRecording() path
+    } else {
+      // First press — start listening
+      hudListening = true;
+      hudVoiceMode = true;
+      sendToHud('hud:listening', {});
+      overlayWindow.webContents.send('jarvis:hud-voice-trigger'); // startRecording() path
+    }
   });
 
   // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
@@ -1067,7 +1077,15 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
-  let finalText = result.text;
+  let finalText = (result.text && result.text.trim() && !result.text.includes('undefined'))
+    ? result.text.trim()
+    : null;
+  // Guard: if AI returned empty/undefined text, bail early without speaking
+  if (!finalText) {
+    hudVoiceMode = false;
+    hudListening = false;
+    return { text: '', audio: null, card: null, hasAction: false };
+  }
   const didTakeAction = !!result.action; // track before nulling out
 
   // For play_music — try Spotify Web API first (plays in background), else fall back to opening app/browser
@@ -1426,6 +1444,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
 
+  // ── Split-screen: when HUD voice triggered an open_file or open_app, snap main app to left half ──
+  if (hudVoiceMode && finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_app')) {
+    try {
+      const { width, height, x: sx, y: sy } = screen.getPrimaryDisplay().workArea;
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.setBounds({ x: sx, y: sy, width: Math.floor(width / 2), height }, { animate: false });
+        overlayWindow.show();
+        overlayWindow.focus();
+      }
+    } catch (_) {}
+  }
+
   if (cmdResult && cmdResult.content) {
     const followUp = await ai.respond({
       message: `File content:\n\n${cmdResult.content}\n\nGive a brief overview in 2-3 sentences.`,
@@ -1491,7 +1521,8 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Send to HUD when: Ctrl+Shift+C triggered this chat, OR HUD is already visible
   const shouldSendToHud = hudVoiceMode || (hudWindow && !hudWindow.isDestroyed() && hudWindow.isVisible());
   if (shouldSendToHud) {
-    hudVoiceMode = false; // reset flag
+    hudVoiceMode = false;  // reset flag
+    hudListening = false;  // reset listening state
     const cardPayload = finalCard
       ? { type: finalCard.type || 'wiki', text: finalText, card: finalCard, title: finalCard.title }
       : { type: 'info', text: finalText };

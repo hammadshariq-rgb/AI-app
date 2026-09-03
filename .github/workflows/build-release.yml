@@ -1,0 +1,115 @@
+name: Build Windows + Mac
+
+on:
+  workflow_dispatch:        # manual trigger from GitHub Actions tab
+  push:
+    tags:
+      - 'v*'               # auto-triggers on git push origin v1.1.4 etc.
+
+jobs:
+
+  # ── Windows ────────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Create .env for build
+        working-directory: app
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        shell: bash
+        run: |
+          echo "LICENSE_SERVER_URL=https://ai-app-production-9224.up.railway.app" >> .env
+          echo "ASSISTANT_NAME=Jarvis" >> .env
+          echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
+
+      - name: Build Windows installer
+        working-directory: app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win
+
+      - name: Upload EXE to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            app/dist/*.exe
+            app/dist/*.msi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload EXE as artifact (manual runs)
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: callisto-windows-exe
+          path: |
+            app/dist/*.exe
+            app/dist/*.msi
+          retention-days: 30
+
+  # ── macOS ──────────────────────────────────────────────────────────────────
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Create .env for build
+        working-directory: app
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: |
+          echo "LICENSE_SERVER_URL=https://ai-app-production-9224.up.railway.app" >> .env
+          echo "ASSISTANT_NAME=Jarvis" >> .env
+          echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
+
+      - name: Build Mac DMG
+        working-directory: app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false   # unsigned — skip code signing
+        run: npm run dist:mac
+
+      - name: Upload DMG to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: app/dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload DMG as artifact (manual runs)
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: callisto-mac-dmg
+          path: app/dist/*.dmg
+          retention-days: 30
