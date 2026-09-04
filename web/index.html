@@ -315,7 +315,7 @@
     .cn-avatar { width: 25px; height: 25px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
     .cn-uname { font-size: 11.5px; color: var(--text2); }
     #chatBody { display: flex; flex: 1; overflow: hidden; }
-    #chatSidebar { width: 210px; flex-shrink: 0; background: rgba(5,8,18,0.8); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 10px 0; }
+    #chatSidebar { display: none; } /* sidebar replaced by hamburger slide-in nav */
     .new-chat { display: flex; align-items: center; gap: 7px; width: calc(100% - 20px); margin: 0 10px 8px; background: rgba(61,92,255,0.1); border: 1px solid rgba(61,92,255,0.2); border-radius: 8px; padding: 7px 11px; color: rgba(130,170,255,0.8); font-family: var(--body); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
     .new-chat:hover { background: rgba(61,92,255,0.18); }
     .sb-hist { flex: 1; overflow-y: auto; padding: 0 10px; }
@@ -355,7 +355,20 @@
     .chips { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; max-width: 480px; margin: 0 auto; }
     .chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border2); border-radius: 16px; padding: 6px 13px; font-size: 12px; color: var(--text2); cursor: pointer; transition: all 0.18s; }
     .chip:hover { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.3); color: rgba(130,170,255,0.9); }
-    #inputArea { padding: 8px 18px 16px; flex-shrink: 0; }
+    #inputArea { padding: 8px 18px 14px; flex-shrink: 0; }
+    #chatExtraBar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; margin-bottom: 7px; }
+    #attachBtn,#clearChatBtn { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(130,160,255,0.65); transition: all 0.15s; flex-shrink: 0; }
+    #attachBtn:hover { background: rgba(61,92,255,0.15); border-color: rgba(61,92,255,0.3); color: rgba(160,190,255,0.95); }
+    #clearChatBtn:hover { background: rgba(255,50,50,0.12); border-color: rgba(255,60,60,0.3); color: rgba(255,120,120,0.95); }
+    #shiftVoiceBtn { display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(130,160,255,0.65); font-family: var(--body); font-size: 11px; font-weight: 600; letter-spacing: 1.5px; cursor: pointer; transition: all 0.18s; }
+    #shiftVoiceBtn:hover { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.35); color: rgba(160,200,255,0.9); }
+    #shiftVoiceBtn svg { flex-shrink: 0; }
+    #chatNavHamburger { width: 34px; height: 34px; border-radius: 9px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(150,180,255,0.8); font-size: 16px; transition: all 0.15s; flex-shrink: 0; }
+    #chatNavHamburger:hover { background: rgba(61,92,255,0.15); border-color: rgba(61,92,255,0.3); }
+    #chatThemeToggle { width: 34px; height: 34px; border-radius: 9px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.15s; flex-shrink: 0; }
+    body.light #chatThemeToggle { background: #fff; border: 1px solid rgba(0,0,0,0.15); }
+    #chatThemeToggle:hover { background: rgba(255,255,255,0.1); }
+    .cn-left { display: flex; align-items: center; gap: 8px; }
     #inputBar { display: flex; align-items: flex-end; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2); border-radius: 13px; padding: 7px 7px 7px 13px; transition: border-color 0.2s; }
     #inputBar:focus-within { border-color: rgba(61,92,255,0.4); }
     #inputBar.recording { border-color: rgba(255,60,60,0.5); background: rgba(255,30,30,0.04); }
@@ -935,7 +948,11 @@
 <!-- ══════════ CHAT APP ══════════ -->
 <div id="chatApp" class="hidden">
   <nav id="chatNav">
-    <div class="cn-brand" id="cnBrand"><div class="cn-orb"></div><span class="cn-name">CALLISTO</span></div>
+    <div class="cn-left">
+      <button id="chatNavHamburger" title="Menu" onclick="document.getElementById('heroNavPanel').style.left='0';document.getElementById('heroNavOverlay').style.display='block'">☰</button>
+      <button id="chatThemeToggle" title="Toggle light/dark" onclick="isDark=!isDark;localStorage.setItem('cal_theme',isDark?'dark':'light');applyTheme()"></button>
+      <div class="cn-brand" id="cnBrand"><div class="cn-orb"></div><span class="cn-name">CALLISTO</span></div>
+    </div>
     <div class="cn-right">
       <div style="position:relative">
         <button class="cn-btn gold" id="cnPremBtn">⭐ Get Premium ▾</button>
@@ -1022,6 +1039,20 @@
         </div>
       </div>
       <div id="inputArea">
+        <div id="chatExtraBar">
+          <div style="display:flex;gap:6px">
+            <button id="attachBtn" title="Attach file">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <button id="clearChatBtn" title="Clear chat" onclick="clearChat()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </div>
+          <button id="shiftVoiceBtn" onclick="document.getElementById('chatApp').classList.add('hidden');document.getElementById('hero').style.display='flex';document.getElementById('voiceMode').classList.remove('hidden');">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            SHIFT TO VOICE
+          </button>
+        </div>
         <div id="inputBar">
           <textarea id="userInput" rows="1" placeholder="Message Callisto..." maxlength="4000"></textarea>
           <button id="micBtn" title="Voice input">
@@ -1301,7 +1332,18 @@
   // Theme toggle
   const themeBtn=document.getElementById('themeToggle');
   let isDark=localStorage.getItem('cal_theme')!=='light';
-  function applyTheme(){if(isDark){document.body.classList.remove('light');themeBtn.textContent='🌙';}else{document.body.classList.add('light');themeBtn.textContent='☀️';}}
+  function applyTheme(){
+    const chatTog=document.getElementById('chatThemeToggle');
+    if(isDark){
+      document.body.classList.remove('light');
+      themeBtn.textContent='🌙';
+      if(chatTog) chatTog.textContent='🌙';
+    }else{
+      document.body.classList.add('light');
+      themeBtn.textContent='☀️';
+      if(chatTog) chatTog.textContent='☀️';
+    }
+  }
   applyTheme();
   themeBtn.addEventListener('click',()=>{isDark=!isDark;localStorage.setItem('cal_theme',isDark?'dark':'light');applyTheme();});
 
@@ -1777,17 +1819,27 @@
   }
   // ────────────────────────────────────────────────────────────────────────────
 
+  function clearChat(){
+    msgs=[];
+    msgsEl.innerHTML='';
+    document.getElementById('welcome').classList.remove('hidden');
+  }
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
-    if(!token||!user){showAuth();return;} // showAuth is once-per-session
+    // Allow guests — server enforces 15 msg/day limit by IP
+    // Only gate if server explicitly returns 401
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
     const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
     try{
       const sys=`You are Callisto, a friendly and intelligent personal AI assistant. Be concise and fast. Today is ${new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.`;
-      const r=await fetch(`${SERVER}/web/chat`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
+      const headers={'Content-Type':'application/json'};
+      if(token) headers['Authorization']=`Bearer ${token}`;
+      const r=await fetch(`${SERVER}/web/chat`,{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
 
-      // Handle 429 before reading stream
+      // Handle 401 — needs sign in
+      if(r.status===401){msgs.pop();document.getElementById('tRow')?.remove();showAuth();busy=false;sBt.disabled=false;return;}
+      // Handle 429 — daily limit
       if(r.status===429){const d=await r.json();if(d.error==='daily_limit_reached'){msgs.pop();document.getElementById('limitModal').classList.remove('hidden');busy=false;sBt.disabled=false;return;}}
       if(!r.ok){document.getElementById('tRow')?.remove();addMsg('assistant','Sorry, something went wrong.');busy=false;sBt.disabled=false;return;}
 
