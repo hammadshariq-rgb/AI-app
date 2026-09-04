@@ -321,6 +321,20 @@
     .cn-uname { font-size: 11.5px; color: var(--text2); }
     #chatBody { display: flex; flex: 1; overflow: hidden; }
     #chatSidebar { display: none; } /* sidebar replaced by hamburger slide-in nav */
+    /* ── Chat-mode calendar+reminders right panel ── */
+    #chatCalPanel {
+      width: 240px; flex-shrink: 0;
+      background: rgba(6,9,24,0.80);
+      border-left: 1px solid rgba(61,92,255,0.14);
+      overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column;
+      position: relative; z-index: 1;
+    }
+    body.light #chatCalPanel {
+      background: rgba(235,239,252,0.94);
+      border-left-color: rgba(61,92,255,0.13);
+    }
+    @media(max-width:860px){ #chatCalPanel { display:none; } }
     .new-chat { display: flex; align-items: center; gap: 7px; width: calc(100% - 20px); margin: 0 10px 8px; background: rgba(61,92,255,0.1); border: 1px solid rgba(61,92,255,0.2); border-radius: 8px; padding: 7px 11px; color: rgba(130,170,255,0.8); font-family: var(--body); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
     .new-chat:hover { background: rgba(61,92,255,0.18); }
     .sb-hist { flex: 1; overflow-y: auto; padding: 0 10px; }
@@ -1027,6 +1041,27 @@
         <p class="input-hint">Callisto can make mistakes. Double-check important information.</p>
       </div>
     </div>
+    <!-- ── Calendar + Reminders panel (chat mode) ── -->
+    <div id="chatCalPanel">
+      <!-- Reminders -->
+      <div class="cp-reminders">
+        <div class="cp-rem-header">
+          <span class="cp-rem-label">REMINDERS</span>
+          <button class="cp-rem-add" onclick="(function(){var t=prompt('New reminder:');if(t&&t.trim()){var r=JSON.parse(localStorage.getItem('cal_reminders')||'[]');r.unshift(t.trim());if(r.length>5)r.pop();localStorage.setItem('cal_reminders',JSON.stringify(r));renderReminders();renderChatReminders();}})()">+ ADD</button>
+        </div>
+        <div id="chatRemList"><div class="cp-rem-empty">No reminders yet</div></div>
+      </div>
+      <!-- Calendar -->
+      <div class="cp-calendar">
+        <div class="cp-view-toggle">
+          <button class="cp-view-btn active" id="chatCalWk" onclick="chatCalView='week';renderChatCal()">Weekly</button>
+          <button class="cp-view-btn" id="chatCalMo" onclick="chatCalView='month';renderChatCal()">Monthly</button>
+          <span class="cp-settings" title="Open Google Calendar" onclick="window.open('https://calendar.google.com')">⚙</span>
+        </div>
+        <div id="chatCalGrid"></div>
+        <button class="cp-new-event" onclick="if(token&&user){document.getElementById('userInput').value='Add a new calendar event';send();}else showAuth();">+ New Event</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1326,6 +1361,67 @@
       : '<div class="cp-rem-empty">No reminders yet</div>';
   }
   renderReminders();
+
+  // ── Chat panel: reminders mirror ──
+  function renderChatReminders(){
+    const list=document.getElementById('chatRemList');
+    if(!list)return;
+    list.innerHTML=reminders.length
+      ? reminders.map(r=>`<div class="cp-rem-item"><div class="cp-rem-dot"></div><span>${r}</span></div>`).join('')
+      : '<div class="cp-rem-empty">No reminders yet</div>';
+  }
+  renderChatReminders();
+
+  // ── Chat panel: calendar mirror ──
+  let chatCalView='week';
+  function renderChatCal(){
+    const grid=document.getElementById('chatCalGrid');
+    if(!grid)return;
+    // Reuse same logic as the main landing calendar
+    const isWeek=(chatCalView==='week');
+    document.getElementById('chatCalWk').classList.toggle('active',isWeek);
+    document.getElementById('chatCalMo').classList.toggle('active',!isWeek);
+    const today=new Date();
+    if(isWeek){
+      // 7-day strip
+      const days=['Su','Mo','Tu','We','Th','Fr','Sa'];
+      const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay());
+      let html='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">';
+      for(let i=0;i<7;i++){
+        const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
+        const isToday=d.toDateString()===today.toDateString();
+        html+=`<div style="text-align:center;font-size:9px;font-weight:600;color:rgba(100,140,255,0.5);letter-spacing:1px">${days[i]}</div>`;
+      }
+      html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">';
+      for(let i=0;i<7;i++){
+        const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
+        const isToday=d.toDateString()===today.toDateString();
+        html+=`<div style="text-align:center;padding:5px 2px;border-radius:6px;font-size:11px;font-weight:${isToday?700:400};color:${isToday?'#fff':'rgba(150,180,255,0.6)'};background:${isToday?'rgba(61,92,255,0.6)':'transparent'}">${d.getDate()}</div>`;
+      }
+      html+='</div>';
+      grid.innerHTML=html;
+    } else {
+      // Full month grid
+      const y=today.getFullYear(),m=today.getMonth();
+      const first=new Date(y,m,1).getDay();
+      const days=['Su','Mo','Tu','We','Th','Fr','Sa'];
+      const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const daysInMonth=new Date(y,m+1,0).getDate();
+      let html=`<div style="text-align:center;font-size:11px;font-weight:700;color:rgba(140,170,255,0.8);margin-bottom:8px">${monthNames[m]} ${y}</div>`;
+      html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">';
+      days.forEach(d=>{html+=`<div style="text-align:center;font-size:9px;font-weight:600;color:rgba(100,140,255,0.5);letter-spacing:1px">${d}</div>`;});
+      html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">';
+      for(let i=0;i<first;i++) html+='<div></div>';
+      for(let d=1;d<=daysInMonth;d++){
+        const isToday=(d===today.getDate());
+        html+=`<div style="text-align:center;padding:4px 1px;border-radius:5px;font-size:10px;font-weight:${isToday?700:400};color:${isToday?'#fff':'rgba(150,180,255,0.6)'};background:${isToday?'rgba(61,92,255,0.6)':'transparent'}">${d}</div>`;
+      }
+      html+='</div>';
+      grid.innerHTML=html;
+    }
+  }
+  renderChatCal();
+
   document.getElementById('remAddBtn').addEventListener('click',()=>{
     const txt=prompt('New reminder:');
     if(txt&&txt.trim()){reminders.unshift(txt.trim());if(reminders.length>5)reminders.pop();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
