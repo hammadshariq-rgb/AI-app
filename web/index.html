@@ -321,21 +321,18 @@
     .cn-uname { font-size: 11.5px; color: var(--text2); }
     #chatBody { display: flex; flex: 1; overflow: hidden; }
     #chatSidebar { display: none; } /* sidebar replaced by hamburger slide-in nav */
-    /* ── Chat-mode calendar+reminders right panel ── */
+    /* ── Chat-mode calendar+reminders floating panel ── */
     #chatCalPanel {
-      width: 230px; flex-shrink: 0;
-      background: rgba(6,9,24,0.72);
-      border-left: 1px solid rgba(61,92,255,0.14);
+      position: absolute; bottom: 90px; right: 18px;
+      width: 240px;
+      max-height: calc(100vh - 160px);
       overflow-y: auto; overflow-x: hidden;
       display: flex; flex-direction: column;
       gap: 10px; padding: 12px 10px;
-      position: relative; z-index: 1;
+      z-index: 10;
+      pointer-events: auto;
     }
-    body.light #chatCalPanel {
-      background: rgba(230,235,252,0.92);
-      border-left-color: rgba(61,92,255,0.13);
-    }
-    @media(max-width:900px){ #chatCalPanel { display:none; } }
+    @media(max-width:600px){ #chatCalPanel { display:none; } }
 
     /* Reminders block */
     .ccp-reminders { background:rgba(255,255,255,0.03); border:1px solid rgba(61,92,255,0.15); border-radius:12px; padding:10px 11px 10px; }
@@ -1012,6 +1009,49 @@
       </div>
     </div>
   </nav>
+  <!-- ── Calendar + Reminders floating panel (chat mode) ── -->
+    <div id="chatCalPanel">
+      <!-- Reminders -->
+      <div class="ccp-reminders">
+        <div class="ccp-rem-header">
+          <span class="ccp-rem-label">REMINDERS</span>
+          <button class="ccp-rem-add" id="chatRemAddBtn">+ ADD</button>
+        </div>
+        <div id="chatRemList"><div class="ccp-rem-empty">No reminders yet</div></div>
+      </div>
+      <!-- Calendar card -->
+      <div class="ccp-cal-card">
+        <div class="ccp-cal-header">
+          <button class="ccp-nav-arrow" id="chatCalPrev">&#8249;</button>
+          <span class="ccp-month-label" id="chatCalMonth">September</span>
+          <button class="ccp-nav-arrow" id="chatCalNext">&#8250;</button>
+        </div>
+        <div class="ccp-view-row">
+          <button class="ccp-view-btn active" id="chatCalWkBtn">Weekly</button>
+          <button class="ccp-view-btn" id="chatCalMoBtn">Monthly</button>
+          <button class="ccp-gcal-btn" title="Open Google Calendar" onclick="window.open('https://calendar.google.com')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </button>
+        </div>
+        <div id="chatCalGrid" class="ccp-grid"></div>
+        <div class="ccp-note-row">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <span class="ccp-note-placeholder">Add a note...</span>
+        </div>
+        <button class="ccp-new-event" onclick="if(token&&user){document.getElementById('userInput').value='Add a new calendar event';send();}else showAuth();">+ New Event</button>
+      </div>
+      <!-- Portfolio stub -->
+      <div class="ccp-portfolio-card">
+        <div class="ccp-portfolio-header">
+          <span class="ccp-rem-label">PORTFOLIO</span>
+          <div style="display:flex;gap:4px">
+            <button class="ccp-nav-arrow" id="chatPortPrev">&#8249;</button>
+            <button class="ccp-nav-arrow" id="chatPortNext">&#8250;</button>
+          </div>
+        </div>
+        <div class="ccp-portfolio-body">Connect accounts to see portfolio</div>
+      </div>
+    </div>
   <div id="chatBody">
     <div id="chatSidebar">
       <!-- App-style nav tabs -->
@@ -1110,49 +1150,7 @@
       </div>
     </div>
     <!-- ── Calendar + Reminders panel (chat mode) ── -->
-    <div id="chatCalPanel">
-      <!-- Reminders -->
-      <div class="ccp-reminders">
-        <div class="ccp-rem-header">
-          <span class="ccp-rem-label">REMINDERS</span>
-          <button class="ccp-rem-add" id="chatRemAddBtn">+ ADD</button>
-        </div>
-        <div id="chatRemList"><div class="ccp-rem-empty">No reminders yet</div></div>
-      </div>
-      <!-- Calendar card -->
-      <div class="ccp-cal-card">
-        <div class="ccp-cal-header">
-          <button class="ccp-nav-arrow" id="chatCalPrev">&#8249;</button>
-          <span class="ccp-month-label" id="chatCalMonth">September</span>
-          <button class="ccp-nav-arrow" id="chatCalNext">&#8250;</button>
-        </div>
-        <div class="ccp-view-row">
-          <button class="ccp-view-btn active" id="chatCalWkBtn">Weekly</button>
-          <button class="ccp-view-btn" id="chatCalMoBtn">Monthly</button>
-          <button class="ccp-gcal-btn" title="Open Google Calendar" onclick="window.open('https://calendar.google.com')">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          </button>
-        </div>
-        <div id="chatCalGrid" class="ccp-grid"></div>
-        <div class="ccp-note-row">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          <span class="ccp-note-placeholder">Add a note...</span>
-        </div>
-        <button class="ccp-new-event" onclick="if(token&&user){document.getElementById('userInput').value='Add a new calendar event';send();}else showAuth();">+ New Event</button>
-      </div>
-      <!-- Portfolio stub -->
-      <div class="ccp-portfolio-card">
-        <div class="ccp-portfolio-header">
-          <span class="ccp-rem-label">PORTFOLIO</span>
-          <div style="display:flex;gap:4px">
-            <button class="ccp-nav-arrow" id="chatPortPrev">&#8249;</button>
-            <button class="ccp-nav-arrow" id="chatPortNext">&#8250;</button>
-          </div>
-        </div>
-        <div class="ccp-portfolio-body">Connect accounts to see portfolio</div>
-      </div>
     </div>
-  </div>
 </div>
 
 <!-- LIMIT MODAL -->

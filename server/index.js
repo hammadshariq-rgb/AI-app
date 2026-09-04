@@ -260,6 +260,7 @@ function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    req.userId = req.user.id; // expose id directly
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
