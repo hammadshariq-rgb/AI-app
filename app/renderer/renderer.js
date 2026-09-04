@@ -2257,6 +2257,8 @@ async function sendToJarvis(text) {
 
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
+  // Check if message triggers browser panel (shopping / places)
+  if (typeof window._checkBrowserPanel === 'function') window._checkBrowserPanel(text);
   setState('thinking');
   showStopBtn(true);
 
@@ -2506,6 +2508,101 @@ async function sendToJarvis(text) {
 window.jarvis.onSentenceAudio(({ audio }) => {
   playAudioChunks([audio]);
 });
+
+// ── Browser sidebar panel (shopping + places) ─────────────────────────────────
+(function() {
+  const panel   = document.getElementById('browserPanel');
+  const webview = document.getElementById('bpWebview');
+  const bpTitle = document.getElementById('bpTitle');
+  const bpIcon  = document.getElementById('bpIcon');
+  const bpClose = document.getElementById('bpClose');
+  const bpOpen  = document.getElementById('bpOpenExternal');
+  if (!panel || !webview) return;
+
+  let currentUrl = '';
+
+  function openBrowserPanel(url, title, icon) {
+    currentUrl = url;
+    bpTitle.textContent = title || 'Search Results';
+    bpIcon.textContent  = icon  || '🔍';
+    webview.src = url;
+    panel.classList.remove('hidden');
+  }
+
+  function closeBrowserPanel() {
+    panel.classList.add('hidden');
+    webview.src = 'about:blank';
+    currentUrl = '';
+  }
+
+  bpClose?.addEventListener('click', closeBrowserPanel);
+  bpOpen?.addEventListener('click', () => { if (currentUrl) window.jarvis.openUrl(currentUrl); });
+
+  // ── Shopping detection ────────────────────────────────────────────────────
+  const SHOP_PATTERNS = [
+    { rx: /\b(ebay)\b/i,      base: 'https://www.ebay.com/sch/i.html?_nkw=',         icon: '🛍', name: 'eBay' },
+    { rx: /\b(amazon)\b/i,    base: 'https://www.amazon.com/s?k=',                    icon: '📦', name: 'Amazon' },
+    { rx: /\b(temu)\b/i,      base: 'https://www.temu.com/search_result.html?search_key=', icon: '🛒', name: 'Temu' },
+    { rx: /\b(daraz)\b/i,     base: 'https://www.daraz.pk/catalog/?q=',               icon: '🛒', name: 'Daraz' },
+    { rx: /\b(aliexpress|ali express)\b/i, base: 'https://www.aliexpress.com/wholesale?SearchText=', icon: '🚢', name: 'AliExpress' },
+  ];
+  // Generic shop triggers (no specific platform → default to Google Shopping)
+  const SHOP_GENERIC = /\b(shop|buy|order|find me|search for|look for|get me)\b.{0,60}\b(product|item|rug|phone|laptop|shoes|bag|watch|jacket|shirt|pants|dress|sofa|chair|table|lamp)\b/i;
+
+  function detectShopping(text) {
+    for (const p of SHOP_PATTERNS) {
+      if (p.rx.test(text)) {
+        // Extract query: strip platform name + common verbs
+        const q = text
+          .replace(/\b(find|search|look for|buy|order|show me|get me)\b/gi, '')
+          .replace(p.rx, '')
+          .replace(/\b(on|at|from|in)\b/gi, '')
+          .trim();
+        if (q.length < 2) return null;
+        return { url: p.base + encodeURIComponent(q), icon: p.icon, name: p.name, query: q };
+      }
+    }
+    return null;
+  }
+
+  // ── Places detection ──────────────────────────────────────────────────────
+  const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me)\b/i;
+  const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|food|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall)\b/i;
+
+  function detectPlaces(text) {
+    if (!PLACES_KEYWORDS.test(text)) return null;
+    const match = text.match(PLACES_TYPES);
+    const placeType = match ? match[0] : 'place';
+    const q = text.replace(/\b(find|search|look for|show me)\b/gi, '').trim();
+    return {
+      url: 'https://www.google.com/maps/search/' + encodeURIComponent(q),
+      icon: '📍',
+      name: 'Maps — ' + placeType,
+      query: q
+    };
+  }
+
+  // Hook into sendToJarvis — intercept after message is sent
+  const _origSend = window._browserPanelHooked;
+  if (!_origSend) {
+    window._browserPanelHooked = true;
+    const origSendToJarvis = sendToJarvis;
+    // Override sendToJarvis to also check for panel triggers
+    window._checkBrowserPanel = function(text) {
+      const shop   = detectShopping(text);
+      const places = !shop ? detectPlaces(text) : null;
+      if (shop) {
+        openBrowserPanel(shop.url, shop.name, shop.icon);
+        if (window.jarvis && window.jarvis.speak)
+          window.jarvis.speak('Opening ' + shop.name + ' for ' + shop.query);
+      } else if (places) {
+        openBrowserPanel(places.url, places.name, places.icon);
+        if (window.jarvis && window.jarvis.speak)
+          window.jarvis.speak('Showing maps results for ' + places.query);
+      }
+    };
+  }
+})();
 
 // ── Proactive reminder fired by the scheduler in main.js ─────────────────────
 // ── Reminder toast ────────────────────────────────────────────────────────────

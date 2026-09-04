@@ -825,6 +825,43 @@
       transition: color 0.15s !important;
     }
     #finPanelClose:hover { color: rgba(255,100,100,0.80) !important; }
+
+    /* ── Browser sidebar panel ── */
+    .browser-panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 480px; z-index: 900;
+      display: flex; flex-direction: column;
+      background: rgba(8,12,28,0.98);
+      border-left: 1px solid rgba(61,92,255,0.25);
+      backdrop-filter: blur(20px);
+      box-shadow: -8px 0 40px rgba(0,0,10,0.6);
+      transform: translateX(100%);
+      transition: transform 0.32s cubic-bezier(0.34,1.1,0.64,1);
+    }
+    .browser-panel:not(.hidden) { transform: translateX(0); }
+    .browser-panel.hidden { transform: translateX(100%); }
+    body.light-mode .browser-panel {
+      background: rgba(235,239,252,0.98);
+      border-left-color: rgba(61,92,255,0.15);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.18);
+    }
+    .bp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; flex-shrink: 0;
+      border-bottom: 1px solid rgba(61,92,255,0.15);
+      background: rgba(6,9,24,0.6);
+    }
+    body.light-mode .bp-header { background: rgba(220,228,248,0.7); border-bottom-color: rgba(61,92,255,0.1); }
+    .bp-title-row { display: flex; align-items: center; gap: 8px; }
+    .bp-icon { font-size: 18px; }
+    .bp-title { font-family: var(--font-brand, 'Exo 2', sans-serif); font-size: 12px; font-weight: 700; letter-spacing: 2px; color: rgba(200,220,255,0.9); text-transform: uppercase; }
+    body.light-mode .bp-title { color: #1a1f3c; }
+    .bp-actions { display: flex; align-items: center; gap: 6px; }
+    .bp-btn { width: 28px; height: 28px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(150,180,255,0.75); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all .15s; }
+    .bp-btn:hover { background: rgba(61,92,255,0.2); color: #fff; }
+    .bp-close { font-size: 13px; }
+    body.light-mode .bp-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.12); color: rgba(30,50,150,0.7); }
+    body.light-mode .bp-btn:hover { background: rgba(61,92,255,0.12); color: #1a1f3c; }
     #finSliderWrap {
       overflow: hidden !important;
       width: 288px !important;
@@ -1768,6 +1805,23 @@
 
         </div><!-- end #historySidebar -->
       </div><!-- end #leftNav -->
+
+      <!-- ── Browser Sidebar Panel (shopping / maps) ── -->
+      <div id="browserPanel" class="browser-panel hidden">
+        <div class="bp-header">
+          <div class="bp-title-row">
+            <span class="bp-icon" id="bpIcon">🛍</span>
+            <span class="bp-title" id="bpTitle">Search Results</span>
+          </div>
+          <div class="bp-actions">
+            <button class="bp-btn" id="bpOpenExternal" title="Open in browser">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+            <button class="bp-btn bp-close" id="bpClose" title="Close">✕</button>
+          </div>
+        </div>
+        <webview id="bpWebview" src="about:blank" style="flex:1;border:none;" allowpopups></webview>
+      </div>
 
       <!-- Main content -->
       <div id="mainPanel">
