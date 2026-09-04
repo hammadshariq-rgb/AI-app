@@ -621,22 +621,22 @@
       </div>
 
       <!-- Divider -->
-      <div style="height:1px;background:rgba(255,255,255,0.05);flex-shrink:0;margin:0 14px"></div>
+      <div style="height:1px;background:rgba(255,255,255,0.05);flex-shrink:0;margin:0 14px 0"></div>
 
-      <!-- Scrollable content area — one panel visible at a time -->
-      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
+      <!-- Single scrollable body — all panels live here, shown/hidden -->
+      <div id="hnavScrollBody" style="flex:1;min-height:0;overflow-y:auto;padding:14px 14px 20px">
 
         <!-- HISTORY panel -->
-        <div id="hnavPanelHistory" style="display:flex;flex-direction:column;height:100%;overflow-y:auto;padding:14px 14px 16px">
+        <div id="hnavPanelHistory">
           <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,160,0.4);margin-bottom:10px">EARLIER</div>
-          <div id="hnavHistList" style="display:flex;flex-direction:column;gap:5px;flex:1">
+          <div id="hnavHistList" style="display:flex;flex-direction:column;gap:5px">
             <div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.3);font-size:11.5px">No history yet</div>
           </div>
-          <button onclick="if(token&&user)openChat();else showAuth();" style="margin-top:12px;flex-shrink:0;padding:9px 12px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.25);color:rgba(130,170,255,0.85);font-size:12.5px;font-weight:600;cursor:pointer;width:100%">＋ New Chat</button>
+          <button onclick="if(token&&user)openChat();else showAuth();" style="margin-top:12px;padding:9px 12px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.25);color:rgba(130,170,255,0.85);font-size:12.5px;font-weight:600;cursor:pointer;width:100%">＋ New Chat</button>
         </div>
 
         <!-- FAVOURITES panel -->
-        <div id="hnavPanelFavs" style="display:none;flex-direction:column;height:100%;overflow-y:auto;padding:14px 14px 16px">
+        <div id="hnavPanelFavs" style="display:none">
           <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(245,158,11,0.45);margin-bottom:10px">QUICK COMMANDS</div>
           <div style="display:flex;flex-direction:column;gap:7px">
             <div onclick="if(token&&user){closeNavPanel();openChat();setTimeout(()=>{document.getElementById('userInput').value='Open my calendar';send();},300);}else showAuth();" style="padding:11px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"Open my calendar"</div>
@@ -646,68 +646,50 @@
           </div>
         </div>
 
-        <!-- CONNECTORS panel — matches app layout -->
-        <div id="hnavPanelConn" style="display:none;flex-direction:column;height:100%;overflow-y:auto;padding:14px 14px 16px">
+        <!-- CONNECTORS panel -->
+        <div id="hnavPanelConn" style="display:none">
           <div style="display:flex;flex-direction:column;gap:7px">
-            <!-- Google Calendar -->
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(66,133,244,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📅</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">GOOGLE CAL...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">GOOGLE CAL...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button>
             </div>
-            <!-- Spotify -->
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(30,215,96,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎵</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">SPOTIFY</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">SPOTIFY</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button>
             </div>
-            <!-- Gmail -->
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(234,67,53,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📧</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">GMAIL</div><div style="font-size:10.5px;color:rgba(245,158,11,0.65);margin-top:1px">Coming soon</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,35,60,0.6);border:none;color:rgba(150,160,200,0.35);font-size:11px;font-weight:700;cursor:default;letter-spacing:.5px">SOON</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">GMAIL</div><div style="font-size:10.5px;color:rgba(245,158,11,0.65);margin-top:1px">Coming soon</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,35,60,0.5);border:none;color:rgba(150,160,200,0.35);font-size:10.5px;font-weight:700;cursor:default">SOON</button>
             </div>
-            <!-- WhatsApp -->
-            <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
-              <div style="width:36px;height:36px;border-radius:9px;background:rgba(37,211,102,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">💬</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">WHATSAPP</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
-            </div>
-            <!-- Contacts -->
-            <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
-              <div style="width:36px;height:36px;border-radius:9px;background:rgba(61,92,255,0.22);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📞</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">CONTACTS</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
-            </div>
-            <!-- Business & Analytics section -->
-            <div style="display:flex;align-items:center;gap:7px;padding:10px 2px 6px">
+            <!-- Business & Analytics -->
+            <div style="display:flex;align-items:center;gap:7px;padding:10px 2px 4px">
               <span style="font-size:13px">📊</span>
-              <span style="font-family:var(--brand);font-size:8px;letter-spacing:2.5px;font-weight:700;color:rgba(90,110,160,0.5)">BUSINESS &amp; ANALYTICS</span>
+              <span style="font-family:var(--brand);font-size:8px;letter-spacing:2px;font-weight:700;color:rgba(90,110,160,0.5)">BUSINESS &amp; ANALYTICS</span>
             </div>
-            <div style="font-size:11px;color:rgba(100,120,170,0.45);padding:0 2px 6px;line-height:1.5">Connect your platforms so you can ask about views and followers at any time.</div>
-            <!-- YouTube -->
+            <div style="font-size:11px;color:rgba(100,120,170,0.45);padding:0 2px 6px;line-height:1.5">Connect your platforms to ask about views and followers at any time.</div>
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(255,0,0,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">▶️</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">YOUTUBE ...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">YOUTUBE ...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button>
             </div>
-            <!-- Instagram -->
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(225,48,108,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📸</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">INSTAGRAM</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">INSTAGRAM</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button>
             </div>
-            <!-- TikTok -->
             <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(0,242,234,0.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎵</div>
-              <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#fff">TIKTOK STUDIO</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
-              <button style="padding:5px 11px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px">CONNECT</button>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">TIKTOK STUDIO</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div>
+              <button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button>
             </div>
           </div>
         </div>
 
         <!-- ACCOUNT panel -->
-        <div id="hnavPanelAcct" style="display:none;flex-direction:column;height:100%;overflow-y:auto;padding:14px 14px 16px">
+        <div id="hnavPanelAcct" style="display:none">
           <div id="hnavAcctContent" style="display:flex;flex-direction:column;gap:10px">
             <div id="hnavName" style="font-weight:700;color:#fff;font-size:14px"></div>
             <div id="hnavEmail" style="font-size:11.5px;color:rgba(130,155,210,0.6)"></div>
@@ -721,7 +703,7 @@
           </div>
         </div>
 
-      </div><!-- end content wrapper -->
+      </div><!-- end scroll body -->
     </div>
     <!-- overlay to close nav -->
     <div id="heroNavOverlay" style="display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.45)" onclick="closeNavPanel()"></div>
@@ -1114,6 +1096,7 @@
       {y:0.35,amp:0.22,freq:1.3,phase:2.8,speed:0.15,bright:true},
     ];
     function drawStrand(s){
+      const isLight=document.body.classList.contains('light');
       const baseY=h*s.y;
       const ampY=h*s.amp;
       ctx.beginPath();
@@ -1122,31 +1105,58 @@
         const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
         x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
       }
-      if(s.bright){
-        // Outer glow
-        ctx.shadowColor='rgba(0,200,255,0.6)';
-        ctx.shadowBlur=18;
-        ctx.strokeStyle='rgba(0,210,255,0.25)';
-        ctx.lineWidth=4;
-        ctx.stroke();
-        // Core bright line
-        ctx.beginPath();
-        for(let x=0;x<=w;x+=1){
-          const progress=x/w;
-          const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
-          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      if(isLight){
+        // Light mode: soft lavender/indigo — no neon glow
+        if(s.bright){
+          ctx.shadowColor='rgba(120,80,220,0.18)';
+          ctx.shadowBlur=10;
+          ctx.strokeStyle='rgba(130,90,240,0.38)';
+          ctx.lineWidth=1.4;
+          ctx.stroke();
+          ctx.beginPath();
+          for(let x=0;x<=w;x+=1){
+            const progress=x/w;
+            const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
+            x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+          }
+          ctx.shadowColor='rgba(150,100,255,0.28)';
+          ctx.shadowBlur=5;
+          ctx.strokeStyle='rgba(160,110,255,0.55)';
+          ctx.lineWidth=1;
+          ctx.stroke();
+        } else {
+          ctx.shadowColor='rgba(100,120,220,0.1)';
+          ctx.shadowBlur=6;
+          ctx.strokeStyle='rgba(110,130,230,0.25)';
+          ctx.lineWidth=0.85;
+          ctx.stroke();
         }
-        ctx.shadowColor='rgba(0,220,255,0.9)';
-        ctx.shadowBlur=8;
-        ctx.strokeStyle='rgba(80,220,255,0.9)';
-        ctx.lineWidth=1.2;
-        ctx.stroke();
       } else {
-        ctx.shadowColor='rgba(40,100,255,0.5)';
-        ctx.shadowBlur=12;
-        ctx.strokeStyle='rgba(60,140,255,0.5)';
-        ctx.lineWidth=1;
-        ctx.stroke();
+        // Dark mode: teal/cyan neon
+        if(s.bright){
+          ctx.shadowColor='rgba(0,200,255,0.6)';
+          ctx.shadowBlur=18;
+          ctx.strokeStyle='rgba(0,210,255,0.25)';
+          ctx.lineWidth=4;
+          ctx.stroke();
+          ctx.beginPath();
+          for(let x=0;x<=w;x+=1){
+            const progress=x/w;
+            const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
+            x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+          }
+          ctx.shadowColor='rgba(0,220,255,0.9)';
+          ctx.shadowBlur=8;
+          ctx.strokeStyle='rgba(80,220,255,0.9)';
+          ctx.lineWidth=1.2;
+          ctx.stroke();
+        } else {
+          ctx.shadowColor='rgba(40,100,255,0.5)';
+          ctx.shadowBlur=12;
+          ctx.strokeStyle='rgba(60,140,255,0.5)';
+          ctx.lineWidth=1;
+          ctx.stroke();
+        }
       }
       ctx.shadowBlur=0;
     }
@@ -1613,7 +1623,7 @@
     });
     const activeP=document.getElementById('hnavPanel'+tab.charAt(0).toUpperCase()+tab.slice(1));
     const activeN=document.getElementById('hnav'+tab.charAt(0).toUpperCase()+tab.slice(1));
-    if(activeP){ activeP.style.display='flex'; activeP.style.flexDirection='column'; }
+    if(activeP){ activeP.style.display='block'; }
     if(activeN){
       activeN.style.border='1px solid rgba(61,92,255,0.45)';
       activeN.style.background='rgba(61,92,255,0.16)';
