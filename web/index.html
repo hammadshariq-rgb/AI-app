@@ -372,18 +372,56 @@
     .input-hint { text-align: center; font-size: 10.5px; color: rgba(100,130,200,0.2); margin-top: 5px; }
     @keyframes voiceBubbleIn { from{opacity:0;transform:translateX(-50%) translateY(8px);} to{opacity:1;transform:translateX(-50%) translateY(0);} }
 
-    /* ── Orb shrink when chat active ── */
+    /* ── Orb shrink when chat active (wave stays full size) ── */
     #orbWrap.chat-active #mainOrb { width:90px; height:90px; transition: all 0.5s cubic-bezier(0.34,1.46,0.64,1); }
     #orbWrap.chat-active .orb-ring:nth-child(1) { width:120px; height:120px; transition: all 0.5s; }
     #orbWrap.chat-active .orb-ring:nth-child(2) { width:150px; height:150px; transition: all 0.5s; }
     #orbWrap.chat-active #orbName { font-size:22px; letter-spacing:6px; margin-top:10px; transition: all 0.4s; }
     #orbWrap.chat-active #orbStatus { font-size:9px; transition: all 0.4s; }
-    #orbWrap.chat-active #waveCanvas { height:40px; margin-top:2px; transition: all 0.4s; }
     #mainOrb { transition: all 0.5s cubic-bezier(0.34,1.46,0.64,1); }
     .orb-ring { transition: all 0.5s; }
     #orbName { transition: all 0.4s; }
     #orbStatus { transition: all 0.4s; }
-    #waveCanvas { transition: all 0.4s; }
+
+    /* ── Mic button listening state (green glow ring) ── */
+    .orb-btn.main.listening {
+      border-color: rgba(0,220,100,0.7);
+      box-shadow: 0 0 0 3px rgba(0,220,100,0.25), 0 0 24px rgba(0,220,100,0.5), 0 0 50px rgba(0,220,100,0.25);
+      animation: micGreenPulse 1s ease-in-out infinite;
+    }
+    @keyframes micGreenPulse {
+      0%,100%{ box-shadow: 0 0 0 3px rgba(0,220,100,0.2), 0 0 20px rgba(0,220,100,0.4); }
+      50%{     box-shadow: 0 0 0 6px rgba(0,220,100,0.35), 0 0 40px rgba(0,220,100,0.65), 0 0 70px rgba(0,200,80,0.3); }
+    }
+
+    /* ── Mic wave bars (below mic button, visible when recording) ── */
+    #micWave {
+      display:none; align-items:flex-end; justify-content:center;
+      gap:3px; height:36px; margin-top:6px;
+    }
+    #micWave.active { display:flex; }
+    .mw-bar {
+      width:3px; border-radius:2px;
+      background:linear-gradient(to top, rgba(0,220,100,0.6), rgba(0,255,140,0.9));
+      animation: mwPulse 0.6s ease-in-out infinite;
+    }
+    .mw-bar:nth-child(1){height:8px; animation-delay:0s;}
+    .mw-bar:nth-child(2){height:18px;animation-delay:0.08s;}
+    .mw-bar:nth-child(3){height:28px;animation-delay:0.16s;}
+    .mw-bar:nth-child(4){height:34px;animation-delay:0.24s;}
+    .mw-bar:nth-child(5){height:36px;animation-delay:0.32s;}
+    .mw-bar:nth-child(6){height:28px;animation-delay:0.24s;}
+    .mw-bar:nth-child(7){height:20px;animation-delay:0.16s;}
+    .mw-bar:nth-child(8){height:12px;animation-delay:0.08s;}
+    .mw-bar:nth-child(9){height:6px; animation-delay:0s;}
+    @keyframes mwPulse {
+      0%,100%{ opacity:0.4; transform:scaleY(0.5); }
+      50%{     opacity:1;   transform:scaleY(1); }
+    }
+
+    /* ── Wave canvas brighter when listening ── */
+    #waveCanvas { transition: filter 0.4s; }
+    #orbWrap.listening #waveCanvas { filter: brightness(2.2) saturate(1.5); }
 
     /* ── Voice chat bubbles ── */
     #voiceChat {
@@ -664,6 +702,11 @@
         <button class="orb-btn" id="heroTrash" title="Clear" style="color:rgba(200,80,80,0.6)">🗑</button>
       </div>
       <div id="clickToSpeak">CLICK TO SPEAK</div>
+      <div id="micWave">
+        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
+        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
+        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
+      </div>
       <button id="shiftBtn">⌨ SHIFT TO TYPING</button>
       <!-- Wikipedia image card -->
       <div id="voiceCard">
@@ -1186,20 +1229,38 @@
     document.getElementById('orbStatus').textContent='INITIALISING...';
     setTimeout(()=>{orb.style.boxShadow='';document.getElementById('orbStatus').textContent='STANDBY';},800);
   }
+  const micWaveEl    = document.getElementById('micWave');
+  const micBtnEl     = document.getElementById('heroMicBtn');
+  const clickToSpeak = document.getElementById('clickToSpeak');
+
   function setOrbState(state){
-    const orb=document.getElementById('mainOrb');
-    const stat=document.getElementById('orbStatus');
+    const orb  = document.getElementById('mainOrb');
+    const stat = document.getElementById('orbStatus');
+    // Reset wave/mic every call
+    orbWrapEl.classList.remove('listening');
+    micBtnEl.classList.remove('listening');
+    micWaveEl.classList.remove('active');
+
     if(state==='listen'){
-      orb.style.boxShadow='0 0 0 4px rgba(255,60,60,0.5),0 0 60px rgba(255,60,60,0.6),0 0 120px rgba(255,60,60,0.3)';
-      stat.textContent='LISTENING';stat.style.color='rgba(255,120,120,0.9)';
+      // Green orb + green mic ring + wave bars + bright wave canvas
+      orb.style.boxShadow='0 0 0 4px rgba(0,220,100,0.5),0 0 60px rgba(0,200,80,0.75),0 0 130px rgba(0,180,60,0.35)';
+      stat.textContent='LISTENING'; stat.style.color='rgba(80,240,140,0.95)';
+      orbWrapEl.classList.add('listening');
+      micBtnEl.classList.add('listening');
+      micWaveEl.classList.add('active');
+      clickToSpeak.textContent='CLICK TO STOP';
     } else if(state==='think'){
       orb.style.boxShadow='0 0 0 4px rgba(100,180,255,0.5),0 0 60px rgba(61,92,255,0.8),0 0 140px rgba(61,92,255,0.4)';
-      stat.textContent='THINKING';stat.style.color='rgba(130,180,255,0.9)';
+      stat.textContent='THINKING'; stat.style.color='rgba(130,180,255,0.9)';
+      clickToSpeak.textContent='CLICK TO SPEAK';
     } else if(state==='speak'){
       orb.style.boxShadow='0 0 0 4px rgba(0,220,120,0.5),0 0 60px rgba(0,200,100,0.7),0 0 140px rgba(0,200,100,0.3)';
-      stat.textContent='RESPONDING';stat.style.color='rgba(80,220,140,0.9)';
+      stat.textContent='RESPONDING'; stat.style.color='rgba(80,220,140,0.9)';
+      clickToSpeak.textContent='CLICK TO SPEAK';
     } else {
-      orb.style.boxShadow='';stat.textContent='STANDBY';stat.style.color='';
+      orb.style.boxShadow='';
+      stat.textContent='STANDBY'; stat.style.color='';
+      clickToSpeak.textContent='CLICK TO SPEAK';
     }
   }
 
