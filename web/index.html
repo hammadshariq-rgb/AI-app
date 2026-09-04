@@ -572,7 +572,6 @@
 
   <!-- NAV -->
   <nav id="nav">
-    <button id="heroNavBtn" style="width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,0.06);border:1px solid rgba(100,140,255,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.18s;color:rgba(150,180,255,0.8);font-size:16px;flex-shrink:0;margin-right:6px" title="Menu">☰</button>
     <a class="nav-brand" href="#">
       <div class="nav-orb-sm"></div>
       <span class="nav-name">CALLISTO</span>
@@ -593,104 +592,109 @@
 
   <!-- HERO — app-style -->
   <div id="hero">
-    <!-- slide-in nav panel (like app sidebar) -->
-    <div id="heroNavPanel" style="position:fixed;top:0;left:-280px;width:260px;height:100vh;z-index:500;background:rgba(5,7,20,0.98);border-right:1px solid rgba(61,92,255,0.12);backdrop-filter:blur(24px);display:flex;flex-direction:column;transition:left 0.28s cubic-bezier(0.4,0,0.2,1);overflow:hidden">
-      <!-- Header -->
-      <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0">
-        <div style="width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#8aacff,#3060ff 45%,#1a3bff);box-shadow:0 0 12px rgba(30,70,255,0.5);flex-shrink:0"></div>
-        <span style="font-family:var(--brand);font-size:17px;font-weight:700;letter-spacing:3px;color:#fff">CALLISTO</span>
-        <button id="heroNavClose" style="margin-left:auto;background:none;border:none;color:rgba(150,170,255,0.4);font-size:16px;cursor:pointer;line-height:1;padding:4px">✕</button>
-      </div>
-      <!-- Nav Tabs -->
-      <div style="display:flex;flex-direction:column;gap:6px;padding:14px 12px 10px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0">
-        <div id="hnavHistory" onclick="switchHeroTab('history')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(61,92,255,0.3);background:rgba(61,92,255,0.08);cursor:pointer;transition:all 0.15s">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,170,255,0.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span style="font-size:13px;font-weight:600;color:rgba(150,190,255,0.95)">Chat History</span>
+    <!-- ☰ hamburger — sits below the info bar, top-left of hero content -->
+    <button id="heroNavBtn" style="position:absolute;top:128px;left:14px;z-index:50;width:40px;height:40px;border-radius:11px;background:rgba(10,15,40,0.75);border:1px solid rgba(61,92,255,0.2);backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(150,180,255,0.85);font-size:17px;transition:all 0.18s" title="Menu">☰</button>
+    <!-- slide-in nav panel — matches app exactly -->
+    <div id="heroNavPanel" style="position:fixed;top:0;left:-340px;width:320px;height:100vh;z-index:500;background:rgba(6,8,22,0.98);border-right:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(28px);display:flex;flex-direction:column;transition:left 0.28s cubic-bezier(0.4,0,0.2,1);overflow:hidden">
+      <!-- X close button top-right -->
+      <button id="heroNavClose" style="position:absolute;top:14px;right:14px;background:none;border:none;color:rgba(180,190,220,0.5);font-size:18px;cursor:pointer;line-height:1;z-index:2;padding:4px 6px">✕</button>
+      <!-- Nav tab buttons -->
+      <div style="display:flex;flex-direction:column;gap:8px;padding:20px 14px 14px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0">
+        <div id="hnavHistory" onclick="switchHeroTab('history')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;border:1px solid rgba(80,100,160,0.25);background:transparent;cursor:pointer;transition:all 0.15s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(140,160,200,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span style="font-size:14px;font-weight:600;color:rgba(140,160,200,0.65)">Chat History</span>
         </div>
-        <div id="hnavFavs" onclick="switchHeroTab('favs')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.05);cursor:pointer;transition:all 0.15s">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <span style="font-size:13px;font-weight:600;color:rgba(245,158,11,0.9)">Favourites</span>
+        <div id="hnavFavs" onclick="switchHeroTab('favs')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;border:1px solid rgba(245,158,11,0.4);background:transparent;cursor:pointer;transition:all 0.15s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span style="font-size:14px;font-weight:600;color:rgba(245,158,11,0.92)">Favourites</span>
         </div>
-        <div id="hnavConn" onclick="switchHeroTab('conn')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(100,120,180,0.15);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.15s">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(110,130,180,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          <span style="font-size:13px;font-weight:600;color:rgba(110,130,180,0.65)">Connectors</span>
+        <div id="hnavConn" onclick="switchHeroTab('conn')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;border:1px solid rgba(80,100,160,0.25);background:transparent;cursor:pointer;transition:all 0.15s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(140,160,200,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          <span style="font-size:14px;font-weight:600;color:rgba(140,160,200,0.65)">Connectors</span>
         </div>
-        <div id="hnavAcct" onclick="switchHeroTab('acct')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(100,120,180,0.15);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.15s">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(110,130,180,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span style="font-size:13px;font-weight:600;color:rgba(110,130,180,0.65)">Account</span>
+        <div id="hnavAcct" onclick="switchHeroTab('acct')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;border:1px solid rgba(80,100,160,0.25);background:transparent;cursor:pointer;transition:all 0.15s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(140,160,200,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span style="font-size:14px;font-weight:600;color:rgba(140,160,200,0.65)">Account</span>
         </div>
       </div>
-      <!-- Tab content panels -->
-      <div id="hnavPanelHistory" style="flex:1;overflow-y:auto;padding:12px 12px 16px">
-        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,170,0.45);padding:4px 2px 10px">EARLIER</div>
-        <div id="hnavHistList" style="display:flex;flex-direction:column;gap:5px">
-          <div style="padding:18px 4px;text-align:center;color:rgba(90,110,170,0.35);font-size:11px">No history yet</div>
+      <!-- Tab content -->
+      <div id="hnavPanelHistory" style="flex:1;overflow-y:auto;padding:14px 14px 20px">
+        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,160,0.4);padding:2px 2px 10px">EARLIER</div>
+        <div id="hnavHistList" style="display:flex;flex-direction:column;gap:6px">
+          <div style="padding:20px 4px;text-align:center;color:rgba(90,110,160,0.3);font-size:11.5px">No history yet</div>
         </div>
-        <button onclick="if(token&&user)openChat();else showAuth();" style="width:100%;margin-top:12px;padding:9px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.22);color:rgba(130,170,255,0.8);font-size:12.5px;font-weight:600;cursor:pointer;transition:all 0.15s">＋ New Chat</button>
+        <button onclick="if(token&&user)openChat();else showAuth();" style="width:100%;margin-top:14px;padding:10px;border-radius:10px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.25);color:rgba(130,170,255,0.85);font-size:13px;font-weight:600;cursor:pointer">＋ New Chat</button>
       </div>
-      <div id="hnavPanelFavs" style="display:none;flex:1;overflow-y:auto;padding:12px 12px 16px">
-        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(245,158,11,0.4);padding:4px 2px 10px">QUICK COMMANDS</div>
-        <div style="display:flex;flex-direction:column;gap:7px">
-          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none';openChat();setTimeout(()=>{document.getElementById('userInput').value='Open my calendar';send();},300);}else showAuth();" style="padding:10px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);font-size:12.5px;color:rgba(150,180,255,0.7);cursor:pointer;transition:all 0.15s">"Open my calendar"</div>
-          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none';openChat();setTimeout(()=>{document.getElementById('userInput').value='Play focus music';send();},300);}else showAuth();" style="padding:10px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);font-size:12.5px;color:rgba(150,180,255,0.7);cursor:pointer;transition:all 0.15s">"Play focus music"</div>
-          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none';openChat();setTimeout(()=>{document.getElementById('userInput').value='What\'s on my schedule?';send();},300);}else showAuth();" style="padding:10px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);font-size:12.5px;color:rgba(150,180,255,0.7);cursor:pointer;transition:all 0.15s">"What's on my schedule?"</div>
-          <div onclick="if(token&&user){document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none';openChat();}else showAuth();" style="padding:10px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);font-size:12.5px;color:rgba(150,180,255,0.7);cursor:pointer;transition:all 0.15s">"Set a reminder for..."</div>
-        </div>
-      </div>
-      <div id="hnavPanelConn" style="display:none;flex:1;overflow-y:auto;padding:12px 12px 16px">
-        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,170,0.45);padding:4px 2px 10px">CONNECTORS</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">📅</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">Google Calendar</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:#22c55e;font-family:var(--brand);letter-spacing:1px">APP</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">🎵</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">Spotify</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:#22c55e;font-family:var(--brand);letter-spacing:1px">APP</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">📧</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">Gmail</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:rgba(245,158,11,0.85);font-family:var(--brand);letter-spacing:1px">SOON</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">💬</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">WhatsApp</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:#22c55e;font-family:var(--brand);letter-spacing:1px">APP</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">📞</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">Contacts</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:#22c55e;font-family:var(--brand);letter-spacing:1px">APP</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">📝</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">Notion</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:rgba(245,158,11,0.85);font-family:var(--brand);letter-spacing:1px">SOON</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">💼</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">LinkedIn</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:rgba(245,158,11,0.85);font-family:var(--brand);letter-spacing:1px">SOON</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07)">
-            <span style="font-size:16px">🐦</span><span style="font-size:12.5px;color:rgba(160,185,255,0.8)">X / Twitter</span>
-            <span style="margin-left:auto;font-size:9.5px;font-weight:700;color:rgba(245,158,11,0.85);font-family:var(--brand);letter-spacing:1px">SOON</span>
-          </div>
+      <div id="hnavPanelFavs" style="display:none;flex:1;overflow-y:auto;padding:14px 14px 20px">
+        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(245,158,11,0.4);padding:2px 2px 10px">QUICK COMMANDS</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div onclick="if(token&&user){closeNavPanel();openChat();setTimeout(()=>{document.getElementById('userInput').value='Open my calendar';send();},300);}else showAuth();" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"Open my calendar"</div>
+          <div onclick="if(token&&user){closeNavPanel();openChat();setTimeout(()=>{document.getElementById('userInput').value='Play focus music';send();},300);}else showAuth();" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"Play focus music"</div>
+          <div onclick="if(token&&user){closeNavPanel();openChat();setTimeout(()=>{document.getElementById('userInput').value='What\'s on my schedule?';send();},300);}else showAuth();" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"What's on my schedule?"</div>
+          <div onclick="if(token&&user){closeNavPanel();openChat();}else showAuth();" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"Set a reminder for..."</div>
         </div>
       </div>
-      <div id="hnavPanelAcct" style="display:none;flex:1;overflow-y:auto;padding:12px 12px 16px">
-        <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,170,0.45);padding:4px 2px 10px">ACCOUNT</div>
-        <div id="hnavAcctContent" style="display:flex;flex-direction:column;gap:9px">
-          <div id="hnavName" style="font-weight:700;color:#fff;font-size:14px"></div>
-          <div id="hnavEmail" style="font-size:11.5px;color:rgba(130,160,220,0.6)"></div>
-          <div id="hnavPlan" style="padding:8px 11px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.22);font-size:11.5px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
-          <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:9px;border-radius:9px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:12.5px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
-          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,0.09);background:transparent;color:rgba(130,160,220,0.6);cursor:pointer;font-size:12px">Sign Out</button>
-          <div style="text-align:center;padding-top:2px"><a href="#downloadSec" onclick="document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none'" style="font-size:11px;color:rgba(100,140,255,0.55);text-decoration:none">⬇ Download Desktop App</a></div>
+      <div id="hnavPanelConn" style="display:none;flex:1;overflow-y:auto;padding:14px 14px 20px">
+        <!-- connector item macro: icon-box + name + status + CONNECT btn -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(66,133,244,0.18);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📅</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">Google Cal...</div><div style="font-size:11px;color:rgba(120,140,180,0.6);margin-top:2px">Not connected</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,60,120,0.7);border:1px solid rgba(80,110,200,0.3);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">CONNECT</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(30,215,96,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🎵</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">Spotify</div><div style="font-size:11px;color:rgba(120,140,180,0.6);margin-top:2px">Not connected</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,60,120,0.7);border:1px solid rgba(80,110,200,0.3);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">CONNECT</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(234,67,53,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📧</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">Gmail</div><div style="font-size:11px;color:rgba(245,158,11,0.6);margin-top:2px">Coming soon</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,40,60,0.5);border:1px solid rgba(80,80,120,0.2);color:rgba(160,170,200,0.4);font-size:11.5px;font-weight:700;cursor:not-allowed">SOON</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,211,102,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💬</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">WhatsApp</div><div style="font-size:11px;color:rgba(120,140,180,0.6);margin-top:2px">Not connected</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,60,120,0.7);border:1px solid rgba(80,110,200,0.3);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">CONNECT</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(61,92,255,0.18);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📞</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">Contacts</div><div style="font-size:11px;color:rgba(120,140,180,0.6);margin-top:2px">Not connected</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,60,120,0.7);border:1px solid rgba(80,110,200,0.3);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">CONNECT</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📝</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">Notion</div><div style="font-size:11px;color:rgba(245,158,11,0.6);margin-top:2px">Coming soon</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,40,60,0.5);border:1px solid rgba(80,80,120,0.2);color:rgba(160,170,200,0.4);font-size:11.5px;font-weight:700;cursor:not-allowed">SOON</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(10,102,194,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💼</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">LinkedIn</div><div style="font-size:11px;color:rgba(245,158,11,0.6);margin-top:2px">Coming soon</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,40,60,0.5);border:1px solid rgba(80,80,120,0.2);color:rgba(160,170,200,0.4);font-size:11.5px;font-weight:700;cursor:not-allowed">SOON</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🐦</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff">X / Twitter</div><div style="font-size:11px;color:rgba(245,158,11,0.6);margin-top:2px">Coming soon</div></div>
+            <button style="padding:6px 12px;border-radius:7px;background:rgba(40,40,60,0.5);border:1px solid rgba(80,80,120,0.2);color:rgba(160,170,200,0.4);font-size:11.5px;font-weight:700;cursor:not-allowed">SOON</button>
+          </div>
+        </div>
+      </div>
+      <div id="hnavPanelAcct" style="display:none;flex:1;overflow-y:auto;padding:14px 14px 20px">
+        <div id="hnavAcctContent" style="display:flex;flex-direction:column;gap:10px">
+          <div id="hnavName" style="font-weight:700;color:#fff;font-size:15px"></div>
+          <div id="hnavEmail" style="font-size:12px;color:rgba(130,155,210,0.6)"></div>
+          <div id="hnavPlan" style="padding:9px 12px;border-radius:10px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.22);font-size:12px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
+          <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:10px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+          <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.09);background:transparent;color:rgba(130,155,210,0.6);cursor:pointer;font-size:12.5px">Sign Out</button>
+          <div style="text-align:center;padding-top:2px"><a href="#downloadSec" onclick="closeNavPanel()" style="font-size:11.5px;color:rgba(100,140,255,0.55);text-decoration:none">⬇ Download Desktop App</a></div>
         </div>
         <div id="hnavSignInPrompt" style="display:none;padding-top:8px">
-          <button onclick="showAuth()" style="width:100%;padding:10px;border-radius:9px;background:var(--accent);color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer">Sign In</button>
+          <button onclick="showAuth()" style="width:100%;padding:11px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:13.5px;border:none;cursor:pointer">Sign In</button>
         </div>
       </div>
     </div>
     <!-- overlay to close nav -->
-    <div id="heroNavOverlay" style="display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.4)" onclick="document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none'"></div>
+    <div id="heroNavOverlay" style="display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.45)" onclick="closeNavPanel()"></div>
     <!-- news ticker -->
     <div id="ticker">
       <div class="ticker-live">
@@ -1553,27 +1557,38 @@
     document.getElementById('heroNavOverlay').style.display='block';
     if(user){document.getElementById('hnavName').textContent=user.name||'';document.getElementById('hnavEmail').textContent=user.email||'';document.getElementById('hnavPlan').textContent=isPrem?'⭐ Premium — Unlimited':'Free Plan — 15 messages/day';document.getElementById('hnavAcctContent').style.display='flex';document.getElementById('hnavSignInPrompt').style.display='none';}else{document.getElementById('hnavAcctContent').style.display='none';document.getElementById('hnavSignInPrompt').style.display='block';}
   });
-  document.getElementById('heroNavClose').addEventListener('click',()=>{document.getElementById('heroNavPanel').style.left='-280px';document.getElementById('heroNavOverlay').style.display='none';});
-  const NAV_STYLES={
-    history:{border:'1px solid rgba(61,92,255,0.3)',background:'rgba(61,92,255,0.08)',color:'rgba(150,190,255,0.95)'},
-    favs:{border:'1px solid rgba(245,158,11,0.35)',background:'rgba(245,158,11,0.05)',color:'rgba(245,158,11,0.9)'},
-    conn:{border:'1px solid rgba(100,120,180,0.15)',background:'rgba(255,255,255,0.02)',color:'rgba(110,130,180,0.65)'},
-    acct:{border:'1px solid rgba(100,120,180,0.15)',background:'rgba(255,255,255,0.02)',color:'rgba(110,130,180,0.65)'},
+  document.getElementById('heroNavClose').addEventListener('click',()=>closeNavPanel());
+  function closeNavPanel(){
+    document.getElementById('heroNavPanel').style.left='-340px';
+    document.getElementById('heroNavOverlay').style.display='none';
+  }
+  // Default styles per tab (inactive)
+  const NAV_DEFAULT={
+    history:{border:'1px solid rgba(80,100,160,0.25)',bg:'transparent',color:'rgba(140,160,200,0.65)',stroke:'rgba(140,160,200,0.6)'},
+    favs:   {border:'1px solid rgba(245,158,11,0.4)', bg:'transparent',color:'rgba(245,158,11,0.92)',stroke:'rgba(245,158,11,0.9)'},
+    conn:   {border:'1px solid rgba(80,100,160,0.25)',bg:'transparent',color:'rgba(140,160,200,0.65)',stroke:'rgba(140,160,200,0.6)'},
+    acct:   {border:'1px solid rgba(80,100,160,0.25)',bg:'transparent',color:'rgba(140,160,200,0.65)',stroke:'rgba(140,160,200,0.6)'},
   };
   function switchHeroTab(tab){
     ['history','favs','conn','acct'].forEach(t=>{
       const p=document.getElementById('hnavPanel'+t.charAt(0).toUpperCase()+t.slice(1));
       const n=document.getElementById('hnav'+t.charAt(0).toUpperCase()+t.slice(1));
-      if(p)p.style.display='none';
-      if(n){ Object.assign(n.style,NAV_STYLES[t]); const sp=n.querySelector('span:last-child'); if(sp)sp.style.color=NAV_STYLES[t].color; }
+      if(p) p.style.display='none';
+      if(n){
+        const d=NAV_DEFAULT[t];
+        n.style.border=d.border; n.style.background=d.bg;
+        const sp=n.querySelector('span'); if(sp) sp.style.color=d.color;
+        const sv=n.querySelector('svg'); if(sv) sv.setAttribute('stroke',d.stroke);
+      }
     });
     const activeP=document.getElementById('hnavPanel'+tab.charAt(0).toUpperCase()+tab.slice(1));
     const activeN=document.getElementById('hnav'+tab.charAt(0).toUpperCase()+tab.slice(1));
-    if(activeP)activeP.style.display='flex';
+    if(activeP) activeP.style.display='flex';
     if(activeN){
-      const s=NAV_STYLES[tab];
-      activeN.style.border=s.border; activeN.style.background=s.background;
-      const sp=activeN.querySelector('span:last-child'); if(sp)sp.style.color=s.color;
+      activeN.style.border='1px solid rgba(61,92,255,0.5)';
+      activeN.style.background='rgba(61,92,255,0.18)';
+      const sp=activeN.querySelector('span'); if(sp) sp.style.color='#fff';
+      const sv=activeN.querySelector('svg'); if(sv) sv.setAttribute('stroke','rgba(180,210,255,0.9)');
     }
   }
   document.getElementById('authClose').addEventListener('click',hideAuth);
