@@ -550,8 +550,9 @@
     .hnav-item.active { background:rgba(61,92,255,0.12);border-color:rgba(61,92,255,0.2);color:rgba(150,180,255,0.95); }
 
     /* ═══ LIGHT MODE TOGGLE ═══ */
-    #themeToggle { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 1px solid var(--border2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.2s; }
+    #themeToggle { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.2s; }
     #themeToggle:hover { background: rgba(255,255,255,0.12); }
+    body.light #themeToggle { background: #fff; border: 1px solid rgba(0,0,0,0.15); color: #1a1f3c; }
 
     /* ═══ SIDEBAR NAV TABS (like app) ═══ */
     .sb-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
@@ -595,7 +596,7 @@
     <!-- ☰ hamburger — sits below the info bar, top-left of hero content -->
     <button id="heroNavBtn" style="position:absolute;top:128px;left:14px;z-index:50;width:40px;height:40px;border-radius:11px;background:rgba(10,15,40,0.75);border:1px solid rgba(61,92,255,0.2);backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(150,180,255,0.85);font-size:17px;transition:all 0.18s" title="Menu">☰</button>
     <!-- slide-in nav panel — pixel-matched to app -->
-    <div id="heroNavPanel" style="position:fixed;top:0;left:-340px;width:310px;height:100vh;z-index:500;background:rgba(7,9,24,0.99);border-right:1px solid rgba(255,255,255,0.07);backdrop-filter:blur(28px);display:flex;flex-direction:column;transition:left 0.28s cubic-bezier(0.4,0,0.2,1)">
+    <div id="heroNavPanel" style="position:fixed;top:50px;left:-340px;width:310px;height:calc(100vh - 50px);z-index:500;background:rgba(7,9,24,0.99);border-right:1px solid rgba(255,255,255,0.07);backdrop-filter:blur(28px);display:flex;flex-direction:column;transition:left 0.28s cubic-bezier(0.4,0,0.2,1)">
 
       <!-- ✕ top-right -->
       <button id="heroNavClose" style="position:absolute;top:13px;right:13px;background:none;border:none;color:rgba(180,190,220,0.45);font-size:17px;cursor:pointer;line-height:1;z-index:2;padding:5px">✕</button>
@@ -706,7 +707,7 @@
       </div><!-- end scroll body -->
     </div>
     <!-- overlay to close nav -->
-    <div id="heroNavOverlay" style="display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.45)" onclick="closeNavPanel()"></div>
+    <div id="heroNavOverlay" style="display:none;position:fixed;top:50px;left:0;right:0;bottom:0;z-index:499;background:rgba(0,0,0,0.45)" onclick="closeNavPanel()"></div>
     <!-- news ticker -->
     <div id="ticker">
       <div class="ticker-live">
@@ -1095,8 +1096,49 @@
       {y:0.6,amp:0.16,freq:1.8,phase:4.0,speed:0.20,bright:false},
       {y:0.35,amp:0.22,freq:1.3,phase:2.8,speed:0.15,bright:true},
     ];
+    // Light mode: filled layered cloth/fabric waves
+    const lightBands=[
+      {y:0.55,amp:0.18,freq:1.1,phase:0,   speed:0.09, color:'rgba(140,165,230,0.13)',thickness:0.22},
+      {y:0.60,amp:0.20,freq:1.3,phase:1.1, speed:0.07, color:'rgba(120,145,220,0.16)',thickness:0.20},
+      {y:0.50,amp:0.22,freq:0.9,phase:2.2, speed:0.11, color:'rgba(100,130,210,0.12)',thickness:0.18},
+      {y:0.65,amp:0.17,freq:1.5,phase:0.8, speed:0.08, color:'rgba(150,170,235,0.14)',thickness:0.19},
+      {y:0.45,amp:0.25,freq:1.0,phase:3.0, speed:0.10, color:'rgba(110,140,225,0.10)',thickness:0.24},
+      {y:0.70,amp:0.15,freq:1.7,phase:1.9, speed:0.06, color:'rgba(130,155,220,0.18)',thickness:0.15},
+      {y:0.40,amp:0.20,freq:1.2,phase:4.1, speed:0.12, color:'rgba(160,180,240,0.09)',thickness:0.20},
+    ];
+    // Light mode: thin bright cyan lines (like app)
+    const lightLines=[
+      {y:0.48,amp:0.10,freq:1.4,phase:0.5, speed:0.14, color:'rgba(80,180,240,0.65)',width:1.0},
+      {y:0.52,amp:0.12,freq:1.2,phase:1.6, speed:0.18, color:'rgba(100,200,255,0.50)',width:0.7},
+      {y:0.44,amp:0.08,freq:1.6,phase:2.7, speed:0.22, color:'rgba(60,160,230,0.45)',width:0.6},
+    ];
+
+    function waveY(band,x){
+      const progress=x/w;
+      return h*band.y + Math.sin(progress*Math.PI*band.freq*2+band.phase+t*band.speed)*h*band.amp;
+    }
+    function drawLightBand(b){
+      // Draw a filled ribbon between the wave and the bottom of canvas
+      ctx.beginPath();
+      ctx.moveTo(0,waveY(b,0));
+      for(let x=1;x<=w;x+=2) ctx.lineTo(x,waveY(b,x));
+      ctx.lineTo(w,h+10); ctx.lineTo(0,h+10);
+      ctx.closePath();
+      ctx.fillStyle=b.color;
+      ctx.fill();
+    }
+    function drawLightLine(l){
+      ctx.beginPath();
+      ctx.moveTo(0,waveY(l,0));
+      for(let x=1;x<=w;x+=2) ctx.lineTo(x,waveY(l,x));
+      ctx.shadowColor='rgba(80,190,255,0.25)';
+      ctx.shadowBlur=6;
+      ctx.strokeStyle=l.color;
+      ctx.lineWidth=l.width;
+      ctx.stroke();
+      ctx.shadowBlur=0;
+    }
     function drawStrand(s){
-      const isLight=document.body.classList.contains('light');
       const baseY=h*s.y;
       const ampY=h*s.amp;
       ctx.beginPath();
@@ -1105,64 +1147,42 @@
         const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
         x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
       }
-      if(isLight){
-        // Light mode: soft lavender/indigo — no neon glow
-        if(s.bright){
-          ctx.shadowColor='rgba(120,80,220,0.18)';
-          ctx.shadowBlur=10;
-          ctx.strokeStyle='rgba(130,90,240,0.38)';
-          ctx.lineWidth=1.4;
-          ctx.stroke();
-          ctx.beginPath();
-          for(let x=0;x<=w;x+=1){
-            const progress=x/w;
-            const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
-            x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-          }
-          ctx.shadowColor='rgba(150,100,255,0.28)';
-          ctx.shadowBlur=5;
-          ctx.strokeStyle='rgba(160,110,255,0.55)';
-          ctx.lineWidth=1;
-          ctx.stroke();
-        } else {
-          ctx.shadowColor='rgba(100,120,220,0.1)';
-          ctx.shadowBlur=6;
-          ctx.strokeStyle='rgba(110,130,230,0.25)';
-          ctx.lineWidth=0.85;
-          ctx.stroke();
+      // Dark mode: teal/cyan neon
+      if(s.bright){
+        ctx.shadowColor='rgba(0,200,255,0.6)';
+        ctx.shadowBlur=18;
+        ctx.strokeStyle='rgba(0,210,255,0.25)';
+        ctx.lineWidth=4;
+        ctx.stroke();
+        ctx.beginPath();
+        for(let x=0;x<=w;x+=1){
+          const progress=x/w;
+          const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
+          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
         }
+        ctx.shadowColor='rgba(0,220,255,0.9)';
+        ctx.shadowBlur=8;
+        ctx.strokeStyle='rgba(80,220,255,0.9)';
+        ctx.lineWidth=1.2;
+        ctx.stroke();
       } else {
-        // Dark mode: teal/cyan neon
-        if(s.bright){
-          ctx.shadowColor='rgba(0,200,255,0.6)';
-          ctx.shadowBlur=18;
-          ctx.strokeStyle='rgba(0,210,255,0.25)';
-          ctx.lineWidth=4;
-          ctx.stroke();
-          ctx.beginPath();
-          for(let x=0;x<=w;x+=1){
-            const progress=x/w;
-            const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
-            x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-          }
-          ctx.shadowColor='rgba(0,220,255,0.9)';
-          ctx.shadowBlur=8;
-          ctx.strokeStyle='rgba(80,220,255,0.9)';
-          ctx.lineWidth=1.2;
-          ctx.stroke();
-        } else {
-          ctx.shadowColor='rgba(40,100,255,0.5)';
-          ctx.shadowBlur=12;
-          ctx.strokeStyle='rgba(60,140,255,0.5)';
-          ctx.lineWidth=1;
-          ctx.stroke();
-        }
+        ctx.shadowColor='rgba(40,100,255,0.5)';
+        ctx.shadowBlur=12;
+        ctx.strokeStyle='rgba(60,140,255,0.5)';
+        ctx.lineWidth=1;
+        ctx.stroke();
       }
       ctx.shadowBlur=0;
     }
     function draw(){
       ctx.clearRect(0,0,w,h);
-      strands.forEach(s=>drawStrand(s));
+      if(document.body.classList.contains('light')){
+        // Sort bands by y so deeper ones draw first (bottom = front)
+        lightBands.slice().sort((a,b)=>a.y-b.y).forEach(b=>drawLightBand(b));
+        lightLines.forEach(l=>drawLightLine(l));
+      } else {
+        strands.forEach(s=>drawStrand(s));
+      }
       t+=0.012;
       requestAnimationFrame(draw);
     }
