@@ -267,6 +267,27 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Optional auth — attaches user if valid token, allows guests through
+function optionalAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.replace('Bearer ', '');
+  if (token) {
+    try {
+      req.user = jwt.verify(token, JWT_SECRET);
+      req.userId = req.user.id;
+    } catch {} // bad token → treat as guest
+  }
+  next();
+}
+
+// In-memory guest IP rate limit (15 messages/day per IP)
+const guestIpMap = new Map();
+function cleanGuestIpMap() {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [ip, v] of guestIpMap) { if (v.date !== today) guestIpMap.delete(ip); }
+}
+setInterval(cleanGuestIpMap, 60 * 60 * 1000);
+
 // ── Auth routes ───────────────────────────────────────────────────────────────
 // Pre-approved free access emails — these accounts get freeAccess:true automatically on signup
 const FREE_ACCESS_EMAILS = ['parisakidwai@gmail.com'];
@@ -993,10 +1014,28 @@ const WHISPER_PROMPT = `Okay Jarvis, hey Jarvis, hi Jarvis, Callisto. Open Spoti
 // ── Daily message limit (15/day for free users) ───────────────────────────────
 const FREE_DAILY_LIMIT = 15;
 
+async function checkGuestOrUserLimit(req, res, next) {
+  if (!req.userId) {
+    // Guest: IP-based 15/day limit
+    const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    const today = new Date().toISOString().slice(0, 10);
+    const entry = guestIpMap.get(ip) || { count: 0, date: today };
+    if (entry.date !== today) { entry.count = 0; entry.date = today; }
+    if (entry.count >= FREE_DAILY_LIMIT) {
+      return res.status(429).json({ error: 'daily_limit_reached', limit: FREE_DAILY_LIMIT, used: entry.count });
+    }
+    entry.count++;
+    guestIpMap.set(ip, entry);
+    req.guestRemaining = FREE_DAILY_LIMIT - entry.count;
+    return next();
+  }
+  return checkDailyLimit(req, res, next);
+}
+
 async function checkDailyLimit(req, res, next) {
   try {
     const user = await users.findById(req.userId);
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user) return next(); // user not found, treat as guest (already counted above)
     // Premium or free-access users — unlimited
     const isActive = user.freeAccess === true || user.subscriptionStatus === 'active';
     if (isActive) return next();
@@ -1070,15 +1109,15 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
 });
 
 // ── Web chat endpoint (used by callistoai.net browser app) ───────────────────
-app.post('/web/chat', authMiddleware, checkDailyLimit, aiLimiter, async (req, res) => {
+app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req, res) => {
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
-    const user = await users.findById(req.userId);
+    const user = req.userId ? await users.findById(req.userId) : null;
     const today = new Date().toISOString().slice(0, 10);
     const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
     const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
-    const remaining = isActive ? null : Math.max(0, FREE_DAILY_LIMIT - used);
+    const remaining = isActive ? null : (req.guestRemaining ?? Math.max(0, FREE_DAILY_LIMIT - used - 1));
 
     // Streaming SSE for instant response
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1104,8 +1143,8 @@ app.post('/web/chat', authMiddleware, checkDailyLimit, aiLimiter, async (req, re
       }
     }
 
-    // Update message count
-    if (!isActive) {
+    // Update message count (logged-in free users only)
+    if (!isActive && req.userId && user) {
       const newCount = (user?.msgCountDate === today ? (user?.msgCount || 0) : 0) + 1;
       await users.updateById(req.userId, { msgCount: newCount, msgCountDate: today });
     }

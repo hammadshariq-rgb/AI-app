@@ -323,7 +323,7 @@
     #chatSidebar { display: none; } /* sidebar replaced by hamburger slide-in nav */
     /* ── Chat-mode calendar+reminders floating panel ── */
     #chatCalPanel {
-      position: absolute; bottom: 90px; right: 18px;
+      position: absolute; bottom: 140px; right: 18px;
       width: 240px;
       max-height: calc(100vh - 160px);
       overflow-y: auto; overflow-x: hidden;
@@ -435,9 +435,10 @@
     #attachBtn,#clearChatBtn { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(130,160,255,0.65); transition: all 0.15s; flex-shrink: 0; }
     #attachBtn:hover { background: rgba(61,92,255,0.15); border-color: rgba(61,92,255,0.3); color: rgba(160,190,255,0.95); }
     #clearChatBtn:hover { background: rgba(255,50,50,0.12); border-color: rgba(255,60,60,0.3); color: rgba(255,120,120,0.95); }
-    #shiftVoiceBtn { display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(130,160,255,0.65); font-family: var(--body); font-size: 11px; font-weight: 600; letter-spacing: 1.5px; cursor: pointer; transition: all 0.18s; }
+    #shiftVoiceBtn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 8px 16px; margin-top: 6px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(130,160,255,0.65); font-family: var(--body); font-size: 11px; font-weight: 600; letter-spacing: 1.5px; cursor: pointer; transition: all 0.18s; }
     #shiftVoiceBtn:hover { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.35); color: rgba(160,200,255,0.9); }
     #shiftVoiceBtn svg { flex-shrink: 0; }
+    body.light #shiftVoiceBtn { background:rgba(61,92,255,0.06); border-color:rgba(61,92,255,0.18); color:rgba(60,90,200,0.7); }
     #chatNavHamburger { width: 34px; height: 34px; border-radius: 9px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(150,180,255,0.8); font-size: 16px; transition: all 0.15s; flex-shrink: 0; }
     #chatNavHamburger:hover { background: rgba(61,92,255,0.15); border-color: rgba(61,92,255,0.3); }
     #chatThemeToggle { width: 34px; height: 34px; border-radius: 9px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.15s; flex-shrink: 0; }
@@ -1132,10 +1133,6 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             </button>
           </div>
-          <button id="shiftVoiceBtn" onclick="(function(){document.getElementById('chatApp').classList.add('hidden');var land=document.getElementById('landing');land.classList.remove('hidden');land.style.removeProperty('display');document.getElementById('hero').style.display='flex';})()">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
-            SHIFT TO VOICE
-          </button>
         </div>
         <div id="inputBar">
           <textarea id="userInput" rows="1" placeholder="Message Callisto..." maxlength="4000"></textarea>
@@ -1146,6 +1143,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
+        <button id="shiftVoiceBtn" onclick="(function(){document.getElementById('chatApp').classList.add('hidden');var land=document.getElementById('landing');land.classList.remove('hidden');land.style.removeProperty('display');document.getElementById('hero').style.display='flex';})()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+          SHIFT TO VOICE
+        </button>
         <p class="input-hint">Callisto can make mistakes. Double-check important information.</p>
       </div>
     </div>
@@ -2045,7 +2046,6 @@
   }
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
-    if(!token||!user){showAuth();return;} // guests must sign in
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
     const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
