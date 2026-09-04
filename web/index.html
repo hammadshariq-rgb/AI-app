@@ -1223,28 +1223,91 @@
   // Keep backward compat (used elsewhere)
   function showVoiceResponse(text){ /* handled by addVoiceBubble now */ }
 
-  // ── Wikipedia card ────────────────────────────────────────────────────────
-  async function fetchAndShowCard(query){
-    // Strip question words to get the subject
-    const subject = query.replace(/^(who|what|where|when|tell me about|what is|who is|how|why)\s+/i,'').replace(/\?.*$/,'').trim();
-    if(!subject || subject.length < 3) return;
-    try{
-      const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`);
+  // ── Wikipedia card — only for real entities, not simple words ────────────
+
+  // Patterns that TRIGGER a card search
+  const CARD_TRIGGERS = [
+    /\bwho (is|was|are|were)\b/i,
+    /\bwhat (is|was|are) (a |an |the )?[a-z]/i,
+    /\btell me about\b/i,
+    /\bshow me\b/i,
+    /\bexplain\b/i,
+    /\bdescribe\b/i,
+    /\bwhat (does|did) .+look like\b/i,
+    /\b(history|origin|biography) of\b/i,
+    /\bshow (me )?(the )?(periodic table|equation|formula|chart|map|diagram)\b/i,
+  ];
+
+  // Patterns that SKIP the card even if a trigger matched
+  const CARD_SKIP = [
+    /^(hi|hello|hey|howdy|yo)\b/i,
+    /\bhow are (you|things)\b/i,
+    /\b(what's|what is) (the )?(time|date|day|weather|news|temperature)\b/i,
+    /\b(can|do|are|did|will) you\b/i,
+    /\bthank(s| you)\b/i,
+    /\b(help|assist|support)\b/i,
+    /^(yes|no|ok|okay|sure|got it|nice)\b/i,
+  ];
+
+  // Wikipedia descriptions that suggest it's NOT a real entity card
+  const SKIP_DESC = [
+    /is (a |an )?(word|letter|name|greeting|salutation|phrase|term|concept|number|digit|symbol)/i,
+    /may refer to/i,
+    /disambiguation/i,
+  ];
+
+  function shouldShowCard(query) {
+    if(CARD_SKIP.some(r => r.test(query))) return false;
+    return CARD_TRIGGERS.some(r => r.test(query));
+  }
+
+  function extractSubject(query) {
+    return query
+      .replace(/^(who is|who was|who are|who were|what is a|what is an|what is the|what is|what are|tell me about|show me the|show me|explain the|explain|describe the|describe)\s+/i, '')
+      .replace(/\?.*$/, '')
+      .trim();
+  }
+
+  async function fetchAndShowCard(query) {
+    if(!shouldShowCard(query)) return;
+    const subject = extractSubject(query);
+    if(!subject || subject.length < 2) return;
+
+    try {
+      // Use Wikipedia search first to get the best matching page
+      const searchR = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(subject)}&srlimit=1&format=json&origin=*`);
+      const searchD = await searchR.json();
+      const topTitle = searchD?.query?.search?.[0]?.title;
+      if(!topTitle) return;
+
+      // Fetch summary for that page
+      const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topTitle)}`);
       if(!r.ok) return;
       const d = await r.json();
-      if(d.type==='disambiguation' || !d.title) return;
+
+      // Skip disambiguation, plain word definitions, missing thumbnails on generic topics
+      if(d.type === 'disambiguation') return;
+      if(!d.title) return;
+      const desc = d.description || '';
+      const extract = d.extract || '';
+      if(SKIP_DESC.some(r => r.test(desc)) || SKIP_DESC.some(r => r.test(extract.slice(0,80)))) return;
+
+      // Show card
       const card = document.getElementById('voiceCard');
       const img  = document.getElementById('voiceCardImg');
-      document.getElementById('voiceCardTitle').textContent = d.title || subject;
-      document.getElementById('voiceCardDesc').textContent  = (d.extract||'').slice(0,120) + '…';
-      document.getElementById('voiceCardLink').href = d.content_urls?.desktop?.page || '#';
-      if(d.thumbnail?.source){
+      document.getElementById('voiceCardTitle').textContent = d.title;
+      document.getElementById('voiceCardDesc').textContent  = desc || extract.slice(0,110) + '…';
+      document.getElementById('voiceCardLink').href = d.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(topTitle)}`;
+
+      if(d.thumbnail?.source) {
         img.src = d.thumbnail.source;
         img.style.display = 'block';
-        img.onerror = ()=>{ img.style.display='none'; };
-      } else { img.style.display='none'; }
+        img.onerror = ()=>{ img.style.display = 'none'; };
+      } else {
+        img.style.display = 'none';
+      }
       card.style.display = 'block';
-    } catch{}
+    } catch {}
   }
 
   // ── Landing-page voice mode — MediaRecorder → Whisper STT → GPT → Fable TTS

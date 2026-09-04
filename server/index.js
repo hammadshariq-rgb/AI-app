@@ -1042,7 +1042,7 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
 
     if (!transcript) return res.status(400).json({ error: 'No speech detected' });
 
-    const sys = `You are Callisto, a friendly personal AI assistant. Be concise — 1 to 3 sentences max. Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+    const sys = `You are Callisto, a friendly personal AI assistant. Be concise — 1 to 3 sentences max. Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. If asked about recent events or people in current roles, share what you know and note if it may have changed recently.`;
 
     // Run AI + TTS in parallel for speed
     const [completion, ] = await Promise.all([
