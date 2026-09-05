@@ -2557,7 +2557,7 @@
       const CLICK_COOLDOWN = 600; // ms between clicks
       let isPinching = false;
       let cursorX = 0, cursorY = 0; // smoothed position
-      const SMOOTH = 0.6; // higher = snappier cursor response
+      const SMOOTH = 0.8; // higher = snappier cursor response
 
       function moveMagicCursor(lm) {
         if (!magicCursor) return;
@@ -2821,7 +2821,7 @@
         gpAction.textContent = 'Loading gesture AI…';
         if (!await waitForMP()) { gpAction.textContent = 'Gesture model not available (check internet)'; return; }
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video:{ width:320, height:240, frameRate:24 }, audio:false });
+          stream = await navigator.mediaDevices.getUserMedia({ video:{ width:160, height:120, frameRate:15 }, audio:false });
           video.srcObject = stream; await video.play();
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
           handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.65, minTrackingConfidence:0.55 });
@@ -2829,7 +2829,7 @@
           async function loop() {
             if (!gestureEnabled) return;
             if (video.readyState >= 2) { try { await handsModel.send({ image:video }); } catch {} }
-            rafId = setTimeout(loop, 40); // ~25fps via setTimeout so it keeps running when window loses focus
+            rafId = setTimeout(loop, 50); // ~20fps via setTimeout so it keeps running when window loses focus
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';

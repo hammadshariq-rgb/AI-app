@@ -2816,12 +2816,15 @@ window.jarvis.onSentenceAudio(({ audio }) => {
     if (!PLACES_KEYWORDS.test(text)) return null;
     const match = text.match(PLACES_TYPES);
     const placeType = match ? match[0] : 'place';
-    // Build a clean search query for Google Maps
+    // Build search query — use Google Search (not Maps URL) as it works in Electron webview
+    // and shows the local map pack with ratings, hours, distance
     const q = text
       .replace(/\b(find|search|look for|show me|what are the|are there any|where is the|where are the)\b/gi, '')
       .trim();
+    // Google Search with "near me" shows local results with embedded map
+    const searchQuery = encodeURIComponent(q.replace(/\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/gi, 'near me').trim());
     return {
-      url: 'https://www.google.com/maps/search/' + encodeURIComponent(q),
+      url: 'https://www.google.com/search?q=' + searchQuery + '&num=10',
       icon: '📍',
       name: 'Maps — ' + placeType,
       query: q
