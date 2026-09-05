@@ -2556,12 +2556,18 @@
       let lastClickTime = 0;
       const CLICK_COOLDOWN = 600; // ms between clicks
       let isPinching = false;
+      let cursorX = 0, cursorY = 0; // smoothed position
+      const SMOOTH = 0.35; // lower = smoother but more lag, higher = snappier
 
       function moveMagicCursor(lm) {
         if (!magicCursor) return;
         // lm[8] = index fingertip, normalized 0-1 (selfieMode flips x correctly)
-        const x = lm[8].x * window.innerWidth;
-        const y = lm[8].y * window.innerHeight;
+        const rawX = lm[8].x * window.innerWidth;
+        const rawY = lm[8].y * window.innerHeight;
+        // Exponential moving average — removes jitter/glitching
+        cursorX = cursorX === 0 ? rawX : cursorX + SMOOTH * (rawX - cursorX);
+        cursorY = cursorY === 0 ? rawY : cursorY + SMOOTH * (rawY - cursorY);
+        const x = cursorX, y = cursorY;
         magicCursor.style.left = x + 'px';
         magicCursor.style.top  = y + 'px';
 
@@ -2738,12 +2744,6 @@
         // Show "hand detected" so user knows detection is working
         if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
 
-        // Move magic cursor using first detected hand's index fingertip
-        if (magicCursor) {
-          magicCursor.style.display = 'block';
-          moveMagicCursor(lms[0]);
-        }
-
         // Draw skeletons (teal = first hand, orange = second)
         drawHand(ctx, lms[0], W, H, 'rgba(0,220,180,0.8)');
         if (lms[1]) drawHand(ctx, lms[1], W, H, 'rgba(255,160,60,0.8)');
@@ -2753,9 +2753,22 @@
           doClapAction(); return;
         }
 
-        // ── Per-hand gestures ─────────────────────────────────────────────
+        // ── LEFT hand = magic cursor only, RIGHT hand = all gestures ────────
+        let leftFound = false;
         for (let i = 0; i < lms.length; i++) {
-          const lm = lms[i];
+          const side = hands[i]?.label || 'Right';
+          if (side === 'Left') {
+            leftFound = true;
+            if (magicCursor) { magicCursor.style.display = 'block'; moveMagicCursor(lms[i]); }
+          }
+        }
+        if (!leftFound && magicCursor) { magicCursor.style.display = 'none'; isPinching = false; cursorX = 0; cursorY = 0; }
+
+        // ── Per-hand gestures (RIGHT hand only) ──────────────────────────
+        for (let i = 0; i < lms.length; i++) {
+          const lm   = lms[i];
+          const side = hands[i]?.label || 'Right';
+          if (side !== 'Right') continue; // left hand is cursor-only
 
           // ── 2. ONE FINGER POINT — index only up, hold 300ms → start listening ─
           if (isOneFingerPoint(lm)) {
@@ -2813,12 +2826,12 @@
           stream = await navigator.mediaDevices.getUserMedia({ video:{ width:320, height:240, frameRate:24 }, audio:false });
           video.srcObject = stream; await video.play();
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
-          handsModel.setOptions({ maxNumHands:2, modelComplexity:1, selfieMode:true, minDetectionConfidence:0.72, minTrackingConfidence:0.60 });
+          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.65, minTrackingConfidence:0.55 });
           handsModel.onResults(onHandResults);
           async function loop() {
             if (!gestureEnabled) return;
             if (video.readyState >= 2) { try { await handsModel.send({ image:video }); } catch {} }
-            rafId = setTimeout(loop, 66); // ~15fps via setTimeout so it keeps running when window loses focus
+            rafId = setTimeout(loop, 40); // ~25fps via setTimeout so it keeps running when window loses focus
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
