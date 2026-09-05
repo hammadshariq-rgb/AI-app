@@ -1885,7 +1885,7 @@
       </div><!-- end #leftNav -->
 
       <!-- ── Gesture Control ── -->
-      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
+      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)" style="display:none">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
           <video id="gestureCamPreview" autoplay playsinline muted></video>
@@ -2067,8 +2067,11 @@
           <div id="micLabel">CLICK TO SPEAK</div>
           <canvas id="waveformCanvas" width="180" height="36"></canvas>
 
+          <!-- Engage Hand Movement (voice mode) -->
+          <button id="gestureEngageBtn1" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;border-color:rgba(61,255,180,0.35);color:rgba(61,255,180,0.85)" onclick="window._gestureToggle && window._gestureToggle()">🤚 ENGAGE HAND MOVEMENT</button>
+
           <!-- Shift to typing toggle (voice mode) -->
-          <button id="typeModeToggle" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
+          <button id="typeModeToggle" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
 
           <!-- Stop button now lives inside the typing input bar -->
 
@@ -2103,8 +2106,10 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
               </button>
             </div>
+            <!-- Engage Hand Movement (chat mode) -->
+            <button id="gestureEngageBtn2" class="connector-btn" style="margin-top:8px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center;border-color:rgba(61,255,180,0.35);color:rgba(61,255,180,0.85)" onclick="window._gestureToggle && window._gestureToggle()">🤚 ENGAGE HAND MOVEMENT</button>
             <!-- Shift to voice — below the input box -->
-            <button id="typeVoiceBtn" class="connector-btn" style="margin-top:8px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center">🎙 SHIFT TO VOICE</button>
+            <button id="typeVoiceBtn" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center">🎙 SHIFT TO VOICE</button>
           </div>
 
           <!-- ── Update notification button ── -->
@@ -2739,8 +2744,20 @@
         snapDist.length = 0; clapHist.length = 0; waveHist.Left = []; waveHist.Right = [];
       }
 
+      function updateEngageBtns(on) {
+        ['gestureEngageBtn1','gestureEngageBtn2'].forEach(id => {
+          const b = document.getElementById(id);
+          if (!b) return;
+          b.textContent = on ? '🟢 HAND MOVEMENT ON' : '🤚 ENGAGE HAND MOVEMENT';
+          b.style.color = on ? 'rgba(61,255,180,1)' : 'rgba(61,255,180,0.85)';
+          b.style.borderColor = on ? 'rgba(61,255,180,0.7)' : 'rgba(61,255,180,0.35)';
+          b.style.boxShadow = on ? '0 0 12px rgba(61,255,180,0.2)' : '';
+        });
+      }
+
       function toggleGesture() {
         gestureEnabled = !gestureEnabled;
+        updateEngageBtns(gestureEnabled);
         if (gestureEnabled) { toggleBtn.classList.add('active'); panel.classList.remove('hidden'); startGesture(); }
         else { toggleBtn.classList.remove('active'); panel.classList.add('hidden'); stopGesture(); }
       }
