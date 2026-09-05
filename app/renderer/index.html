@@ -865,7 +865,7 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
-    /* ── Magic Cursor ── */
+    /* ── Callisto Hand Cursor ── */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
       width: 28px; height: 28px; border-radius: 50%;
@@ -1934,7 +1934,7 @@
           <div class="gp-label">GESTURE CONTROL</div>
           <div class="gp-gesture" id="gpGestureIcon">–</div>
           <div class="gp-action" id="gpActionText">Show your hand to begin</div>
-          <div class="gp-hint">☝️ speak · ✊ stop · ✌ mode · 🤚 theme · 👏 clear</div>
+          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · RIGHT: ☝️ speak · ✊ stop · ✌ mode · 🤚 theme · 👏 clear</div>
         </div>
       </div>
 
@@ -2552,7 +2552,7 @@
       const magicCursor   = document.getElementById('magicCursor');
       if (!toggleBtn || !panel || !video) return;
 
-      // ── Magic Cursor state ───────────────────────────────────────────────────
+      // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
       const CLICK_COOLDOWN = 600; // ms between clicks
       let isPinching = false;
