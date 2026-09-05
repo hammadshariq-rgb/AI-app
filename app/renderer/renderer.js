@@ -2610,13 +2610,13 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   let lastPaintSubject = null;
 
   // ── Keyword detection ────────────────────────────────────────────────────────
-  const PAINT_RE = /\b(paint|draw|sketch|illustrate|make me a painting|generate a painting|create a painting|make a painting|make me a picture|make a picture)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+|a painting of\s+|a picture of\s+)?(.+)/i;
+  const PAINT_RE = /\b(?:paint|draw|sketch|illustrate|(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:painting|picture|drawing|sketch|image|illustration)(?:\s+of)?)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+)?(.+?)(?:\s+(?:on|in|using)\s+(?:3d\s+paint|paint\s+3d|blender|dall.?e))?$/i;
   const MODEL3D_RE = /\b(make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
 
   function extractPaintSubject(text) {
     const m = text.match(PAINT_RE);
     if (!m) return null;
-    return m[2].trim().replace(/[.!?]+$/, '');
+    return (m[1] || '').trim().replace(/[.!?]+$/, '');
   }
 
   // ── Show generated image in the browser sidebar ──────────────────────────────
@@ -2804,14 +2804,17 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   }
 
   // ── Places detection ──────────────────────────────────────────────────────
-  const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me)\b/i;
-  const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|food|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall)\b/i;
+  const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/i;
+  const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|shawarma|kebab|biryani|noodles|ramen|tacos|food|indian|chinese|italian|thai|mexican|bbq|steak|seafood|bakery|dessert|ice cream|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall|barber|salon|petrol|gas station|supermarket|grocery)\b/i;
 
   function detectPlaces(text) {
     if (!PLACES_KEYWORDS.test(text)) return null;
     const match = text.match(PLACES_TYPES);
     const placeType = match ? match[0] : 'place';
-    const q = text.replace(/\b(find|search|look for|show me)\b/gi, '').trim();
+    // Build a clean search query for Google Maps
+    const q = text
+      .replace(/\b(find|search|look for|show me|what are the|are there any|where is the|where are the)\b/gi, '')
+      .trim();
     return {
       url: 'https://www.google.com/maps/search/' + encodeURIComponent(q),
       icon: '📍',
