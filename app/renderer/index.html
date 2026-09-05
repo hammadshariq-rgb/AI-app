@@ -826,6 +826,45 @@
     }
     #finPanelClose:hover { color: rgba(255,100,100,0.80) !important; }
 
+    /* ── Gesture Control ── */
+    #gestureToggleBtn {
+      position: fixed; bottom: 24px; left: 24px; z-index: 950;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(8,12,28,0.88); border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(180,200,255,0.7); font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      transition: all .2s; backdrop-filter: blur(12px);
+    }
+    #gestureToggleBtn:hover { background: rgba(61,92,255,0.22); border-color: rgba(61,92,255,0.4); color: #fff; transform: scale(1.08); }
+    #gestureToggleBtn.active { background: rgba(61,255,120,0.12); border-color: rgba(61,255,120,0.45); color: rgba(61,255,180,0.95); box-shadow: 0 0 20px rgba(61,255,120,0.2); }
+    body.light-mode #gestureToggleBtn { background: rgba(240,242,252,0.92); border-color: rgba(61,92,255,0.2); color: rgba(40,60,160,0.7); }
+    body.light-mode #gestureToggleBtn.active { background: rgba(20,200,100,0.1); border-color: rgba(20,200,100,0.4); color: rgba(20,160,80,0.9); }
+
+    #gesturePanel {
+      position: fixed; bottom: 78px; left: 24px; z-index: 950;
+      background: rgba(6,8,22,0.94); border: 1px solid rgba(61,92,255,0.25);
+      border-radius: 18px; overflow: hidden; width: 220px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(61,92,255,0.08);
+      backdrop-filter: blur(20px); display: flex; flex-direction: column;
+      animation: gpSlideUp 0.28s cubic-bezier(0.34,1.46,0.64,1) both;
+    }
+    #gesturePanel.hidden { display: none !important; }
+    @keyframes gpSlideUp { from { opacity:0; transform:translateY(16px) scale(0.95); } to { opacity:1; transform:none; } }
+    #gesturePanel::before { content:''; position:absolute; top:0; left:0; right:0; height:1.5px; background:linear-gradient(90deg,transparent,rgba(61,255,180,0.7),rgba(0,180,255,0.5),transparent); }
+    .gp-cam-wrap { position:relative; width:100%; aspect-ratio:4/3; background:#000; overflow:hidden; }
+    #gestureCamPreview { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); opacity:0.88; }
+    #gestureOverlayCanvas { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); pointer-events:none; }
+    .gp-status { padding: 10px 12px 12px; }
+    .gp-label { font-family: var(--font-brand,'Exo 2',sans-serif); font-size:9px; font-weight:700; letter-spacing:3px; color:rgba(61,255,180,0.8); text-transform:uppercase; margin-bottom:6px; }
+    .gp-gesture { font-size:22px; text-align:center; margin: 4px 0 2px; min-height:28px; transition:transform 0.2s; }
+    .gp-gesture.flash { transform:scale(1.35); }
+    .gp-action { font-size:10.5px; color:rgba(180,210,255,0.7); text-align:center; letter-spacing:0.5px; min-height:16px; }
+    .gp-hint { font-size:9px; color:rgba(120,140,200,0.4); text-align:center; margin-top:6px; letter-spacing:0.3px; }
+    body.light-mode #gesturePanel { background:rgba(238,242,252,0.96); border-color:rgba(61,92,255,0.15); }
+    body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
+    body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
+
     /* ── Magic Editor floating card ── */
     #magicEditBar {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
@@ -1845,6 +1884,21 @@
         </div><!-- end #historySidebar -->
       </div><!-- end #leftNav -->
 
+      <!-- ── Gesture Control ── -->
+      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
+      <div id="gesturePanel" class="hidden">
+        <div class="gp-cam-wrap">
+          <video id="gestureCamPreview" autoplay playsinline muted></video>
+          <canvas id="gestureOverlayCanvas"></canvas>
+        </div>
+        <div class="gp-status">
+          <div class="gp-label">GESTURE CONTROL</div>
+          <div class="gp-gesture" id="gpGestureIcon">–</div>
+          <div class="gp-action" id="gpActionText">Show your hand to begin</div>
+          <div class="gp-hint">✋ speak · ✊ stop · ✌ mode · 👋 clear</div>
+        </div>
+      </div>
+
       <!-- ── Magic Editor floating card ── -->
       <div id="magicEditBar" class="hidden">
         <div class="me-header">
@@ -2437,7 +2491,243 @@
     })();
 
     // ── Email compose detector ──
+    // ── Gesture Control (MediaPipe Hands) ────────────────────────────────────
+    (function() {
+      const toggleBtn   = document.getElementById('gestureToggleBtn');
+      const panel       = document.getElementById('gesturePanel');
+      const video       = document.getElementById('gestureCamPreview');
+      const overlayCanvas = document.getElementById('gestureOverlayCanvas');
+      const gpIcon      = document.getElementById('gpGestureIcon');
+      const gpAction    = document.getElementById('gpActionText');
+      if (!toggleBtn || !panel || !video) return;
+
+      let gestureEnabled = false;
+      let handsModel     = null;
+      let camera         = null;
+      let stream         = null;
+      let rafId          = null;
+
+      // Debounce: only fire a gesture action once per COOLDOWN ms
+      const COOLDOWN = 1400;
+      let lastGestureTime = 0;
+      let lastGesture     = null;
+
+      // Wave detection: track wrist x positions
+      const wristHistory = [];
+      const WAVE_WINDOW  = 18; // frames
+      const WAVE_THRESH  = 0.18; // normalised x movement
+
+      function fingerExtended(lm, tip, pip) {
+        return lm[tip].y < lm[pip].y - 0.04;
+      }
+
+      function classifyGesture(lm) {
+        const thumb  = lm[4].x < lm[3].x - 0.03; // thumb extended (right hand, mirrored)
+        const index  = fingerExtended(lm, 8, 6);
+        const middle = fingerExtended(lm, 12, 10);
+        const ring   = fingerExtended(lm, 16, 14);
+        const pinky  = fingerExtended(lm, 20, 18);
+
+        const count = [index, middle, ring, pinky].filter(Boolean).length;
+
+        // Wave: rapid wrist x oscillation
+        wristHistory.push(lm[0].x);
+        if (wristHistory.length > WAVE_WINDOW) wristHistory.shift();
+        if (wristHistory.length === WAVE_WINDOW) {
+          const mn = Math.min(...wristHistory), mx = Math.max(...wristHistory);
+          let changes = 0;
+          for (let i = 1; i < wristHistory.length; i++) {
+            if (Math.abs(wristHistory[i] - wristHistory[i-1]) > 0.018) changes++;
+          }
+          if (mx - mn > WAVE_THRESH && changes > 6) return 'wave';
+        }
+
+        if (count === 0) return 'fist';   // ✊
+        if (count === 4) return 'open';   // ✋ (all 4 fingers)
+        if (index && !middle && !ring && !pinky) return 'point';   // ☝️
+        if (index && middle && !ring && !pinky) return 'peace';     // ✌️
+        if (index && middle && ring && !pinky) return 'three';      // 🤟 (thumbs-up gesture area)
+        return null;
+      }
+
+      const GESTURE_META = {
+        open:  { icon: '✋', label: 'Open palm — starting voice',     action: 'voice_start' },
+        fist:  { icon: '✊', label: 'Fist — stopping',                action: 'voice_stop'  },
+        point: { icon: '☝️', label: 'Pointing — confirm',             action: 'confirm'     },
+        peace: { icon: '✌️', label: 'Peace — switching mode',         action: 'switch_mode' },
+        wave:  { icon: '👋', label: 'Wave — clearing conversation',   action: 'clear'       },
+        three: { icon: '🤟', label: 'Three fingers — dismiss card',   action: 'dismiss_card'},
+      };
+
+      function flashGesture(g) {
+        const meta = GESTURE_META[g];
+        if (!meta) return;
+        gpIcon.textContent   = meta.icon;
+        gpAction.textContent = meta.label;
+        gpIcon.classList.remove('flash');
+        void gpIcon.offsetWidth;
+        gpIcon.classList.add('flash');
+        setTimeout(() => gpIcon.classList.remove('flash'), 300);
+      }
+
+      function fireAction(action) {
+        switch(action) {
+          case 'voice_start':
+            if (typeof startRecording === 'function' && !isRecording) startRecording();
+            break;
+          case 'voice_stop':
+            if (typeof stopRecording === 'function' && isRecording) stopRecording();
+            break;
+          case 'confirm':
+            // press any primary button in view
+            (document.querySelector('.primary-action-btn') || document.querySelector('#micBtn'))?.click();
+            break;
+          case 'switch_mode': {
+            const typeModeToggle = document.getElementById('typeModeToggle');
+            const typeVoiceBtn   = document.getElementById('typeVoiceBtn');
+            if (typeModeToggle && !typeModeToggle.closest('.hidden')) typeModeToggle.click();
+            else if (typeVoiceBtn && !typeVoiceBtn.closest('.hidden')) typeVoiceBtn.click();
+            break;
+          }
+          case 'clear':
+            if (typeof clearChat === 'function') clearChat();
+            else document.getElementById('clearBtn')?.click();
+            break;
+          case 'dismiss_card':
+            document.getElementById('cardClose')?.click();
+            break;
+        }
+      }
+
+      function onHandResults(results) {
+        // Draw skeleton on overlay canvas
+        const ctx = overlayCanvas.getContext('2d');
+        overlayCanvas.width  = video.videoWidth  || overlayCanvas.offsetWidth;
+        overlayCanvas.height = video.videoHeight || overlayCanvas.offsetHeight;
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+          if (gpIcon.textContent !== '–') {
+            gpIcon.textContent   = '–';
+            gpAction.textContent = 'Show your hand to begin';
+          }
+          wristHistory.length = 0;
+          return;
+        }
+
+        const lm = results.multiHandLandmarks[0];
+        const W  = overlayCanvas.width, H = overlayCanvas.height;
+
+        // Draw connections
+        const CONNECTIONS = [
+          [0,1],[1,2],[2,3],[3,4],
+          [0,5],[5,6],[6,7],[7,8],
+          [0,9],[9,10],[10,11],[11,12],
+          [0,13],[13,14],[14,15],[15,16],
+          [0,17],[17,18],[18,19],[19,20],
+          [5,9],[9,13],[13,17],
+        ];
+        ctx.strokeStyle = 'rgba(0,220,180,0.7)';
+        ctx.lineWidth   = 1.8;
+        for (const [a, b] of CONNECTIONS) {
+          ctx.beginPath();
+          ctx.moveTo(lm[a].x * W, lm[a].y * H);
+          ctx.lineTo(lm[b].x * W, lm[b].y * H);
+          ctx.stroke();
+        }
+        // Draw dots
+        ctx.fillStyle = 'rgba(80,220,255,0.9)';
+        for (const p of lm) {
+          ctx.beginPath();
+          ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI*2);
+          ctx.fill();
+        }
+
+        const gesture = classifyGesture(lm);
+        if (!gesture) return;
+
+        const now = Date.now();
+        if (gesture !== lastGesture || now - lastGestureTime > COOLDOWN) {
+          lastGesture     = gesture;
+          lastGestureTime = now;
+          flashGesture(gesture);
+          fireAction(GESTURE_META[gesture]?.action);
+        }
+      }
+
+      async function startGesture() {
+        if (!window.Hands) {
+          gpAction.textContent = 'Loading gesture model…';
+          return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240, frameRate:20 } });
+          video.srcObject = stream;
+          await video.play();
+
+          // Resize overlay canvas to match video
+          video.addEventListener('loadedmetadata', () => {
+            overlayCanvas.width  = video.videoWidth;
+            overlayCanvas.height = video.videoHeight;
+          });
+
+          handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
+          handsModel.setOptions({ maxNumHands:1, modelComplexity:0, minDetectionConfidence:0.65, minTrackingConfidence:0.5 });
+          handsModel.onResults(onHandResults);
+
+          // Run detection loop at ~15fps
+          let lastRun = 0;
+          async function loop() {
+            if (!gestureEnabled) return;
+            const now = performance.now();
+            if (now - lastRun > 66 && video.readyState >= 2) {
+              lastRun = now;
+              await handsModel.send({ image: video });
+            }
+            rafId = requestAnimationFrame(loop);
+          }
+          loop();
+          gpAction.textContent = 'Show your hand to begin';
+        } catch(e) {
+          gpAction.textContent = 'Camera access denied';
+          console.warn('[Gesture] camera error:', e.message);
+        }
+      }
+
+      function stopGesture() {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+        if (handsModel) { handsModel.close(); handsModel = null; }
+        video.srcObject = null;
+        wristHistory.length = 0;
+      }
+
+      function toggleGesture() {
+        gestureEnabled = !gestureEnabled;
+        if (gestureEnabled) {
+          toggleBtn.classList.add('active');
+          panel.classList.remove('hidden');
+          startGesture();
+        } else {
+          toggleBtn.classList.remove('active');
+          panel.classList.add('hidden');
+          stopGesture();
+        }
+      }
+
+      toggleBtn.addEventListener('click', toggleGesture);
+
+      // Keyboard shortcut: Ctrl+Shift+G (fired via main.js IPC or just handled here)
+      document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'G') { e.preventDefault(); toggleGesture(); }
+      });
+
+      // Expose for main process to trigger
+      window._gestureToggle = toggleGesture;
+    })();
+
     // Called from renderer.js when AI detects an email intent
+    // (gesture script loaded after page ready — see script tag above body close)
     window.callistoOpenEmailCompose = function(to, subject, body, attachment){
       document.getElementById('emailTo').textContent = to || '';
       document.getElementById('emailSubject').textContent = subject || '';
@@ -2450,5 +2740,7 @@
       panel.style.animation='toastIn 0.25s ease';
     };
   </script>
+  <!-- MediaPipe Hands (loaded async — only used when gesture mode is turned on) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous" defer></script>
 </body>
 </html>

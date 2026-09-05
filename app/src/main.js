@@ -517,6 +517,12 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Ctrl+Shift+G — Toggle gesture control
+  globalShortcut.register('Control+Shift+G', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
+  });
+
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
   globalShortcut.register('Control+Shift+E', async () => {
     const { clipboard } = require('electron');
