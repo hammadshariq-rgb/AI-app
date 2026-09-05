@@ -2531,8 +2531,8 @@
       let gestureEnabled = false;
       let handsModel = null, rafId = null, stream = null;
 
-      // ── Per-gesture cooldowns prevent mix-ups and accidental re-fires ───────
-      const COOLDOWNS = { snap:2000, fist:1500, wave:2200, peace:1800, clap:3000 };
+      // ── Per-gesture cooldowns ────────────────────────────────────────────────
+      const COOLDOWNS = { snap:1800, fist:1200, wave:2000, peace:1600, clap:3000 };
       const lastFired  = {};
       function canFire(name) {
         const now = Date.now();
@@ -2541,60 +2541,64 @@
       }
 
       // ── Finger helpers ───────────────────────────────────────────────────────
-      // A finger is "up" when its tip is clearly above its PIP joint (more strict threshold = fewer false positives)
-      function fingerUp(lm, tip, pip) { return lm[tip].y < lm[pip].y - 0.055; }
-      function thumbUp(lm) { return Math.abs(lm[4].x - lm[3].x) > 0.05 && lm[4].y < lm[3].y; }
+      // Strict threshold: tip must be clearly above PIP (reduces false positives)
+      function fingerUp(lm, tip, pip) { return lm[tip].y < lm[pip].y - 0.06; }
 
-      // ── State machine: track WHICH gesture the hand is currently in ──────────
-      // This prevents a fist → peace transition from firing "fist" midway
-      const handState = {}; // key = hand index → current confirmed gesture
+      // ── State machine ────────────────────────────────────────────────────────
+      const handState = {};
 
       // ── Snap: thumb tip (4) + middle tip (12) quickly separate ──────────────
-      // Only fires on the TRANSITION (was close, now far), not while already separated
+      // 6-frame window (~400ms) for faster response. Requires big jump (0.06→0.20)
       const snapDist = [];
-      const SNAP_WIN = 8;
+      const SNAP_WIN = 6;
       function checkSnap(lm) {
         const d = Math.hypot(lm[4].x - lm[12].x, lm[4].y - lm[12].y);
         snapDist.push(d);
         if (snapDist.length > SNAP_WIN) snapDist.shift();
         if (snapDist.length < SNAP_WIN) return false;
-        // First half was close (< 0.06), second half suddenly far (> 0.18)
-        const first = snapDist.slice(0, 4), last = snapDist.slice(4);
-        const avgFirst = first.reduce((a,b)=>a+b,0)/4;
-        const avgLast  = last.reduce((a,b)=>a+b,0)/4;
-        return avgFirst < 0.07 && avgLast > 0.19;
+        const first = snapDist.slice(0, 3), last = snapDist.slice(3);
+        const avgFirst = first.reduce((a,b)=>a+b,0)/3;
+        const avgLast  = last.reduce((a,b)=>a+b,0)/3;
+        // Was very close, now clearly far — big threshold gap prevents false triggers
+        return avgFirst < 0.06 && avgLast > 0.20;
       }
 
-      // ── Fist: ALL 4 fingers clearly closed (strict — avoids triggering mid-gesture) ──
+      // ── Fist: ALL 4 fingers clearly closed ──────────────────────────────────
       function isFist(lm) {
         return !fingerUp(lm, 8, 6) && !fingerUp(lm, 12, 10) && !fingerUp(lm, 16, 14) && !fingerUp(lm, 20, 18);
       }
 
-      // ── Peace: index+middle clearly up, ring+pinky clearly down ─────────────
+      // ── Peace: index+middle clearly up, ring+pinky+thumb clearly down ────────
+      // Also require fingers are spread (not bunched) to distinguish from partial open hand
       function isPeace(lm) {
-        return fingerUp(lm, 8, 6) && fingerUp(lm, 12, 10) && !fingerUp(lm, 16, 14) && !fingerUp(lm, 20, 18);
+        const spread = Math.abs(lm[8].x - lm[12].x) > 0.04; // index & middle spread apart
+        return fingerUp(lm, 8, 6) && fingerUp(lm, 12, 10)
+            && !fingerUp(lm, 16, 14) && !fingerUp(lm, 20, 18)
+            && spread;
       }
 
-      // ── Wave: wrist x oscillates widely, LEFT hand only ─────────────────────
-      const waveHist = { Left: [], Right: [] };
-      const WAVE_WIN = 22, WAVE_RANGE = 0.22, WAVE_FLIPS = 8;
-      function checkWave(lm, side) {
-        const h = waveHist[side] = waveHist[side] || [];
+      // ── Wave: wrist x oscillates — track ONE history regardless of hand label ─
+      // Hand label can swap in MediaPipe; use a single shared history keyed by hand index
+      const waveHist = [{}, {}]; // per hand-slot, not per label
+      const WAVE_WIN = 20, WAVE_RANGE = 0.24, WAVE_FLIPS = 9;
+      function checkWave(lm, idx) {
+        const h = waveHist[idx] || (waveHist[idx] = []);
         h.push(lm[0].x);
         if (h.length > WAVE_WIN) h.shift();
         if (h.length < WAVE_WIN) return false;
         const mn = Math.min(...h), mx = Math.max(...h);
+        if (mx - mn < WAVE_RANGE) return false; // not enough range
         let flips = 0;
         for (let i = 2; i < h.length; i++) {
           const d1 = h[i-1]-h[i-2], d2 = h[i]-h[i-1];
-          if (d1*d2 < -0.0002) flips++;
+          if (d1*d2 < -0.0003) flips++;
         }
-        return mx - mn > WAVE_RANGE && flips >= WAVE_FLIPS;
+        return flips >= WAVE_FLIPS;
       }
 
       // ── Clap: both wrists suddenly very close together ───────────────────────
       const clapHist = [];
-      const CLAP_WIN = 10, CLAP_NEAR = 0.16, CLAP_FAR = 0.32;
+      const CLAP_WIN = 10, CLAP_NEAR = 0.15, CLAP_FAR = 0.34;
       function checkClap(lms) {
         if (lms.length < 2) { clapHist.length = 0; return false; }
         const d = Math.hypot(lms[0][0].x - lms[1][0].x, lms[0][0].y - lms[1][0].y);
@@ -2603,7 +2607,7 @@
         if (clapHist.length < CLAP_WIN) return false;
         const first = clapHist.slice(0,4).reduce((a,b)=>a+b,0)/4;
         const last  = clapHist.slice(-4).reduce((a,b)=>a+b,0)/4;
-        return last < CLAP_NEAR && first > CLAP_FAR; // was far, now near
+        return last < CLAP_NEAR && first > CLAP_FAR;
       }
 
       // ── UI feedback ─────────────────────────────────────────────────────────
@@ -2665,7 +2669,7 @@
 
         if (!lms.length) {
           snapDist.length = 0; clapHist.length = 0;
-          waveHist.Left = []; waveHist.Right = [];
+          waveHist[0] = []; waveHist[1] = [];
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
         }
@@ -2681,24 +2685,18 @@
 
         // ── Per-hand gestures ─────────────────────────────────────────────
         for (let i = 0; i < lms.length; i++) {
-          const lm   = lms[i];
-          // selfieMode=true → 'Left' label = user's actual left hand
-          const side = hands[i]?.label || 'Right';
+          const lm = lms[i];
 
-          // ── 2. SNAP — any hand, finger snap motion ──────────────────────
+          // ── 2. SNAP — any hand, fast finger-separation motion ───────────
           if (checkSnap(lm) && canFire('snap')) {
             showGesture('🫰', 'Snap — starting to listen');
             doStartListening(); continue;
           }
 
-          // ── 3. FIST — all fingers closed, stop listening ────────────────
-          // Only trigger on LEFT hand for fist to avoid peace→fist ambiguity on same hand
-          // Actually allow either hand but require 400ms hold by checking isFist persists
+          // ── 3. FIST — all 4 fingers closed, hold 250ms → stop ──────────
           if (isFist(lm)) {
-            if (!handState[i]) handState[i] = { g:'fist', since: Date.now() };
-            else if (handState[i].g !== 'fist') { handState[i] = { g:'fist', since: Date.now() }; }
-            // Fire after holding fist for 400ms to avoid mid-gesture triggers
-            if (handState[i].g === 'fist' && Date.now() - handState[i].since > 400 && canFire('fist')) {
+            if (!handState[i] || handState[i].g !== 'fist') handState[i] = { g:'fist', since: Date.now() };
+            if (Date.now() - handState[i].since > 250 && canFire('fist')) {
               showGesture('✊', 'Fist — stopped listening');
               doStopListening();
             }
@@ -2706,21 +2704,24 @@
             handState[i] = null;
           }
 
-          // ── 4. PEACE sign — right hand only, switch mode ─────────────────
-          // Require right hand so it doesn't conflict with left-hand wave
-          if (side === 'Right' && isPeace(lm) && canFire('peace')) {
-            showGesture('✌️', 'Two fingers — switching mode');
-            doSwitchMode(); continue;
+          // ── 4. PEACE — index+middle up+spread, hold 350ms → switch mode ─
+          // Hold requirement prevents snap→peace false triggers
+          if (isPeace(lm)) {
+            if (!handState[i] || handState[i].g !== 'peace') handState[i] = { g:'peace', since: Date.now() };
+            if (Date.now() - handState[i].since > 350 && canFire('peace')) {
+              showGesture('✌️', 'Two fingers — switching mode');
+              doSwitchMode();
+            }
+          } else if (handState[i]?.g === 'peace') {
+            handState[i] = null;
           }
 
-          // ── 5. WAVE left hand — toggle theme ─────────────────────────────
-          if (side === 'Left' && checkWave(lm, 'Left') && canFire('wave')) {
-            showGesture('🤚', 'Left-hand wave — toggling theme');
-            doToggleTheme(); continue;
+          // ── 5. WAVE — wrist oscillation on either hand → toggle theme ────
+          // No longer restricted to a label (labels can swap in MediaPipe)
+          if (checkWave(lm, i) && canFire('wave')) {
+            showGesture('🤚', 'Wave — toggling theme');
+            doToggleTheme();
           }
-
-          // Clear non-wave hand history so it doesn't accidentally accumulate
-          if (side === 'Right') waveHist.Right = [];
         }
       }
 
@@ -2757,7 +2758,7 @@
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
-        snapDist.length = 0; clapHist.length = 0; waveHist.Left = []; waveHist.Right = [];
+        snapDist.length = 0; clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
       }
 
       function updateEngageBtns(on) {
