@@ -669,6 +669,8 @@ ipcMain.handle('auth:logout', () => {
 
 ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
+ipcMain.handle('app:quit', () => { app.quit(); });
+
 // ── Magic Editor ─────────────────────────────────────────────────────────────
 ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
   try {

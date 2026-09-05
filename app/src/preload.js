@@ -81,4 +81,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
+  // Quit app (used by gesture — clap = clear + quit)
+  quitApp: () => ipcRenderer.invoke('app:quit'),
 });

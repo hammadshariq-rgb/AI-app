@@ -2492,237 +2492,261 @@
 
     // ── Email compose detector ──
     // ── Gesture Control (MediaPipe Hands) ────────────────────────────────────
+    // 5 gestures, clearly separated to avoid mix-ups:
+    //  🫰 Snap  (thumb+middle rapid release) → start voice listening
+    //  ✊ Fist  (all 4 fingers closed)        → stop listening
+    //  🤚 Left-hand wave (x-oscillation)     → toggle dark / light mode
+    //  ✌️ Two fingers (index+middle, right)  → switch voice ↔ chat mode
+    //  👏 Clap  (both hands together)        → clear chat + quit app
     (function() {
-      const toggleBtn   = document.getElementById('gestureToggleBtn');
-      const panel       = document.getElementById('gesturePanel');
-      const video       = document.getElementById('gestureCamPreview');
+      const toggleBtn     = document.getElementById('gestureToggleBtn');
+      const panel         = document.getElementById('gesturePanel');
+      const video         = document.getElementById('gestureCamPreview');
       const overlayCanvas = document.getElementById('gestureOverlayCanvas');
-      const gpIcon      = document.getElementById('gpGestureIcon');
-      const gpAction    = document.getElementById('gpActionText');
+      const gpIcon        = document.getElementById('gpGestureIcon');
+      const gpAction      = document.getElementById('gpActionText');
       if (!toggleBtn || !panel || !video) return;
 
       let gestureEnabled = false;
-      let handsModel     = null;
-      let camera         = null;
-      let stream         = null;
-      let rafId          = null;
+      let handsModel = null, rafId = null, stream = null;
 
-      // Debounce: only fire a gesture action once per COOLDOWN ms
-      const COOLDOWN = 1400;
-      let lastGestureTime = 0;
-      let lastGesture     = null;
-
-      // Wave detection: track wrist x positions
-      const wristHistory = [];
-      const WAVE_WINDOW  = 18; // frames
-      const WAVE_THRESH  = 0.18; // normalised x movement
-
-      function fingerExtended(lm, tip, pip) {
-        return lm[tip].y < lm[pip].y - 0.04;
+      // ── Per-gesture cooldowns prevent mix-ups and accidental re-fires ───────
+      const COOLDOWNS = { snap:2000, fist:1500, wave:2200, peace:1800, clap:3000 };
+      const lastFired  = {};
+      function canFire(name) {
+        const now = Date.now();
+        if (!lastFired[name] || now - lastFired[name] > COOLDOWNS[name]) { lastFired[name] = now; return true; }
+        return false;
       }
 
-      function classifyGesture(lm) {
-        const thumb  = lm[4].x < lm[3].x - 0.03; // thumb extended (right hand, mirrored)
-        const index  = fingerExtended(lm, 8, 6);
-        const middle = fingerExtended(lm, 12, 10);
-        const ring   = fingerExtended(lm, 16, 14);
-        const pinky  = fingerExtended(lm, 20, 18);
+      // ── Finger helpers ───────────────────────────────────────────────────────
+      // A finger is "up" when its tip is clearly above its PIP joint (more strict threshold = fewer false positives)
+      function fingerUp(lm, tip, pip) { return lm[tip].y < lm[pip].y - 0.055; }
+      function thumbUp(lm) { return Math.abs(lm[4].x - lm[3].x) > 0.05 && lm[4].y < lm[3].y; }
 
-        const count = [index, middle, ring, pinky].filter(Boolean).length;
+      // ── State machine: track WHICH gesture the hand is currently in ──────────
+      // This prevents a fist → peace transition from firing "fist" midway
+      const handState = {}; // key = hand index → current confirmed gesture
 
-        // Wave: rapid wrist x oscillation
-        wristHistory.push(lm[0].x);
-        if (wristHistory.length > WAVE_WINDOW) wristHistory.shift();
-        if (wristHistory.length === WAVE_WINDOW) {
-          const mn = Math.min(...wristHistory), mx = Math.max(...wristHistory);
-          let changes = 0;
-          for (let i = 1; i < wristHistory.length; i++) {
-            if (Math.abs(wristHistory[i] - wristHistory[i-1]) > 0.018) changes++;
-          }
-          if (mx - mn > WAVE_THRESH && changes > 6) return 'wave';
+      // ── Snap: thumb tip (4) + middle tip (12) quickly separate ──────────────
+      // Only fires on the TRANSITION (was close, now far), not while already separated
+      const snapDist = [];
+      const SNAP_WIN = 8;
+      function checkSnap(lm) {
+        const d = Math.hypot(lm[4].x - lm[12].x, lm[4].y - lm[12].y);
+        snapDist.push(d);
+        if (snapDist.length > SNAP_WIN) snapDist.shift();
+        if (snapDist.length < SNAP_WIN) return false;
+        // First half was close (< 0.06), second half suddenly far (> 0.18)
+        const first = snapDist.slice(0, 4), last = snapDist.slice(4);
+        const avgFirst = first.reduce((a,b)=>a+b,0)/4;
+        const avgLast  = last.reduce((a,b)=>a+b,0)/4;
+        return avgFirst < 0.07 && avgLast > 0.19;
+      }
+
+      // ── Fist: ALL 4 fingers clearly closed (strict — avoids triggering mid-gesture) ──
+      function isFist(lm) {
+        return !fingerUp(lm, 8, 6) && !fingerUp(lm, 12, 10) && !fingerUp(lm, 16, 14) && !fingerUp(lm, 20, 18);
+      }
+
+      // ── Peace: index+middle clearly up, ring+pinky clearly down ─────────────
+      function isPeace(lm) {
+        return fingerUp(lm, 8, 6) && fingerUp(lm, 12, 10) && !fingerUp(lm, 16, 14) && !fingerUp(lm, 20, 18);
+      }
+
+      // ── Wave: wrist x oscillates widely, LEFT hand only ─────────────────────
+      const waveHist = { Left: [], Right: [] };
+      const WAVE_WIN = 22, WAVE_RANGE = 0.22, WAVE_FLIPS = 8;
+      function checkWave(lm, side) {
+        const h = waveHist[side] = waveHist[side] || [];
+        h.push(lm[0].x);
+        if (h.length > WAVE_WIN) h.shift();
+        if (h.length < WAVE_WIN) return false;
+        const mn = Math.min(...h), mx = Math.max(...h);
+        let flips = 0;
+        for (let i = 2; i < h.length; i++) {
+          const d1 = h[i-1]-h[i-2], d2 = h[i]-h[i-1];
+          if (d1*d2 < -0.0002) flips++;
         }
-
-        if (count === 0) return 'fist';   // ✊
-        if (count === 4) return 'open';   // ✋ (all 4 fingers)
-        if (index && !middle && !ring && !pinky) return 'point';   // ☝️
-        if (index && middle && !ring && !pinky) return 'peace';     // ✌️
-        if (index && middle && ring && !pinky) return 'three';      // 🤟 (thumbs-up gesture area)
-        return null;
+        return mx - mn > WAVE_RANGE && flips >= WAVE_FLIPS;
       }
 
-      const GESTURE_META = {
-        open:  { icon: '✋', label: 'Open palm — starting voice',     action: 'voice_start' },
-        fist:  { icon: '✊', label: 'Fist — stopping',                action: 'voice_stop'  },
-        point: { icon: '☝️', label: 'Pointing — confirm',             action: 'confirm'     },
-        peace: { icon: '✌️', label: 'Peace — switching mode',         action: 'switch_mode' },
-        wave:  { icon: '👋', label: 'Wave — clearing conversation',   action: 'clear'       },
-        three: { icon: '🤟', label: 'Three fingers — dismiss card',   action: 'dismiss_card'},
-      };
-
-      function flashGesture(g) {
-        const meta = GESTURE_META[g];
-        if (!meta) return;
-        gpIcon.textContent   = meta.icon;
-        gpAction.textContent = meta.label;
-        gpIcon.classList.remove('flash');
-        void gpIcon.offsetWidth;
-        gpIcon.classList.add('flash');
-        setTimeout(() => gpIcon.classList.remove('flash'), 300);
+      // ── Clap: both wrists suddenly very close together ───────────────────────
+      const clapHist = [];
+      const CLAP_WIN = 10, CLAP_NEAR = 0.16, CLAP_FAR = 0.32;
+      function checkClap(lms) {
+        if (lms.length < 2) { clapHist.length = 0; return false; }
+        const d = Math.hypot(lms[0][0].x - lms[1][0].x, lms[0][0].y - lms[1][0].y);
+        clapHist.push(d);
+        if (clapHist.length > CLAP_WIN) clapHist.shift();
+        if (clapHist.length < CLAP_WIN) return false;
+        const first = clapHist.slice(0,4).reduce((a,b)=>a+b,0)/4;
+        const last  = clapHist.slice(-4).reduce((a,b)=>a+b,0)/4;
+        return last < CLAP_NEAR && first > CLAP_FAR; // was far, now near
       }
 
-      function fireAction(action) {
-        switch(action) {
-          case 'voice_start':
-            if (typeof startRecording === 'function' && !isRecording) startRecording();
-            break;
-          case 'voice_stop':
-            if (typeof stopRecording === 'function' && isRecording) stopRecording();
-            break;
-          case 'confirm':
-            // press any primary button in view
-            (document.querySelector('.primary-action-btn') || document.querySelector('#micBtn'))?.click();
-            break;
-          case 'switch_mode': {
-            const typeModeToggle = document.getElementById('typeModeToggle');
-            const typeVoiceBtn   = document.getElementById('typeVoiceBtn');
-            if (typeModeToggle && !typeModeToggle.closest('.hidden')) typeModeToggle.click();
-            else if (typeVoiceBtn && !typeVoiceBtn.closest('.hidden')) typeVoiceBtn.click();
-            break;
-          }
-          case 'clear':
-            if (typeof clearChat === 'function') clearChat();
-            else document.getElementById('clearBtn')?.click();
-            break;
-          case 'dismiss_card':
-            document.getElementById('cardClose')?.click();
-            break;
-        }
+      // ── UI feedback ─────────────────────────────────────────────────────────
+      function showGesture(icon, label) {
+        gpIcon.textContent = icon; gpAction.textContent = label;
+        gpIcon.classList.remove('flash'); void gpIcon.offsetWidth; gpIcon.classList.add('flash');
+        setTimeout(() => gpIcon.classList.remove('flash'), 320);
       }
 
+      // ── Skeleton drawing ─────────────────────────────────────────────────────
+      const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+      function drawHand(ctx, lm, W, H, col) {
+        ctx.strokeStyle = col; ctx.lineWidth = 2;
+        for (const [a,b] of CONN) { ctx.beginPath(); ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(80,220,255,0.95)';
+        for (const p of lm) { ctx.beginPath(); ctx.arc(p.x*W,p.y*H,3.5,0,Math.PI*2); ctx.fill(); }
+      }
+
+      // ── Actions ──────────────────────────────────────────────────────────────
+      function doStartListening() {
+        if (typeof startRecording === 'function' && !isRecording) { startRecording(); }
+      }
+      function doStopListening() {
+        if (typeof stopRecording === 'function' && isRecording) { stopRecording(); }
+      }
+      function doToggleTheme() {
+        document.body.classList.toggle('light-mode');
+        const isDark = !document.body.classList.contains('light-mode');
+        gpAction.textContent = isDark ? '🌙 Dark mode' : '☀️ Light mode';
+      }
+      function doSwitchMode() {
+        // Try typing → voice first, then voice → typing
+        const typeModeToggle = document.getElementById('typeModeToggle');
+        const typeVoiceBtn   = document.getElementById('typeVoiceBtn');
+        if (typeModeToggle && getComputedStyle(typeModeToggle).display !== 'none') typeModeToggle.click();
+        else if (typeVoiceBtn) typeVoiceBtn.click();
+      }
+      async function doClapAction() {
+        showGesture('👏', 'Clap — clearing & quitting…');
+        if (typeof clearChat === 'function') clearChat();
+        else document.getElementById('clearBtn')?.click();
+        setTimeout(async () => {
+          if (window.jarvis && window.jarvis.quitApp) await window.jarvis.quitApp();
+        }, 900);
+      }
+
+      // ── Main detection callback ───────────────────────────────────────────────
       function onHandResults(results) {
-        // Draw skeleton on overlay canvas
         const ctx = overlayCanvas.getContext('2d');
-        overlayCanvas.width  = video.videoWidth  || overlayCanvas.offsetWidth;
-        overlayCanvas.height = video.videoHeight || overlayCanvas.offsetHeight;
+        overlayCanvas.width  = video.videoWidth  || 320;
+        overlayCanvas.height = video.videoHeight || 240;
         ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-          if (gpIcon.textContent !== '–') {
-            gpIcon.textContent   = '–';
-            gpAction.textContent = 'Show your hand to begin';
-          }
-          wristHistory.length = 0;
+        const lms   = results.multiHandLandmarks || [];
+        const hands = results.multiHandedness    || [];
+        const W = overlayCanvas.width, H = overlayCanvas.height;
+
+        if (!lms.length) {
+          snapDist.length = 0; clapHist.length = 0;
+          waveHist.Left = []; waveHist.Right = [];
+          if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
         }
 
-        const lm = results.multiHandLandmarks[0];
-        const W  = overlayCanvas.width, H = overlayCanvas.height;
+        // Draw skeletons (teal = first hand, orange = second)
+        drawHand(ctx, lms[0], W, H, 'rgba(0,220,180,0.8)');
+        if (lms[1]) drawHand(ctx, lms[1], W, H, 'rgba(255,160,60,0.8)');
 
-        // Draw connections
-        const CONNECTIONS = [
-          [0,1],[1,2],[2,3],[3,4],
-          [0,5],[5,6],[6,7],[7,8],
-          [0,9],[9,10],[10,11],[11,12],
-          [0,13],[13,14],[14,15],[15,16],
-          [0,17],[17,18],[18,19],[19,20],
-          [5,9],[9,13],[13,17],
-        ];
-        ctx.strokeStyle = 'rgba(0,220,180,0.7)';
-        ctx.lineWidth   = 1.8;
-        for (const [a, b] of CONNECTIONS) {
-          ctx.beginPath();
-          ctx.moveTo(lm[a].x * W, lm[a].y * H);
-          ctx.lineTo(lm[b].x * W, lm[b].y * H);
-          ctx.stroke();
-        }
-        // Draw dots
-        ctx.fillStyle = 'rgba(80,220,255,0.9)';
-        for (const p of lm) {
-          ctx.beginPath();
-          ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI*2);
-          ctx.fill();
+        // ── 1. CLAP — highest priority, needs 2 hands ──────────────────────
+        if (lms.length >= 2 && checkClap(lms) && canFire('clap')) {
+          doClapAction(); return;
         }
 
-        const gesture = classifyGesture(lm);
-        if (!gesture) return;
+        // ── Per-hand gestures ─────────────────────────────────────────────
+        for (let i = 0; i < lms.length; i++) {
+          const lm   = lms[i];
+          // selfieMode=true → 'Left' label = user's actual left hand
+          const side = hands[i]?.label || 'Right';
 
-        const now = Date.now();
-        if (gesture !== lastGesture || now - lastGestureTime > COOLDOWN) {
-          lastGesture     = gesture;
-          lastGestureTime = now;
-          flashGesture(gesture);
-          fireAction(GESTURE_META[gesture]?.action);
+          // ── 2. SNAP — any hand, finger snap motion ──────────────────────
+          if (checkSnap(lm) && canFire('snap')) {
+            showGesture('🫰', 'Snap — starting to listen');
+            doStartListening(); continue;
+          }
+
+          // ── 3. FIST — all fingers closed, stop listening ────────────────
+          // Only trigger on LEFT hand for fist to avoid peace→fist ambiguity on same hand
+          // Actually allow either hand but require 400ms hold by checking isFist persists
+          if (isFist(lm)) {
+            if (!handState[i]) handState[i] = { g:'fist', since: Date.now() };
+            else if (handState[i].g !== 'fist') { handState[i] = { g:'fist', since: Date.now() }; }
+            // Fire after holding fist for 400ms to avoid mid-gesture triggers
+            if (handState[i].g === 'fist' && Date.now() - handState[i].since > 400 && canFire('fist')) {
+              showGesture('✊', 'Fist — stopped listening');
+              doStopListening();
+            }
+          } else if (handState[i]?.g === 'fist') {
+            handState[i] = null;
+          }
+
+          // ── 4. PEACE sign — right hand only, switch mode ─────────────────
+          // Require right hand so it doesn't conflict with left-hand wave
+          if (side === 'Right' && isPeace(lm) && canFire('peace')) {
+            showGesture('✌️', 'Two fingers — switching mode');
+            doSwitchMode(); continue;
+          }
+
+          // ── 5. WAVE left hand — toggle theme ─────────────────────────────
+          if (side === 'Left' && checkWave(lm, 'Left') && canFire('wave')) {
+            showGesture('🤚', 'Left-hand wave — toggling theme');
+            doToggleTheme(); continue;
+          }
+
+          // Clear non-wave hand history so it doesn't accidentally accumulate
+          if (side === 'Right') waveHist.Right = [];
         }
+      }
+
+      // ── Start/stop camera & model ─────────────────────────────────────────
+      async function waitForMP(tries = 25) {
+        for (let i = 0; i < tries; i++) { if (window.Hands) return true; await new Promise(r => setTimeout(r, 300)); }
+        return false;
       }
 
       async function startGesture() {
-        if (!window.Hands) {
-          gpAction.textContent = 'Loading gesture model…';
-          return;
-        }
+        gpAction.textContent = 'Loading gesture AI…';
+        if (!await waitForMP()) { gpAction.textContent = 'Gesture model not available (check internet)'; return; }
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240, frameRate:20 } });
-          video.srcObject = stream;
-          await video.play();
-
-          // Resize overlay canvas to match video
-          video.addEventListener('loadedmetadata', () => {
-            overlayCanvas.width  = video.videoWidth;
-            overlayCanvas.height = video.videoHeight;
-          });
-
+          stream = await navigator.mediaDevices.getUserMedia({ video:{ width:320, height:240, frameRate:24 }, audio:false });
+          video.srcObject = stream; await video.play();
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
-          handsModel.setOptions({ maxNumHands:1, modelComplexity:0, minDetectionConfidence:0.65, minTrackingConfidence:0.5 });
+          handsModel.setOptions({ maxNumHands:2, modelComplexity:1, selfieMode:true, minDetectionConfidence:0.72, minTrackingConfidence:0.60 });
           handsModel.onResults(onHandResults);
-
-          // Run detection loop at ~15fps
           let lastRun = 0;
           async function loop() {
             if (!gestureEnabled) return;
-            const now = performance.now();
-            if (now - lastRun > 66 && video.readyState >= 2) {
-              lastRun = now;
-              await handsModel.send({ image: video });
-            }
+            const t = performance.now();
+            if (t - lastRun > 60 && video.readyState >= 2) { lastRun = t; try { await handsModel.send({ image:video }); } catch {} }
             rafId = requestAnimationFrame(loop);
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
         } catch(e) {
-          gpAction.textContent = 'Camera access denied';
-          console.warn('[Gesture] camera error:', e.message);
+          gpAction.textContent = e.name === 'NotAllowedError' ? 'Camera access denied' : 'Camera unavailable';
+          console.warn('[Gesture]', e.message);
         }
       }
 
       function stopGesture() {
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-        if (handsModel) { handsModel.close(); handsModel = null; }
+        if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
-        wristHistory.length = 0;
+        snapDist.length = 0; clapHist.length = 0; waveHist.Left = []; waveHist.Right = [];
       }
 
       function toggleGesture() {
         gestureEnabled = !gestureEnabled;
-        if (gestureEnabled) {
-          toggleBtn.classList.add('active');
-          panel.classList.remove('hidden');
-          startGesture();
-        } else {
-          toggleBtn.classList.remove('active');
-          panel.classList.add('hidden');
-          stopGesture();
-        }
+        if (gestureEnabled) { toggleBtn.classList.add('active'); panel.classList.remove('hidden'); startGesture(); }
+        else { toggleBtn.classList.remove('active'); panel.classList.add('hidden'); stopGesture(); }
       }
 
       toggleBtn.addEventListener('click', toggleGesture);
-
-      // Keyboard shortcut: Ctrl+Shift+G (fired via main.js IPC or just handled here)
-      document.addEventListener('keydown', e => {
-        if (e.ctrlKey && e.shiftKey && e.key === 'G') { e.preventDefault(); toggleGesture(); }
-      });
-
-      // Expose for main process to trigger
+      document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && e.key === 'G') { e.preventDefault(); toggleGesture(); } });
       window._gestureToggle = toggleGesture;
     })();
 
