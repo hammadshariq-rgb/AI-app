@@ -865,6 +865,28 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
+    /* ── Magic Cursor ── */
+    #magicCursor {
+      position: fixed; z-index: 9999; pointer-events: none;
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid rgba(61,255,180,0.9);
+      background: rgba(61,255,180,0.12);
+      box-shadow: 0 0 12px rgba(61,255,180,0.6), 0 0 28px rgba(61,255,180,0.25);
+      transform: translate(-50%, -50%);
+      transition: width 0.1s, height 0.1s, background 0.1s, box-shadow 0.1s;
+      display: none;
+    }
+    #magicCursor.pinch {
+      width: 18px; height: 18px;
+      background: rgba(61,255,180,0.55);
+      box-shadow: 0 0 20px rgba(61,255,180,0.9), 0 0 40px rgba(61,255,180,0.4);
+    }
+    #magicCursor::after {
+      content: '';
+      position: absolute; inset: 5px; border-radius: 50%;
+      background: rgba(61,255,180,0.7);
+    }
+
     /* ── Magic Editor floating card ── */
     #magicEditBar {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
@@ -1901,6 +1923,7 @@
       </div><!-- end #leftNav -->
 
       <!-- ── Gesture Control ── -->
+      <div id="magicCursor"></div>
       <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)" style="display:none">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
@@ -2526,7 +2549,49 @@
       const overlayCanvas = document.getElementById('gestureOverlayCanvas');
       const gpIcon        = document.getElementById('gpGestureIcon');
       const gpAction      = document.getElementById('gpActionText');
+      const magicCursor   = document.getElementById('magicCursor');
       if (!toggleBtn || !panel || !video) return;
+
+      // ── Magic Cursor state ───────────────────────────────────────────────────
+      let lastClickTime = 0;
+      const CLICK_COOLDOWN = 600; // ms between clicks
+      let isPinching = false;
+
+      function moveMagicCursor(lm) {
+        if (!magicCursor) return;
+        // lm[8] = index fingertip, normalized 0-1 (selfieMode flips x correctly)
+        const x = lm[8].x * window.innerWidth;
+        const y = lm[8].y * window.innerHeight;
+        magicCursor.style.left = x + 'px';
+        magicCursor.style.top  = y + 'px';
+
+        // Pinch: thumb tip (4) + index tip (8) distance
+        const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+        const pinching = pinchDist < 0.055;
+
+        if (pinching && !isPinching) {
+          // Pinch started — click element under cursor
+          isPinching = true;
+          magicCursor.classList.add('pinch');
+          const now = Date.now();
+          if (now - lastClickTime > CLICK_COOLDOWN) {
+            lastClickTime = now;
+            // Temporarily hide cursor so elementFromPoint finds the real element
+            magicCursor.style.display = 'none';
+            const el = document.elementFromPoint(x, y);
+            magicCursor.style.display = 'block';
+            if (el) {
+              el.click();
+              // Also dispatch a pointer event for elements listening to pointerdown
+              el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y }));
+              el.dispatchEvent(new PointerEvent('pointerup',   { bubbles: true, clientX: x, clientY: y }));
+            }
+          }
+        } else if (!pinching && isPinching) {
+          isPinching = false;
+          magicCursor.classList.remove('pinch');
+        }
+      }
 
       let gestureEnabled = false;
       let handsModel = null, rafId = null, stream = null;
@@ -2662,8 +2727,16 @@
         if (!lms.length) {
           clapHist.length = 0;
           waveHist[0] = []; waveHist[1] = [];
+          if (magicCursor) magicCursor.style.display = 'none';
+          isPinching = false;
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
+        }
+
+        // Move magic cursor using first detected hand's index fingertip
+        if (magicCursor) {
+          magicCursor.style.display = 'block';
+          moveMagicCursor(lms[0]);
         }
 
         // Draw skeletons (teal = first hand, orange = second)
@@ -2755,7 +2828,9 @@
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
-        snapDist.length = 0; clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
+        clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
+        if (magicCursor) magicCursor.style.display = 'none';
+        isPinching = false;
       }
 
       function updateEngageBtns(on) {
