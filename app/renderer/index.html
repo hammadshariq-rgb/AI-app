@@ -1911,7 +1911,7 @@
           <div class="gp-label">GESTURE CONTROL</div>
           <div class="gp-gesture" id="gpGestureIcon">–</div>
           <div class="gp-action" id="gpActionText">Show your hand to begin</div>
-          <div class="gp-hint">✋ speak · ✊ stop · ✌ mode · 👋 clear</div>
+          <div class="gp-hint">☝️ speak · ✊ stop · ✌ mode · 🤚 theme · 👏 clear</div>
         </div>
       </div>
 
@@ -2547,20 +2547,12 @@
       // ── State machine ────────────────────────────────────────────────────────
       const handState = {};
 
-      // ── Snap: thumb tip (4) + middle tip (12) quickly separate ──────────────
-      // 6-frame window (~400ms) for faster response. Requires big jump (0.06→0.20)
-      const snapDist = [];
-      const SNAP_WIN = 6;
-      function checkSnap(lm) {
-        const d = Math.hypot(lm[4].x - lm[12].x, lm[4].y - lm[12].y);
-        snapDist.push(d);
-        if (snapDist.length > SNAP_WIN) snapDist.shift();
-        if (snapDist.length < SNAP_WIN) return false;
-        const first = snapDist.slice(0, 3), last = snapDist.slice(3);
-        const avgFirst = first.reduce((a,b)=>a+b,0)/3;
-        const avgLast  = last.reduce((a,b)=>a+b,0)/3;
-        // Was very close, now clearly far — big threshold gap prevents false triggers
-        return avgFirst < 0.06 && avgLast > 0.20;
+      // ── One finger (index only up, rest down) — hold 300ms → start listening ─
+      function isOneFingerPoint(lm) {
+        return fingerUp(lm, 8, 6)           // index up
+            && !fingerUp(lm, 12, 10)        // middle down
+            && !fingerUp(lm, 16, 14)        // ring down
+            && !fingerUp(lm, 20, 18);       // pinky down
       }
 
       // ── Fist: ALL 4 fingers clearly closed ──────────────────────────────────
@@ -2668,7 +2660,7 @@
         const W = overlayCanvas.width, H = overlayCanvas.height;
 
         if (!lms.length) {
-          snapDist.length = 0; clapHist.length = 0;
+          clapHist.length = 0;
           waveHist[0] = []; waveHist[1] = [];
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
@@ -2687,10 +2679,15 @@
         for (let i = 0; i < lms.length; i++) {
           const lm = lms[i];
 
-          // ── 2. SNAP — any hand, fast finger-separation motion ───────────
-          if (checkSnap(lm) && canFire('snap')) {
-            showGesture('🫰', 'Snap — starting to listen');
-            doStartListening(); continue;
+          // ── 2. ONE FINGER POINT — index only up, hold 300ms → start listening ─
+          if (isOneFingerPoint(lm)) {
+            if (!handState[i] || handState[i].g !== 'point') handState[i] = { g:'point', since: Date.now() };
+            if (Date.now() - handState[i].since > 300 && canFire('snap')) {
+              showGesture('☝️', 'One finger — starting to listen');
+              doStartListening();
+            }
+          } else if (handState[i]?.g === 'point') {
+            handState[i] = null;
           }
 
           // ── 3. FIST — all 4 fingers closed, hold 250ms → stop ──────────
