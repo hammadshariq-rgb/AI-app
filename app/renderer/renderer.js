@@ -2257,6 +2257,11 @@ async function sendToJarvis(text) {
 
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
+  // Check creative (painting / 3D model) — may short-circuit the AI call
+  if (typeof window._checkCreative === 'function') {
+    const handled = await window._checkCreative(text);
+    if (handled) return;
+  }
   // Check if message triggers browser panel (shopping / places)
   if (typeof window._checkBrowserPanel === 'function') window._checkBrowserPanel(text);
   setState('thinking');
@@ -2508,6 +2513,76 @@ async function sendToJarvis(text) {
 window.jarvis.onSentenceAudio(({ audio }) => {
   playAudioChunks([audio]);
 });
+
+// ── Creative: Painting + 3D Model ─────────────────────────────────────────────
+(function() {
+  // Remember the last subject the user asked to paint, so "make it 3D" can follow up
+  let lastPaintSubject = null;
+
+  // ── Keyword detection ────────────────────────────────────────────────────────
+  const PAINT_RE = /\b(paint|draw|sketch|illustrate|make me a painting|generate a painting|create a painting|make a painting|make me a picture|make a picture)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+|a painting of\s+|a picture of\s+)?(.+)/i;
+  const MODEL3D_RE = /\b(make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
+
+  function extractPaintSubject(text) {
+    const m = text.match(PAINT_RE);
+    if (!m) return null;
+    return m[2].trim().replace(/[.!?]+$/, '');
+  }
+
+  // ── Show generated image in the browser sidebar ──────────────────────────────
+  function showPaintingInSidebar(imageUrl, subject) {
+    // Build a simple HTML page with the image centred
+    const htmlPage = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;font-family:-apple-system,sans-serif}img{max-width:100%;max-height:80vh;border-radius:12px;box-shadow:0 0 60px rgba(0,0,0,0.8)}p{color:rgba(200,220,255,0.7);font-size:12px;letter-spacing:2px;text-transform:uppercase}</style></head><body><img src="${imageUrl}" alt="${subject}"/><p>✨ AI Painting — ${subject}</p></body></html>`)}`;
+    if (typeof openBrowserPanel === 'function') {
+      openBrowserPanel(htmlPage, subject, '🎨');
+    }
+  }
+
+  // ── Main hook: called from sendToJarvis before AI response ───────────────────
+  window._checkCreative = async function(text) {
+    // 3D model follow-up
+    if (MODEL3D_RE.test(text)) {
+      const subject = lastPaintSubject || text.replace(MODEL3D_RE, '').trim() || 'the object';
+      addMessage('assistant', `🔧 Generating Blender 3D script for "${subject}" and opening Blender…`);
+      const r = await window.jarvis.openBlender(subject);
+      if (r.ok) {
+        addMessage('assistant', `✅ Blender opened with a 3D model script for "${subject}". The model is building inside Blender now.`);
+        window.jarvis.speak(`Blender is now open with a 3D model of ${subject}.`);
+      } else {
+        addMessage('assistant', r.error || 'Could not open Blender.');
+      }
+      return true; // handled — skip normal AI call
+    }
+
+    // Painting request
+    const subject = extractPaintSubject(text);
+    if (subject) {
+      lastPaintSubject = subject;
+      addMessage('assistant', `🎨 Generating a painting of "${subject}"…`);
+      setState('thinking');
+      try {
+        // Generate image via IPC → server → DALL-E 3
+        const imgData = await window.jarvis.generateImage(`A beautiful, detailed artistic painting of ${subject}, vibrant colours, high quality digital art`);
+        if (imgData.error) throw new Error(imgData.error);
+
+        const imageUrl = imgData.url;
+        showPaintingInSidebar(imageUrl, subject);
+
+        // Open Paint 3D with the image
+        window.jarvis.openPaint3D(subject, imageUrl).catch(() => {});
+
+        window.jarvis.speak(`Here's your painting of ${subject}. Say "make it 3D" and I'll open it in Blender as a 3D model.`);
+        addMessage('assistant', `✨ Here's your painting of **${subject}**! It's shown on the side panel and opening in Paint 3D.\n\nSay **"make it 3D"** and I'll generate a Blender 3D model for you.`);
+      } catch (err) {
+        addMessage('assistant', `Sorry, couldn't generate the painting: ${err.message}`);
+      }
+      setState('idle');
+      return true; // handled
+    }
+
+    return false;
+  };
+})();
 
 // ── Magic Editor ──────────────────────────────────────────────────────────────
 (function() {

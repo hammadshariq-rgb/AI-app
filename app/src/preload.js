@@ -83,4 +83,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
   // Quit app (used by gesture — clap = clear + quit)
   quitApp: () => ipcRenderer.invoke('app:quit'),
+  // Creative: painting + 3D
+  generateImage: (prompt, size)    => ipcRenderer.invoke('creative:genimage', { prompt, size }),
+  openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),
+  openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
 });

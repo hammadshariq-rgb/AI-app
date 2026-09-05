@@ -671,6 +671,105 @@ ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
 ipcMain.handle('app:quit', () => { app.quit(); });
 
+// ── Creative: Painting + 3D model ─────────────────────────────────────────────
+ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
+  try {
+    const res  = await ai.serverFetch('image', { prompt, size: size || '1024x1024' }, { timeout: 60000, retries: 1 });
+    const data = await res.json();
+    if (data.error) return { error: data.error };
+    return { url: data.url };
+  } catch (err) { return { error: err.message }; }
+});
+
+ipcMain.handle('creative:paint', async (_e, { subject, imageUrl }) => {
+  try {
+    const fs = require('fs');
+    const nodeFetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+
+    // Download the DALL-E image to a temp PNG so Paint 3D can open it
+    const tmpPath = path.join(app.getPath('temp'), `callisto_paint_${Date.now()}.png`);
+    const resp    = await nodeFetch(imageUrl);
+    const buf     = await resp.arrayBuffer();
+    fs.writeFileSync(tmpPath, Buffer.from(buf));
+
+    // Open Paint 3D with the image (Windows UWP URI handler)
+    // ms-paint3d: opens the app; then we open the file separately via shell
+    shell.openPath(tmpPath);   // opens with default image editor (Paint 3D on most Win11 systems)
+
+    return { ok: true, localPath: tmpPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('creative:blender', async (_e, { subject }) => {
+  try {
+    const fs = require('fs');
+    const OpenAI = require('openai');
+    const oai    = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Step 1: GPT-4.1 generates a Blender Python script for the object
+    const result = await oai.chat.completions.create({
+      model: 'gpt-4.1',
+      max_tokens: 2000,
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a Blender 3D expert. Write a complete, runnable Blender Python (bpy) script that:
+1. Deletes all default objects
+2. Builds a recognisable 3D model of the requested subject using primitive meshes, modifiers (bevel, solidify, subdivision, mirror), and boolean operations
+3. Assigns basic Principled BSDF materials with appropriate colours
+4. Positions the camera and a 3-point light rig for a nice render view
+5. Sets the render engine to CYCLES or EEVEE
+Return ONLY the Python code — no markdown fences, no explanation.`
+        },
+        { role: 'user', content: `Create a 3D model of: ${subject}` }
+      ]
+    });
+
+    let script = result.choices[0]?.message?.content?.trim() || '';
+    // Strip accidental markdown fences
+    script = script.replace(/^```python\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    // Step 2: Save script to temp
+    const scriptPath = path.join(app.getPath('temp'), `callisto_blender_${Date.now()}.py`);
+    fs.writeFileSync(scriptPath, script);
+
+    // Step 3: Find Blender executable (check common install paths)
+    const { execSync } = require('child_process');
+    const candidates = [];
+    // Glob for any Blender version under Program Files
+    try {
+      const found = execSync('dir /b /s "C:\\Program Files\\Blender Foundation\\blender.exe" 2>nul', { shell: 'cmd.exe', encoding: 'utf8' }).trim();
+      if (found) candidates.push(...found.split('\n').map(l => l.trim()).filter(Boolean));
+    } catch {}
+    // Also try common explicit paths
+    for (const v of ['4.3','4.2','4.1','4.0','3.6','3.5','3.4','3.3']) {
+      candidates.push(`C:\\Program Files\\Blender Foundation\\Blender ${v}\\blender.exe`);
+    }
+
+    let blenderExe = null;
+    for (const p of candidates) {
+      if (fs.existsSync(p)) { blenderExe = p; break; }
+    }
+
+    if (!blenderExe) {
+      // Blender not installed — open download page and return the script path so user can run manually
+      shell.openExternal('https://www.blender.org/download/');
+      return { ok: false, error: 'Blender not found — opening download page', scriptPath };
+    }
+
+    // Step 4: Open Blender with the script
+    const { spawn } = require('child_process');
+    spawn(blenderExe, ['--python', scriptPath], { detached: true, stdio: 'ignore' }).unref();
+
+    return { ok: true, scriptPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ── Magic Editor ─────────────────────────────────────────────────────────────
 ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
   try {
