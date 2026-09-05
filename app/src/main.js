@@ -517,6 +517,38 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
+  globalShortcut.register('Control+Shift+E', async () => {
+    const { clipboard } = require('electron');
+    const { execFile } = require('child_process');
+    // Step 1: Send Ctrl+C to whatever app currently has focus (copies the selection)
+    // We use PowerShell SendKeys — fires before Electron steals focus since we haven't shown any window yet
+    await new Promise(resolve => {
+      execFile('powershell.exe', [
+        '-NonInteractive', '-NoProfile', '-Command',
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')`
+      ], { timeout: 600 }, resolve);
+    });
+    // Step 2: Give clipboard time to update
+    await new Promise(r => setTimeout(r, 250));
+    const selectedText = clipboard.readText().trim();
+    if (!selectedText) {
+      sendToHud('hud:card', { type: 'info', text: '✏️ Nothing selected — highlight text first, then press Ctrl+Shift+E.' });
+      return;
+    }
+    // Step 3: Show overlay + enter magic edit mode
+    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
+    if (!overlayWindow.isVisible()) {
+      overlayWindow.show();
+      overlayWindow.focus();
+      const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
+      overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
+    } else {
+      overlayWindow.focus();
+    }
+    overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
+  });
+
   // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
   globalShortcut.register('Control+S', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
@@ -630,6 +662,31 @@ ipcMain.handle('auth:logout', () => {
 });
 
 ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
+
+// ── Magic Editor ─────────────────────────────────────────────────────────────
+ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
+  try {
+    const res = await ai.serverFetch('magic-edit', { selectedText, instruction }, { timeout: 30000, retries: 1 });
+    const data = await res.json();
+    if (data.error) return { error: data.error };
+    const editedText = data.editedText || selectedText;
+    // Put edited text in clipboard
+    const { clipboard } = require('electron');
+    clipboard.writeText(editedText);
+    // Try to auto-paste back: wait 400ms so user's window can regain focus, then send Ctrl+V
+    // The overlay window should have been re-hidden by the renderer before calling this
+    setTimeout(async () => {
+      const { execFile } = require('child_process');
+      execFile('powershell.exe', [
+        '-NonInteractive', '-NoProfile', '-Command',
+        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
+      ], { timeout: 600 }, () => {});
+    }, 600);
+    return { editedText };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
 
 ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
   try {

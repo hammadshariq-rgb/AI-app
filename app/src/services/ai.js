@@ -948,4 +948,4 @@ async function generateImage(prompt, size = '1024x1024') {
   return { url: data.url };
 }
 
-module.exports = { respond, respondStreaming, generateImage, ACTION_KEYWORDS };
+module.exports = { respond, respondStreaming, generateImage, ACTION_KEYWORDS, serverFetch };

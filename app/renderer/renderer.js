@@ -2509,6 +2509,79 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   playAudioChunks([audio]);
 });
 
+// ── Magic Editor ──────────────────────────────────────────────────────────────
+(function() {
+  const bar        = document.getElementById('magicEditBar');
+  const mePreview  = document.getElementById('mePreview');
+  const meStatus   = document.getElementById('meStatus');
+  const meStatusTxt= document.getElementById('meStatusText');
+  const meBars     = meStatus?.querySelector('.me-mic-bars');
+  const meClose    = document.getElementById('meClose');
+  if (!bar) return;
+
+  let _meText      = '';   // selected text to edit
+  let _meActive    = false;
+
+  function setMeState(state, msg) {
+    if (!meStatusTxt) return;
+    meStatusTxt.textContent = msg;
+    if (meBars) meBars.style.display = state === 'listening' ? 'flex' : 'none';
+    // Show spinner for thinking
+    let spinner = meStatus?.querySelector('.me-spinner');
+    if (state === 'thinking') {
+      if (!spinner) { spinner = document.createElement('div'); spinner.className = 'me-spinner'; meStatus?.insertBefore(spinner, meStatusTxt); }
+    } else {
+      spinner?.remove();
+    }
+  }
+
+  function openMagicEdit(selectedText) {
+    _meText   = selectedText;
+    _meActive = true;
+    if (mePreview) mePreview.textContent = selectedText.length > 120 ? selectedText.slice(0, 120) + '…' : selectedText;
+    setMeState('listening', 'Listening for your instruction…');
+    bar.classList.remove('hidden');
+    // Auto-start voice recording
+    if (typeof startRecording === 'function') startRecording('magic-edit');
+  }
+
+  function closeMagicEdit() {
+    bar.classList.add('hidden');
+    _meActive = false;
+    _meText   = '';
+    if (typeof stopRecording === 'function') stopRecording();
+  }
+
+  meClose?.addEventListener('click', closeMagicEdit);
+
+  // Called from voice pipeline when recording is done (magic-edit mode)
+  window._magicEditHandleTranscript = async function(instruction) {
+    if (!_meActive || !_meText) return false;
+    setMeState('thinking', 'Editing with AI…');
+    try {
+      const res = await window.jarvis.magicEdit(_meText, instruction);
+      if (res.error) {
+        setMeState('error', 'Edit failed — ' + res.error);
+        setTimeout(closeMagicEdit, 3000);
+      } else {
+        // TTS: speak brief confirmation
+        window.jarvis.speak('Done, pasted.');
+        setMeState('done', '✓ Edited — pasting back…');
+        setTimeout(closeMagicEdit, 1800);
+      }
+    } catch(e) {
+      setMeState('error', 'Something went wrong.');
+      setTimeout(closeMagicEdit, 3000);
+    }
+    return true; // signal: we handled this transcript, skip normal chat
+  };
+
+  // Listen for trigger from main process
+  window.jarvis.onMagicEditStart(({ selectedText }) => {
+    openMagicEdit(selectedText);
+  });
+})();
+
 // ── Browser sidebar panel (shopping + places) ─────────────────────────────────
 (function() {
   const panel   = document.getElementById('browserPanel');
@@ -5152,7 +5225,12 @@ async function stopRecording() {
     const text = await window.jarvis.transcribe(base64);
     console.log('[MIC] transcribed:', text);
     if (text && text.trim().length > 1) {
-      await sendToJarvis(text.trim());
+      // Magic Edit mode: intercept transcript and route to editor
+      const handled = typeof window._magicEditHandleTranscript === 'function'
+        ? await window._magicEditHandleTranscript(text.trim())
+        : false;
+      if (!handled) await sendToJarvis(text.trim());
+      else setState('idle');
     } else {
       addMessage('assistant', "I didn't catch that — could you try speaking again?");
       setState('idle');

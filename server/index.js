@@ -1331,5 +1331,36 @@ Be direct, specific and conversational — like a very smart friend who always g
   }
 });
 
+// ── Magic Editor — edit highlighted text via voice instruction ─────────────────
+app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const { selectedText, instruction } = req.body;
+    if (!selectedText || !instruction) return res.status(400).json({ error: 'selectedText and instruction required' });
+    const result = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 2000,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a precise text editor. The user will give you a piece of text and a voice instruction for how to edit it.
+Return ONLY the edited text — no preamble, no explanation, no quotes around it, no markdown fences.
+Preserve the original formatting (line breaks, paragraphs) unless the instruction asks to change it.
+If the instruction asks you to ADD something, integrate it naturally.
+If the instruction is unclear, make the most sensible improvement possible.`
+        },
+        {
+          role: 'user',
+          content: `Text to edit:\n${selectedText}\n\nInstruction: ${instruction}`
+        }
+      ]
+    });
+    const editedText = result.choices[0]?.message?.content?.trim() || selectedText;
+    res.json({ editedText });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));

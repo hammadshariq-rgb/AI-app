@@ -241,8 +241,9 @@ ipcRenderer.on('hud:card', (_e, data) => { listenEl.style.display = 'none'; show
 
 // ── Colour config per card type ──────────────────────────────────────────────
 const TYPE_CFG = {
-  wiki:     { label:'Callisto',  icon:'🔍', line:'linear-gradient(90deg,transparent,rgba(80,200,120,0.7),rgba(0,220,180,0.4),transparent)', badge:null },
-  info:     { label:'Callisto',  icon:'◆',  line:'linear-gradient(90deg,transparent,rgba(100,140,255,0.7),rgba(0,210,255,0.5),transparent)', badge:null },
+  wiki:        { label:'Callisto',      icon:'🔍', line:'linear-gradient(90deg,transparent,rgba(80,200,120,0.7),rgba(0,220,180,0.4),transparent)', badge:null },
+  info:        { label:'Callisto',      icon:'◆',  line:'linear-gradient(90deg,transparent,rgba(100,140,255,0.7),rgba(0,210,255,0.5),transparent)', badge:null },
+  'magic-edit':{ label:'Magic Editor',  icon:'✏️', line:'linear-gradient(90deg,transparent,rgba(160,100,255,0.8),rgba(80,160,255,0.5),transparent)', badge:{text:'✓ EDITED', bg:'rgba(160,100,255,0.14)', color:'#b070ff'} },
   calendar: { label:'Calendar',  icon:'📅', line:'linear-gradient(90deg,transparent,rgba(66,133,244,0.7),transparent)', badge:{text:'✓ ADDED',   bg:'rgba(34,197,94,0.14)',  color:'#22c55e'} },
   reminder: { label:'Reminder',  icon:'🔔', line:'linear-gradient(90deg,transparent,rgba(245,158,11,0.7),transparent)', badge:{text:'✓ SET',     bg:'rgba(245,158,11,0.14)', color:'#f59e0b'} },
   email:    { label:'Email',     icon:'📧', line:'linear-gradient(90deg,transparent,rgba(234,67,53,0.6),transparent)',  badge:{text:'✓ DRAFTED', bg:'rgba(234,67,53,0.12)',  color:'#ea4335'} },
