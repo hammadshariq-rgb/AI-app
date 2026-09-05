@@ -2612,12 +2612,14 @@
       // ── State machine ────────────────────────────────────────────────────────
       const handState = {};
 
-      // ── One finger (index only up, rest down) — hold 300ms → start listening ─
+      // ── One finger (index clearly highest, others below it) — hold 300ms → start listening ─
       function isOneFingerPoint(lm) {
-        return fingerUp(lm, 8, 6)           // index up
-            && !fingerUp(lm, 12, 10)        // middle down
-            && !fingerUp(lm, 16, 14)        // ring down
-            && !fingerUp(lm, 20, 18);       // pinky down
+        // Index must be clearly up
+        if (!fingerUp(lm, 8, 6)) return false;
+        // Index tip must be clearly higher (lower y) than middle, ring, pinky tips
+        return lm[8].y < lm[12].y - 0.04
+            && lm[8].y < lm[16].y - 0.04
+            && lm[8].y < lm[20].y - 0.04;
       }
 
       // ── Fist: ALL 4 fingers clearly closed ──────────────────────────────────
@@ -2732,6 +2734,9 @@
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
         }
+
+        // Show "hand detected" so user knows detection is working
+        if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
 
         // Move magic cursor using first detected hand's index fingertip
         if (magicCursor) {
