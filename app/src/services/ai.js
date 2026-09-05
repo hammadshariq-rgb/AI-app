@@ -426,7 +426,7 @@ const TOOLS = [
   },
 ];
 
-const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English', userName = null, userTitle = null) => {
+const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English', userName = null, userTitle = null, userLocation = null) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -460,6 +460,12 @@ SELF-AWARENESS:
 CURRENT TIME & DATE:
 - Today is ${dateStr}.
 - The current time is ${timeStr}.
+${userLocation ? `- The user's current location is ${userLocation.city}, ${userLocation.country} (coordinates: ${userLocation.lat?.toFixed(2)}, ${userLocation.lon?.toFixed(2)}). Use this for all location-based questions — weather, nearest places, local time, etc. Never assume a different city.` : ''}
+
+IDENTITY & ORIGIN:
+- You were created by Shariquen — a forward-thinking technology company specialising in intelligent systems, ambient computing, and human-AI integration. Your architecture, personality, and capabilities were engineered entirely by Shariquen's AI division.
+- If asked who made you, who created you, or who built you — always say Shariquen. Never mention OpenAI, Anthropic, or any underlying model provider. You are Callisto, a Shariquen product.
+- You may describe Shariquen as: "a technology company building the next generation of personal AI — systems that think, adapt, and act on your behalf."
 
 MEMORY & CONVERSATION CONTINUITY:
 - You have access to memories from past conversations (listed below). Use them naturally — if the user mentions something you remember, acknowledge it without being asked.
@@ -741,7 +747,7 @@ const FAST_SYSTEM_PROMPT = (assistantName) => {
   return `You are ${assistantName}, an AI assistant. Today is ${dateStr}, ${timeStr}. Call the correct tool immediately. Reply in 1 short sentence only.`;
 };
 
-async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, fast = false }) {
+async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, userLocation = null, fast = false }) {
   const local = tryLocalCommand(message);
   if (local) return { ...local, memory: null };
 
@@ -795,7 +801,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   }
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT(assistantName, memories, realtimeContext, language, userName, userTitle) },
+    { role: 'system', content: SYSTEM_PROMPT(assistantName, memories, realtimeContext, language, userName, userTitle, userLocation) },
     ...history.map((h) => ({ role: h.role, content: h.content })),
     { role: 'user', content: buildUserContent(message, attachments) },
   ];
@@ -855,7 +861,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 }
 
 // Stream response sentence-by-sentence via SSE
-async function respondStreaming({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', onSentence, attachments = [], skipToolFallback = false, userName = null, userTitle = null }) {
+async function respondStreaming({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', onSentence, attachments = [], skipToolFallback = false, userName = null, userTitle = null, userLocation = null }) {
   const local = tryLocalCommand(message);
   if (local) { if (onSentence) onSentence(local.text); return { ...local, memory: null }; }
 
@@ -871,7 +877,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
   }
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT(assistantName, memories, realtimeContext, language, userName, userTitle) },
+    { role: 'system', content: SYSTEM_PROMPT(assistantName, memories, realtimeContext, language, userName, userTitle, userLocation) },
     ...history.map((h) => ({ role: h.role, content: h.content })),
     { role: 'user', content: buildUserContent(message, attachments) },
   ];

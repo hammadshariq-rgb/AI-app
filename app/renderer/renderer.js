@@ -1260,6 +1260,11 @@ const WeatherWidget = (function() {
       }
     }
 
+    // Store location in both localStorage and electron-store so AI can use it in every response
+    const locData = { city: _city, country: _country, lat: _lat, lon: _lon };
+    try { localStorage.setItem('userLocation', JSON.stringify(locData)); } catch {}
+    try { window.jarvis.setUserLocation(locData); } catch {}
+
     await fetchWeather();
     clearInterval(_timer);
     _timer = setInterval(fetchWeather, 15 * 60 * 1000);

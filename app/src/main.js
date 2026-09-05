@@ -671,6 +671,7 @@ ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
 ipcMain.handle('app:quit', () => { app.quit(); });
 ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(!!flag); });
+ipcMain.handle('app:setUserLocation', (_e, loc) => { store.set('userLocation', loc); });
 ipcMain.handle('app:focusWindow', () => { if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.show(); overlayWindow.focus(); } });
 
 // ── Creative: Painting + 3D model ─────────────────────────────────────────────
@@ -1190,6 +1191,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const userProfile = store.get('profile') || {};
   const userName = userProfile.displayName || null;
   const userTitle = userProfile.title || null;
+  const userLocation = store.get('userLocation') || null; // set by renderer when GPS/IP location resolves
   // Action queries get trimmed history for speed; conversation queries keep 30 for context
   // Streaming path: synthesize each sentence as it arrives and push audio to renderer immediately
   // This lets the user hear the first sentence while the rest is still being generated
@@ -1204,7 +1206,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message);
 
   const trimmedHistory = needsAction ? history.slice(-5) : history.slice(-30);
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: combinedContext, language, attachments, userName, userTitle, fast: needsAction && !combinedContext };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: combinedContext, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order

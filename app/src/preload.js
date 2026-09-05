@@ -83,7 +83,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
   // Quit app (used by gesture — clap = clear + quit)
   quitApp:       () => ipcRenderer.invoke('app:quit'),
-  setAlwaysOnTop: (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
+  setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
+  setUserLocation:  (loc)  => ipcRenderer.invoke('app:setUserLocation', loc),
   focusWindow:   () => ipcRenderer.invoke('app:focusWindow'),
   // HiggsField
   higgsSaveKey:  (key)    => ipcRenderer.invoke('higgsfield:saveKey', key),
