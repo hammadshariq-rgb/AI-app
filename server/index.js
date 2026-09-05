@@ -1087,7 +1087,7 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
     // Run AI + TTS in parallel for speed
     const [completion, ] = await Promise.all([
       openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-mini',
         messages: [{ role: 'system', content: sys }, { role: 'user', content: transcript }],
         max_tokens: 180,
       }),
@@ -1126,7 +1126,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     res.flushHeaders();
 
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages,
       max_tokens: 1024,
       temperature: 0.2,
@@ -1174,7 +1174,7 @@ app.get('/web/usage', authMiddleware, async (req, res) => {
 app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
-    const params = { model: model || 'gpt-4o-mini', messages, max_tokens: max_tokens || 512, temperature: temperature ?? 0.2, top_p: 0.9 };
+    const params = { model: model || 'gpt-4.1-mini', messages, max_tokens: max_tokens || 512, temperature: temperature ?? 0.2, top_p: 0.9 };
     if (tools) { params.tools = tools; params.tool_choice = tool_choice || 'required'; }
     const result = await openai.chat.completions.create(params);
     res.json(result);
@@ -1191,7 +1191,7 @@ app.post('/ai/chat/stream', authMiddleware, aiLimiter, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     const stream = await openai.chat.completions.create({
-      model: model || 'gpt-4o-mini',
+      model: model || 'gpt-4.1-mini',
       messages,
       max_tokens: max_tokens || 1024,
       temperature: temperature ?? 0.2,
@@ -1281,7 +1281,7 @@ app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4.1',
       max_tokens: 800,
       messages: [{
         role: 'user',
@@ -1337,7 +1337,7 @@ app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
     const { selectedText, instruction } = req.body;
     if (!selectedText || !instruction) return res.status(400).json({ error: 'selectedText and instruction required' });
     const result = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4.1',
       max_tokens: 2000,
       temperature: 0.3,
       messages: [
