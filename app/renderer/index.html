@@ -2624,6 +2624,8 @@
 
       // ── Actions ──────────────────────────────────────────────────────────────
       function doStartListening() {
+        // Bring window to front so mic can capture audio
+        if (window.jarvis && window.jarvis.focusWindow) window.jarvis.focusWindow();
         if (typeof startRecording === 'function' && !isRecording) { startRecording(); }
       }
       function doStopListening() {
@@ -2737,12 +2739,10 @@
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
           handsModel.setOptions({ maxNumHands:2, modelComplexity:1, selfieMode:true, minDetectionConfidence:0.72, minTrackingConfidence:0.60 });
           handsModel.onResults(onHandResults);
-          let lastRun = 0;
           async function loop() {
             if (!gestureEnabled) return;
-            const t = performance.now();
-            if (t - lastRun > 60 && video.readyState >= 2) { lastRun = t; try { await handsModel.send({ image:video }); } catch {} }
-            rafId = requestAnimationFrame(loop);
+            if (video.readyState >= 2) { try { await handsModel.send({ image:video }); } catch {} }
+            rafId = setTimeout(loop, 66); // ~15fps via setTimeout so it keeps running when window loses focus
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
@@ -2753,7 +2753,7 @@
       }
 
       function stopGesture() {
-        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        if (rafId) { clearTimeout(rafId); rafId = null; }
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
@@ -2774,8 +2774,18 @@
       function toggleGesture() {
         gestureEnabled = !gestureEnabled;
         updateEngageBtns(gestureEnabled);
-        if (gestureEnabled) { toggleBtn.classList.add('active'); panel.classList.remove('hidden'); startGesture(); }
-        else { toggleBtn.classList.remove('active'); panel.classList.add('hidden'); stopGesture(); }
+        if (gestureEnabled) {
+          toggleBtn.classList.add('active');
+          panel.classList.remove('hidden');
+          // Keep window on top + visible so camera keeps running when user is in another app
+          if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
+          startGesture();
+        } else {
+          toggleBtn.classList.remove('active');
+          panel.classList.add('hidden');
+          if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(false);
+          stopGesture();
+        }
       }
 
       toggleBtn.addEventListener('click', toggleGesture);

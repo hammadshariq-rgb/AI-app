@@ -670,6 +670,8 @@ ipcMain.handle('auth:logout', () => {
 ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
 ipcMain.handle('app:quit', () => { app.quit(); });
+ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(!!flag); });
+ipcMain.handle('app:focusWindow', () => { if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.show(); overlayWindow.focus(); } });
 
 // ── Creative: Painting + 3D model ─────────────────────────────────────────────
 // ── HiggsField AI Video connector ────────────────────────────────────────────
