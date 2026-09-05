@@ -83,6 +83,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
   // Quit app (used by gesture — clap = clear + quit)
   quitApp: () => ipcRenderer.invoke('app:quit'),
+  // HiggsField
+  higgsSaveKey:  (key)    => ipcRenderer.invoke('higgsfield:saveKey', key),
+  higgsGetKey:   ()       => ipcRenderer.invoke('higgsfield:getKey'),
+  higgsGenerate: (opts)   => ipcRenderer.invoke('higgsfield:generate', opts),
   // Creative: painting + 3D
   generateImage: (prompt, size)    => ipcRenderer.invoke('creative:genimage', { prompt, size }),
   openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),

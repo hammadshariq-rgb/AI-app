@@ -2257,6 +2257,11 @@ async function sendToJarvis(text) {
 
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
+  // Check HiggsField video generation
+  if (typeof window._checkHiggsfield === 'function') {
+    const handled = await window._checkHiggsfield(text, attachments);
+    if (handled) return;
+  }
   // Check creative (painting / 3D model) — may short-circuit the AI call
   if (typeof window._checkCreative === 'function') {
     const handled = await window._checkCreative(text);
@@ -2513,6 +2518,91 @@ async function sendToJarvis(text) {
 window.jarvis.onSentenceAudio(({ audio }) => {
   playAudioChunks([audio]);
 });
+
+// ── HiggsField connector UI + detection ───────────────────────────────────────
+(function() {
+  const higgsBtn       = document.getElementById('higgsBtn');
+  const higgsStatus    = document.getElementById('higgsStatus');
+  const higgsKeyRow    = document.getElementById('higgsKeyRow');
+  const higgsApiInput  = document.getElementById('higgsApiKeyInput');
+  const higgsSaveBtn   = document.getElementById('higgsSaveBtn');
+  const higgsLink      = document.getElementById('higgsLink');
+
+  // Open higgsfield.ai in browser
+  higgsLink?.addEventListener('click', e => { e.preventDefault(); window.jarvis.openUrl('https://higgsfield.ai'); });
+
+  async function refreshHiggsStatus() {
+    if (!window.jarvis?.higgsGetKey) return;
+    const key = await window.jarvis.higgsGetKey();
+    if (key) {
+      if (higgsStatus) higgsStatus.textContent = 'Connected ✓';
+      if (higgsBtn)    { higgsBtn.textContent = 'DISCONNECT'; higgsBtn.style.color = 'rgba(255,100,100,0.8)'; }
+      if (higgsKeyRow) higgsKeyRow.style.display = 'none';
+    } else {
+      if (higgsStatus) higgsStatus.textContent = 'Not connected';
+      if (higgsBtn)    { higgsBtn.textContent = 'CONNECT'; higgsBtn.style.color = ''; }
+    }
+  }
+
+  higgsBtn?.addEventListener('click', async () => {
+    const key = await window.jarvis.higgsGetKey();
+    if (key) {
+      // Disconnect
+      await window.jarvis.higgsSaveKey('');
+      refreshHiggsStatus();
+    } else {
+      // Show key input row
+      if (higgsKeyRow) higgsKeyRow.style.display = 'flex';
+    }
+  });
+
+  higgsSaveBtn?.addEventListener('click', async () => {
+    const key = higgsApiInput?.value?.trim();
+    if (!key) return;
+    await window.jarvis.higgsSaveKey(key);
+    if (higgsApiInput) higgsApiInput.value = '';
+    refreshHiggsStatus();
+  });
+
+  refreshHiggsStatus();
+
+  // ── Detection: "animate this / make a video / higgsfield" ───────────────────
+  const HIGGS_RE = /\b(animate|make a video|generate a video|create a video|higgsfield|make it move|bring to life|video of|turn.*into.*video|apply.*effect)\b/i;
+
+  window._checkHiggsfield = async function(text, attachments) {
+    if (!HIGGS_RE.test(text)) return false;
+    const key = await window.jarvis.higgsGetKey();
+    if (!key) {
+      addMessage('assistant', '🎬 HiggsField isn\'t connected yet. Go to **Connectors → HiggsField** and paste your API key from higgsfield.ai.');
+      return true;
+    }
+    // Get image from attachments if any
+    let imageBase64 = null;
+    if (attachments && attachments.length > 0) {
+      const img = attachments.find(a => a.type && a.type.startsWith('image/'));
+      if (img) imageBase64 = img.data || img.base64 || null;
+    }
+    addMessage('assistant', `🎬 Sending to HiggsField AI… this takes about 30–60 seconds.`);
+    setState('thinking');
+    try {
+      const res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64 });
+      if (res.error) {
+        addMessage('assistant', `HiggsField error: ${res.error}`);
+      } else if (res.videoUrl) {
+        // Show video in browser sidebar
+        if (typeof openBrowserPanel === 'function') openBrowserPanel(res.videoUrl, 'HiggsField Video', '🎬');
+        window.jarvis.speak('Your video is ready!');
+        addMessage('assistant', `✅ Video generated! It's playing in the side panel.\n\n[Open video](${res.videoUrl})`);
+      } else {
+        addMessage('assistant', `🎬 Job submitted (ID: ${res.jobId || 'unknown'}). HiggsField is rendering your video — it may take a minute. Check higgsfield.ai for the result.`);
+      }
+    } catch(e) {
+      addMessage('assistant', `HiggsField failed: ${e.message}`);
+    }
+    setState('idle');
+    return true;
+  };
+})();
 
 // ── Creative: Painting + 3D Model ─────────────────────────────────────────────
 (function() {

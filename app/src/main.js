@@ -672,6 +672,34 @@ ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 ipcMain.handle('app:quit', () => { app.quit(); });
 
 // ── Creative: Painting + 3D model ─────────────────────────────────────────────
+// ── HiggsField AI Video connector ────────────────────────────────────────────
+ipcMain.handle('higgsfield:saveKey', (_e, key) => {
+  store.set('higgsfield_api_key', key);
+  return { ok: true };
+});
+ipcMain.handle('higgsfield:getKey', () => store.get('higgsfield_api_key') || null);
+ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, type }) => {
+  const apiKey = store.get('higgsfield_api_key');
+  if (!apiKey) return { error: 'No HiggsField API key saved. Please connect in Settings > Connectors.' };
+  try {
+    const nodeFetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+    // HiggsField video generation endpoint
+    const body = { prompt, num_frames: 81, fps: 24, guidance_scale: 7.5, seed: Math.floor(Math.random()*99999) };
+    if (imageBase64) body.image = imageBase64; // image-to-video mode
+    const res = await nodeFetch('https://api.higgsfield.ai/v1/video/generate', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.message || data.error || 'HiggsField API error' };
+    return { ok: true, videoUrl: data.video_url || data.url || null, jobId: data.job_id || data.id || null, raw: data };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
   try {
     const res  = await ai.serverFetch('image', { prompt, size: size || '1024x1024' }, { timeout: 60000, retries: 1 });
