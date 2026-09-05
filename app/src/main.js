@@ -529,15 +529,26 @@ app.whenReady().then(async () => {
     const { execFile } = require('child_process');
     // Step 1: Send Ctrl+C to whatever app currently has focus (copies the selection)
     // We use PowerShell SendKeys — fires before Electron steals focus since we haven't shown any window yet
+    // Save current clipboard so we can detect if the copy actually changed it
+    const clipBefore = clipboard.readText();
     await new Promise(resolve => {
       execFile('powershell.exe', [
         '-NonInteractive', '-NoProfile', '-Command',
         `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')`
-      ], { timeout: 600 }, resolve);
+      ], { timeout: 800 }, resolve);
     });
-    // Step 2: Give clipboard time to update
-    await new Promise(r => setTimeout(r, 250));
-    const selectedText = clipboard.readText().trim();
+    // Step 2: Give clipboard time to update — wait longer for browser/web apps (Google Docs etc.)
+    // Retry up to 3× in 200ms increments so slow apps (Google Docs, Word) have time to write the clipboard
+    let selectedText = '';
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await new Promise(r => setTimeout(r, 200));
+      const clip = clipboard.readText().trim();
+      if (clip && clip !== clipBefore.trim()) { selectedText = clip; break; }
+    }
+    if (!selectedText) {
+      // Last-ditch: maybe clipboard didn't change but still has text (re-copy of same selection)
+      selectedText = clipboard.readText().trim();
+    }
     if (!selectedText) {
       sendToHud('hud:card', { type: 'info', text: '✏️ Nothing selected — highlight text first, then press Ctrl+Shift+E.' });
       return;
