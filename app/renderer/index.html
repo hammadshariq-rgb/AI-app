@@ -865,27 +865,35 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
-    /* ── Callisto Hand Cursor ── */
+    /* ── Callisto Hand Cursor — Premium ── */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 2px solid rgba(61,255,180,0.9);
-      background: rgba(61,255,180,0.12);
-      box-shadow: 0 0 12px rgba(61,255,180,0.6), 0 0 28px rgba(61,255,180,0.25);
+      width: 36px; height: 36px; border-radius: 50%;
       transform: translate(-50%, -50%);
-      transition: width 0.1s, height 0.1s, background 0.1s, box-shadow 0.1s;
       display: none;
+      will-change: transform, left, top;
     }
-    #magicCursor.pinch {
-      width: 18px; height: 18px;
-      background: rgba(61,255,180,0.55);
-      box-shadow: 0 0 20px rgba(61,255,180,0.9), 0 0 40px rgba(61,255,180,0.4);
+    #magicCursor .mc-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1.5px solid rgba(61,255,180,0.85);
+      box-shadow: 0 0 14px rgba(61,255,180,0.7), inset 0 0 8px rgba(61,255,180,0.15);
+      animation: mcSpin 3s linear infinite;
     }
-    #magicCursor::after {
-      content: '';
-      position: absolute; inset: 5px; border-radius: 50%;
-      background: rgba(61,255,180,0.7);
+    #magicCursor .mc-ring2 {
+      position: absolute; inset: 6px; border-radius: 50%;
+      border: 1px solid rgba(0,200,255,0.6);
+      box-shadow: 0 0 8px rgba(0,200,255,0.5);
+      animation: mcSpin 2s linear infinite reverse;
     }
+    #magicCursor .mc-dot {
+      position: absolute; inset: 13px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(61,255,180,1) 0%, rgba(0,220,255,0.8) 60%, transparent 100%);
+      box-shadow: 0 0 10px rgba(61,255,180,1), 0 0 20px rgba(61,255,180,0.6);
+    }
+    #magicCursor.pinch .mc-ring  { border-color: rgba(255,255,255,0.9); box-shadow: 0 0 22px rgba(61,255,180,1), 0 0 44px rgba(61,255,180,0.5); animation-duration:0.4s; }
+    #magicCursor.pinch .mc-ring2 { border-color: rgba(255,255,255,0.7); }
+    #magicCursor.pinch .mc-dot   { background: radial-gradient(circle, #fff 0%, rgba(61,255,180,1) 60%, transparent 100%); box-shadow: 0 0 18px #fff, 0 0 36px rgba(61,255,180,1); inset:10px; }
+    @keyframes mcSpin { to { transform: rotate(360deg); } }
 
     /* ── Magic Editor floating card ── */
     #magicEditBar {
@@ -1923,7 +1931,7 @@
       </div><!-- end #leftNav -->
 
       <!-- ── Gesture Control ── -->
-      <div id="magicCursor"></div>
+      <div id="magicCursor"><div class="mc-ring"></div><div class="mc-ring2"></div><div class="mc-dot"></div></div>
       <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)" style="display:none">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
@@ -2145,8 +2153,6 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
               </button>
             </div>
-            <!-- Engage Hand Movement (chat mode) -->
-            <button id="gestureEngageBtn2" class="connector-btn" style="margin-top:8px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center;border-color:rgba(61,255,180,0.35);color:rgba(61,255,180,0.85)" onclick="window._gestureToggle && window._gestureToggle()">🤚 ENGAGE HAND MOVEMENT</button>
             <!-- Shift to voice — below the input box -->
             <button id="typeVoiceBtn" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center">🎙 SHIFT TO VOICE</button>
           </div>
@@ -2684,11 +2690,45 @@
 
       // ── Skeleton drawing ─────────────────────────────────────────────────────
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
-      function drawHand(ctx, lm, W, H, col) {
-        ctx.strokeStyle = col; ctx.lineWidth = 2;
-        for (const [a,b] of CONN) { ctx.beginPath(); ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); ctx.stroke(); }
-        ctx.fillStyle = 'rgba(80,220,255,0.95)';
-        for (const p of lm) { ctx.beginPath(); ctx.arc(p.x*W,p.y*H,3.5,0,Math.PI*2); ctx.fill(); }
+      // Finger colour bands: thumb=cyan, index=green, middle=teal, ring=blue, pinky=violet, palm=white
+      const FINGER_COLS = ['rgba(0,220,255,{a})','rgba(61,255,180,{a})','rgba(0,200,220,{a})','rgba(100,140,255,{a})','rgba(200,100,255,{a})'];
+      function fingerCol(idx, alpha) {
+        const f = idx<=4?0:idx<=8?1:idx<=12?2:idx<=16?3:4;
+        return FINGER_COLS[f].replace('{a}', alpha);
+      }
+      function drawHand(ctx, lm, W, H, isLeft) {
+        // Glow pass (thick, low alpha)
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = isLeft ? 'rgba(61,255,180,0.8)' : 'rgba(0,180,255,0.8)';
+        ctx.lineWidth = 3.5;
+        for (const [a,b] of CONN) {
+          const col = isLeft ? fingerCol(b, 0.55) : `rgba(0,200,255,0.55)`;
+          ctx.strokeStyle = col;
+          ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke();
+        }
+        ctx.restore();
+        // Crisp pass (thin, full alpha)
+        ctx.lineWidth = 1.5;
+        for (const [a,b] of CONN) {
+          const col = isLeft ? fingerCol(b, 0.9) : `rgba(80,220,255,0.9)`;
+          ctx.strokeStyle = col;
+          ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke();
+        }
+        // Joints — glowing dots sized by importance
+        for (let i = 0; i < lm.length; i++) {
+          const isTip = [4,8,12,16,20].includes(i);
+          const r = isTip ? 4.5 : (i===0 ? 5 : 2.8);
+          const col = isLeft ? fingerCol(i, 1) : 'rgba(80,230,255,1)';
+          ctx.save();
+          ctx.shadowBlur = isTip ? 14 : 8;
+          ctx.shadowColor = col;
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.arc(lm[i].x*W, lm[i].y*H, r, 0, Math.PI*2); ctx.fill();
+          // White centre highlight on tips
+          if (isTip) { ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(lm[i].x*W, lm[i].y*H, 1.5, 0, Math.PI*2); ctx.fill(); }
+          ctx.restore();
+        }
       }
 
       // ── Actions ──────────────────────────────────────────────────────────────
@@ -2744,9 +2784,10 @@
         // Show "hand detected" so user knows detection is working
         if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
 
-        // Draw skeletons (teal = first hand, orange = second)
-        drawHand(ctx, lms[0], W, H, 'rgba(0,220,180,0.8)');
-        if (lms[1]) drawHand(ctx, lms[1], W, H, 'rgba(255,160,60,0.8)');
+        // Draw skeletons — left hand = green/cyan palette, right hand = blue/cyan palette
+        const h0Left = (hands[0]?.label === 'Left');
+        drawHand(ctx, lms[0], W, H, h0Left);
+        if (lms[1]) { const h1Left = (hands[1]?.label === 'Left'); drawHand(ctx, lms[1], W, H, h1Left); }
 
         // ── 1. CLAP — highest priority, needs 2 hands ──────────────────────
         if (lms.length >= 2 && checkClap(lms) && canFire('clap')) {
@@ -2873,7 +2914,7 @@
       }
 
       function updateEngageBtns(on) {
-        ['gestureEngageBtn1','gestureEngageBtn2'].forEach(id => {
+        ['gestureEngageBtn1'].forEach(id => {
           const b = document.getElementById(id);
           if (!b) return;
           b.textContent = on ? '🟢 HAND MOVEMENT ON' : '🤚 ENGAGE HAND MOVEMENT';

@@ -2885,24 +2885,47 @@ window.jarvis.onSentenceAudio(({ audio }) => {
 
     let places = [];
     if (loc && loc.lat && loc.lon) {
-      try {
-        const query = `[out:json][timeout:8];(node["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon});way["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon}););out center 12;`;
-        const data = await fetch('https://overpass-api.de/api/interpreter', {
-          method:'POST', body: 'data=' + encodeURIComponent(query),
-          headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
-        }).then(r => r.json());
-        places = (data.elements || [])
-          .filter(e => e.tags && e.tags.name)
-          .map(e => ({
-            name: e.tags.name,
-            cuisine: e.tags.cuisine || '',
-            phone: e.tags.phone || e.tags['contact:phone'] || '',
-            website: e.tags.website || e.tags['contact:website'] || '',
-            opening: e.tags.opening_hours || '',
-            addr: [e.tags['addr:housenumber'], e.tags['addr:street']].filter(Boolean).join(' ') || e.tags['addr:full'] || ''
-          }))
-          .slice(0, 8);
-      } catch {}
+      // Try Overpass API (OpenStreetMap) — two mirror servers for reliability
+      const overpassServers = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter'
+      ];
+      const query = `[out:json][timeout:10];(node["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon});way["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon}););out center 15;`;
+      for (const server of overpassServers) {
+        try {
+          const data = await fetch(server, {
+            method:'POST',
+            body: 'data=' + encodeURIComponent(query),
+            headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
+          }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+          places = (data.elements || [])
+            .filter(e => e.tags && e.tags.name)
+            .map(e => ({
+              name: e.tags.name,
+              cuisine: (e.tags.cuisine || '').replace(/_/g,' '),
+              phone: e.tags.phone || e.tags['contact:phone'] || '',
+              opening: e.tags.opening_hours || '',
+              addr: [e.tags['addr:housenumber'], e.tags['addr:street']].filter(Boolean).join(' ') || e.tags['addr:full'] || ''
+            }))
+            .slice(0, 8);
+          if (places.length) break; // got results, stop trying mirrors
+        } catch (err) { console.warn('[Places] Overpass error:', err.message); }
+      }
+
+      // Nominatim fallback if Overpass returned nothing
+      if (!places.length) {
+        try {
+          const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeType)}+near+${encodeURIComponent(loc.city)}&format=json&limit=8&addressdetails=1`;
+          const nomData = await fetch(nomUrl, { headers:{'Accept-Language':'en'} }).then(r => r.json());
+          places = (nomData || []).filter(e => e.display_name).map(e => ({
+            name: e.name || e.display_name.split(',')[0],
+            cuisine: '',
+            phone: '',
+            opening: '',
+            addr: e.display_name.split(',').slice(1,3).join(',').trim()
+          }));
+        } catch {}
+      }
     }
 
     const rows = places.length ? places.map((p, i) => `
