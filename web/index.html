@@ -688,10 +688,10 @@
     #msgs { flex: 1; overflow-y: auto; padding: 18px 0; scroll-behavior: smooth; }
     #msgs::-webkit-scrollbar { width: 3px; }
     #msgs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 3px; }
-    .mrow { display: flex; padding: 5px 18px; gap: 10px; animation: fadeUp 0.18s ease; }
+    .mrow { display: flex; padding: 5px 18px; gap: 10px; animation: fadeUp 0.18s ease; max-width: 680px; width: 100%; margin-left: auto; margin-right: auto; box-sizing: border-box; }
     .mrow.user { flex-direction: row-reverse; }
     .mav { display: none; }
-    .mbub { max-width: 72%; padding: 9px 13px; border-radius: 13px; font-size: 13.5px; line-height: 1.68; }
+    .mbub { max-width: 78%; padding: 9px 13px; border-radius: 13px; font-size: 13.5px; line-height: 1.68; }
     .mbub.ai { background: rgba(255,255,255,0.035); border: 1px solid var(--border); color: var(--text); border-top-left-radius: 4px; }
     .mbub.user { background: rgba(61,92,255,0.14); border: 1px solid rgba(61,92,255,0.2); color: var(--text); border-top-right-radius: 4px; }
     .mbub code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 5px; font-size: 12px; }

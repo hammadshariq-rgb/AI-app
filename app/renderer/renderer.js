@@ -1806,11 +1806,13 @@ function showCard(card) {
             </a>
             <span class="wiki-source-tag">${esc(sourceName)}</span>
           </div>` : ''}
+          <button class="wiki-close-btn" id="wikiCloseBtn">✕ Close</button>
         </div>
       </div>`;
     setTimeout(() => {
       document.getElementById('wikiCardLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
       document.getElementById('wikiHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
+      document.getElementById('wikiCloseBtn')?.addEventListener('click', () => cardPanel.classList.add('hidden'));
     }, 50);
   } else if (card.type === 'element') {
     const catColors = {

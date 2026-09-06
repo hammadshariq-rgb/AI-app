@@ -3991,6 +3991,39 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   border-color: rgba(100, 170, 255, 0.45);
   color: rgba(150, 210, 255, 1);
 }
+.wiki-close-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  color: rgba(180,200,255,0.6);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  -webkit-app-region: no-drag;
+}
+.wiki-close-btn:hover {
+  background: rgba(255,80,80,0.1);
+  border-color: rgba(255,100,100,0.25);
+  color: rgba(255,140,140,0.85);
+}
+body.light-mode .wiki-close-btn {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: rgba(80,100,160,0.6);
+}
+body.light-mode .wiki-close-btn:hover {
+  background: rgba(220,30,30,0.07);
+  border-color: rgba(200,50,50,0.2);
+  color: rgba(180,40,40,0.8);
+}
+
 .wiki-source-tag {
   font-family: 'Share Tech Mono', monospace;
   font-size: 9px;
@@ -6056,7 +6089,7 @@ body.light-mode #typeBoxBorder:focus-within {
 }
 body.light-mode #userInput {
   background: transparent;
-  color: #111111;
+  color: #111111 !important;
 }
 body.light-mode #userInput::placeholder { color: rgba(0,0,0,0.32); }
 
