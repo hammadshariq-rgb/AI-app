@@ -1275,15 +1275,6 @@
     <h2 class="sec-title" style="position:relative;z-index:2">Start free. Go unlimited.</h2>
     <p class="sec-sub" style="position:relative;z-index:2">15 free messages every day. Upgrade anytime for unlimited access and all features.</p>
 
-    <!-- Monthly / Yearly toggle -->
-    <div class="billing-toggle">
-      <span class="billing-label active" id="lblMonthly">MONTHLY</span>
-      <div class="toggle-track" id="billingToggle" role="switch" aria-checked="false" tabindex="0">
-        <div class="toggle-thumb"></div>
-      </div>
-      <span class="billing-label" id="lblYearly">YEARLY</span>
-      <span class="save-pill">SAVE 17%</span>
-    </div>
 
     <div class="pricing-grid">
 
@@ -1306,8 +1297,8 @@
       <div class="price-card pop">
         <div class="pop-badge">POPULAR</div>
         <div class="price-plan">PREMIUM</div>
-        <div class="price-num" id="premiumPrice"><span class="price-cur">$</span><span id="priceNum">20</span></div>
-        <div class="price-period" id="pricePeriod">CAD / month</div>
+        <div class="price-num"><span class="price-cur">$</span>20</div>
+        <div class="price-period">CAD / month</div>
         <ul class="price-feats">
           <li><span class="chk cyan">✓</span>Unlimited messages</li>
           <li><span class="chk cyan">✓</span>Everything in Free</li>
@@ -1320,7 +1311,6 @@
           <li><span class="chk blue">✓</span>Magic Edit (Ctrl+Shift+E)</li>
         </ul>
         <button class="price-btn primary" id="monthlyBtn">Get Premium — $20/mo</button>
-        <div class="price-save" id="priceSaveHint">Or <span id="yearlyLink">save 17% — pay yearly →</span></div>
       </div>
 
       <!-- YEARLY card -->
@@ -2027,37 +2017,6 @@
   document.getElementById('yearlyLink').addEventListener('click',()=>goStripe(STRIPE_YR));
   document.getElementById('yearlyBtn') && document.getElementById('yearlyBtn').addEventListener('click',()=>goStripe(STRIPE_YR));
 
-  // ── Billing toggle (aurora pricing) ──────────────────────────────
-  (()=>{
-    const track = document.getElementById('billingToggle');
-    const lblMo = document.getElementById('lblMonthly');
-    const lblYr = document.getElementById('lblYearly');
-    const priceNum = document.getElementById('priceNum');
-    const pricePeriod = document.getElementById('pricePeriod');
-    const monthlyBtn = document.getElementById('monthlyBtn');
-    const saveHint = document.getElementById('priceSaveHint');
-    if(!track) return;
-    let yearly = false;
-    function setYearly(on){
-      yearly = on;
-      track.classList.toggle('yearly', on);
-      track.setAttribute('aria-checked', on ? 'true' : 'false');
-      lblMo.classList.toggle('active', !on);
-      lblYr.classList.toggle('active', on);
-      const num = document.getElementById('premiumPrice');
-      if(num) num.classList.add('switching');
-      setTimeout(()=>{
-        priceNum.textContent = on ? '17' : '20';
-        pricePeriod.textContent = on ? 'CAD / month (billed yearly)' : 'CAD / month';
-        if(monthlyBtn) monthlyBtn.textContent = on ? 'Get Yearly — $200/yr' : 'Get Premium — $20/mo';
-        if(monthlyBtn) monthlyBtn.onclick = ()=>goStripe(on ? STRIPE_YR : STRIPE_MO);
-        if(saveHint) saveHint.style.display = on ? 'none' : '';
-        if(num) num.classList.remove('switching');
-      }, 150);
-    }
-    track.addEventListener('click', ()=> setYearly(!yearly));
-    track.addEventListener('keydown', e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); setYearly(!yearly); }});
-  })();
   document.addEventListener('click',()=>{document.getElementById('premiumDrop').classList.add('hidden');document.getElementById('cnPremDrop').classList.add('hidden');});
 
   document.getElementById('cnPremBtn').addEventListener('click',e=>{e.stopPropagation();document.getElementById('cnPremDrop').classList.toggle('hidden');});
