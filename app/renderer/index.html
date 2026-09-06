@@ -2106,6 +2106,9 @@
           <div id="micLabel">CLICK TO SPEAK</div>
           <canvas id="waveformCanvas" width="180" height="36"></canvas>
 
+          <!-- Engage Hand Movement (voice mode) -->
+          <button id="gestureEngageBtn1" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;border-color:rgba(61,255,180,0.35);color:rgba(61,255,180,0.85)" onclick="window._gestureToggle && window._gestureToggle()">🤚 ENGAGE HAND MOVEMENT</button>
+
           <!-- Shift to typing toggle (voice mode) -->
           <button id="typeModeToggle" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
 
@@ -2870,7 +2873,7 @@
       }
 
       function updateEngageBtns(on) {
-        ['gestureEngageBtn2'].forEach(id => {
+        ['gestureEngageBtn1','gestureEngageBtn2'].forEach(id => {
           const b = document.getElementById(id);
           if (!b) return;
           b.textContent = on ? '🟢 HAND MOVEMENT ON' : '🤚 ENGAGE HAND MOVEMENT';
