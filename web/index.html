@@ -128,8 +128,13 @@
     #orbName { font-family: var(--brand); font-size: 52px; font-weight: 700; letter-spacing: 12px; color: #fff; margin-top: 22px; text-shadow: 0 0 30px rgba(80,120,255,0.5); }
     #orbStatus { font-family: var(--brand); font-size: 11px; font-weight: 500; letter-spacing: 5px; color: rgba(80,130,255,0.5); margin-top: 4px; }
 
-    /* Wave canvas */
-    #waveCanvas { width: 100%; height: 160px; margin-top: 10px; }
+    /* Wave canvas — sits flush, no gap between wave and buttons */
+    #waveCanvas { width: 100%; height: 160px; margin-top: 10px; display: block; }
+
+    /* Unified wave+buttons zone */
+    #orbWrap { display: flex; flex-direction: column; align-items: center; }
+    #waveCanvas { margin-bottom: -72px; } /* pull buttons up so they float on the wave */
+    #orbActions { position: relative; z-index: 10; }
 
     /* ── Combined Calendar+Reminders panel (matches desktop app) ── */
     #calPanel {
@@ -190,8 +195,8 @@
     .cp-new-event { font-size:10.5px; font-weight:600; color:rgba(100,160,255,0.75); cursor:pointer; background:none; border:none; }
     .cp-new-event:hover { color:#fff; }
 
-    /* Buttons under orb */
-    #orbActions { display: flex; align-items: center; gap: 16px; margin-top: -10px; }
+    /* Buttons under orb — float on top of wave via z-index, no extra margin needed */
+    #orbActions { display: flex; align-items: center; gap: 16px; margin-top: 0; }
     .orb-btn {
       width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--border2);
       background: rgba(10,15,40,0.8); backdrop-filter: blur(12px);
@@ -748,8 +753,35 @@
     }
     body.light #nav { background: rgba(238,241,250,0.85); border-bottom-color: rgba(61,92,255,0.15); }
     body.light #hero { background: radial-gradient(ellipse 120% 80% at 50% -10%, #c5d0ff 0%, #dde3f5 50%, #eef1fa 100%); }
-    body.light .feat-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.07); }
-    body.light .feat-card:hover { background: rgba(61,92,255,0.06); }
+    /* Orb area text — dark in light mode */
+    body.light #orbName { color: #0a1235; text-shadow: 0 0 30px rgba(80,120,255,0.18); }
+    body.light #orbStatus { color: rgba(50,80,180,0.5); }
+    body.light #clickToSpeak { color: rgba(50,80,200,0.45); }
+    body.light #shiftBtn { color: rgba(50,80,200,0.6); border-color: rgba(50,80,200,0.2); background: rgba(50,80,200,0.05); }
+    body.light .orb-btn { background: rgba(255,255,255,0.75); border-color: rgba(0,0,0,0.12); color: rgba(40,70,180,0.7); }
+    body.light .orb-btn:hover { background: rgba(255,255,255,0.9); border-color: rgba(61,92,255,0.35); }
+    body.light .orb-btn.main { background: rgba(10,15,40,0.85); border-color: rgba(61,92,255,0.4); }
+    /* Wave canvas in light mode — no harsh split line */
+    body.light #waveCanvas { opacity: 1; }
+    /* Light mode — feature cards: white background, dark text */
+    body.light .feat-card {
+      background: linear-gradient(160deg, #f5f5f5 0%, #efefef 60%, #f2f2f2 100%);
+      border-color: rgba(0,0,0,0.1);
+      box-shadow: 0 2px 0 rgba(255,255,255,0.9) inset, 0 -1px 0 rgba(0,0,0,0.06) inset, 0 4px 18px rgba(0,0,0,0.08);
+    }
+    body.light .feat-card:hover {
+      background: linear-gradient(160deg, #fff 0%, #f5f5f5 60%, #f8f8f8 100%);
+      border-color: rgba(0,0,0,0.18);
+      box-shadow: 0 2px 0 rgba(255,255,255,1) inset, 0 -1px 0 rgba(0,0,0,0.08) inset, 0 8px 28px rgba(0,0,0,0.12);
+    }
+    body.light .feat-card.hand-card { background: linear-gradient(160deg, #f8f8f8 0%, #f0f0f0 100%); border-color: rgba(0,0,0,0.14); }
+    body.light .feat-icon-wrap { background: linear-gradient(145deg, #e8e8e8, #ddd); border-color: rgba(0,0,0,0.12); box-shadow: 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8); }
+    body.light .feat-name { color: #111; }
+    body.light .feat-card.hand-card .feat-name { color: #111; }
+    body.light .feat-desc { color: rgba(30,30,30,0.65); }
+    body.light .feat-desc strong { color: #111; }
+    body.light .feat-badge, body.light .badge-app, body.light .badge-web, body.light .badge-both { background: rgba(0,0,0,0.05); color: rgba(20,20,20,0.6); border-color: rgba(0,0,0,0.12); }
+    body.light .badge-app-only { background: rgba(0,0,0,0.07); color: rgba(20,20,20,0.75); border-color: rgba(0,0,0,0.16); }
     body.light #chatApp { background: #eef1fa; }
     body.light #chatSidebar { background: rgba(220,228,248,0.9); border-right-color: rgba(0,0,0,0.1); }
     body.light .mbub.ai { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); color: #1a1f3c; }
@@ -931,29 +963,120 @@
     <h2 class="sec-title">Everything you need, in one place</h2>
     <p class="sec-sub">Voice-powered, always-on AI that manages your day, answers everything, and works the way you do.</p>
     <div class="feat-grid" id="featGrid">
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">💬</span></div><div class="feat-name">AI CHAT</div><div class="feat-desc">Ask anything. Callisto answers with intelligence and context, remembering your conversations across sessions.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎙️</span></div><div class="feat-name">VOICE CONTROL</div><div class="feat-desc">Talk to Callisto completely hands-free. Advanced speech recognition with near-instant response.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🧠</span></div><div class="feat-name">PERSISTENT MEMORY</div><div class="feat-desc">Callisto remembers your name, preferences, relationships, and habits — across every session, forever.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📅</span></div><div class="feat-name">GOOGLE CALENDAR</div><div class="feat-desc">Check your schedule, create events, and get smart reminders through natural conversation.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📰</span></div><div class="feat-name">LIVE NEWS</div><div class="feat-desc">Real-time headlines from BBC, Reuters, Sky News and more — always current, always relevant.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🌤️</span></div><div class="feat-name">WEATHER</div><div class="feat-desc">Current conditions, hourly forecasts, and feels-like temperatures for any city, any time.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📸</span></div><div class="feat-name">IMAGE RECOGNITION</div><div class="feat-desc">Upload photos, homework, screenshots — Callisto reads and understands them with AI vision.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎵</span></div><div class="feat-name">MUSIC CONTROL</div><div class="feat-desc">Play, pause, skip, and search Spotify with your voice or a simple command.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📈</span></div><div class="feat-name">STOCKS & FINANCE</div><div class="feat-desc">Live stock prices, company data, market news — ask about any ticker or company in the world.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🌍</span></div><div class="feat-name">WIKIPEDIA CARDS</div><div class="feat-desc">Ask about any place, animal, historical event or person — get rich image cards with full details.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📝</span></div><div class="feat-name">DOCUMENT CREATION</div><div class="feat-desc">Generate Word docs, essays, emails and reports — saved directly to your computer.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🔔</span></div><div class="feat-name">REMINDERS</div><div class="feat-desc">Set reminders by voice or text. Callisto keeps track so you never miss a thing.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📞</span></div><div class="feat-name">CONTACTS & CALLS</div><div class="feat-desc">Save contacts, make WhatsApp calls, and send messages — all through Callisto.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎓</span></div><div class="feat-name">HOMEWORK HELPER</div><div class="feat-desc">Maths, science, essays, history — step-by-step explanations that actually make sense.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🔒</span></div><div class="feat-name">SECURE & PRIVATE</div><div class="feat-desc">Encrypted data, Google OAuth sign-in. Your information stays yours — we never sell it.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">💬</span></div>
+        <div class="feat-name">AI CHAT</div>
+        <div class="feat-desc">Ask Callisto anything — from quick facts to complex questions. Just type in the chat box and press <strong>Enter</strong> or click the send button. Callisto remembers everything you've discussed across sessions, so it always has context on who you are and what you need.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🎙️</span></div>
+        <div class="feat-name">VOICE CONTROL</div>
+        <div class="feat-desc">Go completely hands-free. On the app, click the <strong>microphone button</strong> (or press the orb) and speak naturally. On the web, use the mic icon in the chat bar. Say things like <em>"What's the weather today?"</em> or <em>"Set a reminder for 6pm"</em> — Callisto responds with voice and text.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🧠</span></div>
+        <div class="feat-name">PERSISTENT MEMORY</div>
+        <div class="feat-desc">Callisto learns your name, preferences, daily habits, and relationships — and never forgets them. Just tell it once: <em>"My name is Hammad"</em> or <em>"I prefer dark mode and jazz music."</em> From then on, every conversation is personalised to you, automatically, across all devices.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📅</span></div>
+        <div class="feat-name">GOOGLE CALENDAR</div>
+        <div class="feat-desc">Connect your Google account to sync your schedule. Ask things like <em>"What do I have on Thursday?"</em> or say <em>"Add a dentist appointment at 3pm Friday."</em> Callisto reads, creates, and edits events using natural conversation — no need to open Google Calendar at all.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📰</span></div>
+        <div class="feat-name">LIVE NEWS</div>
+        <div class="feat-desc">Get up-to-the-minute headlines from BBC, Reuters, Sky News, and more. Say <em>"What's happening in the news today?"</em> or <em>"Give me the latest sports headlines."</em> Callisto pulls real-time feeds and summarises them clearly — no browsing required, no ads, just the news.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🌤️</span></div>
+        <div class="feat-name">WEATHER</div>
+        <div class="feat-desc">Ask <em>"What's the weather like today?"</em> or <em>"Will it rain in London this weekend?"</em> Callisto uses your location automatically or lets you specify any city. You get current conditions, hourly forecasts, UV index, and feels-like temperature — all in a natural reply.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📸</span></div>
+        <div class="feat-name">IMAGE RECOGNITION</div>
+        <div class="feat-desc">Upload any photo and Callisto analyses it instantly. Click the <strong>paperclip icon</strong> in the chat bar, attach your image, and ask a question about it — <em>"What does this equation say?"</em> or <em>"Describe what's in this photo."</em> Works on homework, screenshots, receipts, and anything visual.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🎵</span></div>
+        <div class="feat-name">MUSIC CONTROL</div>
+        <div class="feat-desc">Link your Spotify account and control your music entirely by voice or text. Say <em>"Play something chill"</em>, <em>"Skip this song"</em>, <em>"Pause"</em>, or <em>"Play Drake's latest album."</em> Callisto handles playback, search, and queue management without ever touching the Spotify app.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📈</span></div>
+        <div class="feat-name">STOCKS & FINANCE</div>
+        <div class="feat-desc">Ask <em>"What's Apple's stock price?"</em>, <em>"How is the TSX performing today?"</em>, or <em>"Give me a summary of Tesla's financials."</em> Callisto pulls live market data, company news, and price history — no account needed. Great for staying on top of your investments during the day.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🌍</span></div>
+        <div class="feat-name">WIKIPEDIA CARDS</div>
+        <div class="feat-desc">Ask about any person, place, animal, or historical event and Callisto shows a rich visual card — image, summary, and a Wikipedia link. Try <em>"Tell me about the Roman Empire"</em> or <em>"Who is Nikola Tesla?"</em> The card appears instantly on the side panel without interrupting your conversation.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📝</span></div>
+        <div class="feat-name">DOCUMENT CREATION</div>
+        <div class="feat-desc">Generate professional documents in seconds. Say <em>"Write me a cover letter for a marketing job"</em> or <em>"Create a business proposal for a coffee shop."</em> On the desktop app, documents are saved directly to your computer as Word files. On web, they appear in the chat to copy or download.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🔔</span></div>
+        <div class="feat-name">REMINDERS</div>
+        <div class="feat-desc">Never forget anything. Say <em>"Remind me to call mum at 7pm"</em> or <em>"Set a reminder for my meeting tomorrow at 10."</em> Reminders appear in the calendar panel on the right side of the screen and trigger a notification at the right time. You can also view and delete them from the panel anytime.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📞</span></div>
+        <div class="feat-name">CONTACTS & CALLS</div>
+        <div class="feat-desc">Save people to Callisto's contact list by saying <em>"Save John's number as 647-555-0192."</em> Then call or message them anytime: <em>"Call John on WhatsApp"</em> or <em>"Send a WhatsApp message to Sarah saying I'm on my way."</em> Works through your default apps on the desktop version.</div>
+        <span class="feat-badge badge-app-only">APP ONLY</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🎓</span></div>
+        <div class="feat-name">HOMEWORK HELPER</div>
+        <div class="feat-desc">Struggling with a problem? Just ask. <em>"Explain photosynthesis step by step"</em>, <em>"Solve 3x² + 5x − 2 = 0"</em>, or <em>"Help me write an essay intro about the French Revolution."</em> You can also snap a photo of your textbook and ask Callisto to explain exactly what's on the page.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🔒</span></div>
+        <div class="feat-name">SECURE & PRIVATE</div>
+        <div class="feat-desc">Sign in securely with <strong>Google OAuth</strong> — no passwords stored by Callisto. All data is encrypted in transit and at rest. We never sell your conversations or personal data to third parties. You can delete your account and all associated data at any time from the settings menu.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
 
       <!-- ✦ HAND ENGAGEMENT — App-exclusive premium feature -->
       <div class="feat-card hand-card">
         <div class="feat-icon-wrap"><span class="feat-icon">🖐️</span></div>
         <div class="feat-name">HAND ENGAGEMENT</div>
-        <div class="feat-desc">Control Callisto without touching your keyboard. Your left hand moves the <strong style="color:rgba(61,255,180,0.85)">Callisto Cursor</strong> across the screen — pinch to click. Your right hand triggers voice listening with a simple <strong style="color:rgba(61,255,180,0.85)">peace sign</strong> gesture. Real-time skeleton tracking with a premium neon overlay, built for a truly hands-free experience.</div>
+        <div class="feat-desc">Control Callisto without touching your keyboard or mouse. Click <strong>Engage Hand Movement</strong> in the app to activate the camera. Your <strong>left hand</strong> controls the <em>Callisto Cursor</em> — index finger moves it across the screen, pinch (index + thumb together) to click. Your <strong>right hand</strong> activates voice listening — hold up a <em>peace sign ✌️</em> to start speaking. A real-time neon skeleton overlay shows your hand being tracked.</div>
         <span class="feat-badge badge-app-only">APP ONLY</span>
       </div>
+
     </div>
   </div>
 
@@ -1360,13 +1483,13 @@
     ];
     // Light mode: filled layered cloth/fabric waves
     const lightBands=[
-      {y:0.55,amp:0.18,freq:1.1,phase:0,   speed:0.09, color:'rgba(140,165,230,0.13)',thickness:0.22},
-      {y:0.60,amp:0.20,freq:1.3,phase:1.1, speed:0.07, color:'rgba(120,145,220,0.16)',thickness:0.20},
-      {y:0.50,amp:0.22,freq:0.9,phase:2.2, speed:0.11, color:'rgba(100,130,210,0.12)',thickness:0.18},
-      {y:0.65,amp:0.17,freq:1.5,phase:0.8, speed:0.08, color:'rgba(150,170,235,0.14)',thickness:0.19},
-      {y:0.45,amp:0.25,freq:1.0,phase:3.0, speed:0.10, color:'rgba(110,140,225,0.10)',thickness:0.24},
-      {y:0.70,amp:0.15,freq:1.7,phase:1.9, speed:0.06, color:'rgba(130,155,220,0.18)',thickness:0.15},
-      {y:0.40,amp:0.20,freq:1.2,phase:4.1, speed:0.12, color:'rgba(160,180,240,0.09)',thickness:0.20},
+      {y:0.50,amp:0.16,freq:1.1,phase:0,   speed:0.09, color:'rgba(140,165,230,0.09)'},
+      {y:0.56,amp:0.18,freq:1.3,phase:1.1, speed:0.07, color:'rgba(120,145,220,0.11)'},
+      {y:0.44,amp:0.20,freq:0.9,phase:2.2, speed:0.11, color:'rgba(100,130,210,0.08)'},
+      {y:0.62,amp:0.15,freq:1.5,phase:0.8, speed:0.08, color:'rgba(150,170,235,0.10)'},
+      {y:0.40,amp:0.22,freq:1.0,phase:3.0, speed:0.10, color:'rgba(110,140,225,0.07)'},
+      {y:0.68,amp:0.13,freq:1.7,phase:1.9, speed:0.06, color:'rgba(130,155,220,0.12)'},
+      {y:0.36,amp:0.18,freq:1.2,phase:4.1, speed:0.12, color:'rgba(160,180,240,0.06)'},
     ];
     // Light mode: thin bright cyan lines (like app)
     const lightLines=[
