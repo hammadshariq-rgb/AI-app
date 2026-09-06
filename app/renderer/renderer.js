@@ -5508,15 +5508,29 @@ async function stopRecording() {
     const base64 = arrayBufferToBase64(arrayBuffer);
     const text = await window.jarvis.transcribe(base64);
     console.log('[MIC] transcribed:', text);
-    if (text && text.trim().length > 1) {
+
+    // ── Hallucination / silence filter ──────────────────────────────────────
+    // Whisper commonly hallucinates these when it hears silence or noise
+    const WHISPER_HALLUCINATIONS = /^(thank you\.?|thanks\.?|you\.?|\.+|\s*|\[.*?\]|♪.*?♪|subscribe|like and subscribe|see you next time|bye\.?|okay\.?|ok\.?|um+\.?|uh+\.?|hmm+\.?|…+)$/i;
+    // Also reject if the transcript contains our own system-prompt keywords (Whisper echoing training data)
+    const SYSTEM_PROMPT_LEAK = /open my files|open folder|volume up|volume down|shut down|blue screen|BSOD|differentiate|integrate|factorise|formula for|calculate|prime minister|who is the president|who invented|how was discovered/i;
+
+    const trimmed = (text || '').trim();
+    const isGarbage = !trimmed
+      || trimmed.length < 2
+      || WHISPER_HALLUCINATIONS.test(trimmed)
+      || SYSTEM_PROMPT_LEAK.test(trimmed);
+
+    if (!isGarbage) {
       // Magic Edit mode: intercept transcript and route to editor
       const handled = typeof window._magicEditHandleTranscript === 'function'
-        ? await window._magicEditHandleTranscript(text.trim())
+        ? await window._magicEditHandleTranscript(trimmed)
         : false;
-      if (!handled) await sendToJarvis(text.trim());
+      if (!handled) await sendToJarvis(trimmed);
       else setState('idle');
     } else {
-      addMessage('assistant', "I didn't catch that — could you try speaking again?");
+      // Silence / noise — speak a short "didn't hear" response, no chat bubble
+      if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
       setState('idle');
     }
   } catch (err) {
