@@ -865,35 +865,31 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
-    /* ── Callisto Hand Cursor — Premium ── */
+    /* ── Callisto Hand Cursor — Lightweight Premium ── */
+    /* No CSS animations = zero GPU animation cost; position updated via JS transform */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
-      width: 36px; height: 36px; border-radius: 50%;
+      width: 32px; height: 32px; border-radius: 50%;
       transform: translate(-50%, -50%);
       display: none;
-      will-change: transform, left, top;
-    }
-    #magicCursor .mc-ring {
-      position: absolute; inset: 0; border-radius: 50%;
-      border: 1.5px solid rgba(61,255,180,0.85);
-      box-shadow: 0 0 14px rgba(61,255,180,0.7), inset 0 0 8px rgba(61,255,180,0.15);
-      animation: mcSpin 3s linear infinite;
-    }
-    #magicCursor .mc-ring2 {
-      position: absolute; inset: 6px; border-radius: 50%;
-      border: 1px solid rgba(0,200,255,0.6);
-      box-shadow: 0 0 8px rgba(0,200,255,0.5);
-      animation: mcSpin 2s linear infinite reverse;
+      /* Outer glow ring */
+      border: 1.5px solid rgba(61,255,180,0.9);
+      box-shadow: 0 0 10px rgba(61,255,180,0.8), 0 0 22px rgba(61,255,180,0.35), 0 0 4px rgba(255,255,255,0.4) inset;
+      background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.25), rgba(61,255,180,0.08));
+      transition: border-color 80ms, box-shadow 80ms, width 80ms, height 80ms;
     }
     #magicCursor .mc-dot {
-      position: absolute; inset: 13px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(61,255,180,1) 0%, rgba(0,220,255,0.8) 60%, transparent 100%);
-      box-shadow: 0 0 10px rgba(61,255,180,1), 0 0 20px rgba(61,255,180,0.6);
+      position: absolute; inset: 11px; border-radius: 50%;
+      background: rgba(61,255,180,1);
+      box-shadow: 0 0 8px rgba(61,255,180,1);
     }
-    #magicCursor.pinch .mc-ring  { border-color: rgba(255,255,255,0.9); box-shadow: 0 0 22px rgba(61,255,180,1), 0 0 44px rgba(61,255,180,0.5); animation-duration:0.4s; }
-    #magicCursor.pinch .mc-ring2 { border-color: rgba(255,255,255,0.7); }
-    #magicCursor.pinch .mc-dot   { background: radial-gradient(circle, #fff 0%, rgba(61,255,180,1) 60%, transparent 100%); box-shadow: 0 0 18px #fff, 0 0 36px rgba(61,255,180,1); inset:10px; }
-    @keyframes mcSpin { to { transform: rotate(360deg); } }
+    #magicCursor.pinch {
+      width: 22px; height: 22px;
+      border-color: rgba(255,255,255,1);
+      box-shadow: 0 0 18px rgba(61,255,180,1), 0 0 36px rgba(61,255,180,0.6), 0 0 6px #fff inset;
+      background: radial-gradient(circle, rgba(255,255,255,0.4), rgba(61,255,180,0.2));
+    }
+    #magicCursor.pinch .mc-dot { background: #fff; box-shadow: 0 0 10px #fff; inset: 7px; }
 
     /* ── Magic Editor floating card ── */
     #magicEditBar {
@@ -2690,45 +2686,35 @@
 
       // ── Skeleton drawing ─────────────────────────────────────────────────────
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
-      // Finger colour bands: thumb=cyan, index=green, middle=teal, ring=blue, pinky=violet, palm=white
-      const FINGER_COLS = ['rgba(0,220,255,{a})','rgba(61,255,180,{a})','rgba(0,200,220,{a})','rgba(100,140,255,{a})','rgba(200,100,255,{a})'];
-      function fingerCol(idx, alpha) {
-        const f = idx<=4?0:idx<=8?1:idx<=12?2:idx<=16?3:4;
-        return FINGER_COLS[f].replace('{a}', alpha);
-      }
+      // Fast single-pass skeleton — NO shadowBlur (too expensive), uses alpha layering instead
       function drawHand(ctx, lm, W, H, isLeft) {
-        // Glow pass (thick, low alpha)
-        ctx.save();
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = isLeft ? 'rgba(61,255,180,0.8)' : 'rgba(0,180,255,0.8)';
-        ctx.lineWidth = 3.5;
-        for (const [a,b] of CONN) {
-          const col = isLeft ? fingerCol(b, 0.55) : `rgba(0,200,255,0.55)`;
-          ctx.strokeStyle = col;
-          ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke();
-        }
-        ctx.restore();
-        // Crisp pass (thin, full alpha)
-        ctx.lineWidth = 1.5;
-        for (const [a,b] of CONN) {
-          const col = isLeft ? fingerCol(b, 0.9) : `rgba(80,220,255,0.9)`;
-          ctx.strokeStyle = col;
-          ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke();
-        }
-        // Joints — glowing dots sized by importance
-        for (let i = 0; i < lm.length; i++) {
-          const isTip = [4,8,12,16,20].includes(i);
-          const r = isTip ? 4.5 : (i===0 ? 5 : 2.8);
-          const col = isLeft ? fingerCol(i, 1) : 'rgba(80,230,255,1)';
-          ctx.save();
-          ctx.shadowBlur = isTip ? 14 : 8;
-          ctx.shadowColor = col;
-          ctx.fillStyle = col;
-          ctx.beginPath(); ctx.arc(lm[i].x*W, lm[i].y*H, r, 0, Math.PI*2); ctx.fill();
-          // White centre highlight on tips
-          if (isTip) { ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(lm[i].x*W, lm[i].y*H, 1.5, 0, Math.PI*2); ctx.fill(); }
-          ctx.restore();
-        }
+        const lineCol  = isLeft ? 'rgba(61,255,180,0.75)' : 'rgba(0,200,255,0.75)';
+        const glowCol  = isLeft ? 'rgba(61,255,180,0.22)' : 'rgba(0,200,255,0.22)';
+        const tipCol   = isLeft ? 'rgba(61,255,180,1)'    : 'rgba(80,230,255,1)';
+        const jointCol = isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(60,200,255,0.85)';
+        // Glow lines (thick, low alpha — one stroke pass)
+        ctx.strokeStyle = glowCol; ctx.lineWidth = 6;
+        ctx.beginPath();
+        for (const [a,b] of CONN) { ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); }
+        ctx.stroke();
+        // Crisp lines (thin, high alpha — one stroke pass)
+        ctx.strokeStyle = lineCol; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (const [a,b] of CONN) { ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); }
+        ctx.stroke();
+        // Tips (larger) — batch fill
+        const TIPS = [4,8,12,16,20];
+        ctx.fillStyle = tipCol;
+        ctx.beginPath();
+        for (const i of TIPS) { ctx.moveTo(lm[i].x*W+4,lm[i].y*H); ctx.arc(lm[i].x*W,lm[i].y*H,4,0,Math.PI*2); }
+        ctx.fill();
+        // Joints (smaller) — batch fill
+        ctx.fillStyle = jointCol;
+        ctx.beginPath();
+        for (let i=0;i<21;i++) { if (!TIPS.includes(i)&&i!==0) { ctx.moveTo(lm[i].x*W+2.5,lm[i].y*H); ctx.arc(lm[i].x*W,lm[i].y*H,2.5,0,Math.PI*2); } }
+        ctx.fill();
+        // Wrist
+        ctx.fillStyle = lineCol; ctx.beginPath(); ctx.arc(lm[0].x*W,lm[0].y*H,4,0,Math.PI*2); ctx.fill();
       }
 
       // ── Actions ──────────────────────────────────────────────────────────────
@@ -2777,9 +2763,14 @@
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.display = 'none';
           isPinching = false;
+          // Clear skeleton immediately so it doesn't ghost on screen
+          ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+          if (_skeletonClearTimer) { clearTimeout(_skeletonClearTimer); _skeletonClearTimer = null; }
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
         }
+        // Reset ghost-clear timer whenever a hand is present
+        if (_skeletonClearTimer) { clearTimeout(_skeletonClearTimer); _skeletonClearTimer = null; }
 
         // Show "hand detected" so user knows detection is working
         if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
@@ -2858,42 +2849,43 @@
         return false;
       }
 
+      let _skeletonClearTimer = null; // clears skeleton quickly when hand leaves frame
+
       async function startGesture() {
-        gpAction.textContent = 'Loading gesture AI…';
+        gpAction.textContent = 'Starting camera…';
         if (!await waitForMP()) { gpAction.textContent = 'Gesture model not available (check internet)'; return; }
         try {
-          // Capture at WIDE resolution (large field of view = more room to move hands)
-          // but process a DOWNSCALED canvas so MediaPipe stays fast
+          // Fast camera init: explicit small size opens immediately
+          // Wide via 4:3 aspect lets user move hands further; MediaPipe gets downscaled copy
           stream = await navigator.mediaDevices.getUserMedia({
-            video:{ width:{ ideal:640 }, height:{ ideal:480 }, frameRate:{ ideal:30, max:30 } },
+            video:{ width:320, height:240, frameRate:{ max:20 } },
             audio:false
           });
           video.srcObject = stream; await video.play();
 
-          // Offscreen canvas: full capture res → small processing res
-          const procW = 160, procH = 120;
+          // Offscreen canvas for MediaPipe — smaller than camera = faster processing
+          const procW = 128, procH = 96;
           const offscreen = document.createElement('canvas');
           offscreen.width = procW; offscreen.height = procH;
-          const offCtx = offscreen.getContext('2d');
+          const offCtx = offscreen.getContext('2d', { willReadFrequently: false });
 
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
-          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.50, minTrackingConfidence:0.40 });
+          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.55, minTrackingConfidence:0.45 });
           handsModel.onResults(onHandResults);
 
-          let _mpBusy = false; // frame-skip guard — never queue while previous frame is processing
+          let _mpBusy = false;
           async function loop() {
             if (!gestureEnabled) return;
-            // Skip processing while AI is actively generating a response (prevents glitching)
+            // Only process when: not already processing, AI is idle, video has data
             if (!_mpBusy && !window._aiThinking && video.readyState >= 2) {
               _mpBusy = true;
               try {
-                // Draw full-res video into small offscreen canvas, send that to MediaPipe
                 offCtx.drawImage(video, 0, 0, procW, procH);
                 await handsModel.send({ image: offscreen });
               } catch {}
               _mpBusy = false;
             }
-            rafId = setTimeout(loop, 33); // 30fps target; auto-skips if busy
+            rafId = setTimeout(loop, 66); // ~15fps — enough for gesture recognition, much lighter on CPU
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
@@ -2933,29 +2925,35 @@
           // Keep window on top + visible so camera keeps running when user is in another app
           if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
           startGesture();
-          // After camera warms up, capture a frame and compliment the user
-          setTimeout(async () => {
+          // After camera is ready, capture face and speak a compliment
+          (async () => {
             try {
-              if (!window.jarvis || !window.jarvis.chat || !video || video.readyState < 2) return;
-              // Grab profile for personalised greeting
+              // Wait for video to actually have frames (up to 5s)
+              let waited = 0;
+              while ((!video.videoWidth || video.readyState < 2) && waited < 5000) {
+                await new Promise(r => setTimeout(r, 200)); waited += 200;
+              }
+              if (!video.videoWidth || !window.jarvis || !window.jarvis.speak) return;
+
+              // Grab profile for name/title
               const prof = await window.jarvis.getProfile().catch(() => null);
-              const callName = (prof && (prof.displayName || prof.name)) ? (prof.displayName || prof.name) : null;
-              const title    = (prof && prof.title && prof.title !== 'none') ? prof.title : null;
-              const address  = callName ? callName : (title ? title : 'there');
+              const callName = prof?.displayName || prof?.name || null;
+              const title    = (prof?.title && prof.title !== 'none') ? prof.title : null;
+              const address  = callName || title || 'there';
 
-              // Capture current video frame
+              // Capture face frame
               const snap = document.createElement('canvas');
-              snap.width = video.videoWidth || 320; snap.height = video.videoHeight || 240;
+              snap.width = video.videoWidth; snap.height = video.videoHeight;
               snap.getContext('2d').drawImage(video, 0, 0, snap.width, snap.height);
-              const b64 = snap.toDataURL('image/jpeg', 0.75).split(',')[1];
+              const b64 = snap.toDataURL('image/jpeg', 0.7).split(',')[1];
 
-              // Ask AI to compliment — vision call with the frame
-              const prompt = `You can see the person in front of the camera. Give them one warm, genuine, stylish compliment about how they look right now. Address them as "${address}". Keep it to one sentence, classy and confident. Do NOT mention cameras, AI, or photos.`;
+              // Vision call → get compliment
+              const prompt = `Give this person one short, genuine compliment about how they look. Address them as "${address}". One sentence only — confident and warm. Never mention cameras, photos, or AI.`;
               const result = await window.jarvis.chat(prompt, [], [{ type:'image', data: b64, mediaType:'image/jpeg' }]);
-              const compliment = (result && result.text) ? result.text.trim() : null;
-              if (compliment && window.jarvis.speak) window.jarvis.speak(compliment);
-            } catch {}
-          }, 2000); // wait 2s for camera to settle
+              const compliment = result?.text?.trim() || result?.reply?.trim() || null;
+              if (compliment) window.jarvis.speak(compliment);
+            } catch(e) { console.warn('[Compliment]', e.message); }
+          })();
         } else {
           toggleBtn.classList.remove('active');
           panel.classList.add('hidden');
