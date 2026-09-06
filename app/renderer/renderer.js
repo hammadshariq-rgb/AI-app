@@ -740,6 +740,9 @@ function showStopBtn(visible) {
 
 function setState(state) {
   orb.className = state;
+  // Signal gesture loop to pause MediaPipe processing while AI is working
+  // (prevents WASM blocking from causing AI response glitches)
+  window._aiThinking = (state === 'thinking' || state === 'speaking');
   if (state === 'idle') {
     orbLabel.textContent = 'STANDBY';
     micBtn.classList.remove('active');

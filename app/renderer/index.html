@@ -2818,20 +2818,38 @@
         gpAction.textContent = 'Loading gesture AI…';
         if (!await waitForMP()) { gpAction.textContent = 'Gesture model not available (check internet)'; return; }
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video:{ width:160, height:120, frameRate:15 }, audio:false });
+          // Capture at WIDE resolution (large field of view = more room to move hands)
+          // but process a DOWNSCALED canvas so MediaPipe stays fast
+          stream = await navigator.mediaDevices.getUserMedia({
+            video:{ width:{ ideal:640 }, height:{ ideal:480 }, frameRate:{ ideal:30, max:30 } },
+            audio:false
+          });
           video.srcObject = stream; await video.play();
+
+          // Offscreen canvas: full capture res → small processing res
+          const procW = 160, procH = 120;
+          const offscreen = document.createElement('canvas');
+          offscreen.width = procW; offscreen.height = procH;
+          const offCtx = offscreen.getContext('2d');
+
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
-          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.55, minTrackingConfidence:0.45 });
+          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.50, minTrackingConfidence:0.40 });
           handsModel.onResults(onHandResults);
-          let _mpBusy = false; // frame-skip guard: never queue a frame while one is processing
+
+          let _mpBusy = false; // frame-skip guard — never queue while previous frame is processing
           async function loop() {
             if (!gestureEnabled) return;
-            if (!_mpBusy && video.readyState >= 2) {
+            // Skip processing while AI is actively generating a response (prevents glitching)
+            if (!_mpBusy && !window._aiThinking && video.readyState >= 2) {
               _mpBusy = true;
-              try { await handsModel.send({ image:video }); } catch {}
+              try {
+                // Draw full-res video into small offscreen canvas, send that to MediaPipe
+                offCtx.drawImage(video, 0, 0, procW, procH);
+                await handsModel.send({ image: offscreen });
+              } catch {}
               _mpBusy = false;
             }
-            rafId = setTimeout(loop, 33); // ~30fps target; skips frames if MediaPipe is still busy
+            rafId = setTimeout(loop, 33); // 30fps target; auto-skips if busy
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
