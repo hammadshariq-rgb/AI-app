@@ -2892,6 +2892,29 @@
           // Keep window on top + visible so camera keeps running when user is in another app
           if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
           startGesture();
+          // After camera warms up, capture a frame and compliment the user
+          setTimeout(async () => {
+            try {
+              if (!window.jarvis || !window.jarvis.chat || !video || video.readyState < 2) return;
+              // Grab profile for personalised greeting
+              const prof = await window.jarvis.getProfile().catch(() => null);
+              const callName = (prof && (prof.displayName || prof.name)) ? (prof.displayName || prof.name) : null;
+              const title    = (prof && prof.title && prof.title !== 'none') ? prof.title : null;
+              const address  = callName ? callName : (title ? title : 'there');
+
+              // Capture current video frame
+              const snap = document.createElement('canvas');
+              snap.width = video.videoWidth || 320; snap.height = video.videoHeight || 240;
+              snap.getContext('2d').drawImage(video, 0, 0, snap.width, snap.height);
+              const b64 = snap.toDataURL('image/jpeg', 0.75).split(',')[1];
+
+              // Ask AI to compliment — vision call with the frame
+              const prompt = `You can see the person in front of the camera. Give them one warm, genuine, stylish compliment about how they look right now. Address them as "${address}". Keep it to one sentence, classy and confident. Do NOT mention cameras, AI, or photos.`;
+              const result = await window.jarvis.chat(prompt, [], [{ type:'image', data: b64, mediaType:'image/jpeg' }]);
+              const compliment = (result && result.text) ? result.text.trim() : null;
+              if (compliment && window.jarvis.speak) window.jarvis.speak(compliment);
+            } catch {}
+          }, 2000); // wait 2s for camera to settle
         } else {
           toggleBtn.classList.remove('active');
           panel.classList.add('hidden');
