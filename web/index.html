@@ -213,24 +213,125 @@
     /* Divider glow line */
     .glow-div { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(50,100,255,0.2) 30%, rgba(0,200,255,0.15) 50%, rgba(50,100,255,0.2) 70%, transparent); margin: 0; position: relative; z-index: 1; }
 
-    /* ═══ FEATURES ═══ */
-    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+    /* ═══ FEATURES — BLACK & WHITE LIQUID METAL ═══ */
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+
+    /* Card shell — deep black base with white-metal sheen */
     .feat-card {
-      background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 14px; padding: 20px 20px 18px;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
       position: relative; overflow: hidden;
+      border-radius: 20px; padding: 24px 22px 20px;
+      background: linear-gradient(160deg, #141414 0%, #0a0a0a 60%, #111 100%);
+      border: 1px solid rgba(255,255,255,0.09);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.04) inset,
+        0 -1px 0 rgba(0,0,0,0.9) inset,
+        0 6px 28px rgba(0,0,0,0.7);
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
+                  box-shadow 0.3s ease, border-color 0.3s ease;
+      cursor: default;
     }
-    .feat-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(61,92,255,0.06), transparent 60%); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
-    .feat-card:hover { border-color: rgba(61,92,255,0.22); background: rgba(61,92,255,0.05); transform: translateY(-2px); }
-    .feat-card:hover::before { opacity: 1; }
-    .feat-icon { font-size: 24px; margin-bottom: 12px; }
-    .feat-name { font-family: var(--brand); font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.5px; margin-bottom: 7px; }
-    .feat-desc { font-size: 12.5px; color: var(--text2); line-height: 1.65; }
-    .feat-badge { display: inline-block; margin-top: 10px; font-family: var(--brand); font-size: 9px; letter-spacing: 2px; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
-    .badge-app { background: rgba(61,92,255,0.15); color: rgba(130,170,255,0.8); }
-    .badge-web { background: rgba(34,197,94,0.12); color: rgba(100,220,130,0.8); }
-    .badge-both { background: rgba(0,200,255,0.1); color: rgba(80,210,255,0.8); }
+
+    /* Liquid-metal shimmer sweep on hover */
+    .feat-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        110deg,
+        transparent 0%,
+        rgba(255,255,255,0.00) 25%,
+        rgba(255,255,255,0.06) 45%,
+        rgba(255,255,255,0.10) 50%,
+        rgba(255,255,255,0.06) 55%,
+        rgba(255,255,255,0.00) 75%,
+        transparent 100%
+      );
+      transform: translateX(-120%) skewX(-12deg);
+      transition: transform 0.7s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none; z-index: 1;
+    }
+
+    /* Subtle white-glow radial following the mouse */
+    .feat-card::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at var(--mx,50%) var(--my,50%),
+        rgba(255,255,255,0.06), transparent 58%);
+      opacity: 0; transition: opacity 0.35s;
+      pointer-events: none; z-index: 1;
+    }
+
+    .feat-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(255,255,255,0.22);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.07) inset,
+        0 -1px 0 rgba(0,0,0,0.9) inset,
+        0 14px 44px rgba(0,0,0,0.75),
+        0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .feat-card:hover::before { transform: translateX(120%) skewX(-12deg); }
+    .feat-card:hover::after  { opacity: 1; }
+
+    /* Hand Engagement — white-accent glow variant */
+    .feat-card.hand-card {
+      background: linear-gradient(160deg, #181818 0%, #0d0d0d 60%, #131313 100%);
+      border-color: rgba(255,255,255,0.14);
+    }
+    .feat-card.hand-card:hover {
+      border-color: rgba(255,255,255,0.35);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.1) inset,
+        0 -1px 0 rgba(0,0,0,0.9) inset,
+        0 14px 50px rgba(0,0,0,0.8),
+        0 0 40px rgba(255,255,255,0.04),
+        0 0 0 1px rgba(255,255,255,0.1);
+    }
+
+    /* Icon pill */
+    .feat-icon-wrap {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 13px; margin-bottom: 15px;
+      background: linear-gradient(145deg, #222 0%, #181818 100%);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+      position: relative; z-index: 2;
+    }
+    .feat-card.hand-card .feat-icon-wrap {
+      background: linear-gradient(145deg, #252525 0%, #1a1a1a 100%);
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.12),
+                  0 0 14px rgba(255,255,255,0.04);
+    }
+
+    .feat-icon { font-size: 20px; }
+    .feat-name {
+      font-family: var(--brand); font-size: 14px; font-weight: 700;
+      color: rgba(255,255,255,0.9); letter-spacing: 1.5px; margin-bottom: 9px;
+      position: relative; z-index: 2;
+    }
+    .feat-card.hand-card .feat-name { color: #fff; }
+    .feat-desc {
+      font-size: 12.5px; color: rgba(180,180,180,0.6); line-height: 1.72;
+      position: relative; z-index: 2;
+    }
+    .feat-desc strong { color: rgba(220,220,220,0.9); font-weight: 600; }
+    .feat-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 15px; font-family: var(--brand); font-size: 9px;
+      letter-spacing: 2px; font-weight: 700; padding: 4px 10px;
+      border-radius: 20px; position: relative; z-index: 2;
+    }
+    /* All badges: monochrome */
+    .badge-app, .badge-web, .badge-both {
+      background: rgba(255,255,255,0.06);
+      color: rgba(210,210,210,0.75);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .badge-app-only {
+      background: rgba(255,255,255,0.08);
+      color: rgba(235,235,235,0.85);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
 
     /* ═══ PRICING ═══ */
     .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 660px; margin: 0 auto; }
@@ -829,22 +930,30 @@
     <div class="sec-eyebrow">CAPABILITIES</div>
     <h2 class="sec-title">Everything you need, in one place</h2>
     <p class="sec-sub">Voice-powered, always-on AI that manages your day, answers everything, and works the way you do.</p>
-    <div class="feat-grid">
-      <div class="feat-card"><div class="feat-icon">💬</div><div class="feat-name">AI CHAT</div><div class="feat-desc">Ask anything. Callisto answers with intelligence and context, remembering your conversations across sessions.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🎙️</div><div class="feat-name">VOICE CONTROL</div><div class="feat-desc">Talk to Callisto completely hands-free. Advanced speech recognition with near-instant response.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🧠</div><div class="feat-name">PERSISTENT MEMORY</div><div class="feat-desc">Callisto remembers your name, preferences, relationships, and habits — across every session, forever.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📅</div><div class="feat-name">GOOGLE CALENDAR</div><div class="feat-desc">Check your schedule, create events, and get smart reminders through natural conversation.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📰</div><div class="feat-name">LIVE NEWS</div><div class="feat-desc">Real-time headlines from BBC, Reuters, Sky News and more — always current, always relevant.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🌤️</div><div class="feat-name">WEATHER</div><div class="feat-desc">Current conditions, hourly forecasts, and feels-like temperatures for any city, any time.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📸</div><div class="feat-name">IMAGE RECOGNITION</div><div class="feat-desc">Upload photos, homework, screenshots — Callisto reads and understands them with AI vision.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🎵</div><div class="feat-name">MUSIC CONTROL</div><div class="feat-desc">Play, pause, skip, and search Spotify with your voice or a simple command.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📈</div><div class="feat-name">STOCKS & FINANCE</div><div class="feat-desc">Live stock prices, company data, market news — ask about any ticker or company in the world.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🌍</div><div class="feat-name">WIKIPEDIA CARDS</div><div class="feat-desc">Ask about any place, animal, historical event or person — get rich image cards with full details.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📝</div><div class="feat-name">DOCUMENT CREATION</div><div class="feat-desc">Generate Word docs, essays, emails and reports — saved directly to your computer.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🔔</div><div class="feat-name">REMINDERS</div><div class="feat-desc">Set reminders by voice or text. Callisto keeps track so you never miss a thing.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">📞</div><div class="feat-name">CONTACTS & CALLS</div><div class="feat-desc">Save contacts, make WhatsApp calls, and send messages — all through Callisto.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🎓</div><div class="feat-name">HOMEWORK HELPER</div><div class="feat-desc">Maths, science, essays, history — step-by-step explanations that actually make sense.</div><span class="feat-badge badge-both">WEB + APP</span></div>
-      <div class="feat-card"><div class="feat-icon">🔒</div><div class="feat-name">SECURE & PRIVATE</div><div class="feat-desc">Encrypted data, Google OAuth sign-in. Your information stays yours — we never sell it.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+    <div class="feat-grid" id="featGrid">
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">💬</span></div><div class="feat-name">AI CHAT</div><div class="feat-desc">Ask anything. Callisto answers with intelligence and context, remembering your conversations across sessions.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎙️</span></div><div class="feat-name">VOICE CONTROL</div><div class="feat-desc">Talk to Callisto completely hands-free. Advanced speech recognition with near-instant response.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🧠</span></div><div class="feat-name">PERSISTENT MEMORY</div><div class="feat-desc">Callisto remembers your name, preferences, relationships, and habits — across every session, forever.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📅</span></div><div class="feat-name">GOOGLE CALENDAR</div><div class="feat-desc">Check your schedule, create events, and get smart reminders through natural conversation.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📰</span></div><div class="feat-name">LIVE NEWS</div><div class="feat-desc">Real-time headlines from BBC, Reuters, Sky News and more — always current, always relevant.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🌤️</span></div><div class="feat-name">WEATHER</div><div class="feat-desc">Current conditions, hourly forecasts, and feels-like temperatures for any city, any time.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📸</span></div><div class="feat-name">IMAGE RECOGNITION</div><div class="feat-desc">Upload photos, homework, screenshots — Callisto reads and understands them with AI vision.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎵</span></div><div class="feat-name">MUSIC CONTROL</div><div class="feat-desc">Play, pause, skip, and search Spotify with your voice or a simple command.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📈</span></div><div class="feat-name">STOCKS & FINANCE</div><div class="feat-desc">Live stock prices, company data, market news — ask about any ticker or company in the world.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🌍</span></div><div class="feat-name">WIKIPEDIA CARDS</div><div class="feat-desc">Ask about any place, animal, historical event or person — get rich image cards with full details.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📝</span></div><div class="feat-name">DOCUMENT CREATION</div><div class="feat-desc">Generate Word docs, essays, emails and reports — saved directly to your computer.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🔔</span></div><div class="feat-name">REMINDERS</div><div class="feat-desc">Set reminders by voice or text. Callisto keeps track so you never miss a thing.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">📞</span></div><div class="feat-name">CONTACTS & CALLS</div><div class="feat-desc">Save contacts, make WhatsApp calls, and send messages — all through Callisto.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🎓</span></div><div class="feat-name">HOMEWORK HELPER</div><div class="feat-desc">Maths, science, essays, history — step-by-step explanations that actually make sense.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+      <div class="feat-card"><div class="feat-icon-wrap"><span class="feat-icon">🔒</span></div><div class="feat-name">SECURE & PRIVATE</div><div class="feat-desc">Encrypted data, Google OAuth sign-in. Your information stays yours — we never sell it.</div><span class="feat-badge badge-both">WEB + APP</span></div>
+
+      <!-- ✦ HAND ENGAGEMENT — App-exclusive premium feature -->
+      <div class="feat-card hand-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">🖐️</span></div>
+        <div class="feat-name">HAND ENGAGEMENT</div>
+        <div class="feat-desc">Control Callisto without touching your keyboard. Your left hand moves the <strong style="color:rgba(61,255,180,0.85)">Callisto Cursor</strong> across the screen — pinch to click. Your right hand triggers voice listening with a simple <strong style="color:rgba(61,255,180,0.85)">peace sign</strong> gesture. Real-time skeleton tracking with a premium neon overlay, built for a truly hands-free experience.</div>
+        <span class="feat-badge badge-app-only">APP ONLY</span>
+      </div>
     </div>
   </div>
 
@@ -1211,6 +1320,17 @@
   let token = localStorage.getItem('cal_tok') || null;
   let user = null, isPrem = false, usage = {used:0,limit:15};
   let msgs = [], sessions = JSON.parse(localStorage.getItem('cal_sess')||'[]'), sessId = null, busy = false;
+
+  // Feature card mouse-tracking glow
+  (()=>{
+    document.querySelectorAll('.feat-card').forEach(card=>{
+      card.addEventListener('mousemove',e=>{
+        const r=card.getBoundingClientRect();
+        card.style.setProperty('--mx',(e.clientX-r.left)/r.width*100+'%');
+        card.style.setProperty('--my',(e.clientY-r.top)/r.height*100+'%');
+      });
+    });
+  })();
 
   // Stars
   (()=>{const c=document.getElementById('starfield');for(let i=0;i<90;i++){const s=document.createElement('div');s.className='star';const sz=Math.random()*1.8+0.4;s.style.cssText=`width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;animation-duration:${3+Math.random()*6}s;animation-delay:${Math.random()*6}s`;c.appendChild(s);}})();
