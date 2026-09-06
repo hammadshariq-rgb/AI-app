@@ -2853,23 +2853,89 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/i;
   const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|shawarma|kebab|biryani|noodles|ramen|tacos|food|indian|chinese|italian|thai|mexican|bbq|steak|seafood|bakery|dessert|ice cream|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall|barber|salon|petrol|gas station|supermarket|grocery)\b/i;
 
+  // OSM amenity tag map for Overpass queries
+  const AMENITY_MAP = {
+    restaurant:'restaurant', café:'cafe', cafe:'cafe', coffee:'cafe',
+    sushi:'restaurant', pizza:'restaurant', burger:'fast_food',
+    shawarma:'fast_food', kebab:'fast_food', biryani:'restaurant',
+    noodles:'restaurant', ramen:'restaurant', tacos:'fast_food',
+    food:'restaurant', indian:'restaurant', chinese:'restaurant',
+    italian:'restaurant', thai:'restaurant', mexican:'restaurant',
+    bbq:'restaurant', steak:'restaurant', steakhouse:'restaurant',
+    seafood:'restaurant', bakery:'bakery', dessert:'cafe',
+    'ice cream':'ice_cream', gym:'gym', pharmacy:'pharmacy',
+    hospital:'hospital', atm:'atm', bank:'bank', hotel:'hotel',
+    park:'park', cinema:'cinema', mall:'mall', barber:'hairdresser',
+    salon:'beauty', 'gas station':'fuel', petrol:'fuel',
+    supermarket:'supermarket', grocery:'supermarket',
+    'paddle court':'sports_centre', tennis:'tennis', badminton:'sports_centre',
+    cricket:'sports_centre', pool:'swimming_pool'
+  };
+
+  // Build a custom HTML places panel using Overpass API (no Google needed)
+  async function fetchAndShowPlaces(placeType, userText) {
+    const loc = (() => { try { return JSON.parse(localStorage.getItem('userLocation')); } catch { return null; } })();
+    const amenity = AMENITY_MAP[placeType.toLowerCase()] || 'restaurant';
+    const radius  = 3000; // 3km
+    const cityLine = loc ? `${loc.city}, ${loc.country}` : 'your area';
+
+    // Loading panel
+    const loadHtml = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,sans-serif;color:rgba(200,220,255,0.7);font-size:13px;letter-spacing:1px}</style></head><body>📍 Finding ${placeType} near ${cityLine}…</body></html>`)}`;
+    if (typeof openBrowserPanel === 'function') openBrowserPanel(loadHtml, `📍 ${placeType} near you`, '📍');
+
+    let places = [];
+    if (loc && loc.lat && loc.lon) {
+      try {
+        const query = `[out:json][timeout:8];(node["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon});way["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon}););out center 12;`;
+        const data = await fetch('https://overpass-api.de/api/interpreter', {
+          method:'POST', body: 'data=' + encodeURIComponent(query),
+          headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
+        }).then(r => r.json());
+        places = (data.elements || [])
+          .filter(e => e.tags && e.tags.name)
+          .map(e => ({
+            name: e.tags.name,
+            cuisine: e.tags.cuisine || '',
+            phone: e.tags.phone || e.tags['contact:phone'] || '',
+            website: e.tags.website || e.tags['contact:website'] || '',
+            opening: e.tags.opening_hours || '',
+            addr: [e.tags['addr:housenumber'], e.tags['addr:street']].filter(Boolean).join(' ') || e.tags['addr:full'] || ''
+          }))
+          .slice(0, 8);
+      } catch {}
+    }
+
+    const rows = places.length ? places.map((p, i) => `
+      <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:12px;align-items:flex-start">
+        <div style="min-width:22px;height:22px;border-radius:50%;background:rgba(61,255,180,0.15);color:rgba(61,255,180,0.9);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:rgba(220,235,255,0.95);margin-bottom:2px">${p.name}</div>
+          ${p.cuisine ? `<div style="font-size:10px;color:rgba(61,255,180,0.7);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">${p.cuisine.replace(';',' · ')}</div>` : ''}
+          ${p.addr ? `<div style="font-size:11px;color:rgba(150,170,220,0.6)">📍 ${p.addr}</div>` : ''}
+          ${p.opening ? `<div style="font-size:10px;color:rgba(120,200,120,0.7);margin-top:2px">🕐 ${p.opening}</div>` : ''}
+          ${p.phone ? `<div style="font-size:10px;color:rgba(150,170,220,0.5);margin-top:2px">📞 ${p.phone}</div>` : ''}
+        </div>
+      </div>`).join('')
+    : `<div style="padding:32px;text-align:center;color:rgba(150,170,220,0.5);font-size:12px">No ${placeType} found within 3km.<br><br>Try enabling location access for better results.</div>`;
+
+    const html = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;font-family:-apple-system,sans-serif;color:rgba(220,235,255,0.9)}.header{padding:14px 16px 10px;border-bottom:1px solid rgba(61,255,180,0.15);background:rgba(6,10,26,0.9)}.title{font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(61,255,180,0.8);text-transform:uppercase}.sub{font-size:10px;color:rgba(150,170,220,0.5);margin-top:2px}</style></head><body><div class="header"><div class="title">📍 ${placeType.toUpperCase()} NEAR YOU</div><div class="sub">${cityLine} · ${places.length} found within 3km</div></div>${rows}</body></html>`)}`;
+
+    if (typeof openBrowserPanel === 'function') openBrowserPanel(html, `📍 ${placeType} near you`, '📍');
+
+    // Speak the top result
+    if (places.length && window.jarvis && window.jarvis.speak) {
+      const top = places[0];
+      window.jarvis.speak(`I found ${places.length} ${placeType} near you. The closest is ${top.name}${top.addr ? ', at ' + top.addr : ''}.`);
+    } else if (!places.length && window.jarvis && window.jarvis.speak) {
+      window.jarvis.speak(`I couldn't find any ${placeType} within 3 kilometres. Make sure location access is enabled.`);
+    }
+  }
+
   function detectPlaces(text) {
     if (!PLACES_KEYWORDS.test(text)) return null;
     const match = text.match(PLACES_TYPES);
     const placeType = match ? match[0] : 'place';
-    // Build search query — use Google Search (not Maps URL) as it works in Electron webview
-    // and shows the local map pack with ratings, hours, distance
-    const q = text
-      .replace(/\b(find|search|look for|show me|what are the|are there any|where is the|where are the)\b/gi, '')
-      .trim();
-    // Google Search with "near me" shows local results with embedded map
-    const searchQuery = encodeURIComponent(q.replace(/\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/gi, 'near me').trim());
-    return {
-      url: 'https://www.google.com/search?q=' + searchQuery + '&num=10',
-      icon: '📍',
-      name: 'Maps — ' + placeType,
-      query: q
-    };
+    return { placeType, query: text };
   }
 
   // Hook into sendToJarvis — intercept after message is sent
@@ -2886,9 +2952,8 @@ window.jarvis.onSentenceAudio(({ audio }) => {
         if (window.jarvis && window.jarvis.speak)
           window.jarvis.speak('Opening ' + shop.name + ' for ' + shop.query);
       } else if (places) {
-        openBrowserPanel(places.url, places.name, places.icon);
-        if (window.jarvis && window.jarvis.speak)
-          window.jarvis.speak('Showing maps results for ' + places.query);
+        // fetchAndShowPlaces handles speak internally after results are loaded
+        fetchAndShowPlaces(places.placeType, places.query);
       }
     };
   }

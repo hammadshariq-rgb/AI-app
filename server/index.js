@@ -1262,12 +1262,17 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { prompt, size } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
-    const result = await openai.images.generate({
-      model: 'dall-e-3', prompt, n: 1,
-      size: size || '1024x1024',
-      // response_format omitted — dall-e-3 returns URL by default in current API
-    });
-    // Support both url (dall-e-3) and b64_json formats
+    // Try dall-e-3 first, fall back to dall-e-2 if account lacks access
+    let result;
+    try {
+      result = await openai.images.generate({ model: 'dall-e-3', prompt, n: 1, size: size || '1024x1024' });
+    } catch (e3) {
+      if (e3.status === 400 || e3.status === 404) {
+        // dall-e-3 not available on this key — fall back to dall-e-2
+        const safeSize = ['256x256','512x512','1024x1024'].includes(size) ? size : '1024x1024';
+        result = await openai.images.generate({ model: 'dall-e-2', prompt, n: 1, size: safeSize, response_format: 'url' });
+      } else { throw e3; }
+    }
     const img = result.data[0];
     const url = img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null);
     if (!url) return res.status(500).json({ error: 'No image returned' });
