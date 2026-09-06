@@ -2940,34 +2940,16 @@
           // Do NOT setAlwaysOnTop — it traps user in Callisto, can't switch apps
           cursorRafId = requestAnimationFrame(cursorTick); // start 60fps cursor loop
           startGesture();
-          // After camera is ready, capture face and speak a compliment
+          // Quick greeting when camera turns on — no vision call, just use profile
           (async () => {
             try {
-              // Wait for video to actually have frames (up to 5s)
-              let waited = 0;
-              while ((!video.videoWidth || video.readyState < 2) && waited < 5000) {
-                await new Promise(r => setTimeout(r, 200)); waited += 200;
-              }
-              if (!video.videoWidth || !window.jarvis || !window.jarvis.speak) return;
-
-              // Grab profile for name/title
+              if (!window.jarvis || !window.jarvis.speak) return;
               const prof = await window.jarvis.getProfile().catch(() => null);
-              const callName = prof?.displayName || prof?.name || null;
-              const title    = (prof?.title && prof.title !== 'none') ? prof.title : null;
-              const address  = callName || title || 'there';
-
-              // Capture face frame
-              const snap = document.createElement('canvas');
-              snap.width = video.videoWidth; snap.height = video.videoHeight;
-              snap.getContext('2d').drawImage(video, 0, 0, snap.width, snap.height);
-              const b64 = snap.toDataURL('image/jpeg', 0.7).split(',')[1];
-
-              // Vision call → get compliment
-              const prompt = `Give this person one short, genuine compliment about how they look. Address them as "${address}". One sentence only — confident and warm. Never mention cameras, photos, or AI.`;
-              const result = await window.jarvis.chat(prompt, [], [{ type:'image', data: b64, mediaType:'image/jpeg' }]);
-              const compliment = result?.text?.trim() || result?.reply?.trim() || null;
-              if (compliment) window.jarvis.speak(compliment);
-            } catch(e) { console.warn('[Compliment]', e.message); }
+              const title = prof?.title && prof.title !== 'none' ? prof.title : null;
+              const name  = prof?.displayName || prof?.name || null;
+              const address = title || name || 'boss';
+              window.jarvis.speak(`Looking good, ${address}.`);
+            } catch(e) {}
           })();
         } else {
           toggleBtn.classList.remove('active');
