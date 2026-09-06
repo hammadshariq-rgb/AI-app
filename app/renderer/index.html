@@ -866,12 +866,14 @@
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
     /* ── Callisto Hand Cursor — Lightweight Premium ── */
-    /* No CSS animations = zero GPU animation cost; position updated via JS transform */
+    /* Uses transform only — compositor thread, zero layout reflow */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
       width: 32px; height: 32px; border-radius: 50%;
-      transform: translate(-50%, -50%);
-      display: none;
+      left: 0; top: 0; /* anchor at origin; JS drives transform only */
+      transform: translate(-9999px, -9999px); /* hidden offscreen until first hand */
+      will-change: transform;
+      display: block;
       /* Outer glow ring */
       border: 1.5px solid rgba(61,255,180,0.9);
       box-shadow: 0 0 10px rgba(61,255,180,0.8), 0 0 22px rgba(61,255,180,0.35), 0 0 4px rgba(255,255,255,0.4) inset;
@@ -2566,6 +2568,8 @@
       const SMOOTH = 0.22;         // EMA factor per rAF tick — lower = smoother, higher = snappier
 
       // ── Smooth cursor loop decoupled from MediaPipe (runs at ~60fps) ──────────
+      // Uses transform only — compositor thread, no layout reflow
+      const HALF_CURSOR = 16; // half of 32px cursor size
       function cursorTick() {
         if (!gestureEnabled || !lastLeftLm || !magicCursor) { cursorRafId = requestAnimationFrame(cursorTick); return; }
         const lm = lastLeftLm;
@@ -2574,8 +2578,8 @@
         const rawY = lm[8].y * window.innerHeight;
         cursorX = cursorX === 0 ? rawX : cursorX + SMOOTH * (rawX - cursorX);
         cursorY = cursorY === 0 ? rawY : cursorY + SMOOTH * (rawY - cursorY);
-        magicCursor.style.left = cursorX + 'px';
-        magicCursor.style.top  = cursorY + 'px';
+        // translate centers the cursor on the fingertip (no layout reflow)
+        magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
 
         // Pinch: thumb tip (4) + index tip (8) — tighter threshold = intentional only
         const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
@@ -2593,10 +2597,11 @@
           if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
             lastClickTime = now;
             pinchHeldSince = now; // reset so it doesn't fire again until released + re-pinched
-            magicCursor.style.display = 'none';
+            // Briefly park cursor offscreen so elementFromPoint finds the real element
+            magicCursor.style.transform = 'translate(-9999px,-9999px)';
             const el = document.elementFromPoint(cursorX, cursorY);
-            magicCursor.style.display = 'block';
-            if (el) el.click(); // single clean click only — no extra PointerEvents
+            magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
+            if (el) el.click(); // single clean click — no extra PointerEvents
           }
         } else if (isPinching) {
           isPinching = false;
@@ -2694,37 +2699,25 @@
         setTimeout(() => gpIcon.classList.remove('flash'), 320);
       }
 
-      // ── Skeleton drawing ─────────────────────────────────────────────────────
+      // ── Skeleton drawing — 2 draw calls per hand (down from 5) ─────────────
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
-      // Fast single-pass skeleton — NO shadowBlur (too expensive), uses alpha layering instead
+      const TIPS = [4, 8, 12, 16, 20];
       function drawHand(ctx, lm, W, H, isLeft) {
-        const lineCol  = isLeft ? 'rgba(61,255,180,0.75)' : 'rgba(0,200,255,0.75)';
-        const glowCol  = isLeft ? 'rgba(61,255,180,0.22)' : 'rgba(0,200,255,0.22)';
-        const tipCol   = isLeft ? 'rgba(61,255,180,1)'    : 'rgba(80,230,255,1)';
-        const jointCol = isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(60,200,255,0.85)';
-        // Glow lines (thick, low alpha — one stroke pass)
-        ctx.strokeStyle = glowCol; ctx.lineWidth = 6;
+        const col = isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(0,210,255,0.85)';
+        // Pass 1: all bone lines in one stroke
+        ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
         ctx.beginPath();
-        for (const [a,b] of CONN) { ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); }
+        for (const [a, b] of CONN) {
+          ctx.moveTo(lm[a].x * W, lm[a].y * H);
+          ctx.lineTo(lm[b].x * W, lm[b].y * H);
+        }
         ctx.stroke();
-        // Crisp lines (thin, high alpha — one stroke pass)
-        ctx.strokeStyle = lineCol; ctx.lineWidth = 1.5;
+        // Pass 2: fingertip dots + wrist dot in one fill
+        ctx.fillStyle = col;
         ctx.beginPath();
-        for (const [a,b] of CONN) { ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); }
-        ctx.stroke();
-        // Tips (larger) — batch fill
-        const TIPS = [4,8,12,16,20];
-        ctx.fillStyle = tipCol;
-        ctx.beginPath();
-        for (const i of TIPS) { ctx.moveTo(lm[i].x*W+4,lm[i].y*H); ctx.arc(lm[i].x*W,lm[i].y*H,4,0,Math.PI*2); }
+        for (const i of TIPS) { ctx.arc(lm[i].x * W, lm[i].y * H, 4, 0, Math.PI * 2); ctx.closePath(); }
+        ctx.arc(lm[0].x * W, lm[0].y * H, 4, 0, Math.PI * 2); ctx.closePath();
         ctx.fill();
-        // Joints (smaller) — batch fill
-        ctx.fillStyle = jointCol;
-        ctx.beginPath();
-        for (let i=0;i<21;i++) { if (!TIPS.includes(i)&&i!==0) { ctx.moveTo(lm[i].x*W+2.5,lm[i].y*H); ctx.arc(lm[i].x*W,lm[i].y*H,2.5,0,Math.PI*2); } }
-        ctx.fill();
-        // Wrist
-        ctx.fillStyle = lineCol; ctx.beginPath(); ctx.arc(lm[0].x*W,lm[0].y*H,4,0,Math.PI*2); ctx.fill();
       }
 
       // ── Actions ──────────────────────────────────────────────────────────────
@@ -2756,11 +2749,23 @@
         }, 900);
       }
 
+      // ── Cached overlay context — set once, never reset dimensions ───────────
+      let overlayCtx = null;
+      let _canvasSized = false;
+      function ensureCanvas() {
+        if (_canvasSized) return;
+        if (!video.videoWidth) return;
+        overlayCanvas.width  = video.videoWidth;
+        overlayCanvas.height = video.videoHeight;
+        overlayCtx = overlayCanvas.getContext('2d', { alpha: true, willReadFrequently: false });
+        _canvasSized = true;
+      }
+
       // ── Main detection callback ───────────────────────────────────────────────
       function onHandResults(results) {
-        const ctx = overlayCanvas.getContext('2d');
-        overlayCanvas.width  = video.videoWidth  || 160;
-        overlayCanvas.height = video.videoHeight || 120;
+        ensureCanvas();
+        if (!overlayCtx) return;
+        const ctx = overlayCtx;
         ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
         const lms   = results.multiHandLandmarks || [];
@@ -2770,16 +2775,12 @@
         if (!lms.length) {
           clapHist.length = 0;
           waveHist[0] = []; waveHist[1] = [];
-          if (magicCursor) magicCursor.style.display = 'none';
-          isPinching = false;
-          // Clear skeleton immediately so it doesn't ghost on screen
-          ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-          if (_skeletonClearTimer) { clearTimeout(_skeletonClearTimer); _skeletonClearTimer = null; }
+          if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
+          isPinching = false; lastLeftLm = null; cursorX = 0; cursorY = 0;
+          overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
         }
-        // Reset ghost-clear timer whenever a hand is present
-        if (_skeletonClearTimer) { clearTimeout(_skeletonClearTimer); _skeletonClearTimer = null; }
 
         // Show "hand detected" so user knows detection is working
         if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
@@ -2800,12 +2801,12 @@
           const side = hands[i]?.label || 'Right';
           if (side === 'Left') {
             leftFound = true;
-            if (magicCursor) magicCursor.style.display = 'block';
-            updateCursorLandmarks(lms[i]); // store landmarks; cursorTick() drives actual movement
+            updateCursorLandmarks(lms[i]); // cursorTick() drives movement at 60fps
           }
         }
-        if (!leftFound && magicCursor) {
-          magicCursor.style.display = 'none';
+        if (!leftFound) {
+          // Park cursor offscreen — no display toggle = no reflow
+          if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           isPinching = false; pinchHeldSince = 0;
           cursorX = 0; cursorY = 0; lastLeftLm = null;
         }
@@ -2916,8 +2917,9 @@
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
         clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
-        if (magicCursor) magicCursor.style.display = 'none';
-        isPinching = false; pinchHeldSince = 0; lastLeftLm = null;
+        if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
+        isPinching = false; pinchHeldSince = 0; lastLeftLm = null; cursorX = 0; cursorY = 0;
+        _canvasSized = false; overlayCtx = null; // reset so next start re-initialises
       }
 
       function updateEngageBtns(on) {
