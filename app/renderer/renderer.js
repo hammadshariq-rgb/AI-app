@@ -1188,20 +1188,39 @@ const WeatherWidget = (function() {
     }
   }
 
+  // Resolve lat/lon to a proper city name using Nominatim zoom=10 (city-level, not hamlet)
+  async function resolveCity(lat, lon) {
+    try {
+      const nom = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      ).then(r => r.json());
+      const a = nom.address || {};
+      return a.city || a.municipality || a.town || a.suburb || a.county || nom.name || null;
+    } catch { return null; }
+  }
+
   async function getLocationFromIP() {
     // Try freeipapi first, then ipapi.co as fallback
     const apis = [
       async () => {
         const d = await fetch('https://freeipapi.com/api/json').then(r => r.json());
-        return { lat: d.latitude, lon: d.longitude, city: d.cityName, country: d.countryCode };
+        const lat = d.latitude, lon = d.longitude;
+        // IP APIs sometimes return suburbs — cross-check with Nominatim at city level
+        const city = await resolveCity(lat, lon) || d.cityName;
+        return { lat, lon, city, country: d.countryCode };
       },
       async () => {
         const d = await fetch('https://ipapi.co/json/').then(r => r.json());
-        return { lat: d.latitude, lon: d.longitude, city: d.city, country: d.country_code };
+        const lat = d.latitude, lon = d.longitude;
+        const city = await resolveCity(lat, lon) || d.city;
+        return { lat, lon, city, country: d.country_code };
       },
       async () => {
         const d = await fetch('https://ipwhois.app/json/').then(r => r.json());
-        return { lat: d.latitude, lon: d.longitude, city: d.city, country: d.country_code };
+        const lat = d.latitude, lon = d.longitude;
+        const city = await resolveCity(lat, lon) || d.city;
+        return { lat, lon, city, country: d.country_code };
       }
     ];
     for (const api of apis) {
@@ -1219,12 +1238,15 @@ const WeatherWidget = (function() {
         async pos => {
           try {
             const { latitude: lat, longitude: lon } = pos.coords;
+            // zoom=10 gives city-level result; zoom=18 would give street/hamlet (too granular)
             const nom  = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10&addressdetails=1`,
               { headers: { 'Accept-Language': 'en' } }
             ).then(r => r.json());
-            const city    = nom.address?.city || nom.address?.municipality || nom.address?.town || nom.address?.village || nom.address?.county || '—';
-            const country = (nom.address?.country_code || '').toUpperCase();
+            const a = nom.address || {};
+            // city > municipality > town > suburb > county — skip hamlet/village which are too granular
+            const city    = a.city || a.municipality || a.town || a.suburb || a.county || nom.name || '—';
+            const country = (a.country_code || '').toUpperCase();
             resolve({ lat, lon, city, country });
           } catch { reject(); }
         },
@@ -2615,13 +2637,16 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   let lastPaintSubject = null;
 
   // ── Keyword detection ────────────────────────────────────────────────────────
-  const PAINT_RE = /\b(?:paint|draw|sketch|illustrate|(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:painting|picture|drawing|sketch|image|illustration)(?:\s+of)?)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+)?(.+?)(?:\s+(?:on|in|using)\s+(?:3d\s+paint|paint\s+3d|blender|dall.?e))?$/i;
+  // Matches any image/drawing request.  Group 1 = subject.  Group 2 = 3D paint / blender flag (may be undefined).
+  const PAINT_RE = /\b(?:paint|draw|sketch|illustrate|(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:painting|picture|drawing|sketch|image|illustration)(?:\s+of)?)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+)?(.+?)(?:\s+(?:on|in|using|with|through|via|on|in)\s+(3d\s+paint|paint\s+3d|blender|dall.?e|ai|image\s+gen(?:eration)?))?$/i;
   const MODEL3D_RE = /\b(make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
+  // Explicit 3D paint request (must mention 3d paint / paint 3d in the message)
+  const PAINT3D_RE = /\b(3d\s*paint|paint\s*3d|paint\s+app)\b/i;
 
   function extractPaintSubject(text) {
     const m = text.match(PAINT_RE);
     if (!m) return null;
-    return (m[1] || '').trim().replace(/[.!?]+$/, '');
+    return { subject: (m[1] || '').trim().replace(/[.!?]+$/, ''), use3dPaint: PAINT3D_RE.test(text) };
   }
 
   // ── Show generated image in the browser sidebar ──────────────────────────────
@@ -2649,30 +2674,43 @@ window.jarvis.onSentenceAudio(({ audio }) => {
       return true; // handled — skip normal AI call
     }
 
-    // Painting request
-    const subject = extractPaintSubject(text);
-    if (subject) {
+    // Painting / image generation request
+    const paintResult = extractPaintSubject(text);
+    if (paintResult) {
+      const { subject, use3dPaint } = paintResult;
       lastPaintSubject = subject;
-      addMessage('assistant', `🎨 Generating a painting of "${subject}"…`);
-      setState('thinking');
-      try {
-        // Generate image via IPC → server → DALL-E 3
-        const imgData = await window.jarvis.generateImage(`A beautiful, detailed artistic painting of ${subject}, vibrant colours, high quality digital art`);
-        if (imgData.error) throw new Error(imgData.error);
 
-        const imageUrl = imgData.url;
-        showPaintingInSidebar(imageUrl, subject);
-
-        // Open Paint 3D with the image
-        window.jarvis.openPaint3D(subject, imageUrl).catch(() => {});
-
-        window.jarvis.speak(`Here's your painting of ${subject}. Say "make it 3D" and I'll open it in Blender as a 3D model.`);
-        addMessage('assistant', `✨ Here's your painting of **${subject}**! It's shown on the side panel and opening in Paint 3D.\n\nSay **"make it 3D"** and I'll generate a Blender 3D model for you.`);
-      } catch (err) {
-        addMessage('assistant', `Sorry, couldn't generate the painting: ${err.message}`);
+      if (use3dPaint) {
+        // ── Route: open Windows Paint 3D app ────────────────────────────────
+        addMessage('assistant', `🖌️ Opening Paint 3D with "${subject}"…`);
+        setState('thinking');
+        try {
+          const r = await window.jarvis.openPaint3D(subject, null);
+          if (r && r.ok === false) throw new Error(r.error || 'Could not open Paint 3D');
+          window.jarvis.speak(`Paint 3D is now open. You can draw ${subject} there.`);
+          addMessage('assistant', `✅ Paint 3D is open! Draw your **${subject}** there.`);
+        } catch (err) {
+          addMessage('assistant', `Sorry, couldn't open Paint 3D: ${err.message}`);
+        }
+        setState('idle');
+        return true;
+      } else {
+        // ── Route: AI image generation via DALL-E 3 ─────────────────────────
+        addMessage('assistant', `🎨 Generating an AI image of "${subject}"…`);
+        setState('thinking');
+        try {
+          const imgData = await window.jarvis.generateImage(`A beautiful, detailed artistic painting of ${subject}, vibrant colours, high quality digital art`);
+          if (imgData.error) throw new Error(imgData.error);
+          const imageUrl = imgData.url;
+          showPaintingInSidebar(imageUrl, subject);
+          window.jarvis.speak(`Here's your AI-generated image of ${subject}.`);
+          addMessage('assistant', `✨ Here's your AI image of **${subject}**! Shown in the side panel.\n\nSay **"make it 3D"** to open it in Blender.`);
+        } catch (err) {
+          addMessage('assistant', `Sorry, couldn't generate the image: ${err.message}`);
+        }
+        setState('idle');
+        return true;
       }
-      setState('idle');
-      return true; // handled
     }
 
     return false;
@@ -5274,7 +5312,9 @@ function startWaveformDraw() {
       const barH = Math.max(3, amp * H * 0.9);
       const x = i * (barW + 2);
       const alpha = 0.4 + amp * 0.6;
-      const wc = window._waveformColor || [0, 200, 255];
+      // In light mode use a dark visible color; dark mode use cyan
+      const isLight = document.body.classList.contains('light-mode');
+      const wc = window._waveformColor || (isLight ? [30, 80, 220] : [0, 200, 255]);
       waveCtx.fillStyle = `rgba(${wc[0]}, ${Math.min(255, wc[1] + Math.floor(amp * 55))}, ${wc[2]}, ${alpha})`;
       const r = barW / 2;
       waveCtx.beginPath();

@@ -2106,9 +2106,6 @@
           <div id="micLabel">CLICK TO SPEAK</div>
           <canvas id="waveformCanvas" width="180" height="36"></canvas>
 
-          <!-- Engage Hand Movement (voice mode) -->
-          <button id="gestureEngageBtn1" class="connector-btn" style="margin-top:10px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;border-color:rgba(61,255,180,0.35);color:rgba(61,255,180,0.85)" onclick="window._gestureToggle && window._gestureToggle()">🤚 ENGAGE HAND MOVEMENT</button>
-
           <!-- Shift to typing toggle (voice mode) -->
           <button id="typeModeToggle" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px">⌨ SHIFT TO TYPING</button>
 
@@ -2826,10 +2823,15 @@
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
           handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.55, minTrackingConfidence:0.45 });
           handsModel.onResults(onHandResults);
+          let _mpBusy = false; // frame-skip guard: never queue a frame while one is processing
           async function loop() {
             if (!gestureEnabled) return;
-            if (video.readyState >= 2) { try { await handsModel.send({ image:video }); } catch {} }
-            rafId = setTimeout(loop, 50); // ~20fps via setTimeout so it keeps running when window loses focus
+            if (!_mpBusy && video.readyState >= 2) {
+              _mpBusy = true;
+              try { await handsModel.send({ image:video }); } catch {}
+              _mpBusy = false;
+            }
+            rafId = setTimeout(loop, 33); // ~30fps target; skips frames if MediaPipe is still busy
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
@@ -2850,7 +2852,7 @@
       }
 
       function updateEngageBtns(on) {
-        ['gestureEngageBtn1','gestureEngageBtn2'].forEach(id => {
+        ['gestureEngageBtn2'].forEach(id => {
           const b = document.getElementById(id);
           if (!b) return;
           b.textContent = on ? '🟢 HAND MOVEMENT ON' : '🤚 ENGAGE HAND MOVEMENT';
