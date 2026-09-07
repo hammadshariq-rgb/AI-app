@@ -2447,8 +2447,28 @@
     </div>
   </div>
 
+  <!-- ── Markets Overlay ── -->
+  <div id="marketsOverlay">
+    <div>
+      <div id="moCard" class="mo-card">
+        <div id="moSymbol" class="mo-symbol"></div>
+        <div id="moName" class="mo-name"></div>
+        <div class="mo-price-row">
+          <span id="moPrice" class="mo-price"></span>
+          <span id="moBadge" class="mo-badge"></span>
+        </div>
+        <div class="mo-chart" id="moChart"></div>
+        <div class="mo-footer">
+          <div id="moDots" class="mo-dots"></div>
+          <button class="mo-close-btn" id="moCloseBtn">✕ Close</button>
+        </div>
+        <div class="mo-nav-hint" id="moNavHint"></div>
+      </div>
+    </div>
+  </div>
+
   <script src="three.global.js"></script>
-  <script src="renderer.js?v=55"></script>
+  <script src="renderer.js?v=56"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
   <script src="panels.js?v=3"></script>
@@ -2850,10 +2870,23 @@
             handState[i] = null;
           }
 
-          // ── 5. WAVE — wrist oscillation → switch voice/type mode ─────────
+          // ── 5. WAVE — wrist oscillation → scroll markets OR switch mode ─
           if (checkWave(lm, i) && canFire('wave')) {
-            showGesture('🤚', 'Wave — switching mode');
-            doSwitchMode();
+            if (typeof marketsOverlayOpen !== 'undefined' && marketsOverlayOpen) {
+              // Left hand wave scrolls between market cards
+              const wh = waveHist[i] || [];
+              const dir = wh.length >= 2 ? wh[wh.length-1] - wh[0] : 0;
+              if (dir > 0) {
+                showGesture('👉', 'Markets — next');
+                marketsGoTo(marketsIdx + 1);
+              } else {
+                showGesture('👈', 'Markets — prev');
+                marketsGoTo(marketsIdx - 1);
+              }
+            } else {
+              showGesture('🤚', 'Wave — switching mode');
+              doSwitchMode();
+            }
           }
         }
       }

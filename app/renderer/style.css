@@ -4024,6 +4024,139 @@ body.light-mode .wiki-close-btn:hover {
   color: rgba(180,40,40,0.8);
 }
 
+/* ═══ MARKETS OVERLAY ═══════════════════════════════════════════════════════ */
+#marketsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 28, 0.72);
+  backdrop-filter: blur(22px) saturate(0.7);
+  -webkit-backdrop-filter: blur(22px) saturate(0.7);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.32s cubic-bezier(0.22,1,0.36,1);
+  -webkit-app-region: no-drag;
+}
+#marketsOverlay.mo-open {
+  opacity: 1;
+  pointer-events: all;
+}
+.mo-card {
+  position: relative;
+  width: 340px;
+  background: rgba(12, 18, 50, 0.85);
+  border: 1px solid rgba(80,140,255,0.18);
+  border-radius: 20px;
+  padding: 26px 26px 20px;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  transform: translateY(24px) scale(0.96);
+  opacity: 0;
+  transition: transform 0.34s cubic-bezier(0.22,1,0.36,1), opacity 0.34s ease;
+  user-select: none;
+}
+#marketsOverlay.mo-open .mo-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.mo-symbol {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(100,160,255,0.7);
+  margin-bottom: 4px;
+}
+.mo-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(220,235,255,0.92);
+  margin-bottom: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mo-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.mo-price {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(230,240,255,0.97);
+  font-variant-numeric: tabular-nums;
+}
+.mo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Share Tech Mono', monospace;
+}
+.mo-badge.pos { background: rgba(0,230,130,0.15); color: #00e882; border: 1px solid rgba(0,230,130,0.25); }
+.mo-badge.neg { background: rgba(255,70,70,0.15);  color: #ff6060; border: 1px solid rgba(255,70,70,0.25); }
+.mo-chart {
+  width: 100%;
+  height: 90px;
+  margin: 16px 0 14px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mo-chart svg { display: block; }
+.mo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mo-dots {
+  display: flex;
+  gap: 6px;
+}
+.mo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(100,140,255,0.25);
+  transition: background 0.2s, transform 0.2s;
+}
+.mo-dot.active {
+  background: rgba(80,160,255,0.9);
+  transform: scale(1.3);
+}
+.mo-close-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: rgba(180,200,255,0.5);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+}
+.mo-close-btn:hover { border-color: rgba(255,100,100,0.3); color: rgba(255,140,140,0.85); }
+.mo-nav-hint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgba(100,130,200,0.45);
+  text-align: center;
+  margin-top: 14px;
+}
+body.light-mode #marketsOverlay { background: rgba(200,215,255,0.55); }
+body.light-mode .mo-card { background: rgba(240,245,255,0.92); border-color: rgba(60,90,200,0.15); }
+body.light-mode .mo-symbol { color: rgba(60,90,180,0.6); }
+body.light-mode .mo-name { color: #1a2040; }
+body.light-mode .mo-price { color: #1a2040; }
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .wiki-source-tag {
   font-family: 'Share Tech Mono', monospace;
   font-size: 9px;

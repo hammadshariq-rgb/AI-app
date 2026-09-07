@@ -1087,6 +1087,104 @@ async function finLoad() {
   }, 90000);
 }
 
+// ===================== MARKETS OVERLAY =====================
+let marketsOverlayOpen = false;
+let marketsIdx = 0;
+
+function moSparkline(closes, positive) {
+  if (!closes || closes.length < 2) return '';
+  const W = 288, H = 80;
+  const mn = Math.min(...closes), mx = Math.max(...closes);
+  const range = mx - mn || 1;
+  const pts = closes.map((v, i) => {
+    const x = (i / (closes.length - 1)) * W;
+    const y = H - ((v - mn) / range) * H * 0.8 - H * 0.1;
+    return `${x},${y}`;
+  });
+  const col = positive ? '#00e882' : '#ff6060';
+  const fillCol = positive ? 'rgba(0,232,130,0.15)' : 'rgba(255,96,96,0.15)';
+  const polyline = pts.join(' ');
+  const area = `${pts[0].split(',')[0]},${H} ` + polyline + ` ${pts[pts.length-1].split(',')[0]},${H}`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+    <defs><linearGradient id="mg${positive?'p':'n'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity="0.35"/><stop offset="100%" stop-color="${col}" stop-opacity="0.01"/></linearGradient></defs>
+    <polygon points="${area}" fill="url(#mg${positive?'p':'n'})"/>
+    <polyline points="${polyline}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="3.5" fill="${col}"/>
+  </svg>`;
+}
+
+function moRenderCard(idx) {
+  if (!finPortfolio.length) return;
+  marketsIdx = Math.max(0, Math.min(finPortfolio.length - 1, idx));
+  const s = finPortfolio[marketsIdx];
+  document.getElementById('moSymbol').textContent = s.symbol;
+  document.getElementById('moName').textContent = s.name || s.symbol;
+  const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
+  document.getElementById('moPrice').textContent = sym + (s.price || 0).toFixed(2);
+  const badge = document.getElementById('moBadge');
+  const pct = (s.changePct || 0).toFixed(2);
+  badge.textContent = (s.positive ? '▲ +' : '▼ ') + pct + '%';
+  badge.className = 'mo-badge ' + (s.positive ? 'pos' : 'neg');
+  document.getElementById('moChart').innerHTML = moSparkline(s.sparkline, s.positive);
+  // Dots
+  const dotsEl = document.getElementById('moDots');
+  dotsEl.innerHTML = '';
+  finPortfolio.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'mo-dot' + (i === marketsIdx ? ' active' : '');
+    dotsEl.appendChild(d);
+  });
+  // Hint
+  const hint = document.getElementById('moNavHint');
+  if (finPortfolio.length > 1) {
+    hint.textContent = '← WAVE LEFT HAND TO SCROLL →';
+    hint.style.display = '';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function showMarketsOverlay() {
+  if (!finPortfolio.length) {
+    // No stocks yet
+    addMessage('assistant', "You don't have any stocks in your portfolio yet. Search for a stock and add it first!");
+    return;
+  }
+  marketsOverlayOpen = true;
+  moRenderCard(marketsIdx);
+  document.getElementById('marketsOverlay').classList.add('mo-open');
+}
+
+function closeMarketsOverlay() {
+  marketsOverlayOpen = false;
+  document.getElementById('marketsOverlay').classList.remove('mo-open');
+}
+
+function marketsGoTo(i) {
+  moRenderCard(i);
+}
+
+// Close button
+document.getElementById('moCloseBtn')?.addEventListener('click', closeMarketsOverlay);
+// Escape key
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && marketsOverlayOpen) closeMarketsOverlay(); });
+// Click backdrop to close
+document.getElementById('marketsOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('marketsOverlay')) closeMarketsOverlay();
+});
+
+// Wire portfolio panel clicks → open overlay
+// Clicking the PORTFOLIO label or the slide area opens the full-screen overlay
+document.getElementById('finPanelLabel')?.addEventListener('click', showMarketsOverlay);
+document.getElementById('finSliderWrap')?.addEventListener('click', showMarketsOverlay);
+
+// Command interception — "show my markets", "open portfolio", etc.
+window._checkMarketsOverlay = async function(text) {
+  if (!/show.*my\s+markets|open.*portfolio|portfolio.*overview|my\s+stocks|show.*portfolio|my\s+markets/i.test(text)) return false;
+  showMarketsOverlay();
+  return true;
+};
+
 // ===================== DOCK MAGNIFY (scroll + neighbor effect) =====================
 (function initDock() {
   const dock = document.getElementById('dockBar');
@@ -2292,6 +2390,11 @@ async function sendToJarvis(text) {
   // Check HiggsField video generation
   if (typeof window._checkHiggsfield === 'function') {
     const handled = await window._checkHiggsfield(text, attachments);
+    if (handled) return;
+  }
+  // Check markets overlay command
+  if (typeof window._checkMarketsOverlay === 'function') {
+    const handled = await window._checkMarketsOverlay(text);
     if (handled) return;
   }
   // Check creative (painting / 3D model) — may short-circuit the AI call
