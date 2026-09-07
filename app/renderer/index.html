@@ -878,7 +878,8 @@
       border: 1.5px solid rgba(61,255,180,0.9);
       box-shadow: 0 0 10px rgba(61,255,180,0.8), 0 0 22px rgba(61,255,180,0.35), 0 0 4px rgba(255,255,255,0.4) inset;
       background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.25), rgba(61,255,180,0.08));
-      transition: border-color 80ms, box-shadow 80ms, width 80ms, height 80ms;
+      transition: border-color 60ms, box-shadow 60ms;
+      /* no width/height transition — avoids double-lag on pinch */
     }
     #magicCursor .mc-dot {
       position: absolute; inset: 11px; border-radius: 50%;
@@ -2578,60 +2579,79 @@
 
       // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
-      const CLICK_COOLDOWN = 1100; // ms between clicks — generous to prevent phantom clicks
+      const CLICK_COOLDOWN = 500;  // ms between distinct clicks
       let isPinching = false;
-      let pinchHeldSince = 0;      // timestamp when pinch first detected
-      const PINCH_HOLD_MS = 100;   // must sustain pinch for 100ms before it fires
-      let cursorX = 0, cursorY = 0;
-      let lastLeftLm = null;       // latest MP landmarks — updated at MP rate
-      let cursorRafId = null;      // separate rAF for smooth 60fps cursor movement
-      const SMOOTH = 0.22;         // EMA factor per rAF tick — lower = smoother, higher = snappier
+      let pinchFired = false;      // must RELEASE pinch before next click fires
+      let pinchHeldSince = 0;
+      const PINCH_HOLD_MS = 120;   // must hold 120ms before click — filters accidental brush
+      let cursorX = -9999, cursorY = -9999;
+      let lastLeftLm = null;
+      let cursorRafId = null;
+      const SMOOTH = 0.45;         // faster EMA — snappier, still smoothed
+      const HALF_CURSOR = 16;
 
-      // ── Smooth cursor loop decoupled from MediaPipe (runs at ~60fps) ──────────
-      // Uses transform only — compositor thread, no layout reflow
-      const HALF_CURSOR = 16; // half of 32px cursor size
+      // Track last element under cursor for hover injection
+      let _hoverEl = null;
+
+      // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
       function cursorTick() {
-        if (!gestureEnabled || !lastLeftLm || !magicCursor) { cursorRafId = requestAnimationFrame(cursorTick); return; }
+        cursorRafId = requestAnimationFrame(cursorTick);
+        if (!gestureEnabled || !lastLeftLm || !magicCursor) return;
+
         const lm = lastLeftLm;
-        // selfieMode:true already mirrors x; lm[8] = index tip
         const rawX = lm[8].x * window.innerWidth;
         const rawY = lm[8].y * window.innerHeight;
-        cursorX = cursorX === 0 ? rawX : cursorX + SMOOTH * (rawX - cursorX);
-        cursorY = cursorY === 0 ? rawY : cursorY + SMOOTH * (rawY - cursorY);
-        // translate centers the cursor on the fingertip (no layout reflow)
+
+        // Snap on first valid position, then EMA smooth
+        if (cursorX === -9999) { cursorX = rawX; cursorY = rawY; }
+        else { cursorX += SMOOTH * (rawX - cursorX); cursorY += SMOOTH * (rawY - cursorY); }
+
         magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
 
-        // Pinch: thumb tip (4) + index tip (8) — tighter threshold = intentional only
+        // ── Hover injection: fire mousemove so CSS :hover + button glows work ──
+        // Park cursor, find element, restore — same trick as click but for hover
+        magicCursor.style.transform = 'translate(-9999px,-9999px)';
+        const elUnder = document.elementFromPoint(cursorX, cursorY);
+        magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
+        if (elUnder !== _hoverEl) {
+          if (_hoverEl) _hoverEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+          _hoverEl = elUnder;
+          if (elUnder) elUnder.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        }
+        if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cursorX, clientY: cursorY }));
+
+        // ── Pinch detection ───────────────────────────────────────────────────
         const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-        const pinching = pinchDist < 0.048; // was 0.07 — tighter = no phantom clicks
+        const pinching = pinchDist < 0.046;
 
         if (pinching) {
           if (!isPinching) {
-            // Pinch just started — start hold timer, show visual but don't click yet
             isPinching = true;
+            pinchFired = false;
             pinchHeldSince = Date.now();
             magicCursor.classList.add('pinch');
           }
-          // Fire click only after sustained hold AND cooldown elapsed
-          const now = Date.now();
-          if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
-            lastClickTime = now;
-            pinchHeldSince = now; // reset so it doesn't fire again until released + re-pinched
-            // Briefly park cursor offscreen so elementFromPoint finds the real element
-            magicCursor.style.transform = 'translate(-9999px,-9999px)';
-            const el = document.elementFromPoint(cursorX, cursorY);
-            magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
-            if (el) el.click(); // single clean click — no extra PointerEvents
+          // Fire once per gesture — must release to click again
+          if (!pinchFired) {
+            const now = Date.now();
+            if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
+              pinchFired = true;
+              lastClickTime = now;
+              magicCursor.style.transform = 'translate(-9999px,-9999px)';
+              const el = document.elementFromPoint(cursorX, cursorY);
+              magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
+              if (el) el.click();
+            }
           }
         } else if (isPinching) {
           isPinching = false;
+          pinchFired = false;
           pinchHeldSince = 0;
           magicCursor.classList.remove('pinch');
         }
-        cursorRafId = requestAnimationFrame(cursorTick);
       }
 
-      // Called from onHandResults to store latest landmarks (doesn't do cursor directly)
+      // Called from onHandResults — just stores landmarks, cursor runs independently
       function updateCursorLandmarks(lm) {
         lastLeftLm = lm;
       }
@@ -2796,7 +2816,7 @@
           clapHist.length = 0;
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-          isPinching = false; lastLeftLm = null; cursorX = 0; cursorY = 0;
+          isPinching = false; pinchFired = false; lastLeftLm = null; cursorX = -9999; cursorY = -9999; _hoverEl = null;
           overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
@@ -2827,8 +2847,8 @@
         if (!leftFound) {
           // Park cursor offscreen — no display toggle = no reflow
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-          isPinching = false; pinchHeldSince = 0;
-          cursorX = 0; cursorY = 0; lastLeftLm = null;
+          isPinching = false; pinchFired = false; pinchHeldSince = 0;
+          cursorX = -9999; cursorY = -9999; lastLeftLm = null; _hoverEl = null;
         }
 
         // ── Per-hand gestures (RIGHT hand only) ──────────────────────────
@@ -2924,8 +2944,8 @@
           let _mpBusy = false;
           async function loop() {
             if (!gestureEnabled) return;
-            // Only process when: not already processing, AI is idle, video has data
-            if (!_mpBusy && !window._aiThinking && video.readyState >= 2) {
+            // Only process when: not already processing and video has data
+            if (!_mpBusy && video.readyState >= 2) {
               _mpBusy = true;
               try {
                 offCtx.drawImage(video, 0, 0, procW, procH);
@@ -2951,7 +2971,7 @@
         video.srcObject = null;
         clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
         if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-        isPinching = false; pinchHeldSince = 0; lastLeftLm = null; cursorX = 0; cursorY = 0;
+        isPinching = false; pinchFired = false; pinchHeldSince = 0; lastLeftLm = null; cursorX = -9999; cursorY = -9999; _hoverEl = null;
         _canvasSized = false; overlayCtx = null; // reset so next start re-initialises
       }
 
