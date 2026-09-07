@@ -119,7 +119,7 @@ function createOverlayWindow() {
     frame: false,
     transparent: true,
     resizable: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     skipTaskbar: false,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
@@ -131,8 +131,6 @@ function createOverlayWindow() {
     },
   });
   overlayWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-  // Allow clicks to pass through to apps beneath — gesture camera keeps running regardless of focus
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
     const allowed = ['media', 'microphone', 'audioCapture', 'geolocation'];
     callback(allowed.includes(permission));

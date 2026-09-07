@@ -3016,7 +3016,9 @@
         if (gestureEnabled) {
           toggleBtn.classList.add('active');
           panel.classList.remove('hidden');
-          // Do NOT setAlwaysOnTop — it traps user in Callisto, can't switch apps
+          // Enable click-through so Callisto stays visible over other apps
+          if (typeof window._setClickThroughMode === 'function') window._setClickThroughMode(true);
+          if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
           cursorRafId = requestAnimationFrame(cursorTick); // start 60fps cursor loop
           startGesture();
           // Quick greeting when camera turns on — no vision call, just use profile
@@ -3033,6 +3035,9 @@
         } else {
           toggleBtn.classList.remove('active');
           panel.classList.add('hidden');
+          // Restore normal window — clickable, not always on top
+          if (typeof window._setClickThroughMode === 'function') window._setClickThroughMode(false);
+          if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(false);
           if (cursorRafId) { cancelAnimationFrame(cursorRafId); cursorRafId = null; }
           lastLeftLm = null;
           stopGesture();

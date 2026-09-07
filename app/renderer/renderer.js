@@ -21,27 +21,40 @@ updateOnlineState(); // run once on load
 // Move #mainPanel to body so no ancestor overflow/stacking context clips its hit region
 ;(function() { const mp = document.getElementById('mainPanel'); if (mp) document.body.appendChild(mp); })();
 
-// ── Click-through toggle — overlay passes clicks to apps behind it,
-//    but intercepts them when the mouse is over a real Callisto element ──────
+// ── Click-through toggle — only active when gesture/magic-cursor mode is ON.
+//    When gestures are off the window stays fully clickable (normal app).
+//    When on: overlay passes clicks to apps behind it EXCEPT when mouse is over
+//    a real Callisto UI element (buttons, panels, etc).
+window._clickThroughActive = false;
 ;(function() {
   let _overUI = false;
   function isClickableEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false;
-    // Ignore the transparent canvas and magic cursor (those should pass through)
     const id = el.id || '';
     if (id === 'overlayCanvas' || id === 'magicCursor') return false;
     return true;
   }
-  document.addEventListener('mousemove', (e) => {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const overUI = isClickableEl(el);
-    if (overUI !== _overUI) {
-      _overUI = overUI;
-      if (window.jarvis && window.jarvis.setClickThrough) {
-        window.jarvis.setClickThrough(!overUI);
-      }
+  function applyClickThrough(overUI) {
+    if (!window._clickThroughActive) return; // gesture mode off — never pass through
+    if (overUI === _overUI) return;
+    _overUI = overUI;
+    if (window.jarvis && window.jarvis.setClickThrough) {
+      window.jarvis.setClickThrough(!overUI);
     }
+  }
+  document.addEventListener('mousemove', (e) => {
+    if (!window._clickThroughActive) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    applyClickThrough(isClickableEl(el));
   }, { passive: true });
+  // Exported so gesture-enable/disable code can call this
+  window._setClickThroughMode = (enabled) => {
+    window._clickThroughActive = enabled;
+    if (!enabled) {
+      _overUI = false;
+      if (window.jarvis && window.jarvis.setClickThrough) window.jarvis.setClickThrough(false);
+    }
+  };
 })();
 
 const splash = document.getElementById('splash');
