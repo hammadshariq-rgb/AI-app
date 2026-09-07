@@ -3762,15 +3762,20 @@ document.getElementById('payCheckBtn').addEventListener('click', checkPaymentSta
 
 // ===================== SPLASH / MAIN =====================
 async function showSplash(name) {
-  splashName.textContent = (name || 'YOUR AI').toUpperCase();
-  splashStatus.textContent = 'Initializing systems...';
-  splash.classList.remove('hidden');
-  await new Promise(r => setTimeout(r, 500));
-  splashStatus.textContent = 'Loading neural interface...';
-  await new Promise(r => setTimeout(r, 600));
-  splashStatus.textContent = 'Systems online.';
-  await new Promise(r => setTimeout(r, 500));
-  splash.classList.add('hidden');
+  try {
+    splashName.textContent = (name || 'YOUR AI').toUpperCase();
+    splashStatus.textContent = 'Initializing systems...';
+    splash.classList.remove('hidden');
+    await new Promise(r => setTimeout(r, 500));
+    splashStatus.textContent = 'Loading neural interface...';
+    await new Promise(r => setTimeout(r, 600));
+    splashStatus.textContent = 'Systems online.';
+    await new Promise(r => setTimeout(r, 500));
+    splash.classList.add('hidden');
+  } catch(e) {
+    // Never let a splash error block app entry
+    try { splash.classList.add('hidden'); } catch(_) {}
+  }
 }
 
 async function enterMain(skipWelcome = false, returningUser = false) {
@@ -5503,15 +5508,22 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   setupView.classList.add('hidden');
   cardPanel.classList.add('hidden');
   historySidebar.classList.add('hidden');
-  splash.classList.add('hidden');
 
-  // Check auth token
-  const authResult = await window.jarvis.authVerify();
+  // Show splash IMMEDIATELY — user sees animation while auth check runs in background
+  const splashName = storedProfile?.name || name || 'Your AI';
+  const splashPromise = showSplash(splashName);
+
+  // Auth check runs in parallel with splash animation (max 5s before treating as offline)
+  const authPromise = Promise.race([
+    window.jarvis.authVerify(),
+    new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 5000))
+  ]);
+
+  const [, authResult] = await Promise.all([splashPromise, authPromise]);
 
   if (authResult.offline) {
     // Server unreachable — only allow in if they previously had an active subscription
     if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
-      await showSplash(storedProfile.name);
       await enterMain(true, _isReturningUser);
     } else {
       setupView.classList.remove('hidden');
@@ -5523,10 +5535,8 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   if (authResult.needsLogin) {
     setupView.classList.remove('hidden');
     if (authResult.reason === 'inactive') {
-      // 7-day inactivity — show re-login
       showReloginStep('You\'ve been away for a while. Please log in to continue.');
     } else {
-      // First time or returning without token — always show auth first
       showAuthStep();
       setAuthMode('signup');
     }
@@ -5543,7 +5553,6 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
     wasSubscribed: storedProfile?.wasSubscribed || false,
   };
   if (authResult.active) {
-    await showSplash(displayName);
     // First-ever launch → show onboarding instead of jumping straight to main
     if (!_isReturningUser && shouldShowOnboarding()) {
       setupView.classList.add('hidden');
