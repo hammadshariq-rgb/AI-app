@@ -928,7 +928,8 @@ const BROWSER_HEADERS = {
   'Accept-Encoding': 'identity',
 };
 
-const SPORTS_REGEX = /\b(score|scoreline|result|match|game|vs\.?|versus|goal|goals|won|beat|cricket|football|soccer|basketball|tennis|f1|formula.?1|nba|nfl|premier.?league|champions.?league|world.?cup|wicket|century|innings|odi|test.?match|t20|grand.?slam|motm|man of the match|next match|upcoming)\b/i;
+// Matches bare "X vs Y" queries (e.g. "argentina vs spain") plus keyword-based sports queries
+const SPORTS_REGEX = /\b(score|scoreline|result|match|game|vs\.?|versus|against|goal|goals|won|beat|cricket|football|soccer|basketball|tennis|f1|formula.?1|nba|nfl|premier.?league|champions.?league|world.?cup|wicket|century|innings|odi|test.?match|t20|grand.?slam|motm|man of the match|next match|upcoming|full.?time|half.?time|kick.?off)\b/i;
 
 // ESPN — search across recent dates for any sport/league
 async function espnFindMatch(query, sport, league) {
@@ -1024,114 +1025,127 @@ async function espnFindMatch(query, sport, league) {
   return null;
 }
 
+// ESPN — search across all leagues, ±7 days of dates, international matches included
 async function espnSportsSearch(query) {
   const leagues = [
+    // International / World Cup
     ['soccer', 'fifa.world'],
-    ['soccer', 'uefa.champions'],
-    ['soccer', 'uefa.euro'],
-    ['soccer', 'eng.1'],
-    ['soccer', 'esp.1'],
-    ['soccer', 'ger.1'],
-    ['soccer', 'ita.1'],
-    ['soccer', 'fra.1'],
-    ['basketball', 'nba'],
-    ['football', 'nfl'],
-    ['baseball', 'mlb'],
-    ['hockey', 'nhl'],
-  ];
-  for (const [sport, league] of leagues) {
-    const result = await espnFindMatch(query, sport, league);
-    if (result) return result;
-  }
-  return null;
-}
-
-// ESPN — search across all relevant leagues including World Cup
-async function espnSportsSearch(query) {
-  const leagues = [
-    ['soccer', 'fifa.world'],       // FIFA World Cup 2026
+    ['soccer', 'fifa.worldq.conmebol'],
     ['soccer', 'fifa.worldq.concacaf'],
     ['soccer', 'fifa.worldq.uefa'],
+    ['soccer', 'fifa.worldq.afc'],
+    ['soccer', 'fifa.worldq.caf'],
+    ['soccer', 'conmebol.copa'],       // Copa America
+    ['soccer', 'concacaf.nations.league'],
+    ['soccer', 'uefa.nations'],        // UEFA Nations League
+    ['soccer', 'international.friendly'],
+    // Club competitions
     ['soccer', 'uefa.champions'],
-    ['soccer', 'uefa.euro'],
-    ['soccer', 'eng.1'],            // Premier League
-    ['soccer', 'esp.1'],            // La Liga
-    ['soccer', 'ger.1'],            // Bundesliga
-    ['soccer', 'ita.1'],            // Serie A
-    ['soccer', 'fra.1'],            // Ligue 1
+    ['soccer', 'uefa.europa'],
+    ['soccer', 'eng.1'],               // Premier League
+    ['soccer', 'esp.1'],               // La Liga
+    ['soccer', 'ger.1'],               // Bundesliga
+    ['soccer', 'ita.1'],               // Serie A
+    ['soccer', 'fra.1'],               // Ligue 1
+    ['soccer', 'por.1'],               // Primeira Liga
+    ['soccer', 'usa.1'],               // MLS
     ['basketball', 'nba'],
     ['football', 'nfl'],
     ['baseball', 'mlb'],
     ['hockey', 'nhl'],
     ['cricket', 'icc.cricket_test'],
+    ['cricket', 'icc.cricket_odi'],
   ];
 
+  // Parse team names from "X vs Y" format
   const vsMatch = query.match(/(.+?)\s+(?:vs?\.?|versus|against)\s+(.+)/i);
   const words = vsMatch
     ? [vsMatch[1].trim().toLowerCase(), vsMatch[2].trim().toLowerCase()]
     : query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
 
+  // Build date strings: today ± 7 days
+  const dates = [];
+  for (let d = -7; d <= 7; d++) {
+    const dt = new Date(); dt.setDate(dt.getDate() + d);
+    dates.push(dt.toISOString().slice(0, 10).replace(/-/g, ''));
+  }
+
+  function parseEvent(ev, sport, league, leagueName) {
+    const comps = ev.competitions?.[0];
+    if (!comps) return null;
+    const teamNames = comps.competitors?.map(c => c.team.displayName.toLowerCase()) || [];
+    const matchesQuery = words.every(w =>
+      teamNames.some(t => t.includes(w.slice(0, 5)) || w.slice(0, 5).includes(t.slice(0, 5)))
+    );
+    if (!matchesQuery) return null;
+
+    const completed  = ev.status?.type?.completed === true;
+    const inProgress = ev.status?.type?.type === 'STATUS_IN_PROGRESS';
+    const scheduled  = !completed && !inProgress;
+    const home = comps.competitors?.find(c => c.homeAway === 'home') || comps.competitors?.[0];
+    const away = comps.competitors?.find(c => c.homeAway === 'away') || comps.competitors?.[1];
+    const score1 = scheduled ? '–' : (home?.score ?? '0');
+    const score2 = scheduled ? '–' : (away?.score ?? '0');
+    const statusLabel = scheduled
+      ? `Upcoming — ${new Date(comps.date).toDateString()}`
+      : inProgress ? `LIVE — ${ev.status?.displayClock || ''}`
+      : 'Full Time';
+    const scorers = [];
+    (comps.details || []).forEach(d => {
+      if (/goal|touchdown|score|basket/i.test(d.type?.text || '')) {
+        const player = d.athletesInvolved?.[0]?.displayName || '';
+        const clock  = d.clock?.displayValue || '';
+        if (player) scorers.push({ team: d.team?.displayName || '', detail: `${player} ${clock}`.trim() });
+      }
+    });
+    return {
+      type: 'sports',
+      team1: home?.team?.displayName || '',
+      score1: String(score1),
+      score2: String(score2),
+      team2: away?.team?.displayName || '',
+      logo1: home?.team?.logos?.[0]?.href || home?.team?.logo || null,
+      logo2: away?.team?.logos?.[0]?.href || away?.team?.logo || null,
+      league: leagueName || league,
+      date: comps.date?.slice(0, 10) || '',
+      venue: comps.venue?.fullName || '',
+      status: statusLabel,
+      scorers,
+      headline: scheduled
+        ? `${home?.team?.displayName} vs ${away?.team?.displayName} — Upcoming`
+        : `${home?.team?.displayName} ${score1} – ${score2} ${away?.team?.displayName}`,
+      source: 'ESPN',
+      sourceUrl: `https://www.espn.com/${sport}/game/_/gameId/${ev.id}`,
+    };
+  }
+
   for (const [sport, league] of leagues) {
+    // First try today's live scoreboard (fastest, no date param)
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
-      const res = await fetch(url, { timeout: 6000 });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const events = data?.events || [];
-
-      for (const ev of events) {
-        const comps = ev.competitions?.[0];
-        if (!comps) continue;
-        const teamNames = comps.competitors?.map(c => c.team.displayName.toLowerCase()) || [];
-        const matchesQuery = words.every(w => teamNames.some(t => t.includes(w.slice(0, 5)) || w.includes(t.slice(0, 5))));
-        if (!matchesQuery) continue;
-
-        const completed = ev.status?.type?.completed === true;
-        const inProgress = ev.status?.type?.type === 'STATUS_IN_PROGRESS';
-        const scheduled = !completed && !inProgress;
-
-        const home = comps.competitors?.find(c => c.homeAway === 'home');
-        const away = comps.competitors?.find(c => c.homeAway === 'away');
-
-        const score1 = scheduled ? '–' : (home?.score ?? '0');
-        const score2 = scheduled ? '–' : (away?.score ?? '0');
-
-        let statusLabel = scheduled
-          ? `Upcoming — ${new Date(comps.date).toUTCString()}`
-          : inProgress ? `LIVE — ${ev.status?.displayClock || ''}`
-          : 'Full Time';
-
-        const scorers = [];
-        (comps.details || []).forEach(d => {
-          const typeText = d.type?.text || '';
-          if (/goal|touchdown|score|basket/i.test(typeText)) {
-            const player = d.athletesInvolved?.[0]?.displayName || '';
-            const clock = d.clock?.displayValue || '';
-            if (player) scorers.push({ team: d.team?.displayName || '', detail: `${player} ${clock}`.trim() });
-          }
-        });
-
-        return {
-          type: 'sports',
-          team1: home?.team?.displayName || '',
-          score1: String(score1),
-          score2: String(score2),
-          team2: away?.team?.displayName || '',
-          logo1: home?.team?.logo || home?.team?.logos?.[0]?.href || home?.team?.logoDark || null,
-          logo2: away?.team?.logo || away?.team?.logos?.[0]?.href || away?.team?.logoDark || null,
-          league: data.leagues?.[0]?.name || league,
-          date: comps.date?.slice(0, 10) || '',
-          venue: comps.venue?.fullName || '',
-          status: statusLabel,
-          scorers,
-          headline: scheduled
-            ? `${home?.team?.displayName} vs ${away?.team?.displayName} — Not started yet`
-            : `${home?.team?.displayName} ${score1} - ${score2} ${away?.team?.displayName}`,
-          source: 'ESPN',
-          sourceUrl: `https://www.espn.com/${sport}/game/_/gameId/${ev.id}`,
-        };
+      const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`, { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const data = await res.json();
+        const leagueName = data.leagues?.[0]?.name;
+        for (const ev of (data.events || [])) {
+          const card = parseEvent(ev, sport, league, leagueName);
+          if (card) return card;
+        }
       }
     } catch (_) {}
+
+    // Then search ±7 days
+    for (const dateStr of dates) {
+      try {
+        const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${dateStr}`, { signal: AbortSignal.timeout(3000) });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const leagueName = data.leagues?.[0]?.name;
+        for (const ev of (data.events || [])) {
+          const card = parseEvent(ev, sport, league, leagueName);
+          if (card) return card;
+        }
+      } catch (_) { continue; }
+    }
   }
   return null;
 }

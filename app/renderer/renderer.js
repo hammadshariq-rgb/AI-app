@@ -1232,6 +1232,18 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // ── Google search: "search X on google" / "google X" ────────────────────
+  const googleM = t.match(/^(?:search|google|look up|find)\s+(.+?)\s+on\s+google\s*$/i)
+               || t.match(/^google\s+(.+)/i)
+               || t.match(/^search\s+(.+?)\s+(?:on\s+)?google\s*$/i);
+  if (googleM) {
+    const query = googleM[1].trim();
+    addMessage('assistant', `🔍 Searching Google for **${query}**…`);
+    window.jarvis.speak(`Searching Google for ${query}.`);
+    window.jarvis.openUrl(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
+    return true;
+  }
+
   // ── Google Calendar: "add X to my calendar on DATE" ─────────────────────
   const calM = t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?(?:google\s+)?calendar(?:\s+on\s+(.+))?/i)
              || t.match(/(?:schedule|set up|create)\s+(.+?)\s+(?:on\s+)?(?:my\s+)?(?:google\s+)?calendar(?:\s+for\s+(.+))?/i);
@@ -2718,6 +2730,11 @@ async function sendToJarvis(text) {
   // Show card if returned
   if (res.card) showCard(res.card);
   else cardPanel.classList.add('hidden');
+
+  // Sports fallback: open Google in the in-app browser panel
+  if (res.browserPanelUrl && typeof openBrowserPanel === 'function') {
+    openBrowserPanel(res.browserPanelUrl, 'Google Search', '🔍');
+  }
 
   if (res.audio) {
     playAudioChunks(Array.isArray(res.audio) ? res.audio : [res.audio]);

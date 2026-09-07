@@ -1041,12 +1041,11 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       return { text: spokenText, audio: null, card: cardData, hasAction: false };
     }
 
-    // No card found — fall back to Google
-    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(message)}`;
-    commands.run('open_url', googleUrl).catch(() => {});
-    const spokenText = 'I\'ve opened Google so you can see the latest result.';
+    // No card found — open Google search in the in-app browser panel
+    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(message + ' score result')}`;
+    const spokenText = `I couldn't find live data for that match. Opening Google search for you now.`;
     _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: true };
+    return { text: spokenText, audio: null, card: null, browserPanelUrl: googleUrl, hasAction: true };
   }
 
   // Person/celebrity/historical figure query — fetch Wikipedia card first
