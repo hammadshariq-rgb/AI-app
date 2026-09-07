@@ -2587,8 +2587,10 @@
       let cursorX = -9999, cursorY = -9999;
       let lastLeftLm = null;
       let cursorRafId = null;
-      const SMOOTH = 0.60;         // high EMA — near-instant cursor tracking
+      const SMOOTH = 0.78;         // high EMA — near-instant cursor tracking
+      const SMOOTH_VEL = 0.55;     // velocity EMA for predictive lead
       const HALF_CURSOR = 16;
+      let velX = 0, velY = 0;      // running velocity for cursor prediction
 
       // Track last element for hover — NO offscreen trick needed (cursor is pointer-events:none)
       let _hoverEl = null;
@@ -2602,9 +2604,15 @@
         const rawX = lm[8].x * window.innerWidth;
         const rawY = lm[8].y * window.innerHeight;
 
-        // Snap on first valid position, then EMA smooth
-        if (cursorX === -9999) { cursorX = rawX; cursorY = rawY; }
-        else { cursorX += SMOOTH * (rawX - cursorX); cursorY += SMOOTH * (rawY - cursorY); }
+        // Snap on first valid position, then EMA smooth + velocity prediction
+        if (cursorX === -9999) { cursorX = rawX; cursorY = rawY; velX = 0; velY = 0; }
+        else {
+          const dx = rawX - cursorX, dy = rawY - cursorY;
+          velX += SMOOTH_VEL * (dx - velX);
+          velY += SMOOTH_VEL * (dy - velY);
+          cursorX += SMOOTH * (rawX + velX * 0.18 - cursorX);
+          cursorY += SMOOTH * (rawY + velY * 0.18 - cursorY);
+        }
 
         // ONE transform per frame — no offscreen flicker
         magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
@@ -2715,18 +2723,26 @@
         return flips >= WAVE_FLIPS;
       }
 
-      // ── Clap: both wrists suddenly very close together ───────────────────────
+      // ── Clap: both palms rapidly approach then reach close proximity ─────────
+      // Uses a short 6-frame window so it fires within ~300ms at 20fps.
+      // Condition: distance drops sharply (velocity > threshold) AND ends close.
       const clapHist = [];
-      const CLAP_WIN = 10, CLAP_NEAR = 0.15, CLAP_FAR = 0.34;
+      const CLAP_WIN = 6;
+      const CLAP_NEAR = 0.18;       // palms must end up this close (normalised coords)
+      const CLAP_DROP = 0.14;       // total distance drop across the window
+      const CLAP_SPEED = 0.022;     // avg per-frame approach speed
       function checkClap(lms) {
         if (lms.length < 2) { clapHist.length = 0; return false; }
-        const d = Math.hypot(lms[0][0].x - lms[1][0].x, lms[0][0].y - lms[1][0].y);
+        // Use index finger MCP (landmark 5) — more reliable centre of palm than wrist
+        const d = Math.hypot(lms[0][5].x - lms[1][5].x, lms[0][5].y - lms[1][5].y);
         clapHist.push(d);
         if (clapHist.length > CLAP_WIN) clapHist.shift();
         if (clapHist.length < CLAP_WIN) return false;
-        const first = clapHist.slice(0,4).reduce((a,b)=>a+b,0)/4;
-        const last  = clapHist.slice(-4).reduce((a,b)=>a+b,0)/4;
-        return last < CLAP_NEAR && first > CLAP_FAR;
+        const first = clapHist[0];
+        const last  = clapHist[clapHist.length - 1];
+        const drop  = first - last;                          // positive = hands moved together
+        const speed = drop / CLAP_WIN;
+        return last < CLAP_NEAR && drop > CLAP_DROP && speed > CLAP_SPEED;
       }
 
       // ── UI feedback ─────────────────────────────────────────────────────────

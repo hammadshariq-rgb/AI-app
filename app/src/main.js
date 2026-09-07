@@ -119,7 +119,7 @@ function createOverlayWindow() {
     frame: false,
     transparent: true,
     resizable: false,
-    alwaysOnTop: false,
+    alwaysOnTop: true,
     skipTaskbar: false,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
@@ -131,6 +131,8 @@ function createOverlayWindow() {
     },
   });
   overlayWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // Allow clicks to pass through to apps beneath — gesture camera keeps running regardless of focus
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
     const allowed = ['media', 'microphone', 'audioCapture', 'geolocation'];
     callback(allowed.includes(permission));
@@ -682,6 +684,11 @@ ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
 ipcMain.handle('app:quit', () => { app.quit(); });
 ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(!!flag); });
+// Toggle click-through: pass false when user hovers a Callisto element, true otherwise
+ipcMain.handle('app:setClickThrough', (_e, flag) => {
+  if (overlayWindow && !overlayWindow.isDestroyed())
+    overlayWindow.setIgnoreMouseEvents(!!flag, { forward: true });
+});
 ipcMain.handle('app:setUserLocation', (_e, loc) => { store.set('userLocation', loc); });
 ipcMain.handle('app:focusWindow', () => { if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.show(); overlayWindow.focus(); } });
 

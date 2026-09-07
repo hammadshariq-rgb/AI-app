@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Quit app (used by gesture — clap = clear + quit)
   quitApp:       () => ipcRenderer.invoke('app:quit'),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
+  setClickThrough:  (flag) => ipcRenderer.invoke('app:setClickThrough', flag),
   setUserLocation:  (loc)  => ipcRenderer.invoke('app:setUserLocation', loc),
   focusWindow:   () => ipcRenderer.invoke('app:focusWindow'),
   // HiggsField

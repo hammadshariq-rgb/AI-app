@@ -21,6 +21,29 @@ updateOnlineState(); // run once on load
 // Move #mainPanel to body so no ancestor overflow/stacking context clips its hit region
 ;(function() { const mp = document.getElementById('mainPanel'); if (mp) document.body.appendChild(mp); })();
 
+// ── Click-through toggle — overlay passes clicks to apps behind it,
+//    but intercepts them when the mouse is over a real Callisto element ──────
+;(function() {
+  let _overUI = false;
+  function isClickableEl(el) {
+    if (!el || el === document.body || el === document.documentElement) return false;
+    // Ignore the transparent canvas and magic cursor (those should pass through)
+    const id = el.id || '';
+    if (id === 'overlayCanvas' || id === 'magicCursor') return false;
+    return true;
+  }
+  document.addEventListener('mousemove', (e) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const overUI = isClickableEl(el);
+    if (overUI !== _overUI) {
+      _overUI = overUI;
+      if (window.jarvis && window.jarvis.setClickThrough) {
+        window.jarvis.setClickThrough(!overUI);
+      }
+    }
+  }, { passive: true });
+})();
+
 const splash = document.getElementById('splash');
 const splashName = document.getElementById('splashName');
 const splashStatus = document.getElementById('splashStatus');
@@ -1244,6 +1267,40 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // ── Google Calendar: "what's on my calendar" / "show my schedule" ───────
+  if (/(?:what(?:'s|\s+is)\s+on\s+my\s+calendar|show\s+my\s+(?:calendar|schedule|events?)|my\s+(?:calendar|schedule|events?)\s+today|upcoming\s+events?)/i.test(t)) {
+    addMessage('assistant', '📅 Checking your calendar…');
+    (async () => {
+      const res = await window.jarvis.calendarList();
+      if (res && res.error) {
+        const msg = res.error.includes('not connected')
+          ? 'Your Google Calendar isn\'t connected yet. Go to Settings → Connectors to link it.'
+          : 'I had trouble reading your calendar. Please try again.';
+        addMessage('assistant', `❌ ${msg}`);
+        window.jarvis.speak(msg);
+        return;
+      }
+      const events = (res && res.events) ? res.events.slice(0, 10) : (Array.isArray(res) ? res.slice(0, 10) : []);
+      if (events.length === 0) {
+        const msg = 'You have no upcoming events.';
+        addMessage('assistant', `📅 ${msg}`);
+        window.jarvis.speak(msg);
+        return;
+      }
+      // Build spoken summary
+      const first = events.slice(0, 3).map(e => {
+        const d = new Date(e.start);
+        return `${e.title} on ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      }).join(', ');
+      const spoken = `You have ${events.length} upcoming event${events.length > 1 ? 's' : ''}. ${first}${events.length > 3 ? `, and ${events.length - 3} more` : ''}.`;
+      window.jarvis.speak(spoken);
+      // Show card
+      showCard({ type: 'calendar', events });
+      addMessage('assistant', `📅 Here are your upcoming events.`);
+    })();
+    return true;
+  }
+
   // ── Google Calendar: "add X to my calendar on DATE" ─────────────────────
   const calM = t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?(?:google\s+)?calendar(?:\s+on\s+(.+))?/i)
              || t.match(/(?:schedule|set up|create)\s+(.+?)\s+(?:on\s+)?(?:my\s+)?(?:google\s+)?calendar(?:\s+for\s+(.+))?/i);
@@ -1257,9 +1314,30 @@ window._checkQuickLaunch = async function(text) {
       if (!isNaN(parsed)) { start = parsed; start.setHours(10,0,0,0); }
     }
     const end = new Date(start.getTime() + 60*60*1000); // 1 hour
-    addMessage('assistant', `📅 Adding **${title}** to your Google Calendar${dateStr ? ` on ${dateStr}` : ''}…`);
-    window.jarvis.speak(`I've added ${title} to your Google Calendar.`);
-    window.jarvis.addCalendarEvent({ title, startISO: start.toISOString(), endISO: end.toISOString(), details: `Added by Callisto` });
+    addMessage('assistant', `📅 Adding **${title}** to your calendar${dateStr ? ` on ${dateStr}` : ''}…`);
+    (async () => {
+      // 1) Add to in-app planner (always works, no connection needed)
+      await window.jarvis.reminderAdd({ text: title, datetime: start.getTime(), earlyMinutes: 10 }).catch(() => {});
+      if (typeof window.rpRefresh === 'function') window.rpRefresh();
+
+      // 2) Add to Google Calendar if connected (no browser switch)
+      let googleOk = false;
+      try {
+        const result = await window.jarvis.calendarAdd({
+          title,
+          date: start.toISOString().split('T')[0],
+          time: start.toTimeString().slice(0, 5),
+          duration: 60,
+          description: 'Added by Callisto'
+        });
+        googleOk = result && result.ok;
+      } catch (_) {}
+
+      const where = googleOk ? 'your in-app planner and Google Calendar' : 'your in-app planner';
+      const msg = `**${title}** added to ${where}${dateStr ? ` on ${dateStr}` : ''}.`;
+      addMessage('assistant', `✅ ${msg}`);
+      window.jarvis.speak(`Done — ${title} added to ${googleOk ? 'your calendar and Google Calendar' : 'your planner'}.`);
+    })();
     return true;
   }
 
