@@ -2587,10 +2587,10 @@
       let cursorX = -9999, cursorY = -9999;
       let lastLeftLm = null;
       let cursorRafId = null;
-      const SMOOTH = 0.45;         // faster EMA — snappier, still smoothed
+      const SMOOTH = 0.60;         // high EMA — near-instant cursor tracking
       const HALF_CURSOR = 16;
 
-      // Track last element under cursor for hover injection
+      // Track last element for hover — NO offscreen trick needed (cursor is pointer-events:none)
       let _hoverEl = null;
 
       // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
@@ -2606,13 +2606,11 @@
         if (cursorX === -9999) { cursorX = rawX; cursorY = rawY; }
         else { cursorX += SMOOTH * (rawX - cursorX); cursorY += SMOOTH * (rawY - cursorY); }
 
+        // ONE transform per frame — no offscreen flicker
         magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
 
-        // ── Hover injection: fire mousemove so CSS :hover + button glows work ──
-        // Park cursor, find element, restore — same trick as click but for hover
-        magicCursor.style.transform = 'translate(-9999px,-9999px)';
+        // ── Hover injection — cursor is pointer-events:none so elementFromPoint skips it ──
         const elUnder = document.elementFromPoint(cursorX, cursorY);
-        magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
         if (elUnder !== _hoverEl) {
           if (_hoverEl) _hoverEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
           _hoverEl = elUnder;
@@ -2631,15 +2629,14 @@
             pinchHeldSince = Date.now();
             magicCursor.classList.add('pinch');
           }
-          // Fire once per gesture — must release to click again
+          // Fire once per gesture — must release to click again (no phantom repeats)
           if (!pinchFired) {
             const now = Date.now();
             if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
               pinchFired = true;
               lastClickTime = now;
-              magicCursor.style.transform = 'translate(-9999px,-9999px)';
+              // No offscreen move — cursor is pointer-events:none, el.click() works directly
               const el = document.elementFromPoint(cursorX, cursorY);
-              magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
               if (el) el.click();
             }
           }
@@ -2942,18 +2939,29 @@
           handsModel.onResults(onHandResults);
 
           let _mpBusy = false;
+          let _mpBusySince = 0;
           async function loop() {
             if (!gestureEnabled) return;
-            // Only process when: not already processing and video has data
+            // Safety: if _mpBusy stuck for >400ms, force-reset (prevents skeleton freeze)
+            if (_mpBusy && Date.now() - _mpBusySince > 400) {
+              _mpBusy = false;
+              // Clear stale skeleton so it doesn't freeze on screen
+              if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
             if (!_mpBusy && video.readyState >= 2) {
               _mpBusy = true;
+              _mpBusySince = Date.now();
               try {
                 offCtx.drawImage(video, 0, 0, procW, procH);
                 await handsModel.send({ image: offscreen });
-              } catch {}
-              _mpBusy = false;
+              } catch(e) {
+                // On error, clear skeleton so it doesn't freeze
+                if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+              } finally {
+                _mpBusy = false;
+              }
             }
-            rafId = setTimeout(loop, 50); // ~20fps for gesture recognition — better responsiveness
+            rafId = setTimeout(loop, 50); // 20fps gesture recognition
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';

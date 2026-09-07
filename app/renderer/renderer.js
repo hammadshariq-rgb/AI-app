@@ -1088,7 +1088,8 @@ async function finLoad() {
 }
 
 // ===================== MARKETS OVERLAY =====================
-let marketsOverlayOpen = false;
+// Use window.* so index.html wave gesture code can read these
+window.marketsOverlayOpen = false;
 let marketsIdx = 0;
 
 function moSparkline(closes, positive) {
@@ -1146,17 +1147,16 @@ function moRenderCard(idx) {
 
 function showMarketsOverlay() {
   if (!finPortfolio.length) {
-    // No stocks yet
-    addMessage('assistant', "You don't have any stocks in your portfolio yet. Search for a stock and add it first!");
+    if (typeof addMessage === 'function') addMessage('assistant', "You don't have any stocks in your portfolio yet. Add one by saying "show me Apple stock" and clicking Add to Portfolio.");
     return;
   }
-  marketsOverlayOpen = true;
+  window.marketsOverlayOpen = true;
   moRenderCard(marketsIdx);
   document.getElementById('marketsOverlay').classList.add('mo-open');
 }
 
 function closeMarketsOverlay() {
-  marketsOverlayOpen = false;
+  window.marketsOverlayOpen = false;
   document.getElementById('marketsOverlay').classList.remove('mo-open');
 }
 
@@ -1184,6 +1184,76 @@ window._checkMarketsOverlay = async function(text) {
   showMarketsOverlay();
   return true;
 };
+
+// ===================== QUICK-LAUNCH COMMANDS =====================
+// Spotify, YouTube, Instagram, WhatsApp, Google Calendar
+window._checkQuickLaunch = async function(text) {
+  const t = text.trim();
+
+  // ── Spotify: "play X on spotify" / "play X" ──────────────────────────────
+  const spotifyM = t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i);
+  if (spotifyM) {
+    const query = spotifyM[1].trim();
+    addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
+    window.jarvis.speak(`Playing ${query} on Spotify.`);
+    // Try native app first, fallback to web player search
+    window.jarvis.openUrl(`spotify:search:${encodeURIComponent(query)}`);
+    setTimeout(() => window.jarvis.openUrl(`https://open.spotify.com/search/${encodeURIComponent(query)}`), 1200);
+    return true;
+  }
+
+  // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
+  const ytM = t.match(/play\s+(.+?)\s+on\s+(?:youtube|yt)\b/i)
+            || t.match(/(?:open|search)\s+youtube\s+(?:for\s+)?(.+)/i)
+            || t.match(/^youtube\s+(.+)/i);
+  if (ytM) {
+    const query = ytM[1].trim();
+    addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
+    window.jarvis.speak(`Opening ${query} on YouTube.`);
+    window.jarvis.openUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+    return true;
+  }
+
+  // ── Instagram: must say "open instagram" explicitly ──────────────────────
+  if (/^open\s+instagram\s*$/i.test(t) || /^launch\s+instagram\s*$/i.test(t)) {
+    addMessage('assistant', `📸 Opening Instagram…`);
+    window.jarvis.speak('Opening Instagram.');
+    window.jarvis.openUrl('instagram://app');
+    setTimeout(() => window.jarvis.openUrl('https://www.instagram.com'), 1000);
+    return true;
+  }
+
+  // ── WhatsApp: must say "open whatsapp" explicitly ─────────────────────────
+  if (/^open\s+whatsapp\s*$/i.test(t) || /^launch\s+whatsapp\s*$/i.test(t)) {
+    addMessage('assistant', `💬 Opening WhatsApp…`);
+    window.jarvis.speak('Opening WhatsApp.');
+    window.jarvis.openUrl('whatsapp://');
+    setTimeout(() => window.jarvis.openUrl('https://web.whatsapp.com'), 1000);
+    return true;
+  }
+
+  // ── Google Calendar: "add X to my calendar on DATE" ─────────────────────
+  const calM = t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?(?:google\s+)?calendar(?:\s+on\s+(.+))?/i)
+             || t.match(/(?:schedule|set up|create)\s+(.+?)\s+(?:on\s+)?(?:my\s+)?(?:google\s+)?calendar(?:\s+for\s+(.+))?/i);
+  if (calM) {
+    const title = calM[1].trim();
+    const dateStr = calM[2] ? calM[2].trim() : '';
+    // Parse date — try natural language, fallback to tomorrow
+    let start = new Date(); start.setDate(start.getDate() + 1); start.setHours(10,0,0,0);
+    if (dateStr) {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed)) { start = parsed; start.setHours(10,0,0,0); }
+    }
+    const end = new Date(start.getTime() + 60*60*1000); // 1 hour
+    addMessage('assistant', `📅 Adding **${title}** to your Google Calendar${dateStr ? ` on ${dateStr}` : ''}…`);
+    window.jarvis.speak(`I've added ${title} to your Google Calendar.`);
+    window.jarvis.addCalendarEvent({ title, startISO: start.toISOString(), endISO: end.toISOString(), details: `Added by Callisto` });
+    return true;
+  }
+
+  return false;
+};
+// ================================================================
 
 // ===================== DOCK MAGNIFY (scroll + neighbor effect) =====================
 (function initDock() {
@@ -2395,6 +2465,11 @@ async function sendToJarvis(text) {
   // Check markets overlay command
   if (typeof window._checkMarketsOverlay === 'function') {
     const handled = await window._checkMarketsOverlay(text);
+    if (handled) return;
+  }
+  // Check quick-launch commands (Spotify, YouTube, Instagram, WhatsApp, Calendar)
+  if (typeof window._checkQuickLaunch === 'function') {
+    const handled = await window._checkQuickLaunch(text);
     if (handled) return;
   }
   // Check creative (painting / 3D model) — may short-circuit the AI call

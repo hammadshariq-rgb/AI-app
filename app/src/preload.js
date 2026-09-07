@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
+  addCalendarEvent: (d) => ipcRenderer.invoke('jarvis:addCalendarEvent', d),
   openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),

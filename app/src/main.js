@@ -860,6 +860,26 @@ ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
   return { ok: true, path: filePath };
 });
 
+// ── Open external apps / URLs ──────────────────────────────────────────────
+ipcMain.handle('jarvis:openExternal', async (_e, url) => {
+  await shell.openExternal(url);
+  return { ok: true };
+});
+
+// ── Google Calendar — add event ────────────────────────────────────────────
+ipcMain.handle('jarvis:addCalendarEvent', async (_e, { title, startISO, endISO, details }) => {
+  // Build Google Calendar "create event" URL with pre-filled fields
+  const fmt = iso => iso ? iso.replace(/[-:]/g, '').replace('.000Z','Z') : '';
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title || 'New Event',
+    details: details || '',
+    dates: `${fmt(startISO)}/${fmt(endISO || startISO)}`,
+  });
+  await shell.openExternal(`https://calendar.google.com/calendar/render?${params}`);
+  return { ok: true };
+});
+
 ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content }) => {
   const { clipboard } = require('electron');
   clipboard.writeText(`${title}\n\n${content}`);
@@ -1840,7 +1860,7 @@ ipcMain.handle('jarvis:hide', () => {
   if (overlayWindow) overlayWindow.hide();
 });
 
-const ALLOWED_URL_SCHEMES = /^(https?|mailto|whatsapp|tg|viber|facetime|tel):/i;
+const ALLOWED_URL_SCHEMES = /^(https?|mailto|whatsapp|tg|viber|facetime|tel|spotify|instagram):/i;
 ipcMain.handle('jarvis:openUrl', (_e, url) => {
   if (typeof url !== 'string') return;
   if (/^https?:/i.test(url)) { commands.openInChrome(url); return; }
