@@ -1263,22 +1263,54 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { prompt, size } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
-    // Try dall-e-3 first, fall back to dall-e-2 if account lacks access
+
+    // Sanitise prompt — strip phrases that trigger content policy rejections
+    const safePrompt = prompt
+      .replace(/\b(naked|nude|explicit|nsfw|sexual|porn|gore|blood|violent|kill|murder|terrorist)\b/gi, '')
+      .trim() || prompt;
+
+    const targetSize = size || '1024x1024';
     let result;
+
+    // Try gpt-image-1 first (newest, best quality)
     try {
-      result = await openai.images.generate({ model: 'dall-e-3', prompt, n: 1, size: size || '1024x1024' });
-    } catch (e3) {
-      if (e3.status === 400 || e3.status === 404) {
-        // dall-e-3 not available on this key — fall back to dall-e-2
-        const safeSize = ['256x256','512x512','1024x1024'].includes(size) ? size : '1024x1024';
-        result = await openai.images.generate({ model: 'dall-e-2', prompt, n: 1, size: safeSize, response_format: 'url' });
-      } else { throw e3; }
+      result = await openai.images.generate({
+        model: 'gpt-image-1',
+        prompt: safePrompt,
+        n: 1,
+        size: targetSize,
+      });
+    } catch (e1) {
+      console.warn('[image] gpt-image-1 failed:', e1.message, '— trying dall-e-3');
+      // Fall back to dall-e-3
+      try {
+        result = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt: safePrompt,
+          n: 1,
+          size: targetSize,
+        });
+      } catch (e3) {
+        console.warn('[image] dall-e-3 failed:', e3.message, '— trying dall-e-2');
+        // Final fallback to dall-e-2
+        const safeSize2 = ['256x256','512x512','1024x1024'].includes(targetSize) ? targetSize : '1024x1024';
+        result = await openai.images.generate({
+          model: 'dall-e-2',
+          prompt: safePrompt,
+          n: 1,
+          size: safeSize2,
+          response_format: 'url',
+        });
+      }
     }
+
     const img = result.data[0];
     const url = img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null);
-    if (!url) return res.status(500).json({ error: 'No image returned' });
+    if (!url) return res.status(500).json({ error: 'No image URL returned from OpenAI' });
+    console.log('[image] generated successfully for prompt:', safePrompt.slice(0, 60));
     res.json({ url });
   } catch (err) {
+    console.error('[image] generation failed:', err.message, err.status);
     res.status(500).json({ error: err.message });
   }
 });

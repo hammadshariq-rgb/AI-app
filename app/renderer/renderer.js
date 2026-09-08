@@ -1370,10 +1370,14 @@ window._checkQuickLaunch = async function(text) {
         if (result && result.url) {
           showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
           addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
+          window.jarvis.speak(`Here's your image of ${prompt}.`);
         } else {
-          addMessage('assistant', `❌ Couldn't generate the image. Please try again.`);
+          const errMsg = result && result.error ? result.error : 'Unknown error';
+          console.error('[image] server returned error:', errMsg);
+          addMessage('assistant', `❌ Couldn't generate the image: ${errMsg}`);
         }
       } catch (err) {
+        console.error('[image] IPC error:', err.message);
         addMessage('assistant', `❌ Image generation failed: ${err.message || 'Unknown error'}`);
       }
     })();
