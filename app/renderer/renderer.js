@@ -5506,37 +5506,46 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   try {
     profile = storedProfile;
     history = [];
-    const _isReturningUser = !!returningUser;
     mainView.classList.add('hidden');
     setupView.classList.add('hidden');
     cardPanel.classList.add('hidden');
     historySidebar.classList.add('hidden');
 
-    // Show splash IMMEDIATELY — user sees animation while auth check runs in background
-    const _splashName = storedProfile?.name || name || 'Your AI';
-    const splashPromise = showSplash(_splashName);
+    const _displayName = storedProfile?.name || name || 'Your AI';
 
-    // Auth check runs in parallel with splash animation — hard 5s cap before offline fallback
+    // ── RETURNING USER: stored profile exists → go straight to main ──────────
+    // Never let server auth block someone who has already set up the app.
+    if (storedProfile && storedProfile.name) {
+      profile = storedProfile;
+      await showSplash(_displayName);
+      await enterMain(true, !!returningUser);
+      // Verify token in background — only log out if server explicitly says so
+      window.jarvis.authVerify().then(r => {
+        if (r && r.needsLogin && !r.offline) {
+          // Server says token is invalid — soft re-login next time, don't kick them now
+          storedProfile.wasSubscribed = false;
+          window.jarvis.setProfile(storedProfile).catch(() => {});
+        }
+      }).catch(() => {});
+      return;
+    }
+
+    // ── NEW USER: no stored profile → check server and show auth ─────────────
+    await showSplash(_displayName);
+
     let authResult;
     try {
       authResult = await Promise.race([
         window.jarvis.authVerify(),
-        new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 5000))
+        new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 6000))
       ]);
     } catch(_) {
-      authResult = { needsLogin: false, offline: true };
+      authResult = { offline: true };
     }
 
-    // Always wait for splash to finish before proceeding
-    await splashPromise;
-
-    if (authResult.offline) {
-      if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
-        await enterMain(true, _isReturningUser);
-      } else {
-        setupView.classList.remove('hidden');
-        showNameStep();
-      }
+    if (authResult.offline || !authResult.needsLogin && !authResult.active) {
+      setupView.classList.remove('hidden');
+      showNameStep();
       return;
     }
 
@@ -5551,36 +5560,34 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
       return;
     }
 
-    // Token valid — check subscription before entering
-    const displayName = storedProfile?.name || authResult.user?.name || 'Your AI';
-    profile = {
-      name:        displayName,
-      email:       authResult.user?.email || storedProfile?.email,
-      displayName: storedProfile?.displayName || null,
-      title:       storedProfile?.title || null,
-      wasSubscribed: storedProfile?.wasSubscribed || false,
-    };
     if (authResult.active) {
-      // Only show onboarding if truly first-ever launch AND no stored profile
-      const _firstLaunch = !_isReturningUser && !storedProfile && shouldShowOnboarding();
-      if (_firstLaunch) {
+      const displayName = authResult.user?.name || _displayName;
+      profile = {
+        name: displayName, email: authResult.user?.email,
+        displayName: null, title: null, wasSubscribed: true,
+      };
+      if (shouldShowOnboarding()) {
         setupView.classList.add('hidden');
         showOnboarding();
       } else {
-        await enterMain(true, _isReturningUser);
+        await enterMain(false, false);
       }
     } else {
       setupView.classList.remove('hidden');
       showTermsOrPayment();
     }
+
   } catch(fatalErr) {
-    // Last resort — never leave user on a blank/frozen screen
     console.error('[onActivated] fatal:', fatalErr);
+    // Nuclear fallback — always get to a usable state
     try { splash.classList.add('hidden'); } catch(_) {}
-    try {
-      setupView.classList.remove('hidden');
-      showNameStep();
-    } catch(_) {}
+    if (storedProfile && storedProfile.name) {
+      try { await enterMain(true, false); } catch(_) {
+        try { mainView.classList.remove('hidden'); setState('idle'); } catch(_) {}
+      }
+    } else {
+      try { setupView.classList.remove('hidden'); showAuthStep(); } catch(_) {}
+    }
   }
 });
 
