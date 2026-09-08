@@ -5561,17 +5561,15 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
     }
 
     if (authResult.active) {
+      // Active subscriber — always go straight to main, no onboarding gate
       const displayName = authResult.user?.name || _displayName;
       profile = {
         name: displayName, email: authResult.user?.email,
         displayName: null, title: null, wasSubscribed: true,
       };
-      if (shouldShowOnboarding()) {
-        setupView.classList.add('hidden');
-        showOnboarding();
-      } else {
-        await enterMain(false, false);
-      }
+      // Save profile so next launch uses the fast returning-user path
+      await window.jarvis.setProfile(profile).catch(() => {});
+      await enterMain(true, false);
     } else {
       setupView.classList.remove('hidden');
       showTermsOrPayment();
