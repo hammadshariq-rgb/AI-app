@@ -3779,10 +3779,16 @@ async function showSplash(name) {
 }
 
 async function enterMain(skipWelcome = false, returningUser = false) {
+  // Show main view FIRST — nothing should block this
+  welcomeScreen.classList.add('hidden');
+  mainView.classList.remove('hidden');
+  setState('idle');
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   // Load finance panel after entering main — never block splash
   setTimeout(() => finLoad().catch(() => {}), 1200);
   profile.wasSubscribed = true;
-  await window.jarvis.setProfile(profile);
+  // Save profile in background — never await it
+  window.jarvis.setProfile(profile).catch(() => {});
 
   const aiName = (profile.name || 'YOUR AI').toUpperCase();
   document.getElementById('aiName').textContent = aiName;
