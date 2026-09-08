@@ -6321,3 +6321,92 @@ micBtn.addEventListener('click', () => {
     row.style.setProperty('--beam-delay', `${delay}s`);
   });
 })();
+
+// ===================== AUDIO DOUBLE-CLAP WAKE DETECTOR =====================
+// Listens in the background even when the window is hidden (app in tray).
+// A double-clap (two sharp loud transients within 700ms) shows + focuses the app.
+(function initClapWakeDetector() {
+  // Configuration — tunable without a rebuild
+  const CFG = {
+    threshold:   0.30,   // RMS amplitude to count as a "clap" (0-1); raise if too many false triggers
+    minGap:      120,    // ms — ignore a second peak sooner than this (debounce within one clap)
+    maxWindow:   700,    // ms — two claps must land within this window to count as a double-clap
+    cooldown:    3000,   // ms — after a wake, ignore further claps for this long
+    pollMs:      30,     // setInterval period — works even in hidden/backgrounded windows
+  };
+
+  let stream = null;
+  let analyser = null;
+  let buf = null;
+  let lastPeakTime = 0;
+  let clapCount = 0;
+  let cooldownUntil = 0;
+  let resetTimer = null;
+
+  async function startClapWatcher() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.0; // no smoothing — we want raw transients
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      buf = new Float32Array(analyser.frequencyBinCount);
+
+      let prevRms = 0;
+      setInterval(() => {
+        if (!analyser) return;
+        analyser.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        const rms = Math.sqrt(sum / buf.length);
+
+        const now = Date.now();
+        const isTransient = rms > CFG.threshold && prevRms < CFG.threshold * 0.4;
+        prevRms = rms;
+
+        if (!isTransient) return;
+        if (now < cooldownUntil) return;
+        if (now - lastPeakTime < CFG.minGap) return; // debounce
+
+        lastPeakTime = now;
+        clapCount++;
+
+        // Reset clap count if the window expires
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => { clapCount = 0; }, CFG.maxWindow);
+
+        if (clapCount >= 2) {
+          clapCount = 0;
+          clearTimeout(resetTimer);
+          cooldownUntil = now + CFG.cooldown;
+          _onDoubleClapWake();
+        }
+      }, CFG.pollMs);
+
+    } catch (_) {
+      // Mic unavailable or permission denied — silently skip, don't break anything
+    }
+  }
+
+  function _onDoubleClapWake() {
+    // 1. Bring the window forward
+    if (window.jarvis && window.jarvis.focusWindow) window.jarvis.focusWindow();
+    // 2. Start listening after a short delay so the app has time to show
+    setTimeout(() => {
+      if (typeof startRecording === 'function' && !isRecording) {
+        startRecording();
+      } else {
+        // Fallback — click the mic button
+        document.getElementById('micBtn')?.click();
+      }
+    }, 600);
+  }
+
+  // Start after a 4 s delay — lets the UI fully load and avoids triggering on startup sounds
+  setTimeout(startClapWatcher, 4000);
+
+  // Expose so devtools can test: window._testClapWake()
+  window._testClapWake = _onDoubleClapWake;
+})();
+// ================================================================

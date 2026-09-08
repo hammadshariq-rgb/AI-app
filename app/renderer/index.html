@@ -2727,10 +2727,10 @@
       // Uses a short 6-frame window so it fires within ~300ms at 20fps.
       // Condition: distance drops sharply (velocity > threshold) AND ends close.
       const clapHist = [];
-      const CLAP_WIN = 6;
-      const CLAP_NEAR = 0.18;       // palms must end up this close (normalised coords)
-      const CLAP_DROP = 0.14;       // total distance drop across the window
-      const CLAP_SPEED = 0.022;     // avg per-frame approach speed
+      const CLAP_WIN = 7;
+      const CLAP_NEAR = 0.22;       // palms must end up this close (normalised coords) — loosened for reliability
+      const CLAP_DROP = 0.10;       // total distance drop across the window — lowered so partial claps count
+      const CLAP_SPEED = 0.015;     // avg per-frame approach speed — lowered so slower claps register
       function checkClap(lms) {
         if (lms.length < 2) { clapHist.length = 0; return false; }
         // Use index finger MCP (landmark 5) — more reliable centre of palm than wrist
