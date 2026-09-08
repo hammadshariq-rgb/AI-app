@@ -1392,6 +1392,54 @@ Be direct, specific and intelligent — like a brilliant professor giving you th
   }
 });
 
+// ── Places Near Me — Google Places Text Search ────────────────────────────────
+// Called by the desktop app when user says "find best X near me".
+// Requires GOOGLE_PLACES_API_KEY in server .env (enable "Places API" on Google Cloud Console).
+// Returns { places: [{ name, address, rating, totalRatings, open, mapsUrl, types }] }
+app.post('/ai/places', authMiddleware, async (req, res) => {
+  try {
+    const { query, lat, lng } = req.body;
+    if (!query) return res.status(400).json({ error: 'query required' });
+
+    const placesKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!placesKey) {
+      return res.status(503).json({ error: 'GOOGLE_PLACES_API_KEY not configured', noKey: true });
+    }
+
+    const radius = 5000; // 5 km
+    const location = (lat && lng) ? `${lat},${lng}` : '';
+    const searchQuery = `${query}${location ? '' : ' near me'}`;
+
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radius}${location ? `&location=${location}` : ''}&key=${placesKey}`;
+    const gRes = await fetch(url);
+    if (!gRes.ok) throw new Error(`Google Places API error: ${gRes.status}`);
+    const gData = await gRes.json();
+
+    if (gData.status !== 'OK' && gData.status !== 'ZERO_RESULTS') {
+      throw new Error(`Places API: ${gData.status} — ${gData.error_message || ''}`);
+    }
+
+    const results = (gData.results || []).slice(0, 8).map(p => {
+      const openNow = p.opening_hours?.open_now;
+      return {
+        name:         p.name,
+        address:      p.formatted_address || p.vicinity || '',
+        rating:       p.rating || null,
+        totalRatings: p.user_ratings_total || 0,
+        open:         openNow === undefined ? null : openNow,
+        types:        (p.types || []).filter(t => !['establishment','point_of_interest'].includes(t)).slice(0, 2),
+        mapsUrl:      `https://www.google.com/maps/place/?q=place_id:${p.place_id}`,
+        placeId:      p.place_id,
+      };
+    });
+
+    res.json({ places: results, query });
+  } catch (err) {
+    console.error('[places]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Magic Editor — edit highlighted text via voice instruction ─────────────────
 app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
   try {

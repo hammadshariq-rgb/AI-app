@@ -2301,6 +2301,22 @@ ipcMain.handle('google:openUrl', (_e, url) => {
     shell.openExternal(url);
   }
 });
+// ── Places Near Me — proxy to server Google Places endpoint ──────────────────
+ipcMain.handle('places:nearby', async (_e, { query, lat, lng }) => {
+  try {
+    const token = loadAuthToken();
+    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const r = await fetch(`${_serverBase()}/ai/places`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, lat, lng }),
+    });
+    return await r.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('drive:search', async (_e, query) => connectors.searchDriveFiles(query));
 
 // ── Finance portfolio IPC ─────────────────────────────────────────────────────

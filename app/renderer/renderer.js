@@ -1411,84 +1411,97 @@ window._checkQuickLaunch = async function(text) {
     const placeType = placesM[1].trim();
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
     (async () => {
-      // ── Map common terms to OpenStreetMap tags (Overpass API — free, no key) ──
-      const OSM_TAG_MAP = [
-        [/\bcafe|coffee\b/i,            'amenity=cafe'],
-        [/\brestaurant|eat|food|dining\b/i, 'amenity=restaurant'],
-        [/\bpizza\b/i,                  'amenity=restaurant'],
-        [/\bburger\b/i,                 'amenity=fast_food'],
-        [/\bfast.?food|takeaway\b/i,    'amenity=fast_food'],
-        [/\bbar|pub\b/i,                'amenity=bar'],
-        [/\bgym|fitness|workout\b/i,    'leisure=fitness_centre'],
-        [/\bhotel|motel|stay\b/i,       'tourism=hotel'],
-        [/\bhospital|emergency\b/i,     'amenity=hospital'],
-        [/\bpharmacy|chemist|drug\b/i,  'amenity=pharmacy'],
-        [/\bdoctor|clinic|medical\b/i,  'amenity=clinic'],
-        [/\bbank|atm\b/i,               'amenity=bank'],
-        [/\bsupermarket|grocery|grocer\b/i, 'shop=supermarket'],
-        [/\bpark|garden\b/i,            'leisure=park'],
-        [/\bpetrol|gas.?station|fuel\b/i, 'amenity=fuel'],
-        [/\bschool\b/i,                 'amenity=school'],
-        [/\bshop|store|mall\b/i,        'shop=mall'],
-        [/\bbeauty|salon|barber|haircut\b/i, 'shop=beauty'],
-        [/\bdentist|dental\b/i,         'amenity=dentist'],
-        [/\blibrary\b/i,                'amenity=library'],
-        [/\bcinema|movie|theatre|theater\b/i, 'amenity=cinema'],
-        [/\bpost.?office\b/i,           'amenity=post_office'],
-      ];
-      let osmTag = 'amenity=restaurant'; // safe fallback
-      for (const [rx, tag] of OSM_TAG_MAP) { if (rx.test(placeType)) { osmTag = tag; break; } }
-      const [osmKey, osmVal] = osmTag.split('=');
-
       try {
-        const pos = await new Promise((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
-        const { latitude: lat, longitude: lng } = pos.coords;
+        // 1. Get user location
+        let lat = null, lng = null;
+        try {
+          const pos = await new Promise((res, rej) =>
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (_) { /* proceed without location — server does generic search */ }
 
-        // Overpass QL — fetch up to 8 nearest nodes within 2 km
-        const oql = `[out:json][timeout:12];(node["${osmKey}"="${osmVal}"](around:2000,${lat},${lng});way["${osmKey}"="${osmVal}"](around:2000,${lat},${lng}););out center 8;`;
-        const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(oql),
-        });
-        const overpassData = await overpassRes.json();
-        const elements = overpassData.elements || [];
+        const mapsUrl = lat && lng
+          ? `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`
+          : `https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`;
 
-        const places = elements.slice(0, 8).map(el => {
-          const tags = el.tags || {};
-          const elLat = el.lat ?? el.center?.lat ?? lat;
-          const elLng = el.lon ?? el.center?.lon ?? lng;
-          const addrParts = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city']].filter(Boolean);
-          const address = addrParts.length ? addrParts.join(' ') : tags['addr:full'] || '';
-          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((tags.name || placeType) + (address ? ', ' + address : ''))}`;
-          return {
-            name:    tags.name || `Unnamed ${placeType}`,
-            type:    tags.cuisine || tags.shop || tags[osmKey] || placeType,
-            address: address,
-            phone:   tags.phone || tags['contact:phone'] || '',
-            website: tags.website || tags['contact:website'] || '',
-            mapsUrl,
-          };
-        });
+        // 2. Try Google Places via server (real results with ratings and addresses)
+        let places = [];
+        try {
+          const result = await window.jarvis.placesNearby(placeType, lat, lng);
+          if (result && !result.error && Array.isArray(result.places) && result.places.length) {
+            places = result.places;
+          }
+        } catch (_) { /* fall through to Overpass */ }
 
-        if (places.length === 0) {
-          // No Overpass results — fall back to Maps link in card
-          showCard({ type: 'places', query: placeType, places: [], mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`, noResults: true });
-          addMessage('assistant', `📍 No **${placeType}** found within 2 km. Tap "Open in Maps" for a wider search.`);
-          window.jarvis.speak(`I couldn't find any ${placeType} nearby, but I've got a Maps link for you.`);
+        // 3. Overpass fallback (OpenStreetMap) if Google Places not configured / no results
+        if (!places.length && lat && lng) {
+          const OSM_TAG_MAP = [
+            [/\bcafe|coffee\b/i,            'amenity=cafe'],
+            [/\brestaurant|eat|food|dining\b/i, 'amenity=restaurant'],
+            [/\bpizza|sushi|burger|bbq|steak|shawarma|kebab|biryani\b/i, 'amenity=restaurant'],
+            [/\bfast.?food|takeaway|kfc|mcdonalds\b/i, 'amenity=fast_food'],
+            [/\bbar|pub\b/i,                'amenity=bar'],
+            [/\bgym|fitness|workout\b/i,    'leisure=fitness_centre'],
+            [/\bhotel|motel|stay\b/i,       'tourism=hotel'],
+            [/\bhospital|emergency\b/i,     'amenity=hospital'],
+            [/\bpharmacy|chemist|drug\b/i,  'amenity=pharmacy'],
+            [/\bdoctor|clinic|medical\b/i,  'amenity=clinic'],
+            [/\bbank|atm\b/i,               'amenity=bank'],
+            [/\bsupermarket|grocery|grocer\b/i, 'shop=supermarket'],
+            [/\bpark|garden\b/i,            'leisure=park'],
+            [/\bpetrol|gas.?station|fuel\b/i, 'amenity=fuel'],
+            [/\bschool\b/i,                 'amenity=school'],
+            [/\bshop|store|mall\b/i,        'shop=mall'],
+            [/\bbeauty|salon|barber|haircut\b/i, 'shop=beauty'],
+            [/\bdentist|dental\b/i,         'amenity=dentist'],
+            [/\blibrary\b/i,                'amenity=library'],
+            [/\bcinema|movie|theatre|theater\b/i, 'amenity=cinema'],
+            [/\bpost.?office\b/i,           'amenity=post_office'],
+          ];
+          let osmTag = 'amenity=restaurant';
+          for (const [rx, tag] of OSM_TAG_MAP) { if (rx.test(placeType)) { osmTag = tag; break; } }
+          const [osmKey, osmVal] = osmTag.split('=');
+          const oql = `[out:json][timeout:15];(node["${osmKey}"="${osmVal}"](around:10000,${lat},${lng});way["${osmKey}"="${osmVal}"](around:10000,${lat},${lng}););out center 10;`;
+          for (const server of ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']) {
+            try {
+              const r = await fetch(server, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(oql) });
+              const d = await r.json();
+              const els = (d.elements || []).filter(el => el.tags && el.tags.name);
+              if (els.length) {
+                places = els.slice(0, 8).map(el => {
+                  const tags = el.tags || {};
+                  const addrParts = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city']].filter(Boolean);
+                  return {
+                    name: tags.name,
+                    address: addrParts.join(' ') || tags['addr:full'] || '',
+                    rating: null, open: null,
+                    types: [tags.cuisine || tags[osmKey] || placeType].filter(Boolean),
+                    mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tags.name)}`,
+                  };
+                });
+                break;
+              }
+            } catch (_) { /* try next server */ }
+          }
+        }
+
+        // 4. Show card with real list or empty state with Maps redirect button
+        showCard({ type: 'places', query: placeType, places, mapsUrl });
+
+        if (places.length) {
+          const top = places[0];
+          const ratingStr = top.rating ? ` · ⭐ ${top.rating}` : '';
+          addMessage('assistant', `📍 Found **${places.length} ${placeType}** near you. Top result: **${top.name}**${ratingStr}.`);
+          window.jarvis.speak(`I found ${places.length} ${placeType} near you. The top result is ${top.name}.`);
         } else {
-          showCard({ type: 'places', query: placeType, places, mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z` });
-          const firstName = places[0].name;
-          addMessage('assistant', `📍 Found **${places.length} ${placeType}** near you — closest is **${firstName}**.`);
-          window.jarvis.speak(`I found ${places.length} ${placeType} near you. The closest is ${firstName}.`);
+          addMessage('assistant', `📍 I've opened Google Maps for **${placeType}** near you.`);
+          window.jarvis.speak(`Here's a map search for ${placeType} near you.`);
         }
       } catch (_) {
-        // Geolocation denied or Overpass timed out — show Maps link card
-        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`;
-        showCard({ type: 'places', query: placeType, places: [], mapsUrl, noResults: true });
-        addMessage('assistant', `📍 Tap "Open in Maps" to find **${placeType}** near you.`);
-        window.jarvis.speak(`Tap the card to find ${placeType} near you.`);
+        const fallbackUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`;
+        showCard({ type: 'places', query: placeType, places: [], mapsUrl: fallbackUrl });
+        addMessage('assistant', `📍 Tap the button to find **${placeType}** near you.`);
       }
     })();
     return true;
@@ -2063,29 +2076,61 @@ function showCard(card) {
 
   } else if (card.type === 'places') {
     const places = card.places || [];
-    const placesHtml = places.map((p, i) => `
-      <div class="place-item" data-idx="${i}">
-        <div class="place-name">${esc(p.name)}</div>
-        ${p.type ? `<div class="place-type">${esc(p.type)}</div>` : ''}
-        ${p.address ? `<div class="place-addr">${esc(p.address)}</div>` : ''}
-        ${p.phone ? `<div class="place-phone">${esc(p.phone)}</div>` : ''}
-        <div class="place-actions">
-          <button class="place-maps-btn" data-url="${esc(p.mapsUrl)}">📍 Maps</button>
-          ${p.website ? `<button class="place-web-btn" data-url="${esc(p.website)}">🌐 Website</button>` : ''}
-        </div>
-      </div>`).join('');
-    const noResultsHtml = places.length === 0 ? `
-      <div class="places-no-results">No results found within 2 km.</div>` : '';
+
+    // Star rating builder (★★★★☆ style)
+    function buildStars(rating) {
+      if (!rating) return '';
+      const full = Math.floor(rating);
+      const half = rating - full >= 0.5 ? 1 : 0;
+      const empty = 5 - full - half;
+      return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+    }
+
+    const placesHtml = places.map((p, i) => {
+      const openBadge = p.open === true  ? `<span class="place-open">Open</span>`
+                      : p.open === false ? `<span class="place-closed">Closed</span>` : '';
+      const ratingHtml = p.rating
+        ? `<div class="place-rating"><span class="place-stars">${buildStars(p.rating)}</span> <span class="place-rating-num">${p.rating}</span>${p.totalRatings ? ` <span class="place-rating-count">(${p.totalRatings.toLocaleString()})</span>` : ''}</div>`
+        : '';
+      const typeTag = p.types && p.types.length
+        ? `<span class="place-tag">${esc(p.types[0].replace(/_/g,' '))}</span>`
+        : '';
+      return `
+        <div class="place-item" data-idx="${i}">
+          <div class="place-row-top">
+            <span class="place-num">${i + 1}</span>
+            <div class="place-info">
+              <div class="place-name">${esc(p.name)}</div>
+              <div class="place-meta">${typeTag}${openBadge}</div>
+            </div>
+          </div>
+          ${ratingHtml}
+          ${p.address ? `<div class="place-addr">📍 ${esc(p.address)}</div>` : ''}
+          <button class="place-maps-btn" data-url="${esc(p.mapsUrl)}">Open in Google Maps →</button>
+        </div>`;
+    }).join('');
+
+    const emptyHtml = places.length === 0
+      ? `<div class="places-empty">
+           <div class="places-empty-icon">📍</div>
+           <div class="places-empty-msg">No results found nearby.</div>
+           <div class="places-empty-sub">Tap below to search on Google Maps.</div>
+         </div>`
+      : '';
+
     cardContent.innerHTML = `
       <div class="card-places">
-        <div class="places-label">NEARBY PLACES</div>
-        <div class="places-query">${esc(card.query)}</div>
-        ${noResultsHtml}
+        <div class="places-header">
+          <div class="places-label">NEARBY PLACES</div>
+          <div class="places-query">${esc(card.query)}</div>
+        </div>
+        ${emptyHtml}
         <div class="places-list">${placesHtml}</div>
-        ${card.mapsUrl ? `<button class="places-maps-all-btn" id="placesMapsAllBtn">🗺️ Open all in Google Maps</button>` : ''}
+        ${card.mapsUrl ? `<button class="places-maps-all-btn" id="placesMapsAllBtn">🗺️ Search all on Google Maps</button>` : ''}
       </div>`;
+
     setTimeout(() => {
-      cardContent.querySelectorAll('.place-maps-btn, .place-web-btn').forEach(btn => {
+      cardContent.querySelectorAll('.place-maps-btn').forEach(btn => {
         btn.addEventListener('click', () => window.jarvis.openGoogleUrl(btn.dataset.url));
       });
       document.getElementById('placesMapsAllBtn')?.addEventListener('click', () => {
@@ -3420,109 +3465,14 @@ window.jarvis.onSentenceAudio(({ audio }) => {
     return null;
   }
 
-  // ── Places detection ──────────────────────────────────────────────────────
+  // ── Places detection — legacy stub (places now handled by _checkQuickLaunch + sidebar card) ──
   const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/i;
   const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|shawarma|kebab|biryani|noodles|ramen|tacos|food|indian|chinese|italian|thai|mexican|bbq|steak|seafood|bakery|dessert|ice cream|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall|barber|salon|petrol|gas station|supermarket|grocery)\b/i;
 
-  // OSM amenity tag map for Overpass queries
-  const AMENITY_MAP = {
-    restaurant:'restaurant', café:'cafe', cafe:'cafe', coffee:'cafe',
-    sushi:'restaurant', pizza:'restaurant', burger:'fast_food',
-    shawarma:'fast_food', kebab:'fast_food', biryani:'restaurant',
-    noodles:'restaurant', ramen:'restaurant', tacos:'fast_food',
-    food:'restaurant', indian:'restaurant', chinese:'restaurant',
-    italian:'restaurant', thai:'restaurant', mexican:'restaurant',
-    bbq:'restaurant', steak:'restaurant', steakhouse:'restaurant',
-    seafood:'restaurant', bakery:'bakery', dessert:'cafe',
-    'ice cream':'ice_cream', gym:'gym', pharmacy:'pharmacy',
-    hospital:'hospital', atm:'atm', bank:'bank', hotel:'hotel',
-    park:'park', cinema:'cinema', mall:'mall', barber:'hairdresser',
-    salon:'beauty', 'gas station':'fuel', petrol:'fuel',
-    supermarket:'supermarket', grocery:'supermarket',
-    'paddle court':'sports_centre', tennis:'tennis', badminton:'sports_centre',
-    cricket:'sports_centre', pool:'swimming_pool'
-  };
-
-  // Build a custom HTML places panel using Overpass API (no Google needed)
-  async function fetchAndShowPlaces(placeType, userText) {
-    const loc = (() => { try { return JSON.parse(localStorage.getItem('userLocation')); } catch { return null; } })();
-    const amenity = AMENITY_MAP[placeType.toLowerCase()] || 'restaurant';
-    const radius  = 3000; // 3km
-    const cityLine = loc ? `${loc.city}, ${loc.country}` : 'your area';
-
-    // Loading panel
-    const loadHtml = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,sans-serif;color:rgba(200,220,255,0.7);font-size:13px;letter-spacing:1px}</style></head><body>📍 Finding ${placeType} near ${cityLine}…</body></html>`)}`;
-    if (typeof openBrowserPanel === 'function') openBrowserPanel(loadHtml, `📍 ${placeType} near you`, '📍');
-
-    let places = [];
-    if (loc && loc.lat && loc.lon) {
-      // Try Overpass API (OpenStreetMap) — two mirror servers for reliability
-      const overpassServers = [
-        'https://overpass-api.de/api/interpreter',
-        'https://overpass.kumi.systems/api/interpreter'
-      ];
-      const query = `[out:json][timeout:10];(node["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon});way["amenity"="${amenity}"](around:${radius},${loc.lat},${loc.lon}););out center 15;`;
-      for (const server of overpassServers) {
-        try {
-          const data = await fetch(server, {
-            method:'POST',
-            body: 'data=' + encodeURIComponent(query),
-            headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
-          }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-          places = (data.elements || [])
-            .filter(e => e.tags && e.tags.name)
-            .map(e => ({
-              name: e.tags.name,
-              cuisine: (e.tags.cuisine || '').replace(/_/g,' '),
-              phone: e.tags.phone || e.tags['contact:phone'] || '',
-              opening: e.tags.opening_hours || '',
-              addr: [e.tags['addr:housenumber'], e.tags['addr:street']].filter(Boolean).join(' ') || e.tags['addr:full'] || ''
-            }))
-            .slice(0, 8);
-          if (places.length) break; // got results, stop trying mirrors
-        } catch (err) { console.warn('[Places] Overpass error:', err.message); }
-      }
-
-      // Nominatim fallback if Overpass returned nothing
-      if (!places.length) {
-        try {
-          const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeType)}+near+${encodeURIComponent(loc.city)}&format=json&limit=8&addressdetails=1`;
-          const nomData = await fetch(nomUrl, { headers:{'Accept-Language':'en'} }).then(r => r.json());
-          places = (nomData || []).filter(e => e.display_name).map(e => ({
-            name: e.name || e.display_name.split(',')[0],
-            cuisine: '',
-            phone: '',
-            opening: '',
-            addr: e.display_name.split(',').slice(1,3).join(',').trim()
-          }));
-        } catch {}
-      }
-    }
-
-    const rows = places.length ? places.map((p, i) => `
-      <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:12px;align-items:flex-start">
-        <div style="min-width:22px;height:22px;border-radius:50%;background:rgba(61,255,180,0.15);color:rgba(61,255,180,0.9);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${i+1}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:rgba(220,235,255,0.95);margin-bottom:2px">${p.name}</div>
-          ${p.cuisine ? `<div style="font-size:10px;color:rgba(61,255,180,0.7);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">${p.cuisine.replace(';',' · ')}</div>` : ''}
-          ${p.addr ? `<div style="font-size:11px;color:rgba(150,170,220,0.6)">📍 ${p.addr}</div>` : ''}
-          ${p.opening ? `<div style="font-size:10px;color:rgba(120,200,120,0.7);margin-top:2px">🕐 ${p.opening}</div>` : ''}
-          ${p.phone ? `<div style="font-size:10px;color:rgba(150,170,220,0.5);margin-top:2px">📞 ${p.phone}</div>` : ''}
-        </div>
-      </div>`).join('')
-    : `<div style="padding:32px;text-align:center;color:rgba(150,170,220,0.5);font-size:12px">No ${placeType} found within 3km.<br><br>Try enabling location access for better results.</div>`;
-
-    const html = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;font-family:-apple-system,sans-serif;color:rgba(220,235,255,0.9)}.header{padding:14px 16px 10px;border-bottom:1px solid rgba(61,255,180,0.15);background:rgba(6,10,26,0.9)}.title{font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(61,255,180,0.8);text-transform:uppercase}.sub{font-size:10px;color:rgba(150,170,220,0.5);margin-top:2px}</style></head><body><div class="header"><div class="title">📍 ${placeType.toUpperCase()} NEAR YOU</div><div class="sub">${cityLine} · ${places.length} found within 3km</div></div>${rows}</body></html>`)}`;
-
-    if (typeof openBrowserPanel === 'function') openBrowserPanel(html, `📍 ${placeType} near you`, '📍');
-
-    // Speak the top result
-    if (places.length && window.jarvis && window.jarvis.speak) {
-      const top = places[0];
-      window.jarvis.speak(`I found ${places.length} ${placeType} near you. The closest is ${top.name}${top.addr ? ', at ' + top.addr : ''}.`);
-    } else if (!places.length && window.jarvis && window.jarvis.speak) {
-      window.jarvis.speak(`I couldn't find any ${placeType} within 3 kilometres. Make sure location access is enabled.`);
-    }
+  // fetchAndShowPlaces — legacy stub (all places logic now in _checkQuickLaunch → sidebar card)
+  async function fetchAndShowPlaces(placeType /*, userText */) {
+    // No-op: _checkQuickLaunch intercepts "near me" commands before this runs
+    console.log('[fetchAndShowPlaces] stub called for:', placeType);
   }
 
   function detectPlaces(text) {

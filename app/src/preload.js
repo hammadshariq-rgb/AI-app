@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   callContact: (phone, platform) => ipcRenderer.invoke('contacts:call', { phone, platform }),
   openUrl: (url) => ipcRenderer.invoke('jarvis:openUrl', url),
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
+  placesNearby: (query, lat, lng) => ipcRenderer.invoke('places:nearby', { query, lat, lng }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),
   connectorStatus: () => ipcRenderer.invoke('connector:status'),
   connectorConnect: (service) => ipcRenderer.invoke('connector:connect', service),
