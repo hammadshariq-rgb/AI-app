@@ -3778,68 +3778,33 @@ async function showSplash(name) {
   }
 }
 
-async function enterMain(skipWelcome = false, returningUser = false) {
-  const welcomeScreen = document.getElementById('welcomeScreen');
-  // Show main view FIRST — nothing should block this
-  welcomeScreen.classList.add('hidden');
-  mainView.classList.remove('hidden');
-  setState('idle');
-  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-  // Load finance panel after entering main — never block splash
-  setTimeout(() => finLoad().catch(() => {}), 1200);
+async function enterMain() {
   profile.wasSubscribed = true;
-  // Save profile in background — never await it
-  window.jarvis.setProfile(profile).catch(() => {});
+  await window.jarvis.setProfile(profile);
 
-  const aiName = (profile.name || 'YOUR AI').toUpperCase();
+  const aiName = (profile.name || 'JARVIS').toUpperCase();
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
 
   setupView.classList.add('hidden');
+  const welcomeScreen = document.getElementById('welcomeScreen');
+  welcomeScreen.classList.remove('hidden');
+  initSpikySphere();
 
-  // Show welcome screen only on first-ever login, not on re-activations
-  const welcomeKey = 'hasSeenWelcome_' + (profile.email || aiName);
-  const hasSeenWelcome = localStorage.getItem(welcomeKey);
+  document.getElementById('enterBtn').addEventListener('click', async () => {
+    welcomeScreen.classList.add('fade-out');
+    setTimeout(() => {
+      welcomeScreen.classList.add('hidden');
+      mainView.classList.remove('hidden');
+      setState('idle');
+    }, 800);
 
-  if (!skipWelcome && !hasSeenWelcome) {
-    welcomeScreen.classList.remove('hidden');
-    initSpikySphere();
-
-    document.getElementById('enterBtn').addEventListener('click', async () => {
-      localStorage.setItem(welcomeKey, '1');
-      welcomeScreen.classList.add('fade-out');
-      setTimeout(() => {
-        welcomeScreen.classList.add('hidden');
-        mainView.classList.remove('hidden');
-        fixLayout();
-        setState('idle');
-      }, 800);
-      try {
-        const addressAs = profile.displayName || (profile.title && profile.title !== 'none' ? profile.title : null) || 'sir';
-        const greeting = `Welcome, ${addressAs}. All systems are online. How may I assist you?`;
-        const audio = await window.jarvis.speak(greeting);
-        if (audio) playAudioChunks([audio]);
-      } catch (_) {}
-    }, { once: true });
-  } else {
-    welcomeScreen.classList.add('hidden');
-    mainView.classList.remove('hidden');
-    fixLayout();
-    setState('idle');
-    // Force canvas resize so dot surface / wave pick up real dimensions
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-
-    // Returning user — greet them every time they summon the app
-    if (returningUser) {
-      try {
-        const title = profile.title && profile.title !== 'none' ? profile.title : 'sir';
-        const addressAs = profile.displayName || title;
-        const greeting = `Welcome back, ${addressAs}.`;
-        const audio = await window.jarvis.speak(greeting);
-        if (audio) playAudioChunks([audio]);
-      } catch (e) { console.error('[GREET]', e); }
-    }
-  }
+    // Welcome greeting via TTS
+    try {
+      const greeting = `Welcome, ${profile.name || 'sir'}. All systems are online. How may I assist you?`;
+      await window.jarvis.speak(greeting);
+    } catch (_) {}
+  }, { once: true });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5508,29 +5473,23 @@ voiceVolumeSlider.addEventListener('input', () => {
   });
 })();
 
-window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {
+window.jarvis.onActivated(async ({ name, profile: storedProfile }) => {
   profile = storedProfile;
   history = [];
-  const _isReturningUser = !!returningUser;
   mainView.classList.add('hidden');
   setupView.classList.add('hidden');
   cardPanel.classList.add('hidden');
   historySidebar.classList.add('hidden');
   splash.classList.add('hidden');
 
-  let authResult;
-  try {
-    authResult = await window.jarvis.authVerify();
-  } catch(_) {
-    authResult = { offline: true };
-  }
-
-  const displayName = storedProfile?.name || authResult?.user?.name || name || 'Your AI';
+  // Check auth token
+  const authResult = await window.jarvis.authVerify();
 
   if (authResult.offline) {
-    await showSplash(displayName);
-    if (storedProfile && storedProfile.name) {
-      await enterMain(true, _isReturningUser);
+    // Server unreachable — only allow in if they previously had an active subscription
+    if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
+      await showSplash(storedProfile.name);
+      await enterMain();
     } else {
       setupView.classList.remove('hidden');
       showNameStep();
@@ -5539,35 +5498,32 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   }
 
   if (authResult.needsLogin) {
-    await showSplash(displayName);
     setupView.classList.remove('hidden');
     if (authResult.reason === 'inactive') {
+      // 7-day inactivity — show re-login
       showReloginStep('You\'ve been away for a while. Please log in to continue.');
-    } else {
+    } else if (storedProfile && storedProfile.name) {
+      // Has profile but no token (new device) — skip name step, go straight to login
+      pendingAssistantName = storedProfile.name;
       showAuthStep();
-      setAuthMode('signup');
+      setAuthMode('login');
+    } else {
+      // First time
+      showNameStep();
     }
     return;
   }
 
-  if (authResult.active || storedProfile?.name) {
-    // Active subscription OR already set up before → always enter main
-    profile = {
-      name: displayName,
-      email: authResult.user?.email || storedProfile?.email,
-      displayName: storedProfile?.displayName || null,
-      title: storedProfile?.title || null,
-      wasSubscribed: true,
-    };
+  // Token valid — check subscription before entering
+  const displayName = authResult.user?.name || storedProfile?.name || 'Jarvis';
+  profile = { name: displayName, email: authResult.user?.email || storedProfile?.email };
+  if (authResult.active) {
     await showSplash(displayName);
-    await enterMain(true, _isReturningUser);
-    return;
+    await enterMain();
+  } else {
+    setupView.classList.remove('hidden');
+    showPaymentStep();
   }
-
-  // Brand new user, no subscription — show payment
-  await showSplash(displayName);
-  setupView.classList.remove('hidden');
-  showTermsOrPayment();
 });
 
 // ===================== RECORDING =====================
