@@ -1349,12 +1349,143 @@ window._checkQuickLaunch = async function(text) {
       const where = googleOk ? 'your in-app planner and Google Calendar' : 'your in-app planner';
       const msg = `**${title}** added to ${where}${dateStr ? ` on ${dateStr}` : ''}.`;
       addMessage('assistant', `✅ ${msg}`);
-      window.jarvis.speak(`Done — ${title} added to ${googleOk ? 'your calendar and Google Calendar' : 'your planner'}.`);
+      const spokenMsg = `I've added ${title} to ${googleOk ? 'your Google Calendar' : 'your planner'}${dateStr ? ` on ${dateStr}` : ''}.`;
+      window.jarvis.speak(spokenMsg);
+    })();
+    return true;
+  }
+
+  // ── Image generation: "make me an image of X" / "generate image of X" ────
+  const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
+             || t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(.+?)\s+(?:image|picture|photo|illustration)/i);
+  if (imgM) {
+    const prompt = imgM[1].trim();
+    addMessage('assistant', `🎨 Generating image of **${prompt}**…`);
+    window.jarvis.speak(`Creating an image of ${prompt}.`);
+    (async () => {
+      try {
+        const result = await window.jarvis.generateImage(prompt, '1024x1024');
+        if (result && result.url) {
+          showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
+          addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
+        } else {
+          addMessage('assistant', `❌ Couldn't generate the image. Please try again.`);
+        }
+      } catch (err) {
+        addMessage('assistant', `❌ Image generation failed: ${err.message || 'Unknown error'}`);
+      }
+    })();
+    return true;
+  }
+
+  // ── Amazon / eBay search: "show X on amazon" / "find X on ebay" ──────────
+  const amazonM = t.match(/(?:show|find|search|look up|order)\s+(.+?)\s+on\s+amazon/i)
+               || t.match(/amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i)
+               || t.match(/search\s+amazon\s+(?:for\s+)?(.+)/i);
+  if (amazonM) {
+    const query = amazonM[1].trim();
+    addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
+    window.jarvis.speak(`Searching Amazon for ${query}.`);
+    window.jarvis.openUrl(`https://www.amazon.com/s?k=${encodeURIComponent(query)}`);
+    return true;
+  }
+
+  const ebayM = t.match(/(?:show|find|search|look up)\s+(.+?)\s+on\s+ebay/i)
+             || t.match(/ebay\s+(?:search\s+for\s+|find\s+)?(.+)/i)
+             || t.match(/search\s+ebay\s+(?:for\s+)?(.+)/i);
+  if (ebayM) {
+    const query = ebayM[1].trim();
+    addMessage('assistant', `🛍️ Searching eBay for **${query}**…`);
+    window.jarvis.speak(`Searching eBay for ${query}.`);
+    window.jarvis.openUrl(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`);
+    return true;
+  }
+
+  // ── Places near me: "find best X near me" / "restaurants near me" ────────
+  const placesM = t.match(/(?:find|show|what(?:'s|'re|\s+are|\s+is))\s+(?:the\s+)?(?:best\s+)?(.+?)\s+near\s+me/i)
+               || t.match(/(?:best|nearest|closest)\s+(.+?)\s+(?:near\s+me|nearby|around\s+here)/i)
+               || t.match(/(?:nearby|near\s+me)\s+(.+)/i);
+  if (placesM) {
+    const placeType = placesM[1].trim();
+    addMessage('assistant', `📍 Finding **${placeType}** near you…`);
+    (async () => {
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+        const { latitude: lat, longitude: lng } = pos.coords;
+        // Open Google Maps search near the user's coordinates
+        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`;
+        window.jarvis.openUrl(mapsUrl);
+        const spokenMsg = `I've opened a map showing ${placeType} near you.`;
+        addMessage('assistant', `📍 Here are **${placeType}** near you — opened in Maps.`);
+        window.jarvis.speak(spokenMsg);
+      } catch (geoErr) {
+        // No geolocation — fallback to a generic search
+        window.jarvis.openUrl(`https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`);
+        addMessage('assistant', `📍 Opened Maps for **${placeType}** near you.`);
+        window.jarvis.speak(`I've opened a search for ${placeType} near you.`);
+      }
+    })();
+    return true;
+  }
+
+  // ── Wikipedia entity lookup: "who is X" / "tell me about X" / "info on X" ─
+  const wikiM = t.match(/^(?:who\s+is|who\s+was)\s+(.+?)[\?\.]?\s*$/i)
+             || t.match(/^(?:tell\s+me\s+about|info(?:rmation)?\s+(?:about|on)|what\s+is|what\s+was)\s+(.+?)[\?\.]?\s*$/i)
+             || t.match(/^(?:show|search)\s+(?:me\s+)?(?:wikipedia\s+for|wikipedia\s+info\s+on|info\s+on)\s+(.+?)[\?\.]?\s*$/i);
+  if (wikiM) {
+    const subject = wikiM[1].trim();
+    // Don't intercept common weather/stock questions already handled elsewhere
+    if (/weather|stock|price|forecast/i.test(subject)) return false;
+    addMessage('assistant', `🔎 Looking up **${subject}**…`);
+    (async () => {
+      try {
+        const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('not found');
+        const data = await res.json();
+        if (data.type === 'disambiguation') {
+          // Try the first suggestion
+          const first = data.description || subject;
+          addMessage('assistant', `📖 Found info on **${data.title}**. Ask me to be more specific if needed.`);
+          window.jarvis.speak(`Here's what I found about ${data.title}.`);
+          return;
+        }
+        const cardType = data.type === 'standard' ? _wikiCardType(data) : 'person';
+        const imageUrl = data.thumbnail ? data.thumbnail.source : (data.originalimage ? data.originalimage.source : null);
+        showCard({
+          type: cardType,
+          name: data.title,
+          bio: data.extract ? data.extract.slice(0, 400) : '',
+          description: data.extract ? data.extract.slice(0, 400) : '',
+          summary: data.extract ? data.extract.slice(0, 400) : '',
+          imageUrl,
+          subtitle: data.description ? data.description.toUpperCase() : 'ENTITY',
+          sourceUrl: data.content_urls ? data.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
+        });
+        const spoken = data.extract ? data.extract.slice(0, 200) : `Here's what I found about ${data.title}.`;
+        addMessage('assistant', `📖 **${data.title}** — ${data.description || ''}`);
+        window.jarvis.speak(spoken);
+      } catch (_) {
+        // Fallback — let the AI answer normally by returning false
+        return false;
+      }
     })();
     return true;
   }
 
   return false;
+};
+
+// Helper: pick the best card type for a Wikipedia result
+function _wikiCardType(data) {
+  const desc = (data.description || '').toLowerCase();
+  const cats = (data.categories || []).join(' ').toLowerCase();
+  if (/\b(?:film|movie|television|tv series|series)\b/.test(desc + cats)) return 'movie';
+  if (/\b(?:animal|species|mammal|bird|reptile|amphibian|insect|fish)\b/.test(desc + cats)) return 'animal';
+  if (/\b(?:historical|history|battle|war|event|revolution|empire)\b/.test(desc + cats)) return 'historical';
+  if (/\b(?:person|people|politician|actor|actress|musician|singer|athlete|ceo|founder|artist|author|writer|director)\b/.test(desc + cats)) return 'person';
+  return 'person'; // safe default for named entities
 };
 // ================================================================
 
