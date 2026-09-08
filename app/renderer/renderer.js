@@ -1412,14 +1412,28 @@ window._checkQuickLaunch = async function(text) {
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
     (async () => {
       try {
-        // 1. Get user location
+        // 1. Get user location — GPS first, IP-based fallback
         let lat = null, lng = null;
         try {
           const pos = await new Promise((res, rej) =>
-            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000 }));
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
-        } catch (_) { /* proceed without location — server does generic search */ }
+        } catch (_) {
+          // GPS denied/unavailable — fall back to IP geolocation (free, no key)
+          try {
+            const ipGeo = await fetch('https://ipapi.co/json/');
+            if (ipGeo.ok) {
+              const ipData = await ipGeo.json();
+              if (ipData.latitude && ipData.longitude) {
+                lat = ipData.latitude;
+                lng = ipData.longitude;
+                window._ipCity = ipData.city ? `${ipData.city}, ${ipData.country_name}` : null;
+                console.log(`[places] IP geolocation: ${window._ipCity}`);
+              }
+            }
+          } catch (_2) { /* no location at all */ }
+        }
 
         const mapsUrl = lat && lng
           ? `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`
@@ -1428,7 +1442,7 @@ window._checkQuickLaunch = async function(text) {
         // 2. Try Google Places via server (real results with ratings and addresses)
         let places = [];
         try {
-          const result = await window.jarvis.placesNearby(placeType, lat, lng);
+          const result = await window.jarvis.placesNearby(placeType, lat, lng, window._ipCity || null);
           if (result && !result.error && Array.isArray(result.places) && result.places.length) {
             places = result.places;
           }

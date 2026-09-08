@@ -1398,7 +1398,7 @@ Be direct, specific and intelligent — like a brilliant professor giving you th
 // Returns { places: [{ name, address, rating, totalRatings, open, mapsUrl, types }] }
 app.post('/ai/places', authMiddleware, async (req, res) => {
   try {
-    const { query, lat, lng } = req.body;
+    const { query, lat, lng, city } = req.body;
     if (!query) return res.status(400).json({ error: 'query required' });
 
     const placesKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -1408,7 +1408,8 @@ app.post('/ai/places', authMiddleware, async (req, res) => {
 
     const radius = 5000; // 5 km
     const location = (lat && lng) ? `${lat},${lng}` : '';
-    const searchQuery = `${query}${location ? '' : ' near me'}`;
+    // If we have coords use them; if we have a city name append it; otherwise generic
+    const searchQuery = location ? query : (city ? `${query} in ${city}` : `${query} near me`);
 
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radius}${location ? `&location=${location}` : ''}&key=${placesKey}`;
     const gRes = await fetch(url);

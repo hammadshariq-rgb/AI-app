@@ -2302,14 +2302,14 @@ ipcMain.handle('google:openUrl', (_e, url) => {
   }
 });
 // ── Places Near Me — proxy to server Google Places endpoint ──────────────────
-ipcMain.handle('places:nearby', async (_e, { query, lat, lng }) => {
+ipcMain.handle('places:nearby', async (_e, { query, lat, lng, city }) => {
   try {
     const token = loadAuthToken();
     const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     const r = await fetch(`${_serverBase()}/ai/places`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ query, lat, lng }),
+      body: JSON.stringify({ query, lat, lng, city }),
     });
     return await r.json();
   } catch (err) {
