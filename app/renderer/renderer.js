@@ -4221,6 +4221,15 @@ function initWelcomeScroll() {
 
 async function enterMain(skipWelcome = false, returningUser = false) {
   const welcomeScreen = document.getElementById('welcomeScreen');
+
+  // ── One-time migration: users who signed up before the rename still have
+  //    "My AI" stored. Silently upgrade to "Callisto" on first load. ──────
+  const _storedName = (profile.name || '').trim();
+  if (!_storedName || /^my\s*ai$/i.test(_storedName)) {
+    profile.name = 'Callisto';
+    window.jarvis.setProfile(profile).catch(() => {});
+  }
+
   const aiName = (profile.name || 'CALLISTO').toUpperCase();
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
@@ -6319,8 +6328,17 @@ async function stopRecording() {
       setState('idle');
     }
   } catch (err) {
-    const msg = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
-    addMessage('assistant', msg || 'Could not understand audio. Please try again.');
+    const raw = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
+    // 401 = expired JWT — show friendly message and force re-login
+    if (raw.includes('STT 401') || raw.includes('401')) {
+      addMessage('assistant', 'Your session has expired. Please sign in again.');
+      setTimeout(async () => {
+        try { await window.jarvis.authLogout(); } catch {}
+        location.reload();
+      }, 2200);
+    } else {
+      addMessage('assistant', raw || 'Could not understand audio. Please try again.');
+    }
     setState('idle');
   }
 }
