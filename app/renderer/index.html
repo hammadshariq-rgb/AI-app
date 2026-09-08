@@ -1690,6 +1690,22 @@
           <!-- HIDDEN CONNECTORS (pending verification/setup): gmail, outlook, drive -->
           <div class="lnav-pane hidden" id="lnavPaneConnectors">
             <div class="connector-section">
+              <!-- Google Account — links browsing to a specific Google account -->
+              <div class="connector-row" id="googleAccountRow">
+                <div class="connector-icon google" style="background:rgba(66,133,244,0.15);color:#4285F4">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                </div>
+                <div class="connector-info">
+                  <div class="connector-name">GOOGLE ACCOUNT</div>
+                  <div class="connector-status" id="googleAccountStatus">Not linked · Searches &amp; YouTube always open in your account</div>
+                </div>
+                <button class="connector-btn" id="googleAccountBtn">CONNECT</button>
+              </div>
               <div class="connector-row" id="calendarRow">
                 <div class="connector-icon calendar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5"/></svg></div>
                 <div class="connector-info"><div class="connector-name">GOOGLE CALENDAR</div><div class="connector-status" id="calendarStatus">Not connected</div></div>
@@ -2583,17 +2599,19 @@
       let isPinching = false;
       let pinchFired = false;      // must RELEASE pinch before next click fires
       let pinchHeldSince = 0;
-      const PINCH_HOLD_MS = 120;   // must hold 120ms before click — filters accidental brush
+      const PINCH_HOLD_MS = 130;   // ms hold before click fires
       let cursorX = -9999, cursorY = -9999;
       let lastLeftLm = null;
       let cursorRafId = null;
-      const SMOOTH = 0.78;         // high EMA — near-instant cursor tracking
-      const SMOOTH_VEL = 0.55;     // velocity EMA for predictive lead
+      const SMOOTH = 0.72;         // EMA — lower = smoother (less jitter), slightly less instant
+      const SMOOTH_VEL = 0.45;     // velocity EMA for predictive lead
       const HALF_CURSOR = 16;
       let velX = 0, velY = 0;      // running velocity for cursor prediction
 
-      // Track last element for hover — NO offscreen trick needed (cursor is pointer-events:none)
+      // Hover throttle — elementFromPoint + mousemove only every N frames (avoids hammering layout)
       let _hoverEl = null;
+      let _cursorFrame = 0;
+      const HOVER_EVERY = 4;       // fire hover events every 4 frames (15fps) instead of 60fps
 
       // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
       function cursorTick() {
@@ -2610,21 +2628,30 @@
           const dx = rawX - cursorX, dy = rawY - cursorY;
           velX += SMOOTH_VEL * (dx - velX);
           velY += SMOOTH_VEL * (dy - velY);
-          cursorX += SMOOTH * (rawX + velX * 0.18 - cursorX);
-          cursorY += SMOOTH * (rawY + velY * 0.18 - cursorY);
+          cursorX += SMOOTH * (rawX + velX * 0.15 - cursorX);
+          cursorY += SMOOTH * (rawY + velY * 0.15 - cursorY);
         }
 
-        // ONE transform per frame — no offscreen flicker
+        // ONE transform per frame — compositor-only, no layout hit
         magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
 
-        // ── Hover injection — cursor is pointer-events:none so elementFromPoint skips it ──
-        const elUnder = document.elementFromPoint(cursorX, cursorY);
-        if (elUnder !== _hoverEl) {
-          if (_hoverEl) _hoverEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
-          _hoverEl = elUnder;
-          if (elUnder) elUnder.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        // ── Hover injection — throttled to every HOVER_EVERY frames ─────────────
+        // elementFromPoint forces a style recalc; dispatching mousemove triggers every
+        // hover handler in the app — both are expensive, so we cap them at ~15fps.
+        _cursorFrame++;
+        if (_cursorFrame % HOVER_EVERY !== 0) {
+          // Still do pinch detection every frame (needs to be responsive)
+        } else {
+          const elUnder = document.elementFromPoint(cursorX, cursorY);
+          if (elUnder !== _hoverEl) {
+            // Only dispatch enter/leave on actual element change (not every frame)
+            if (_hoverEl) _hoverEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+            _hoverEl = elUnder;
+            if (elUnder) elUnder.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+          }
+          // Throttled mousemove — enough for tooltips and hover state
+          if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cursorX, clientY: cursorY }));
         }
-        if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cursorX, clientY: cursorY }));
 
         // ── Pinch detection ───────────────────────────────────────────────────
         const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
@@ -2848,27 +2875,37 @@
           doClapAction(); return;
         }
 
-        // ── LEFT hand = magic cursor only, RIGHT hand = all gestures ────────
-        let leftFound = false;
-        for (let i = 0; i < lms.length; i++) {
-          const side = hands[i]?.label || 'Right';
-          if (side === 'Left') {
-            leftFound = true;
-            updateCursorLandmarks(lms[i]); // cursorTick() drives movement at 60fps
-          }
+        // ── Hand role assignment: position-based (reliable) + label as tiebreaker ──
+        // In selfie/mirror mode the user's LEFT hand appears at HIGHER screen-x.
+        // MediaPipe's label field is notoriously unstable — it flips between frames.
+        // Solution: sort by wrist.x to determine role, ignore the label field entirely.
+        //   Higher screen-x wrist → cursor hand (user's physical left hand)
+        //   Lower screen-x wrist  → gesture hand (user's physical right hand)
+        // With one hand visible it gets gesture role by default.
+        let cursorIdx   = -1; // index into lms[] for cursor hand
+        let gestureIdx  = -1; // index into lms[] for gesture hand
+
+        if (lms.length === 1) {
+          gestureIdx = 0; // single hand always does gestures
+        } else if (lms.length >= 2) {
+          // Higher x = cursor (left in selfie), lower x = gestures (right in selfie)
+          const x0 = lms[0][0].x, x1 = lms[1][0].x;
+          if (x0 >= x1) { cursorIdx = 0; gestureIdx = 1; }
+          else           { cursorIdx = 1; gestureIdx = 0; }
         }
-        if (!leftFound) {
-          // Park cursor offscreen — no display toggle = no reflow
+
+        if (cursorIdx >= 0) {
+          updateCursorLandmarks(lms[cursorIdx]);
+        } else {
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           isPinching = false; pinchFired = false; pinchHeldSince = 0;
           cursorX = -9999; cursorY = -9999; lastLeftLm = null; _hoverEl = null;
         }
 
-        // ── Per-hand gestures (RIGHT hand only) ──────────────────────────
+        // ── Per-hand gestures (gesture hand only) ────────────────────────
         for (let i = 0; i < lms.length; i++) {
-          const lm   = lms[i];
-          const side = hands[i]?.label || 'Right';
-          if (side !== 'Right') continue; // left hand is cursor-only
+          const lm = lms[i];
+          if (i !== gestureIdx) continue; // cursor hand is cursor-only
 
           // ── 2. ONE FINGER POINT — index only up, hold 300ms → start listening ─
           if (isOneFingerPoint(lm)) {
@@ -2977,7 +3014,7 @@
                 _mpBusy = false;
               }
             }
-            rafId = setTimeout(loop, 50); // 20fps gesture recognition
+            rafId = setTimeout(loop, 83); // ~12fps gesture recognition (reduced for performance)
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';

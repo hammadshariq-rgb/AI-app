@@ -1293,7 +1293,7 @@ app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4.1',
-      max_tokens: 800,
+      max_tokens: 1200,
       messages: [{
         role: 'user',
         content: [
@@ -1303,39 +1303,89 @@ app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
           },
           {
             type: 'text',
-            text: `You are Callisto AI — a sharp, knowledgeable assistant. The user has circled something on their screen. Analyse the image carefully and respond according to what you see:
+            text: `You are Callisto AI — a brilliant, all-knowing assistant. The user has circled something on their screen. Study the image carefully and give a COMPLETE, EXPERT answer based on what you see.
 
-PEOPLE: Always name the specific person if you recognise them. Athletes, celebrities, politicians, musicians, actors — name them confidently. Example: "That's Lionel Messi, the Argentine football legend widely considered the greatest player of all time." Never be vague and say "a soccer player" — name them.
+Respond in this exact JSON format (no markdown fences, just raw JSON):
+{
+  "subject": "<2-5 word title>",
+  "category": "<one of: math|science|finance|people|code|text|food|place|product|animal|general>",
+  "answer": "<your full conversational answer — see rules below>",
+  "steps": ["<step 1>", "<step 2>", "..."],
+  "formula": "<key formula or equation if applicable, else null>",
+  "fact": "<one sharp interesting fact, else null>"
+}
 
-MATH / EQUATIONS: If you see any mathematical expression, equation, or problem — SOLVE IT fully. Show your working step by step. Do not just describe or repeat the question. Example: if you see f'(x) = 6x² + 2x - 1 and f(2) = 5, integrate to find f(x) and apply the condition.
+CATEGORY RULES — answer according to what you see:
 
-CARS: State make, model, year/generation and any notable features visible.
+MATH / EQUATIONS / CALCULUS / STATISTICS: SOLVE it completely. Show every step in the "steps" array. Put the key formula/equation in "formula". Never just describe the problem — solve it. Examples: integrals, derivatives, algebra, matrices, probability, statistics, trigonometry, geometry.
 
-ANIMALS: Name the species precisely, include a fun fact.
+BIOLOGY / CHEMISTRY / PHYSICS: Give a full scientific explanation. If it's a question, answer it fully. Show relevant formulas in "formula" and steps in "steps". Cover topics like cell biology, genetics, organic chemistry, thermodynamics, quantum mechanics, optics, electricity, etc.
 
-PRODUCTS / LOGOS / BRANDS: Identify the exact product or brand.
+PSYCHOLOGY / COGNITIVE SCIENCE: Explain the concept, theory, or study shown. Name the psychologist if relevant. Explain real-world implications.
 
-TEXT ON SCREEN: Read it fully, then summarise OR answer if it's a question.
+FINANCE / ACCOUNTING / ECONOMICS: Solve any financial problems fully (NPV, IRR, DCF, ratio analysis, income statements). Explain economic theories, market concepts, accounting principles. Show calculations in "steps".
 
-PLACES / LANDMARKS: Name the location and a key fact about it.
+PEOPLE: Name the specific person confidently — athlete, celebrity, politician, musician, actor, historical figure. Include their key claim to fame and one notable fact.
 
-FOOD / DRINK: Name the dish or drink and its origin.
+CODE: Read the code, explain exactly what it does, and point out any bugs or improvements.
 
-CODE: Read the code, explain what it does and flag any obvious issues.
+TEXT ON SCREEN: Read it fully. If it's a question — answer it. If it's an article — summarise the key point. If it's a problem — solve it.
 
-Be direct, specific and conversational — like a very smart friend who always gives you the real answer, not a vague description.`,
+CARS: Make, model, generation, key specs and notable features.
+
+ANIMALS: Exact species name, habitat, and a fascinating fact.
+
+PLACES / LANDMARKS: Name the location and its historical or cultural significance.
+
+FOOD / DRINK: Name the dish and its cultural origin.
+
+PRODUCTS / LOGOS: Identify the exact product or brand and what it's known for.
+
+Be direct, specific and intelligent — like a brilliant professor giving you the real answer, not a textbook description.`,
           },
         ],
       }],
     });
 
-    const text = response.choices[0]?.message?.content?.trim() || 'I couldn\'t identify that.';
+    let rawText = response.choices[0]?.message?.content?.trim() || '{}';
 
-    // Try to extract a subject name for the card title (first noun phrase)
-    const titleMatch = text.match(/^(?:That(?:'s| is)|This(?:'s| is)|It(?:'s| is)|I see|Looks like|That looks like)?\s*(?:a |an |the )?([A-Z][^,.\n]{2,40})/);
-    const cardTitle = titleMatch ? titleMatch[1].trim() : 'Identified';
+    // Parse structured JSON response
+    let parsed = {};
+    try {
+      // Strip markdown fences if model wrapped it anyway
+      rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+      parsed = JSON.parse(rawText);
+    } catch (_) {
+      // Fallback: treat whole thing as plain answer text
+      parsed = { subject: 'Result', category: 'general', answer: rawText };
+    }
 
-    res.json({ text, card: { type: 'wiki', title: cardTitle, summary: text } });
+    const subject  = parsed.subject  || 'Identified';
+    const category = parsed.category || 'general';
+    const answer   = parsed.answer   || rawText;
+    const steps    = Array.isArray(parsed.steps) && parsed.steps.length ? parsed.steps : null;
+    const formula  = parsed.formula  || null;
+    const fact     = parsed.fact     || null;
+
+    // Determine card type: academic subjects get an "answer" card; identification gets "wiki"
+    const academicCategories = ['math', 'science', 'finance', 'code', 'text'];
+    const cardType = academicCategories.includes(category) ? 'answer' : 'wiki';
+
+    // Spoken text = full answer (plain, no JSON)
+    const spokenText = answer;
+
+    res.json({
+      text: spokenText,
+      card: {
+        type: cardType,
+        title: subject,
+        summary: answer,
+        steps,
+        formula,
+        fact,
+        category,
+      },
+    });
   } catch (err) {
     console.error('[vision]', err.message);
     res.status(500).json({ error: err.message });

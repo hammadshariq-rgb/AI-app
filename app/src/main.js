@@ -288,8 +288,11 @@ ipcMain.handle('capture:identify', async (_e, bounds) => {
       title: card?.title || 'Identified',
     });
 
-    // 7. Also push to main chat window if it's open
-    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+    // 7. Always push to main chat window — show it so the user sees the full answer
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      // Bring window to front so user sees the answer card in chat
+      if (!overlayWindow.isVisible()) overlayWindow.show();
+      overlayWindow.focus();
       overlayWindow.webContents.send('jarvis:hud-response', { text, card });
     }
 
@@ -1926,10 +1929,11 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background
 
 // Only the minimum scopes registered in Google Cloud Console — no gmail, no broad calendar
 const GOOGLE_OAUTH_SCOPES = {
-  calendar: 'https://www.googleapis.com/auth/calendar.readonly',
-  drive:    'https://www.googleapis.com/auth/drive.readonly',
-  youtube:  'https://www.googleapis.com/auth/youtube.readonly',
-  analytics:'https://www.googleapis.com/auth/analytics.readonly',
+  calendar:      'https://www.googleapis.com/auth/calendar.readonly',
+  drive:         'https://www.googleapis.com/auth/drive.readonly',
+  youtube:       'https://www.googleapis.com/auth/youtube.readonly',
+  analytics:     'https://www.googleapis.com/auth/analytics.readonly',
+  googleAccount: 'openid email profile',  // minimal — just identifies which Google account to use
 };
 
 async function startGoogleOAuthFlow(service) {
@@ -1968,6 +1972,23 @@ async function startGoogleOAuthFlow(service) {
           if (!tokens.access_token) throw new Error(tokens.error || 'No access_token');
 
           const tokenData = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600 };
+          if (service === 'googleAccount') {
+            // We only need the email — fetch from Google userinfo, store it, then done
+            try {
+              const uiRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` }
+              });
+              const ui = await uiRes.json();
+              if (ui.email) {
+                connectors.saveGoogleAccountEmail(ui.email);
+                if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'googleAccount', email: ui.email });
+              }
+            } catch (e) {
+              console.error('[OAuth] googleAccount userinfo failed:', e.message);
+            }
+            resolve(true);
+            return;
+          }
           if (service === 'gmail')    connectors.saveGmailTokens(tokenData);
           else if (service === 'calendar') connectors.saveCalendarTokens(tokenData);
           else if (service === 'drive')    connectors.saveDriveTokens(tokenData);
@@ -2222,7 +2243,7 @@ async function startTikTokOAuthFlow() {
 ipcMain.handle('connector:status', () => connectors.getConnectorStatus());
 ipcMain.handle('connector:connect', async (_e, service) => {
   // Google services: use direct Electron OAuth (no server needed)
-  const googleServices = ['gmail', 'calendar', 'drive', 'youtube', 'analytics'];
+  const googleServices = ['gmail', 'calendar', 'drive', 'youtube', 'analytics', 'googleAccount'];
   if (googleServices.includes(service)) {
     startGoogleOAuthFlow(service); // non-blocking — connector:connected fires when done
     return true;
@@ -2263,8 +2284,22 @@ ipcMain.handle('analytics:selectProperty', async (_e, propertyId) => {
   return { ok: true };
 });
 ipcMain.handle('connector:disconnect', (_e, service) => {
+  if (service === 'googleAccount') { connectors.disconnectGoogleAccount(); return true; }
   connectors.disconnectService(service);
   return true;
+});
+
+// ── Google Account URL opener — wraps any Google URL so it opens in the connected account ──
+ipcMain.handle('google:openUrl', (_e, url) => {
+  const email = connectors.getGoogleAccountEmail();
+  if (email) {
+    // Google AccountChooser redirects straight through if already signed in as that account
+    const chooserUrl = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=${encodeURIComponent(url)}`;
+    commands.openInChrome(chooserUrl);
+  } else {
+    // No account linked — open URL directly
+    shell.openExternal(url);
+  }
 });
 ipcMain.handle('drive:search', async (_e, query) => connectors.searchDriveFiles(query));
 

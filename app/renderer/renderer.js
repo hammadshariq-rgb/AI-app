@@ -1246,7 +1246,7 @@ window._checkQuickLaunch = async function(text) {
     const query = ytM[1].trim();
     addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
     window.jarvis.speak(`Opening ${query} on YouTube.`);
-    window.jarvis.openUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+    window.jarvis.openGoogleUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
     return true;
   }
 
@@ -1276,7 +1276,7 @@ window._checkQuickLaunch = async function(text) {
     const query = googleM[1].trim();
     addMessage('assistant', `🔍 Searching Google for **${query}**…`);
     window.jarvis.speak(`Searching Google for ${query}.`);
-    window.jarvis.openUrl(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
+    window.jarvis.openGoogleUrl(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
     return true;
   }
 
@@ -1356,8 +1356,10 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Image generation: "make me an image of X" / "generate image of X" ────
-  const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
-             || t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(.+?)\s+(?:image|picture|photo|illustration)/i);
+  // Must contain an explicit image-type word so it doesn't match "make me believe" etc.
+  const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
+             || t.match(/(?:generate|create|draw|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)[\s,]+(?:of\s+)?(.+)/i)
+             || t.match(/(?:make|paint)\s+me\s+(?:a\s+|an\s+)?(?:picture|drawing|painting|illustration)\s+(?:of\s+)?(.+)/i);
   if (imgM) {
     const prompt = imgM[1].trim();
     addMessage('assistant', `🎨 Generating image of **${prompt}**…`);
@@ -1385,8 +1387,8 @@ window._checkQuickLaunch = async function(text) {
   if (amazonM) {
     const query = amazonM[1].trim();
     addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
-    window.jarvis.speak(`Searching Amazon for ${query}.`);
-    window.jarvis.openUrl(`https://www.amazon.com/s?k=${encodeURIComponent(query)}`);
+    window.jarvis.speak(`Here are Amazon results for ${query}.`);
+    showCard({ type: 'shopping', store: 'amazon', query });
     return true;
   }
 
@@ -1396,8 +1398,8 @@ window._checkQuickLaunch = async function(text) {
   if (ebayM) {
     const query = ebayM[1].trim();
     addMessage('assistant', `🛍️ Searching eBay for **${query}**…`);
-    window.jarvis.speak(`Searching eBay for ${query}.`);
-    window.jarvis.openUrl(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`);
+    window.jarvis.speak(`Here are eBay results for ${query}.`);
+    showCard({ type: 'shopping', store: 'ebay', query });
     return true;
   }
 
@@ -1409,21 +1411,84 @@ window._checkQuickLaunch = async function(text) {
     const placeType = placesM[1].trim();
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
     (async () => {
+      // ── Map common terms to OpenStreetMap tags (Overpass API — free, no key) ──
+      const OSM_TAG_MAP = [
+        [/\bcafe|coffee\b/i,            'amenity=cafe'],
+        [/\brestaurant|eat|food|dining\b/i, 'amenity=restaurant'],
+        [/\bpizza\b/i,                  'amenity=restaurant'],
+        [/\bburger\b/i,                 'amenity=fast_food'],
+        [/\bfast.?food|takeaway\b/i,    'amenity=fast_food'],
+        [/\bbar|pub\b/i,                'amenity=bar'],
+        [/\bgym|fitness|workout\b/i,    'leisure=fitness_centre'],
+        [/\bhotel|motel|stay\b/i,       'tourism=hotel'],
+        [/\bhospital|emergency\b/i,     'amenity=hospital'],
+        [/\bpharmacy|chemist|drug\b/i,  'amenity=pharmacy'],
+        [/\bdoctor|clinic|medical\b/i,  'amenity=clinic'],
+        [/\bbank|atm\b/i,               'amenity=bank'],
+        [/\bsupermarket|grocery|grocer\b/i, 'shop=supermarket'],
+        [/\bpark|garden\b/i,            'leisure=park'],
+        [/\bpetrol|gas.?station|fuel\b/i, 'amenity=fuel'],
+        [/\bschool\b/i,                 'amenity=school'],
+        [/\bshop|store|mall\b/i,        'shop=mall'],
+        [/\bbeauty|salon|barber|haircut\b/i, 'shop=beauty'],
+        [/\bdentist|dental\b/i,         'amenity=dentist'],
+        [/\blibrary\b/i,                'amenity=library'],
+        [/\bcinema|movie|theatre|theater\b/i, 'amenity=cinema'],
+        [/\bpost.?office\b/i,           'amenity=post_office'],
+      ];
+      let osmTag = 'amenity=restaurant'; // safe fallback
+      for (const [rx, tag] of OSM_TAG_MAP) { if (rx.test(placeType)) { osmTag = tag; break; } }
+      const [osmKey, osmVal] = osmTag.split('=');
+
       try {
         const pos = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
         const { latitude: lat, longitude: lng } = pos.coords;
-        // Open Google Maps search near the user's coordinates
-        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`;
-        window.jarvis.openUrl(mapsUrl);
-        const spokenMsg = `I've opened a map showing ${placeType} near you.`;
-        addMessage('assistant', `📍 Here are **${placeType}** near you — opened in Maps.`);
-        window.jarvis.speak(spokenMsg);
-      } catch (geoErr) {
-        // No geolocation — fallback to a generic search
-        window.jarvis.openUrl(`https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`);
-        addMessage('assistant', `📍 Opened Maps for **${placeType}** near you.`);
-        window.jarvis.speak(`I've opened a search for ${placeType} near you.`);
+
+        // Overpass QL — fetch up to 8 nearest nodes within 2 km
+        const oql = `[out:json][timeout:12];(node["${osmKey}"="${osmVal}"](around:2000,${lat},${lng});way["${osmKey}"="${osmVal}"](around:2000,${lat},${lng}););out center 8;`;
+        const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(oql),
+        });
+        const overpassData = await overpassRes.json();
+        const elements = overpassData.elements || [];
+
+        const places = elements.slice(0, 8).map(el => {
+          const tags = el.tags || {};
+          const elLat = el.lat ?? el.center?.lat ?? lat;
+          const elLng = el.lon ?? el.center?.lon ?? lng;
+          const addrParts = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city']].filter(Boolean);
+          const address = addrParts.length ? addrParts.join(' ') : tags['addr:full'] || '';
+          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((tags.name || placeType) + (address ? ', ' + address : ''))}`;
+          return {
+            name:    tags.name || `Unnamed ${placeType}`,
+            type:    tags.cuisine || tags.shop || tags[osmKey] || placeType,
+            address: address,
+            phone:   tags.phone || tags['contact:phone'] || '',
+            website: tags.website || tags['contact:website'] || '',
+            mapsUrl,
+          };
+        });
+
+        if (places.length === 0) {
+          // No Overpass results — fall back to Maps link in card
+          showCard({ type: 'places', query: placeType, places: [], mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z`, noResults: true });
+          addMessage('assistant', `📍 No **${placeType}** found within 2 km. Tap "Open in Maps" for a wider search.`);
+          window.jarvis.speak(`I couldn't find any ${placeType} nearby, but I've got a Maps link for you.`);
+        } else {
+          showCard({ type: 'places', query: placeType, places, mapsUrl: `https://www.google.com/maps/search/${encodeURIComponent(placeType)}/@${lat},${lng},14z` });
+          const firstName = places[0].name;
+          addMessage('assistant', `📍 Found **${places.length} ${placeType}** near you — closest is **${firstName}**.`);
+          window.jarvis.speak(`I found ${places.length} ${placeType} near you. The closest is ${firstName}.`);
+        }
+      } catch (_) {
+        // Geolocation denied or Overpass timed out — show Maps link card
+        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`;
+        showCard({ type: 'places', query: placeType, places: [], mapsUrl, noResults: true });
+        addMessage('assistant', `📍 Tap "Open in Maps" to find **${placeType}** near you.`);
+        window.jarvis.speak(`Tap the card to find ${placeType} near you.`);
       }
     })();
     return true;
@@ -1997,23 +2062,80 @@ function showCard(card) {
     }, 50);
 
   } else if (card.type === 'places') {
-    const placesHtml = (card.places || []).map((p, i) => `
+    const places = card.places || [];
+    const placesHtml = places.map((p, i) => `
       <div class="place-item" data-idx="${i}">
         <div class="place-name">${esc(p.name)}</div>
         ${p.type ? `<div class="place-type">${esc(p.type)}</div>` : ''}
-        <div class="place-addr">${esc(p.address)}</div>
+        ${p.address ? `<div class="place-addr">${esc(p.address)}</div>` : ''}
         ${p.phone ? `<div class="place-phone">${esc(p.phone)}</div>` : ''}
-        <button class="place-maps-btn" data-url="${esc(p.mapsUrl)}">📍 Maps</button>
-        ${p.website ? `<button class="place-web-btn" data-url="${esc(p.website)}">🌐 Website</button>` : ''}
+        <div class="place-actions">
+          <button class="place-maps-btn" data-url="${esc(p.mapsUrl)}">📍 Maps</button>
+          ${p.website ? `<button class="place-web-btn" data-url="${esc(p.website)}">🌐 Website</button>` : ''}
+        </div>
       </div>`).join('');
+    const noResultsHtml = places.length === 0 ? `
+      <div class="places-no-results">No results found within 2 km.</div>` : '';
     cardContent.innerHTML = `
       <div class="card-places">
         <div class="places-label">NEARBY PLACES</div>
         <div class="places-query">${esc(card.query)}</div>
+        ${noResultsHtml}
         <div class="places-list">${placesHtml}</div>
+        ${card.mapsUrl ? `<button class="places-maps-all-btn" id="placesMapsAllBtn">🗺️ Open all in Google Maps</button>` : ''}
       </div>`;
     setTimeout(() => {
       cardContent.querySelectorAll('.place-maps-btn, .place-web-btn').forEach(btn => {
+        btn.addEventListener('click', () => window.jarvis.openGoogleUrl(btn.dataset.url));
+      });
+      document.getElementById('placesMapsAllBtn')?.addEventListener('click', () => {
+        window.jarvis.openGoogleUrl(card.mapsUrl);
+      });
+    }, 50);
+
+  } else if (card.type === 'shopping') {
+    // Amazon / eBay sidebar card — quick-access links with category suggestions
+    const isAmazon = card.store === 'amazon';
+    const storeName  = isAmazon ? 'Amazon'  : 'eBay';
+    const storeColor = isAmazon ? '#FF9900' : '#E43137';
+    const storeLogo  = isAmazon
+      ? `<svg width="60" height="18" viewBox="0 0 120 35" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="0" y="28" font-family="Arial" font-weight="bold" font-size="28" fill="${storeColor}">amazon</text></svg>`
+      : `<svg width="42" height="18" viewBox="0 0 80 28" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="0" y="22" font-family="Arial" font-weight="bold" font-size="22" fill="${storeColor}">ebay</text></svg>`;
+    const searchUrl = isAmazon
+      ? `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}`
+      : `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}`;
+    const dealsUrl = isAmazon
+      ? `https://www.amazon.com/deals`
+      : `https://www.ebay.com/deals`;
+    const categoryLinks = isAmazon ? [
+      { label: 'Electronics',  url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:172282` },
+      { label: 'Clothing',     url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:7141123011` },
+      { label: 'Home',         url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:1055398` },
+      { label: 'Sports',       url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:3375251` },
+    ] : [
+      { label: 'Buy It Now',   url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_BIN=1` },
+      { label: 'Auction',      url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_Auction=1` },
+      { label: 'New',          url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_ItemCondition=3` },
+      { label: 'Used',         url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_ItemCondition=4` },
+    ];
+    cardContent.innerHTML = `
+      <div class="card-shopping">
+        <div class="shopping-store-logo">${storeLogo}</div>
+        <div class="shopping-label">SEARCH RESULTS FOR</div>
+        <div class="shopping-query">"${esc(card.query)}"</div>
+        <button class="shopping-main-btn" id="shopMainBtn" style="background:${storeColor}">
+          View Results on ${storeName} →
+        </button>
+        <div class="shopping-cat-title">FILTER BY</div>
+        <div class="shopping-cats">
+          ${categoryLinks.map(c => `<button class="shopping-cat-btn" data-url="${esc(c.url)}">${esc(c.label)}</button>`).join('')}
+        </div>
+        <button class="shopping-deals-btn" id="shopDealsBtn">🔥 Today's Deals</button>
+      </div>`;
+    setTimeout(() => {
+      document.getElementById('shopMainBtn')?.addEventListener('click',  () => window.jarvis.openUrl(searchUrl));
+      document.getElementById('shopDealsBtn')?.addEventListener('click', () => window.jarvis.openUrl(dealsUrl));
+      cardContent.querySelectorAll('.shopping-cat-btn').forEach(btn => {
         btn.addEventListener('click', () => window.jarvis.openUrl(btn.dataset.url));
       });
     }, 50);
@@ -2316,10 +2438,40 @@ function showCard(card) {
       return `<div class="cal-event"><div class="cal-title">${esc(e.title)}</div><div class="cal-time">${esc(dateStr)} · ${esc(timeStr)}</div></div>`;
     }).join('');
     cardContent.innerHTML = `<div class="card-calendar"><div class="cal-header">📅 UPCOMING EVENTS</div>${evRows || '<div class="cal-empty">No events found.</div>'}</div>`;
+
+  } else if (card.type === 'answer' || card.type === 'wiki') {
+    // ── Magic cursor capture result — academic answers, identifications, etc. ──
+    const catIcon = { math: '🧮', science: '🔬', finance: '📈', code: '💻', text: '📄',
+                      people: '🧑', food: '🍽️', place: '📍', product: '🛍️', animal: '🐾', general: '🔍' };
+    const icon = catIcon[card.category] || catIcon.general;
+    const stepsHtml = card.steps && card.steps.length
+      ? `<div class="ans-steps-title">Step-by-step:</div>
+         <ol class="ans-steps">${card.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`
+      : '';
+    const formulaHtml = card.formula
+      ? `<div class="ans-formula">${esc(card.formula)}</div>`
+      : '';
+    const factHtml = card.fact
+      ? `<div class="ans-fact">💡 ${esc(card.fact)}</div>`
+      : '';
+    cardContent.innerHTML = `
+      <div class="card-answer">
+        <div class="ans-header">
+          <span class="ans-icon">${icon}</span>
+          <div>
+            <div class="ans-title">${esc(card.title || 'Result')}</div>
+            <div class="ans-label">${esc((card.category || 'ANSWER').toUpperCase())}</div>
+          </div>
+        </div>
+        ${formulaHtml}
+        <div class="ans-summary">${esc(card.summary || '')}</div>
+        ${stepsHtml}
+        ${factHtml}
+      </div>`;
   }
 
   // Wiki-style cards embed their own source footer — hide the external one
-  const inlineSourceTypes = ['wiki_card', 'person', 'animal', 'character'];
+  const inlineSourceTypes = ['wiki_card', 'person', 'animal', 'character', 'answer', 'wiki'];
   if (inlineSourceTypes.includes(card.type)) {
     cardSource.textContent = '';
   } else if (card.sourceUrl) {
@@ -4463,6 +4615,29 @@ async function renderConnectors() {
     }
   }
 
+  // Google Account row
+  const gaStatus = document.getElementById('googleAccountStatus');
+  const gaBtn    = document.getElementById('googleAccountBtn');
+  if (gaStatus && gaBtn) {
+    if (status.googleAccount) {
+      const email = status.googleAccountEmail || 'Connected';
+      gaStatus.textContent = `Linked as ${email}`;
+      gaStatus.className = 'connector-status connected';
+      gaBtn.textContent = 'DISCONNECT';
+      gaBtn.className = 'connector-btn disconnect';
+      gaBtn.onclick = async () => {
+        await window.jarvis.connectorDisconnect('googleAccount');
+        renderConnectors();
+      };
+    } else {
+      gaStatus.textContent = 'Not linked · Searches & YouTube always open in your account';
+      gaStatus.className = 'connector-status';
+      gaBtn.textContent = 'CONNECT';
+      gaBtn.className = 'connector-btn';
+      gaBtn.onclick = () => window.jarvis.connectorConnect('googleAccount');
+    }
+  }
+
   // Google Calendar row
   const calendarStatus = document.getElementById('calendarStatus');
   const calendarBtn = document.getElementById('calendarBtn');
@@ -5357,15 +5532,16 @@ languageSearch?.addEventListener('input', () => renderLanguageList(languageSearc
 window.jarvis.onConnectorConnected(({ service }) => {
   renderConnectors();
   const connectedMessages = {
-    gmail:    'Gmail connected. Say "give me an update" to check your emails.',
-    outlook:  'Outlook connected. Say "give me an update" to check your emails.',
-    drive:    'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
-    calendar: 'Google Calendar connected. Say "what\'s on my schedule" to see your events.',
-    spotify:  'Spotify connected. Say "play some music" to get started.',
-    youtube:  'YouTube connected. Say "show me my channel stats" to see your analytics.',
-    instagram:'Instagram connected. Say "show me my analytics" to see your reach and followers.',
-    tiktok:   'TikTok connected. Say "show me my TikTok stats" to see your performance.',
-    analytics:'Google Analytics connected. Say "how many visitors did I get this month?" to see your traffic and revenue.',
+    gmail:         'Gmail connected. Say "give me an update" to check your emails.',
+    outlook:       'Outlook connected. Say "give me an update" to check your emails.',
+    drive:         'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
+    calendar:      'Google Calendar connected. Say "what\'s on my schedule" to see your events.',
+    spotify:       'Spotify connected. Say "play some music" to get started.',
+    youtube:       'YouTube connected. Say "show me my channel stats" to see your analytics.',
+    instagram:     'Instagram connected. Say "show me my analytics" to see your reach and followers.',
+    tiktok:        'TikTok connected. Say "show me my TikTok stats" to see your performance.',
+    analytics:     'Google Analytics connected. Say "how many visitors did I get this month?" to see your traffic and revenue.',
+    googleAccount: 'Google Account linked. Google searches and YouTube will now always open in your account.',
   };
   const name = service.charAt(0).toUpperCase() + service.slice(1);
   const msg  = connectedMessages[service] || `${name} connected successfully.`;
@@ -5867,6 +6043,8 @@ async function initMicOnce() {
       audioContext  = new AudioContext({ sampleRate: 16000 });
       await audioContext.resume();
       micInitialised = true;
+      // Share this stream with the clap wake detector so it never grabs a separate mic
+      if (typeof window._clapReattach === 'function') window._clapReattach(currentStream);
       return true;
     } catch (err) {
       console.error('[MIC] init error:', err);
@@ -6326,53 +6504,61 @@ micBtn.addEventListener('click', () => {
 // Listens in the background even when the window is hidden (app in tray).
 // A double-clap (two sharp loud transients within 700ms) shows + focuses the app.
 (function initClapWakeDetector() {
-  // Configuration — tunable without a rebuild
   const CFG = {
-    threshold:   0.30,   // RMS amplitude to count as a "clap" (0-1); raise if too many false triggers
-    minGap:      120,    // ms — ignore a second peak sooner than this (debounce within one clap)
-    maxWindow:   700,    // ms — two claps must land within this window to count as a double-clap
+    threshold:   0.28,   // RMS amplitude for a clap transient
+    minGap:      130,    // ms — debounce: ignore peaks within this gap of each other
+    maxWindow:   750,    // ms — two peaks must land within this window
     cooldown:    3000,   // ms — after a wake, ignore further claps for this long
-    pollMs:      30,     // setInterval period — works even in hidden/backgrounded windows
+    pollMs:      40,     // setInterval period (25fps) — works in hidden windows
   };
 
-  let stream = null;
-  let analyser = null;
-  let buf = null;
+  let _clapCtx = null;
+  let _clapAnalyser = null;
+  let _clapBuf = null;
+  let _clapIntervalId = null;
   let lastPeakTime = 0;
   let clapCount = 0;
   let cooldownUntil = 0;
   let resetTimer = null;
 
+  // ── Attach to an already-open stream (shares mic, no exclusive grab) ────────
+  function attachToStream(stream) {
+    if (_clapCtx) { try { _clapCtx.close(); } catch (_) {} }
+    _clapCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    _clapAnalyser = _clapCtx.createAnalyser();
+    _clapAnalyser.fftSize = 256;
+    _clapAnalyser.smoothingTimeConstant = 0.0;
+    _clapCtx.createMediaStreamSource(stream).connect(_clapAnalyser);
+    _clapBuf = new Float32Array(_clapAnalyser.frequencyBinCount);
+  }
+
   async function startClapWatcher() {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.0; // no smoothing — we want raw transients
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      buf = new Float32Array(analyser.frequencyBinCount);
+      // Prefer sharing the voice recorder's live stream — avoids grabbing the mic twice.
+      // currentStream is the module-level var owned by the recording logic.
+      const existingStream = (typeof currentStream !== 'undefined' && currentStream) ? currentStream : null;
+      const stream = existingStream || await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      attachToStream(stream);
 
       let prevRms = 0;
-      setInterval(() => {
-        if (!analyser) return;
-        analyser.getFloatTimeDomainData(buf);
+      _clapIntervalId = setInterval(() => {
+        // Pause while voice recording is active — prevents false triggers on speech
+        if (typeof isRecording !== 'undefined' && isRecording) { prevRms = 0; return; }
+        if (!_clapAnalyser || !_clapBuf) return;
+
+        _clapAnalyser.getFloatTimeDomainData(_clapBuf);
         let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const rms = Math.sqrt(sum / buf.length);
+        for (let i = 0; i < _clapBuf.length; i++) sum += _clapBuf[i] * _clapBuf[i];
+        const rms = Math.sqrt(sum / _clapBuf.length);
 
         const now = Date.now();
-        const isTransient = rms > CFG.threshold && prevRms < CFG.threshold * 0.4;
+        const isTransient = rms > CFG.threshold && prevRms < CFG.threshold * 0.35;
         prevRms = rms;
 
-        if (!isTransient) return;
-        if (now < cooldownUntil) return;
-        if (now - lastPeakTime < CFG.minGap) return; // debounce
+        if (!isTransient || now < cooldownUntil || now - lastPeakTime < CFG.minGap) return;
 
         lastPeakTime = now;
         clapCount++;
-
-        // Reset clap count if the window expires
         clearTimeout(resetTimer);
         resetTimer = setTimeout(() => { clapCount = 0; }, CFG.maxWindow);
 
@@ -6385,28 +6571,28 @@ micBtn.addEventListener('click', () => {
       }, CFG.pollMs);
 
     } catch (_) {
-      // Mic unavailable or permission denied — silently skip, don't break anything
+      // Mic unavailable or denied — silently skip
     }
   }
 
+  // If the voice recorder opens a new stream after we init, re-attach to it
+  // so we always share rather than hold a stale or duplicate stream.
+  window._clapReattach = function(stream) {
+    if (!stream) return;
+    attachToStream(stream);
+  };
+
   function _onDoubleClapWake() {
-    // 1. Bring the window forward
     if (window.jarvis && window.jarvis.focusWindow) window.jarvis.focusWindow();
-    // 2. Start listening after a short delay so the app has time to show
     setTimeout(() => {
-      if (typeof startRecording === 'function' && !isRecording) {
-        startRecording();
-      } else {
-        // Fallback — click the mic button
-        document.getElementById('micBtn')?.click();
-      }
+      if (typeof startRecording === 'function' && !isRecording) startRecording();
+      else document.getElementById('micBtn')?.click();
     }, 600);
   }
 
-  // Start after a 4 s delay — lets the UI fully load and avoids triggering on startup sounds
-  setTimeout(startClapWatcher, 4000);
+  // Start after 5 s — give voice recording code time to acquire the mic first
+  setTimeout(startClapWatcher, 5000);
 
-  // Expose so devtools can test: window._testClapWake()
   window._testClapWake = _onDoubleClapWake;
 })();
 // ================================================================

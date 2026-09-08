@@ -64,8 +64,14 @@ function getConnectorStatus() {
     analytics: !!store.get('connector.analytics.access_token'),
     stripe: !!store.get('connector.stripe.secret_key'),
     vipSenders: store.get('connector.vipSenders') || [],
+    googleAccount: !!store.get('googleAccountEmail'),
+    googleAccountEmail: store.get('googleAccountEmail') || null,
   };
 }
+
+function saveGoogleAccountEmail(email) { store.set('googleAccountEmail', email); }
+function getGoogleAccountEmail() { return store.get('googleAccountEmail') || null; }
+function disconnectGoogleAccount() { store.delete('googleAccountEmail'); }
 
 function saveGmailTokens(_tokens) { /* Gmail removed — pending ADA-CASA */ }
 function saveOutlookTokens(_tokens) { /* Outlook removed — pending setup */ }
@@ -780,7 +786,8 @@ module.exports = {
   // Drive stub (removed pending ADA-CASA)
   saveDriveTokens, getDriveToken, searchDriveFiles, openDriveFile,
   // Active connectors
-  getConnectorStatus, saveSpotifyTokens, saveCalendarTokens,
+  getConnectorStatus, saveGoogleAccountEmail, getGoogleAccountEmail, disconnectGoogleAccount,
+  saveSpotifyTokens, saveCalendarTokens,
   saveYouTubeTokens, saveInstagramTokens, saveTikTokTokens, saveShopifyCredentials,
   saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials,
   playOnSpotify,

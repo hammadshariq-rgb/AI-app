@@ -4557,8 +4557,26 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
 .place-addr { font-size: 11px; color: rgba(160,185,255,0.6); line-height: 1.4; }
 .place-phone { font-size: 11px; color: rgba(120,220,160,0.7); }
 .place-item > div + button, .place-item > button { margin-top: 5px; }
-.place-maps-btn, .place-web-btn { background: rgba(255,180,80,0.1); border: 1px solid rgba(255,180,80,0.25); color: rgba(255,180,80,0.85); border-radius: 6px; padding: 5px 10px; font-size: 10px; font-weight: 700; cursor: pointer; margin-right: 6px; text-transform: uppercase; letter-spacing: 0.3px; transition: background 0.2s; }
+.place-actions { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.place-maps-btn, .place-web-btn { background: rgba(255,180,80,0.1); border: 1px solid rgba(255,180,80,0.25); color: rgba(255,180,80,0.85); border-radius: 6px; padding: 5px 10px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px; transition: background 0.2s; }
 .place-maps-btn:hover, .place-web-btn:hover { background: rgba(255,180,80,0.2); }
+.places-no-results { font-size: 11px; color: rgba(160,185,255,0.5); font-style: italic; padding: 6px 0; }
+.places-maps-all-btn { margin-top: 6px; width: 100%; background: rgba(66,133,244,0.12); border: 1px solid rgba(66,133,244,0.3); color: rgba(120,180,255,0.9); border-radius: 8px; padding: 9px 14px; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: background 0.2s; }
+.places-maps-all-btn:hover { background: rgba(66,133,244,0.22); }
+
+/* ── Shopping card (Amazon / eBay) ── */
+.card-shopping { display: flex; flex-direction: column; gap: 10px; }
+.shopping-store-logo { padding: 2px 0 4px; }
+.shopping-label { font-size: 9px; letter-spacing: 2.5px; font-weight: 700; text-transform: uppercase; color: rgba(200,200,255,0.45); }
+.shopping-query { font-size: 16px; font-weight: 700; color: #e8eaff; line-height: 1.3; }
+.shopping-main-btn { width: 100%; border: none; border-radius: 9px; padding: 11px 14px; font-size: 12px; font-weight: 800; color: #fff; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: opacity 0.2s; }
+.shopping-main-btn:hover { opacity: 0.85; }
+.shopping-cat-title { font-size: 9px; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; color: rgba(200,200,255,0.4); margin-top: 4px; }
+.shopping-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.shopping-cat-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(220,230,255,0.8); border-radius: 6px; padding: 5px 11px; font-size: 10px; font-weight: 600; cursor: pointer; letter-spacing: 0.3px; transition: background 0.2s; }
+.shopping-cat-btn:hover { background: rgba(255,255,255,0.12); }
+.shopping-deals-btn { width: 100%; background: rgba(255,60,60,0.1); border: 1px solid rgba(255,60,60,0.25); color: rgba(255,120,120,0.9); border-radius: 8px; padding: 9px 14px; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: background 0.2s; }
+.shopping-deals-btn:hover { background: rgba(255,60,60,0.18); }
 
 /* ===================== UPDATE BANNER ===================== */
 #updateBanner {
@@ -4591,6 +4609,81 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
 .cal-title { font-size: 13px; color: rgba(200,230,255,0.9); font-weight: 500; margin-bottom: 3px; }
 .cal-time { font-size: 11px; color: rgba(0,200,255,0.55); letter-spacing: 0.5px; }
 .cal-empty { font-size: 12px; color: rgba(200,230,255,0.3); text-align: center; padding: 20px 0; }
+
+/* ===================== ANSWER CARD (magic cursor capture results) ===================== */
+.card-answer { padding: 4px 0; }
+.ans-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ans-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.ans-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(200,230,255,0.95);
+  line-height: 1.2;
+}
+.ans-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(0,200,255,0.5);
+  margin-top: 3px;
+}
+.ans-formula {
+  background: rgba(0,200,255,0.07);
+  border: 1px solid rgba(0,200,255,0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: rgba(0,220,180,0.9);
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+.ans-summary {
+  font-size: 13px;
+  color: rgba(200,230,255,0.8);
+  line-height: 1.6;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+}
+.ans-steps-title {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: rgba(0,200,255,0.45);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.ans-steps {
+  margin: 0 0 12px 0;
+  padding-left: 18px;
+}
+.ans-steps li {
+  font-size: 12px;
+  color: rgba(200,230,255,0.75);
+  line-height: 1.6;
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+.ans-steps li::marker {
+  color: rgba(0,200,255,0.5);
+  font-size: 11px;
+}
+.ans-fact {
+  font-size: 12px;
+  color: rgba(0,200,255,0.65);
+  background: rgba(0,200,255,0.05);
+  border-radius: 6px;
+  padding: 8px 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
 
 /* ===================== MAIN PANEL ===================== */
 #mainPanel {
