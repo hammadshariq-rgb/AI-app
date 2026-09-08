@@ -5550,7 +5550,8 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
     return;
   }
 
-  if (authResult.active) {
+  if (authResult.active || storedProfile?.name) {
+    // Active subscription OR already set up before → always enter main
     profile = {
       name: displayName,
       email: authResult.user?.email || storedProfile?.email,
@@ -5563,7 +5564,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
     return;
   }
 
-  // Subscription not active — show payment
+  // Brand new user, no subscription — show payment
   await showSplash(displayName);
   setupView.classList.remove('hidden');
   showTermsOrPayment();
