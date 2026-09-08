@@ -3779,6 +3779,7 @@ async function showSplash(name) {
 }
 
 async function enterMain(skipWelcome = false, returningUser = false) {
+  const welcomeScreen = document.getElementById('welcomeScreen');
   // Show main view FIRST — nothing should block this
   welcomeScreen.classList.add('hidden');
   mainView.classList.remove('hidden');
@@ -3799,7 +3800,6 @@ async function enterMain(skipWelcome = false, returningUser = false) {
   // Show welcome screen only on first-ever login, not on re-activations
   const welcomeKey = 'hasSeenWelcome_' + (profile.email || aiName);
   const hasSeenWelcome = localStorage.getItem(welcomeKey);
-  const welcomeScreen = document.getElementById('welcomeScreen');
 
   if (!skipWelcome && !hasSeenWelcome) {
     welcomeScreen.classList.remove('hidden');
