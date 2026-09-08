@@ -5509,90 +5509,64 @@ voiceVolumeSlider.addEventListener('input', () => {
 })();
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {
+  profile = storedProfile;
+  history = [];
+  const _isReturningUser = !!returningUser;
+  mainView.classList.add('hidden');
+  setupView.classList.add('hidden');
+  cardPanel.classList.add('hidden');
+  historySidebar.classList.add('hidden');
+  splash.classList.add('hidden');
+
+  let authResult;
   try {
-    profile = storedProfile;
-    history = [];
-    mainView.classList.add('hidden');
-    setupView.classList.add('hidden');
-    cardPanel.classList.add('hidden');
-    historySidebar.classList.add('hidden');
+    authResult = await window.jarvis.authVerify();
+  } catch(_) {
+    authResult = { offline: true };
+  }
 
-    const _displayName = storedProfile?.name || name || 'Your AI';
+  const displayName = storedProfile?.name || authResult?.user?.name || name || 'Your AI';
 
-    // ── RETURNING USER: stored profile exists → go straight to main ──────────
-    // Never let server auth block someone who has already set up the app.
+  if (authResult.offline) {
+    await showSplash(displayName);
     if (storedProfile && storedProfile.name) {
-      profile = storedProfile;
-      await showSplash(_displayName);
-      await enterMain(true, !!returningUser);
-      // Verify token in background — only log out if server explicitly says so
-      window.jarvis.authVerify().then(r => {
-        if (r && r.needsLogin && !r.offline) {
-          // Server says token is invalid — soft re-login next time, don't kick them now
-          storedProfile.wasSubscribed = false;
-          window.jarvis.setProfile(storedProfile).catch(() => {});
-        }
-      }).catch(() => {});
-      return;
-    }
-
-    // ── NEW USER: no stored profile → check server and show auth ─────────────
-    await showSplash(_displayName);
-
-    let authResult;
-    try {
-      authResult = await Promise.race([
-        window.jarvis.authVerify(),
-        new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 6000))
-      ]);
-    } catch(_) {
-      authResult = { offline: true };
-    }
-
-    if (authResult.offline || !authResult.needsLogin && !authResult.active) {
+      await enterMain(true, _isReturningUser);
+    } else {
       setupView.classList.remove('hidden');
       showNameStep();
-      return;
     }
-
-    if (authResult.needsLogin) {
-      setupView.classList.remove('hidden');
-      if (authResult.reason === 'inactive') {
-        showReloginStep('You\'ve been away for a while. Please log in to continue.');
-      } else {
-        showAuthStep();
-        setAuthMode('signup');
-      }
-      return;
-    }
-
-    if (authResult.active) {
-      // Active subscriber — always go straight to main, no onboarding gate
-      const displayName = authResult.user?.name || _displayName;
-      profile = {
-        name: displayName, email: authResult.user?.email,
-        displayName: null, title: null, wasSubscribed: true,
-      };
-      // Save profile so next launch uses the fast returning-user path
-      await window.jarvis.setProfile(profile).catch(() => {});
-      await enterMain(true, false);
-    } else {
-      setupView.classList.remove('hidden');
-      showTermsOrPayment();
-    }
-
-  } catch(fatalErr) {
-    console.error('[onActivated] fatal:', fatalErr);
-    // Nuclear fallback — always get to a usable state
-    try { splash.classList.add('hidden'); } catch(_) {}
-    if (storedProfile && storedProfile.name) {
-      try { await enterMain(true, false); } catch(_) {
-        try { mainView.classList.remove('hidden'); setState('idle'); } catch(_) {}
-      }
-    } else {
-      try { setupView.classList.remove('hidden'); showAuthStep(); } catch(_) {}
-    }
+    return;
   }
+
+  if (authResult.needsLogin) {
+    await showSplash(displayName);
+    setupView.classList.remove('hidden');
+    if (authResult.reason === 'inactive') {
+      showReloginStep('You\'ve been away for a while. Please log in to continue.');
+    } else {
+      showAuthStep();
+      setAuthMode('signup');
+    }
+    return;
+  }
+
+  if (authResult.active) {
+    profile = {
+      name: displayName,
+      email: authResult.user?.email || storedProfile?.email,
+      displayName: storedProfile?.displayName || null,
+      title: storedProfile?.title || null,
+      wasSubscribed: true,
+    };
+    await showSplash(displayName);
+    await enterMain(true, _isReturningUser);
+    return;
+  }
+
+  // Subscription not active — show payment
+  await showSplash(displayName);
+  setupView.classList.remove('hidden');
+  showTermsOrPayment();
 });
 
 // ===================== RECORDING =====================
