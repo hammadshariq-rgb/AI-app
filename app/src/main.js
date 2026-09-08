@@ -19,7 +19,14 @@ const connectors = require('./services/connectors');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
-app.setAsDefaultProtocolClient('jarvis');
+// In dev mode on Windows, setAsDefaultProtocolClient needs the
+// exe path + argv[1] so Windows maps the protocol back to the
+// right instance even when running from source (not packaged).
+if (process.defaultApp) {
+  app.setAsDefaultProtocolClient('jarvis', process.execPath, [path.resolve(process.argv[1])]);
+} else {
+  app.setAsDefaultProtocolClient('jarvis');
+}
 
 const store = new Store();
 

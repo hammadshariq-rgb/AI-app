@@ -58,6 +58,17 @@ async function transcribe(audioBuffer, _attempt = 1) {
     });
     clearTimeout(timer);
 
+    // If the server issued a fresh token (expired token silently refreshed), persist it
+    const refreshed = res.headers.get('x-refresh-token');
+    if (refreshed) {
+      try {
+        const enc = safeStorage.isEncryptionAvailable()
+          ? safeStorage.encryptString(refreshed).toString('base64')
+          : refreshed;
+        store.set('authToken', enc);
+      } catch (_) {}
+    }
+
     if (!res.ok) {
       const errText = await res.text().catch(() => res.statusText);
       throw new Error(`STT ${res.status}: ${errText}`);

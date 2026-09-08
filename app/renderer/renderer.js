@@ -3777,11 +3777,11 @@ authSubmit.addEventListener('click', async () => {
 
   if (authMode === 'signup' && !pendingAssistantName) {
     // Show name-your-AI step after signup
-    profile = { name: 'My AI', email: userEmail, displayName, title, voice };
+    profile = { name: 'Callisto', email: userEmail, displayName, title, voice };
     await window.jarvis.setProfile(profile);
     showNameStep();
   } else {
-    const name = pendingAssistantName || result.user?.name || 'My AI';
+    const name = pendingAssistantName || result.user?.name || 'Callisto';
     profile = { name, email: userEmail, displayName, title, voice };
     await window.jarvis.setProfile(profile);
     await checkSubscriptionAndEnter(name, userEmail);
@@ -3799,7 +3799,7 @@ window.jarvis.onSubscriptionActivated(async () => {
   const result = await window.jarvis.authVerify();
   if (result.active && profile) {
     setupView.classList.add('hidden');
-    await showSplash(profile.name || 'Your AI');
+    await showSplash(profile.name || 'Callisto');
     await enterMain();
   }
 });
@@ -3834,7 +3834,7 @@ reloginSubmit.addEventListener('click', async () => {
     return;
   }
 
-  const name = result.user?.name || profile?.name || 'Your AI';
+  const name = result.user?.name || profile?.name || 'Callisto';
   profile = { name, email: result.user?.email || email };
   await window.jarvis.setProfile(profile);
   await checkSubscriptionAndEnter(name, profile.email);
@@ -4014,7 +4014,7 @@ document.getElementById('payCheckBtn').addEventListener('click', checkPaymentSta
 // ===================== SPLASH / MAIN =====================
 async function showSplash(name) {
   try {
-    splashName.textContent = (name || 'YOUR AI').toUpperCase();
+    splashName.textContent = (name || 'CALLISTO').toUpperCase();
     splashStatus.textContent = 'Initializing systems...';
     splash.classList.remove('hidden');
     await new Promise(r => setTimeout(r, 500));
@@ -4029,9 +4029,199 @@ async function showSplash(name) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// WELCOME SCROLL-LOCKED HERO
+// Momentum-physics drum scroll through Callisto's 12 capabilities.
+// The ENTER button stays locked until the user has scrolled far
+// enough to have seen all items (≥ full revolution). First login only.
+// ─────────────────────────────────────────────────────────────────
+function initWelcomeScroll() {
+  const CAPS = [
+    { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak and I respond instantly',              colorA: '#00c8ff', colorB: '#003a5c' },
+    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen for answers',      colorA: '#8b5cf6', colorB: '#2d1b69' },
+    { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       colorA: '#00e5b0', colorB: '#00382e' },
+    { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       colorA: '#f472b6', colorB: '#5c1840' },
+    { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             colorA: '#60a5fa', colorB: '#1e3a5c' },
+    { emoji: '◇', title: 'FILE INTELLIGENCE',  sub: 'Google Drive, Docs & Sheets, unified',       colorA: '#34d399', colorB: '#064e3b' },
+    { emoji: '◆', title: 'PERSISTENT MEMORY',  sub: 'I remember everything that matters',         colorA: '#fbbf24', colorB: '#4c2a00' },
+    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    colorA: '#a78bfa', colorB: '#2e1065' },
+    { emoji: '⊕', title: 'WEB SEARCH',         sub: 'Real-time information, instantly',            colorA: '#38bdf8', colorB: '#0c2a40' },
+    { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           colorA: '#4ade80', colorB: '#052e16' },
+    { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                colorA: '#fb923c', colorB: '#431407' },
+    { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           colorA: '#e879f9', colorB: '#4a044e' },
+  ];
+
+  const ROW_H = 96;
+  const N = CAPS.length;
+  const UNLOCK_THRESHOLD = N; // must scroll through all items at least once
+
+  const list = document.getElementById('capabilityList');
+  const enterBtn = document.getElementById('enterBtn');
+  const lockHint = document.getElementById('lockHint');
+  const scrollHint = document.getElementById('scrollHint');
+  const progressArc = document.getElementById('progressArc');
+  const progressPct = document.getElementById('progressPct');
+  const ARC_LEN = 113.1;
+
+  // Build rows
+  const rowEls = CAPS.map((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'cap-row';
+    row.innerHTML = `
+      <div class="cap-icon" style="background:linear-gradient(135deg,${c.colorA},${c.colorB})">
+        <span style="position:relative;z-index:1;font-size:18px;font-family:'Orbitron',sans-serif">${c.emoji}</span>
+      </div>
+      <div class="cap-text">
+        <div class="cap-title">${c.title}</div>
+        <div class="cap-sub">${c.sub}</div>
+      </div>
+      <div class="cap-eq" style="display:none">
+        <span style="background:${c.colorA}"></span>
+        <span style="background:${c.colorA}"></span>
+        <span style="background:${c.colorA}"></span>
+      </div>`;
+    list.appendChild(row);
+    return row;
+  });
+
+  // Physics state
+  let offset = 0;
+  let velocity = 0;
+  let snapTarget = null;
+  let isDragging = false;
+  let lastDragY = 0, lastDragT = 0;
+  let lastDetent = 0;
+  let activeIdx = 0;
+  let maxSeenDetent = 0;
+  let unlocked = false;
+
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+  function modN(n, m) { return ((n % m) + m) % m; }
+
+  // Render drum frame
+  function renderFrame() {
+    const cif = offset / ROW_H;
+    rowEls.forEach((el, i) => {
+      let d = i - cif;
+      d = modN(d + N / 2, N) - N / 2;
+      const absD = Math.abs(d);
+      const rotX = clamp(d * 9, -22, 22);
+      const scale = clamp(1 - absD * 0.1, 0.7, 1);
+      const opacity = clamp(1 - absD * 0.42, 0, 1);
+      const z = -absD * 20;
+      const y = d * ROW_H;
+      el.style.transform = `translateY(${y}px) translateZ(${z}px) rotateX(${rotX}deg) scale(${scale})`;
+      el.style.opacity = opacity;
+      const isActive = absD < 0.5;
+      el.classList.toggle('is-active', isActive);
+      el.querySelector('.cap-eq').style.display = isActive ? 'flex' : 'none';
+      el.style.boxShadow = isActive
+        ? `inset 0 0 0 1px ${CAPS[i].colorA}44, 0 0 28px ${CAPS[i].colorA}22`
+        : 'none';
+    });
+    const nearest = modN(Math.round(cif), N);
+    activeIdx = nearest;
+    requestAnimationFrame(renderFrame);
+  }
+
+  // Physics tick
+  function physicsTick() {
+    if (snapTarget !== null) {
+      offset += (snapTarget - offset) * 0.22;
+      if (Math.abs(snapTarget - offset) < 0.35) { offset = snapTarget; snapTarget = null; }
+    } else if (!isDragging) {
+      offset += velocity;
+      velocity *= 0.93;
+      if (Math.abs(velocity) < 0.02) velocity = 0;
+    }
+
+    // Track max scrolled distance for progress
+    const absOffset = Math.abs(offset);
+    if (absOffset > maxSeenDetent) maxSeenDetent = absOffset;
+
+    // Progress: 0→1 as user scrolls through all N items
+    const progress = Math.min(1, maxSeenDetent / (ROW_H * UNLOCK_THRESHOLD));
+    const pct = Math.round(progress * 100);
+    if (progressArc) progressArc.style.strokeDashoffset = ARC_LEN - progress * ARC_LEN;
+    if (progressPct) progressPct.textContent = pct + '%';
+
+    // Unlock when progress reaches 100%
+    if (progress >= 1 && !unlocked) {
+      unlocked = true;
+      enterBtn.classList.remove('enter-locked');
+      enterBtn.classList.add('enter-unlocked');
+      lockHint.classList.add('lh-hidden');
+      // Reveal the initially-hidden sphere + background elements
+      ['sphereCanvas', 'welcomeGlow', 'sphereLabel', 'welcomeContent'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('ws-revealed');
+      });
+    }
+
+    // Snap detent click
+    const detent = Math.round(offset / ROW_H);
+    if (detent !== lastDetent) {
+      lastDetent = detent;
+      // Hide scroll hint after first movement
+      if (scrollHint && !scrollHint.classList.contains('sh-hidden')) {
+        scrollHint.classList.add('sh-hidden');
+      }
+    }
+
+    requestAnimationFrame(physicsTick);
+  }
+
+  requestAnimationFrame(renderFrame);
+  requestAnimationFrame(physicsTick);
+
+  // ── Input handlers ──
+  const viewport = document.getElementById('capabilityViewport');
+
+  viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    snapTarget = null;
+    velocity += e.deltaY * 0.05;
+    velocity = clamp(velocity, -14, 14);
+  }, { passive: false });
+
+  viewport.addEventListener('touchstart', (e) => {
+    isDragging = true; snapTarget = null; velocity = 0;
+    lastDragY = e.touches[0].clientY; lastDragT = performance.now();
+  }, { passive: true });
+
+  viewport.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    const dy = lastDragY - y;
+    offset += dy;
+    const t = performance.now();
+    velocity = (dy / Math.max(1, t - lastDragT)) * 16;
+    lastDragY = y; lastDragT = t;
+  }, { passive: false });
+
+  viewport.addEventListener('touchend', () => { isDragging = false; });
+
+  // Keyboard nav
+  document.addEventListener('keydown', (e) => {
+    const ws = document.getElementById('welcomeScreen');
+    if (ws.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const cur = Math.round(offset / ROW_H);
+      snapTarget = (cur + 1) * ROW_H; velocity = 0;
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const cur = Math.round(offset / ROW_H);
+      snapTarget = (cur - 1) * ROW_H; velocity = 0;
+    }
+  });
+}
+
 async function enterMain(skipWelcome = false, returningUser = false) {
   const welcomeScreen = document.getElementById('welcomeScreen');
-  const aiName = (profile.name || 'YOUR AI').toUpperCase();
+  const aiName = (profile.name || 'CALLISTO').toUpperCase();
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
   setupView.classList.add('hidden');
@@ -4045,10 +4235,12 @@ async function enterMain(skipWelcome = false, returningUser = false) {
   const hasSeenWelcome = localStorage.getItem(welcomeKey);
 
   if (!skipWelcome && !hasSeenWelcome) {
-    // First-ever login — show welcome sphere, user clicks Enter
+    // First-ever login — show scroll-locked welcome hero
     welcomeScreen.classList.remove('hidden');
     initSpikySphere();
+    initWelcomeScroll();
     document.getElementById('enterBtn').addEventListener('click', async () => {
+      if (!document.getElementById('enterBtn').classList.contains('enter-unlocked')) return;
       localStorage.setItem(welcomeKey, '1');
       welcomeScreen.classList.add('fade-out');
       setTimeout(() => {

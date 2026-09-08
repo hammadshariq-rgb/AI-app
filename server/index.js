@@ -183,7 +183,17 @@ const authLimiter = rateLimit({
 });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const PUBLIC_URL = process.env.PUBLIC_URL || 'http://localhost:4000';
+// PUBLIC_URL must be set in Railway env vars to the actual Railway URL.
+// If missing, we fall back to detecting it from the first incoming request.
+let PUBLIC_URL = process.env.PUBLIC_URL || '';
+function getPublicUrl(req) {
+  if (PUBLIC_URL) return PUBLIC_URL;
+  // Auto-detect from request (works on Railway, not on localhost with custom domain)
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host  = req.headers['x-forwarded-host']  || req.get('host') || 'localhost:4000';
+  PUBLIC_URL = `${proto}://${host}`;
+  return PUBLIC_URL;
+}
 const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
@@ -246,7 +256,7 @@ app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'te
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function makeToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '365d' });
 }
 
 function safeUser(user) {
@@ -260,9 +270,22 @@ function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    req.userId = req.user.id; // expose id directly
+    req.userId = req.user.id;
     next();
-  } catch {
+  } catch (err) {
+    // If the token is merely expired (not tampered), try to reissue silently
+    // so long-running installs don't break mid-session
+    if (err.name === 'TokenExpiredError') {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+        req.user = decoded;
+        req.userId = decoded.id;
+        // Attach a fresh token in the response header so the client can persist it
+        const freshToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, { expiresIn: '365d' });
+        res.setHeader('X-Refresh-Token', freshToken);
+        return next();
+      } catch {}
+    }
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -319,9 +342,10 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 // Google OAuth — server redirects to Google, then back to /auth/google/callback
 // which redirects to jarvis:// deep link so Electron can capture the token
 app.get('/auth/google', (req, res) => {
+  const base = getPublicUrl(req);
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
-    redirect_uri: `${PUBLIC_URL}/auth/google/callback`,
+    redirect_uri: `${base}/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     access_type: 'offline',
@@ -332,6 +356,7 @@ app.get('/auth/google', (req, res) => {
 
 app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
+  const base = getPublicUrl(req);
   if (!code) return res.status(400).send('No code received from Google.');
   try {
     // Exchange code for tokens
@@ -342,12 +367,12 @@ app.get('/auth/google/callback', async (req, res) => {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${PUBLIC_URL}/auth/google/callback`,
+        redirect_uri: `${base}/auth/google/callback`,
         grant_type: 'authorization_code',
       }),
     });
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error('No access token');
+    if (!tokenData.access_token) throw new Error(tokenData.error_description || tokenData.error || 'No access token');
 
     // Get user info from Google
     const infoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -367,8 +392,27 @@ app.get('/auth/google/callback', async (req, res) => {
     await users.update(user.id, { lastActiveAt: Date.now() });
 
     const token = makeToken(user);
-    // Redirect back to Electron via custom protocol
-    res.redirect(`jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`);
+    // Redirect back to Electron via jarvis:// custom protocol.
+    // If the deep link can't open (browser blocks it), show a fallback
+    // page that auto-closes and tells the user to return to the app.
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Signing you in…</title>
+      <style>body{margin:0;background:#05080f;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
+      .box{text-align:center;max-width:380px;padding:40px}.icon{font-size:52px;margin-bottom:16px}
+      h2{font-size:20px;letter-spacing:2px;margin:0 0 10px}p{color:rgba(255,255,255,0.5);font-size:14px;line-height:1.6}</style>
+    </head><body>
+      <div class="box">
+        <div class="icon">⬡</div>
+        <h2>AUTHENTICATION COMPLETE</h2>
+        <p>Return to Callisto AI.<br>This window will close automatically.</p>
+      </div>
+      <script>
+        // Try the deep link first — Electron catches it via second-instance
+        window.location.href = "jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}";
+        // Auto-close fallback after 1.5 s
+        setTimeout(() => { try { window.close(); } catch(e) {} }, 1500);
+      </script>
+    </body></html>`);
   } catch (err) {
     console.error('Google OAuth error:', err);
     res.send(`<script>window.close();</script><p>Auth failed: ${err.message}</p>`);

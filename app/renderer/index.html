@@ -865,34 +865,54 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
-    /* ── Callisto Hand Cursor — Lightweight Premium ── */
-    /* Uses transform only — compositor thread, zero layout reflow */
+    /* ── Callisto Hand Cursor — Precision Premium ── */
+    /* Transform-only, compositor-thread — zero layout reflow */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
-      width: 32px; height: 32px; border-radius: 50%;
-      left: 0; top: 0; /* anchor at origin; JS drives transform only */
-      transform: translate(-9999px, -9999px); /* hidden offscreen until first hand */
+      width: 36px; height: 36px; border-radius: 50%;
+      left: 0; top: 0;
+      transform: translate(-9999px, -9999px);
       will-change: transform;
-      display: block;
-      /* Outer glow ring */
-      border: 1.5px solid rgba(61,255,180,0.9);
-      box-shadow: 0 0 10px rgba(61,255,180,0.8), 0 0 22px rgba(61,255,180,0.35), 0 0 4px rgba(255,255,255,0.4) inset;
-      background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.25), rgba(61,255,180,0.08));
-      transition: border-color 60ms, box-shadow 60ms;
-      /* no width/height transition — avoids double-lag on pinch */
     }
+    /* Outer pulsing ring — slow ambient animation */
+    #magicCursor .mc-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1.5px solid rgba(61,255,180,0.75);
+      box-shadow: 0 0 12px rgba(61,255,180,0.7), 0 0 28px rgba(61,255,180,0.25);
+      animation: mcRingPulse 2.4s ease-in-out infinite;
+    }
+    /* Second ring — slightly smaller, offset phase */
+    #magicCursor .mc-ring2 {
+      position: absolute; inset: 6px; border-radius: 50%;
+      border: 1px solid rgba(61,255,180,0.35);
+      animation: mcRingPulse 2.4s ease-in-out 0.7s infinite;
+    }
+    /* Centre precision dot */
     #magicCursor .mc-dot {
-      position: absolute; inset: 11px; border-radius: 50%;
+      position: absolute; inset: 15px; border-radius: 50%;
       background: rgba(61,255,180,1);
-      box-shadow: 0 0 8px rgba(61,255,180,1);
+      box-shadow: 0 0 10px rgba(61,255,180,1), 0 0 20px rgba(61,255,180,0.5);
     }
-    #magicCursor.pinch {
-      width: 22px; height: 22px;
-      border-color: rgba(255,255,255,1);
-      box-shadow: 0 0 18px rgba(61,255,180,1), 0 0 36px rgba(61,255,180,0.6), 0 0 6px #fff inset;
-      background: radial-gradient(circle, rgba(255,255,255,0.4), rgba(61,255,180,0.2));
+    @keyframes mcRingPulse {
+      0%,100% { opacity: 0.8; transform: scale(1); }
+      50%      { opacity: 0.4; transform: scale(1.08); }
     }
-    #magicCursor.pinch .mc-dot { background: #fff; box-shadow: 0 0 10px #fff; inset: 7px; }
+    /* Pinch state — squish + bright flash */
+    #magicCursor.pinch .mc-ring {
+      border-color: rgba(255,255,255,0.95);
+      box-shadow: 0 0 20px rgba(61,255,180,1), 0 0 48px rgba(61,255,180,0.55);
+      animation: mcPinchPop 0.18s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    #magicCursor.pinch .mc-ring2 { opacity: 0; }
+    #magicCursor.pinch .mc-dot {
+      inset: 11px;
+      background: #fff;
+      box-shadow: 0 0 14px #fff, 0 0 30px rgba(61,255,180,0.8);
+    }
+    @keyframes mcPinchPop {
+      from { transform: scale(0.6); opacity: 0.5; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
 
     /* ── Magic Editor floating card ── */
     #magicEditBar {
@@ -1600,13 +1620,50 @@
     <!-- ══ ONBOARDING — shown only on first-ever launch ══ -->
     <div id="onboardView" class="hidden"></div>
 
-    <!-- Welcome / Enter screen -->
+    <!-- Welcome / Enter screen — scroll-locked hero (first login only) -->
     <div id="welcomeScreen" class="hidden">
       <canvas id="sphereCanvas"></canvas>
+
+      <!-- ambient cyan pulse behind list -->
+      <div id="welcomeGlow"></div>
+
+      <!-- top eyebrow -->
+      <div id="sphereLabel">YOUR OWN PERSONAL AI</div>
+
+      <!-- coverflow capability drum -->
+      <div id="capabilityViewport">
+        <div id="capabilityList"></div>
+      </div>
+
+      <!-- animated scroll-down hint (auto-hides once user scrolls) -->
+      <div id="scrollHint">
+        <div class="sh-text">SCROLL TO DISCOVER</div>
+        <div class="sh-arrows">
+          <div class="sh-arrow"></div>
+          <div class="sh-arrow"></div>
+          <div class="sh-arrow"></div>
+        </div>
+      </div>
+
+      <!-- circular progress ring — fills as user scrolls through capabilities -->
+      <div id="welcomeProgress">
+        <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="22" r="18" stroke="rgba(0,200,255,0.12)" stroke-width="2.5"/>
+          <circle id="progressArc" cx="22" cy="22" r="18"
+                  stroke="#00c8ff" stroke-width="2.5"
+                  stroke-dasharray="113.1" stroke-dashoffset="113.1"
+                  stroke-linecap="round"
+                  transform="rotate(-90 22 22)"
+                  style="transition:stroke-dashoffset 0.4s cubic-bezier(.4,0,.2,1)"/>
+        </svg>
+        <span id="progressPct">0%</span>
+      </div>
+
+      <!-- enter area — locked until user scrolls through -->
       <div id="welcomeContent">
-        <div id="sphereLabel">YOUR OWN PERSONAL AI</div>
-        <h1 id="enterBtn">ENTER <span id="enterAiName">YOUR</span> AI</h1>
+        <h1 id="enterBtn" class="enter-locked">ENTER <span id="enterAiName">YOUR</span> AI</h1>
         <p id="enterSubtitle">An intelligent assistant designed for you alone.<br>Faster thinking. Instant action. Always at your command.</p>
+        <div id="lockHint">↕ Scroll to unlock</div>
       </div>
     </div>
 
@@ -2595,23 +2652,28 @@
 
       // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
-      const CLICK_COOLDOWN = 500;  // ms between distinct clicks
+      const CLICK_COOLDOWN = 450;  // ms between distinct clicks
       let isPinching = false;
       let pinchFired = false;      // must RELEASE pinch before next click fires
       let pinchHeldSince = 0;
-      const PINCH_HOLD_MS = 130;   // ms hold before click fires
+      const PINCH_HOLD_MS = 100;   // ms hold before click fires — snappier
       let cursorX = -9999, cursorY = -9999;
+      let smoothX = -9999, smoothY = -9999; // display position (double-smoothed)
       let lastLeftLm = null;
       let cursorRafId = null;
-      const SMOOTH = 0.72;         // EMA — lower = smoother (less jitter), slightly less instant
-      const SMOOTH_VEL = 0.45;     // velocity EMA for predictive lead
-      const HALF_CURSOR = 16;
-      let velX = 0, velY = 0;      // running velocity for cursor prediction
+      // Two-stage EMA: stage-1 tracks raw position fast, stage-2 smooths for display
+      // This gives fast response with NO jitter — much better than single-stage
+      const SMOOTH_FAST = 0.82;    // stage-1: tracks data (high alpha = fast)
+      const SMOOTH_DISP = 0.60;    // stage-2: display smoothing (lower = silkier trail)
+      const SMOOTH_VEL  = 0.38;    // velocity EMA for predictive lead
+      const DEAD_ZONE   = 0.5;     // px: skip update when movement < this (kills micro-jitter)
+      const HALF_CURSOR = 18;
+      let velX = 0, velY = 0;
 
-      // Hover throttle — elementFromPoint + mousemove only every N frames (avoids hammering layout)
+      // Hover throttle
       let _hoverEl = null;
       let _cursorFrame = 0;
-      const HOVER_EVERY = 4;       // fire hover events every 4 frames (15fps) instead of 60fps
+      const HOVER_EVERY = 3;       // ~20fps hover updates (was 4 = 15fps)
 
       // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
       function cursorTick() {
@@ -2619,43 +2681,49 @@
         if (!gestureEnabled || !lastLeftLm || !magicCursor) return;
 
         const lm = lastLeftLm;
-        const rawX = lm[8].x * window.innerWidth;
-        const rawY = lm[8].y * window.innerHeight;
+        // Use midpoint of index tip (8) + middle tip (12) for a more stable centroid
+        const rawX = ((lm[8].x + lm[12].x) * 0.5) * window.innerWidth;
+        const rawY = ((lm[8].y + lm[12].y) * 0.5) * window.innerHeight;
 
-        // Snap on first valid position, then EMA smooth + velocity prediction
-        if (cursorX === -9999) { cursorX = rawX; cursorY = rawY; velX = 0; velY = 0; }
-        else {
+        if (cursorX === -9999) {
+          // Snap instantly on first detection
+          cursorX = rawX; cursorY = rawY;
+          smoothX = rawX; smoothY = rawY;
+          velX = 0; velY = 0;
+        } else {
+          // Stage 1: fast EMA tracks raw position + velocity lead
           const dx = rawX - cursorX, dy = rawY - cursorY;
-          velX += SMOOTH_VEL * (dx - velX);
-          velY += SMOOTH_VEL * (dy - velY);
-          cursorX += SMOOTH * (rawX + velX * 0.15 - cursorX);
-          cursorY += SMOOTH * (rawY + velY * 0.15 - cursorY);
+          if (Math.hypot(dx, dy) > DEAD_ZONE) {
+            velX += SMOOTH_VEL * (dx - velX);
+            velY += SMOOTH_VEL * (dy - velY);
+            cursorX += SMOOTH_FAST * (rawX + velX * 0.12 - cursorX);
+            cursorY += SMOOTH_FAST * (rawY + velY * 0.12 - cursorY);
+          }
+          // Stage 2: silky display smoothing
+          smoothX += SMOOTH_DISP * (cursorX - smoothX);
+          smoothY += SMOOTH_DISP * (cursorY - smoothY);
         }
 
         // ONE transform per frame — compositor-only, no layout hit
-        magicCursor.style.transform = `translate(${cursorX - HALF_CURSOR}px, ${cursorY - HALF_CURSOR}px)`;
+        magicCursor.style.transform = `translate(${smoothX - HALF_CURSOR}px, ${smoothY - HALF_CURSOR}px)`;
 
-        // ── Hover injection — throttled to every HOVER_EVERY frames ─────────────
-        // elementFromPoint forces a style recalc; dispatching mousemove triggers every
-        // hover handler in the app — both are expensive, so we cap them at ~15fps.
+        // ── Hover injection — throttled ──────────────────────────────────────
         _cursorFrame++;
-        if (_cursorFrame % HOVER_EVERY !== 0) {
-          // Still do pinch detection every frame (needs to be responsive)
-        } else {
-          const elUnder = document.elementFromPoint(cursorX, cursorY);
+        if (_cursorFrame % HOVER_EVERY === 0) {
+          const elUnder = document.elementFromPoint(smoothX, smoothY);
           if (elUnder !== _hoverEl) {
-            // Only dispatch enter/leave on actual element change (not every frame)
             if (_hoverEl) _hoverEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
             _hoverEl = elUnder;
             if (elUnder) elUnder.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
           }
-          // Throttled mousemove — enough for tooltips and hover state
-          if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cursorX, clientY: cursorY }));
+          if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: smoothX, clientY: smoothY }));
         }
 
-        // ── Pinch detection ───────────────────────────────────────────────────
-        const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-        const pinching = pinchDist < 0.046;
+        // ── Pinch detection — use index+thumb distance normalised by hand scale ─
+        // Normalise by wrist-to-middle-MCP distance so detection is scale-invariant
+        const handScale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.15;
+        const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / handScale;
+        const pinching = pinchDist < 0.38; // normalised threshold — consistent at any hand distance
 
         if (pinching) {
           if (!isPinching) {
@@ -2670,8 +2738,7 @@
             if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
               pinchFired = true;
               lastClickTime = now;
-              // No offscreen move — cursor is pointer-events:none, el.click() works directly
-              const el = document.elementFromPoint(cursorX, cursorY);
+              const el = document.elementFromPoint(smoothX, smoothY);
               if (el) el.click();
             }
           }
@@ -2856,7 +2923,9 @@
           clapHist.length = 0;
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-          isPinching = false; pinchFired = false; lastLeftLm = null; cursorX = -9999; cursorY = -9999; _hoverEl = null;
+          isPinching = false; pinchFired = false; lastLeftLm = null;
+          cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
+          velX = 0; velY = 0; _hoverEl = null;
           overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
           if (gpIcon.textContent !== '–') { gpIcon.textContent = '–'; gpAction.textContent = 'Show your hand'; }
           return;
@@ -2899,7 +2968,8 @@
         } else {
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           isPinching = false; pinchFired = false; pinchHeldSince = 0;
-          cursorX = -9999; cursorY = -9999; lastLeftLm = null; _hoverEl = null;
+          cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
+          velX = 0; velY = 0; lastLeftLm = null; _hoverEl = null;
         }
 
         // ── Per-hand gestures (gesture hand only) ────────────────────────
@@ -3014,7 +3084,7 @@
                 _mpBusy = false;
               }
             }
-            rafId = setTimeout(loop, 83); // ~12fps gesture recognition (reduced for performance)
+            rafId = setTimeout(loop, 67); // ~15fps gesture recognition — snappier gestures
           }
           loop();
           gpAction.textContent = 'Show your hand to begin';
@@ -3032,8 +3102,10 @@
         video.srcObject = null;
         clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
         if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-        isPinching = false; pinchFired = false; pinchHeldSince = 0; lastLeftLm = null; cursorX = -9999; cursorY = -9999; _hoverEl = null;
-        _canvasSized = false; overlayCtx = null; // reset so next start re-initialises
+        isPinching = false; pinchFired = false; pinchHeldSince = 0; lastLeftLm = null;
+        cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
+        velX = 0; velY = 0; _hoverEl = null;
+        _canvasSized = false; overlayCtx = null;
       }
 
       function updateEngageBtns(on) {
