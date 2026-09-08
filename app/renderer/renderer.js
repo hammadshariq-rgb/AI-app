@@ -3820,6 +3820,8 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     mainView.classList.remove('hidden');
     fixLayout();
     setState('idle');
+    // Force canvas resize so dot surface / wave pick up real dimensions
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 
     // Returning user — greet them every time they summon the app
     if (returningUser) {
@@ -5559,7 +5561,9 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
       wasSubscribed: storedProfile?.wasSubscribed || false,
     };
     if (authResult.active) {
-      if (!_isReturningUser && shouldShowOnboarding()) {
+      // Only show onboarding if truly first-ever launch AND no stored profile
+      const _firstLaunch = !_isReturningUser && !storedProfile && shouldShowOnboarding();
+      if (_firstLaunch) {
         setupView.classList.add('hidden');
         showOnboarding();
       } else {
