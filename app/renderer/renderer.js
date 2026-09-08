@@ -3779,26 +3779,24 @@ async function showSplash(name) {
 }
 
 async function enterMain(skipWelcome = false, returningUser = false) {
-  // Load finance panel after entering main — never block splash
-  setTimeout(() => finLoad().catch(() => {}), 1200);
-  profile.wasSubscribed = true;
-  await window.jarvis.setProfile(profile);
-
+  const welcomeScreen = document.getElementById('welcomeScreen');
   const aiName = (profile.name || 'YOUR AI').toUpperCase();
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
-
   setupView.classList.add('hidden');
 
-  // Show welcome screen only on first-ever login, not on re-activations
+  profile.wasSubscribed = true;
+  window.jarvis.setProfile(profile).catch(() => {}); // fire-and-forget, never block UI
+
+  setTimeout(() => finLoad().catch(() => {}), 1200);
+
   const welcomeKey = 'hasSeenWelcome_' + (profile.email || aiName);
   const hasSeenWelcome = localStorage.getItem(welcomeKey);
-  const welcomeScreen = document.getElementById('welcomeScreen');
 
   if (!skipWelcome && !hasSeenWelcome) {
+    // First-ever login — show welcome sphere, user clicks Enter
     welcomeScreen.classList.remove('hidden');
     initSpikySphere();
-
     document.getElementById('enterBtn').addEventListener('click', async () => {
       localStorage.setItem(welcomeKey, '1');
       welcomeScreen.classList.add('fade-out');
@@ -3816,12 +3814,11 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       } catch (_) {}
     }, { once: true });
   } else {
+    // Returning user — go straight to main view
     welcomeScreen.classList.add('hidden');
     mainView.classList.remove('hidden');
     fixLayout();
     setState('idle');
-
-    // Returning user — greet them every time they summon the app
     if (returningUser) {
       try {
         const title = profile.title && profile.title !== 'none' ? profile.title : 'sir';
