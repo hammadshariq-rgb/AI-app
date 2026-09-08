@@ -1424,19 +1424,36 @@ window._checkQuickLaunch = async function(text) {
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch (_) {
-          // GPS denied/unavailable — fall back to IP geolocation (free, no key)
-          try {
-            const ipGeo = await fetch('https://ipapi.co/json/');
-            if (ipGeo.ok) {
-              const ipData = await ipGeo.json();
-              if (ipData.latitude && ipData.longitude) {
-                lat = ipData.latitude;
-                lng = ipData.longitude;
-                window._ipCity = ipData.city ? `${ipData.city}, ${ipData.country_name}` : null;
-                console.log(`[places] IP geolocation: ${window._ipCity}`);
+          // GPS denied/unavailable — cascade through multiple IP-geolocation services
+          // ip-api.com has best global accuracy (especially South Asia / Pakistan)
+          const GEO_SERVICES = [
+            async () => {
+              const r = await fetch('http://ip-api.com/json/?fields=lat,lon,city,country');
+              const d = await r.json();
+              if (d.lat && d.lon) return { lat: d.lat, lng: d.lon, city: d.city, country: d.country };
+            },
+            async () => {
+              const r = await fetch('https://ipwho.is/');
+              const d = await r.json();
+              if (d.latitude && d.longitude) return { lat: d.latitude, lng: d.longitude, city: d.city, country: d.country_code };
+            },
+            async () => {
+              const r = await fetch('https://ipapi.co/json/');
+              const d = await r.json();
+              if (d.latitude && d.longitude) return { lat: d.latitude, lng: d.longitude, city: d.city, country: d.country_name };
+            },
+          ];
+          for (const svc of GEO_SERVICES) {
+            try {
+              const loc = await svc();
+              if (loc && loc.lat && loc.lng) {
+                lat = loc.lat; lng = loc.lng;
+                window._ipCity = loc.city ? `${loc.city}, ${loc.country}` : null;
+                console.log(`[places] IP geolocation: ${window._ipCity} (${lat},${lng})`);
+                break;
               }
-            }
-          } catch (_2) { /* no location at all */ }
+            } catch (_2) { /* try next service */ }
+          }
         }
 
         const mapsUrl = lat && lng
@@ -3804,15 +3821,29 @@ window.jarvis.onSubscriptionActivated(async () => {
   }
 });
 
-window.jarvis.onGoogleSuccess(async ({ token, name, email }) => {
-  const assistantDisplayName = name || pendingAssistantName || 'Your AI';
-  // Ask what the AI should call them — Google gives us their real name,
-  // but they may want to be called something shorter like "boss" or "Alex"
-  const userCallName = await promptUserCallName(assistantDisplayName);
-  profile = { name: assistantDisplayName, email, displayName: userCallName, title: 'none' };
-  await window.jarvis.setProfile(profile);
-  await checkSubscriptionAndEnter(assistantDisplayName, email);
-});
+// ── Google OAuth success — use a flag to prevent onActivated from
+//    interrupting the flow, and deduplicate listeners with a single handler ──
+let _googleAuthInProgress = false;
+let _googleSuccessRegistered = false;
+function _handleGoogleSuccess({ token, name, email }) {
+  if (_googleAuthInProgress) return; // deduplicate if fired twice
+  _googleAuthInProgress = true;
+  (async () => {
+    try {
+      const assistantDisplayName = name || pendingAssistantName || 'Callisto';
+      const userCallName = await promptUserCallName(assistantDisplayName);
+      profile = { name: assistantDisplayName, email, displayName: userCallName, title: 'none' };
+      await window.jarvis.setProfile(profile);
+      await checkSubscriptionAndEnter(assistantDisplayName, email);
+    } finally {
+      _googleAuthInProgress = false;
+    }
+  })();
+}
+if (!_googleSuccessRegistered) {
+  _googleSuccessRegistered = true;
+  window.jarvis.onGoogleSuccess(_handleGoogleSuccess);
+}
 
 // Re-login submit
 reloginSubmit.addEventListener('click', async () => {
@@ -3960,16 +3991,22 @@ function promptUserCallName(googleName) {
 }
 
 async function checkSubscriptionAndEnter(name, email) {
-  // Re-verify token to get latest subscription status
   const result = await window.jarvis.authVerify();
-  // Allow entry for all logged-in users (subscribed or not)
   if (result.needsLogin) {
     setupView.classList.remove('hidden');
+    showAuthStep();
     return;
   }
-  setupView.classList.add('hidden');
-  await showSplash(name);
-  await enterMain();
+  if (result.active) {
+    // Subscribed — go straight to the app
+    setupView.classList.add('hidden');
+    await showSplash(name);
+    await enterMain();
+  } else {
+    // Authenticated but not yet subscribed — show payment screen
+    setupView.classList.remove('hidden');
+    showTermsOrPayment();
+  }
 }
 
 // Plan selection — Get Premium → show billing interval picker
@@ -5974,6 +6011,9 @@ voiceVolumeSlider.addEventListener('input', () => {
 })();
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {
+  // Don't interrupt Google OAuth — it has its own entry flow
+  if (_googleAuthInProgress) return;
+
   profile = storedProfile;
   history = [];
   const _isReturningUser = !!returningUser;

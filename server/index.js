@@ -392,25 +392,46 @@ app.get('/auth/google/callback', async (req, res) => {
     await users.update(user.id, { lastActiveAt: Date.now() });
 
     const token = makeToken(user);
-    // Redirect back to Electron via jarvis:// custom protocol.
-    // If the deep link can't open (browser blocks it), show a fallback
-    // page that auto-closes and tells the user to return to the app.
+    // Return an HTML page that opens the jarvis:// deep link reliably.
+    // Technique: hidden <a> tag that is auto-clicked — Chrome allows protocol
+    // links opened via click() without a security interstitial, unlike
+    // window.location assignment which is blocked on cross-origin navigations.
+    const deepLink = `jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
     res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Signing you in…</title>
-      <style>body{margin:0;background:#05080f;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
-      .box{text-align:center;max-width:380px;padding:40px}.icon{font-size:52px;margin-bottom:16px}
-      h2{font-size:20px;letter-spacing:2px;margin:0 0 10px}p{color:rgba(255,255,255,0.5);font-size:14px;line-height:1.6}</style>
+      <style>
+        *{box-sizing:border-box}
+        body{margin:0;background:#05080f;display:flex;align-items:center;justify-content:center;
+             min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
+        .box{text-align:center;max-width:380px;padding:40px}
+        .icon{font-size:52px;margin-bottom:16px}
+        h2{font-size:20px;letter-spacing:2px;margin:0 0 10px}
+        p{color:rgba(255,255,255,0.5);font-size:14px;line-height:1.6;margin:0 0 24px}
+        .btn{display:inline-block;padding:10px 28px;border-radius:10px;
+             background:rgba(0,200,255,0.12);border:1px solid rgba(0,200,255,0.4);
+             color:rgba(0,220,255,0.9);font-size:13px;letter-spacing:2px;
+             text-decoration:none;cursor:pointer}
+        .btn:hover{background:rgba(0,200,255,0.2)}
+        #status{font-size:11px;color:rgba(255,255,255,0.3);margin-top:16px;letter-spacing:1px}
+      </style>
     </head><body>
       <div class="box">
         <div class="icon">⬡</div>
         <h2>AUTHENTICATION COMPLETE</h2>
-        <p>Return to Callisto AI.<br>This window will close automatically.</p>
+        <p>Opening Callisto AI…<br>If nothing happens, click the button below.</p>
+        <a id="deepLink" href="${deepLink}" class="btn">OPEN CALLISTO AI</a>
+        <div id="status">Auto-opening…</div>
       </div>
       <script>
-        // Try the deep link first — Electron catches it via second-instance
-        window.location.href = "jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}";
-        // Auto-close fallback after 1.5 s
-        setTimeout(() => { try { window.close(); } catch(e) {} }, 1500);
+        // Auto-click the <a> tag — this is the most browser-compatible way
+        // to trigger a custom protocol without a security warning.
+        const link = document.getElementById('deepLink');
+        link.click();
+        // Update status and close tab after a short delay
+        setTimeout(() => {
+          document.getElementById('status').textContent = 'You can close this tab.';
+          try { window.close(); } catch(e) {}
+        }, 2000);
       </script>
     </body></html>`);
   } catch (err) {
