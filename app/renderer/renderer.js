@@ -1183,7 +1183,7 @@ function moRenderCard(idx) {
 
 function showMarketsOverlay() {
   if (!finPortfolio.length) {
-    if (typeof addMessage === 'function') addMessage('assistant', "You don't have any stocks in your portfolio yet. Add one by saying "show me Apple stock" and clicking Add to Portfolio.");
+    if (typeof addMessage === 'function') addMessage('assistant', "You don't have any stocks in your portfolio yet. Add one by saying 'show me Apple stock' and clicking Add to Portfolio.");
     return;
   }
   window.marketsOverlayOpen = true;
