@@ -5501,68 +5501,82 @@ voiceVolumeSlider.addEventListener('input', () => {
 })();
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {
-  profile = storedProfile;
-  history = [];
-  const _isReturningUser = !!returningUser;
-  mainView.classList.add('hidden');
-  setupView.classList.add('hidden');
-  cardPanel.classList.add('hidden');
-  historySidebar.classList.add('hidden');
+  try {
+    profile = storedProfile;
+    history = [];
+    const _isReturningUser = !!returningUser;
+    mainView.classList.add('hidden');
+    setupView.classList.add('hidden');
+    cardPanel.classList.add('hidden');
+    historySidebar.classList.add('hidden');
 
-  // Show splash IMMEDIATELY — user sees animation while auth check runs in background
-  const splashName = storedProfile?.name || name || 'Your AI';
-  const splashPromise = showSplash(splashName);
+    // Show splash IMMEDIATELY — user sees animation while auth check runs in background
+    const _splashName = storedProfile?.name || name || 'Your AI';
+    const splashPromise = showSplash(_splashName);
 
-  // Auth check runs in parallel with splash animation (max 5s before treating as offline)
-  const authPromise = Promise.race([
-    window.jarvis.authVerify(),
-    new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 5000))
-  ]);
+    // Auth check runs in parallel with splash animation — hard 5s cap before offline fallback
+    let authResult;
+    try {
+      authResult = await Promise.race([
+        window.jarvis.authVerify(),
+        new Promise(r => setTimeout(() => r({ needsLogin: false, offline: true }), 5000))
+      ]);
+    } catch(_) {
+      authResult = { needsLogin: false, offline: true };
+    }
 
-  const [, authResult] = await Promise.all([splashPromise, authPromise]);
+    // Always wait for splash to finish before proceeding
+    await splashPromise;
 
-  if (authResult.offline) {
-    // Server unreachable — only allow in if they previously had an active subscription
-    if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
-      await enterMain(true, _isReturningUser);
+    if (authResult.offline) {
+      if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
+        await enterMain(true, _isReturningUser);
+      } else {
+        setupView.classList.remove('hidden');
+        showNameStep();
+      }
+      return;
+    }
+
+    if (authResult.needsLogin) {
+      setupView.classList.remove('hidden');
+      if (authResult.reason === 'inactive') {
+        showReloginStep('You\'ve been away for a while. Please log in to continue.');
+      } else {
+        showAuthStep();
+        setAuthMode('signup');
+      }
+      return;
+    }
+
+    // Token valid — check subscription before entering
+    const displayName = storedProfile?.name || authResult.user?.name || 'Your AI';
+    profile = {
+      name:        displayName,
+      email:       authResult.user?.email || storedProfile?.email,
+      displayName: storedProfile?.displayName || null,
+      title:       storedProfile?.title || null,
+      wasSubscribed: storedProfile?.wasSubscribed || false,
+    };
+    if (authResult.active) {
+      if (!_isReturningUser && shouldShowOnboarding()) {
+        setupView.classList.add('hidden');
+        showOnboarding();
+      } else {
+        await enterMain(true, _isReturningUser);
+      }
     } else {
       setupView.classList.remove('hidden');
+      showTermsOrPayment();
+    }
+  } catch(fatalErr) {
+    // Last resort — never leave user on a blank/frozen screen
+    console.error('[onActivated] fatal:', fatalErr);
+    try { splash.classList.add('hidden'); } catch(_) {}
+    try {
+      setupView.classList.remove('hidden');
       showNameStep();
-    }
-    return;
-  }
-
-  if (authResult.needsLogin) {
-    setupView.classList.remove('hidden');
-    if (authResult.reason === 'inactive') {
-      showReloginStep('You\'ve been away for a while. Please log in to continue.');
-    } else {
-      showAuthStep();
-      setAuthMode('signup');
-    }
-    return;
-  }
-
-  // Token valid — check subscription before entering
-  const displayName = storedProfile?.name || authResult.user?.name || 'Your AI';
-  profile = {
-    name:        displayName,
-    email:       authResult.user?.email || storedProfile?.email,
-    displayName: storedProfile?.displayName || null,
-    title:       storedProfile?.title || null,
-    wasSubscribed: storedProfile?.wasSubscribed || false,
-  };
-  if (authResult.active) {
-    // First-ever launch → show onboarding instead of jumping straight to main
-    if (!_isReturningUser && shouldShowOnboarding()) {
-      setupView.classList.add('hidden');
-      showOnboarding();
-    } else {
-      await enterMain(true, _isReturningUser);
-    }
-  } else {
-    setupView.classList.remove('hidden');
-    showTermsOrPayment();
+    } catch(_) {}
   }
 });
 
