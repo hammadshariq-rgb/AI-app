@@ -21,8 +21,8 @@
 'use strict';
 
 const { Client, DefaultMediaReceiver } = require('castv2-client');
-const bonjour = require('bonjour')();
-const fetch   = require('node-fetch');
+const mdns  = require('multicast-dns');
+const fetch = require('node-fetch');
 
 // ── Chromecast app IDs ───────────────────────────────────────────────────────
 const APP_IDS = {
@@ -60,32 +60,72 @@ async function youtubeSearch(query) {
   }
 }
 
-// ── Discovery ─────────────────────────────────────────────────────────────────
+// ── Discovery (pure-Node mDNS, no Apple Bonjour service needed) ───────────────
 function discover(onUpdate, timeoutMs = 6000) {
   scanResults = [];
-  const browser = bonjour.find({ type: 'googlecast' });
+  let m;
+  try { m = mdns(); } catch (e) {
+    console.error('[TV] mdns init failed:', e.message);
+    return scanResults;
+  }
 
-  browser.on('up', service => {
-    const addresses = service.addresses || [];
-    const host = addresses.find(a => /^\d+\.\d+\.\d+\.\d+$/.test(a))
-      || (service.referer && service.referer.address)
-      || service.host;
-    if (!host) return;
+  // Parse TXT record array → object
+  function parseTxt(txtArr) {
+    const obj = {};
+    if (!Array.isArray(txtArr)) return obj;
+    for (const buf of txtArr) {
+      const str = Buffer.isBuffer(buf) ? buf.toString() : String(buf);
+      const eq = str.indexOf('=');
+      if (eq > 0) obj[str.slice(0, eq)] = str.slice(eq + 1);
+    }
+    return obj;
+  }
 
-    const dev = {
-      name:  service.name,
-      host,
-      port:  service.port || 8009,
-      model: (service.txt && (service.txt.md || service.txt.fn)) || 'Chromecast'
-    };
-    if (!scanResults.find(d => d.host === dev.host)) {
-      scanResults.push(dev);
-      if (onUpdate) onUpdate([...scanResults]);
+  m.on('response', (resp) => {
+    // Look for PTR records pointing to _googlecast._tcp.local
+    const ptrs = resp.answers.concat(resp.additionals || [])
+      .filter(r => r.type === 'PTR' && r.name === '_googlecast._tcp.local');
+
+    for (const ptr of ptrs) {
+      // SRV record for this service
+      const srv = resp.additionals
+        ? resp.additionals.find(r => r.type === 'SRV' && r.name === ptr.data)
+        : null;
+      // A record for the host
+      const a = resp.additionals
+        ? resp.additionals.find(r => r.type === 'A')
+        : null;
+      // TXT record
+      const txt = resp.additionals
+        ? resp.additionals.find(r => r.type === 'TXT' && r.name === ptr.data)
+        : null;
+
+      const host = a ? a.data : (srv ? srv.data.target.replace(/\.$/, '') : null);
+      if (!host) continue;
+
+      const port = srv ? srv.data.port : 8009;
+      const txtObj = txt ? parseTxt(txt.data) : {};
+      const name = txtObj.fn || ptr.data.replace('._googlecast._tcp.local', '') || host;
+      const model = txtObj.md || 'Chromecast';
+
+      if (!scanResults.find(d => d.host === host)) {
+        const dev = { name, host, port, model };
+        scanResults.push(dev);
+        if (onUpdate) onUpdate([...scanResults]);
+      }
     }
   });
 
+  // Send mDNS query for Chromecast devices
+  m.query({ questions: [{ name: '_googlecast._tcp.local', type: 'PTR' }] });
+  // Re-query halfway through to catch slow responders
+  const requery = setTimeout(() => {
+    try { m.query({ questions: [{ name: '_googlecast._tcp.local', type: 'PTR' }] }); } catch (_) {}
+  }, timeoutMs / 2);
+
   setTimeout(() => {
-    try { browser.stop(); } catch (_) {}
+    clearTimeout(requery);
+    try { m.destroy(); } catch (_) {}
   }, timeoutMs);
 
   return scanResults;
