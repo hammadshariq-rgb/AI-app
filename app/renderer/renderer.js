@@ -1360,9 +1360,20 @@ function moPnlRecalc() {
   }
 }
 
-window.showMarketsOverlay = function showMarketsOverlay() {
+window.showMarketsOverlay = async function showMarketsOverlay() {
+  // If portfolio hasn't loaded yet, load it first
   if (!finPortfolio.length) {
-    if (typeof addMessage === 'function') addMessage('assistant', "You don't have any stocks in your portfolio yet. Add one by saying 'show me Apple stock' and clicking Add to Portfolio.");
+    await finLoad().catch(() => {});
+  }
+  if (!finPortfolio.length) {
+    // Still empty — show overlay with empty state message
+    const overlay = document.getElementById('marketsOverlay');
+    if (overlay) {
+      overlay.classList.add('mo-open');
+      window.marketsOverlayOpen = true;
+      const cfTrack = document.getElementById('moCfTrack');
+      if (cfTrack) cfTrack.innerHTML = '<div style="color:#888;text-align:center;padding:60px 20px;font-size:14px">No stocks in your portfolio yet.<br><br>Say <b>"show me Apple stock"</b> and click <b>Add to Portfolio</b>.</div>';
+    }
     return;
   }
   window.marketsOverlayOpen = true;
@@ -1484,13 +1495,6 @@ window._checkMarketsOverlay = async function(text) {
     if (scanBtn)  { scanBtn.textContent = 'SCANNING…'; scanBtn.disabled = true; }
     if (list)     { list.style.display = 'none'; list.innerHTML = ''; }
 
-    // Listen for incremental device updates
-    window.jarvis.onTvDevicesUpdate(devs => {
-      tvDevices = devs;
-      tvRenderDevices(devs);
-      tvUpdateUI();
-    });
-
     try {
       // discover() returns after 6s with whatever was found
       const devs = await window.jarvis.tvDiscover();
@@ -1543,6 +1547,12 @@ window._checkMarketsOverlay = async function(text) {
     _tvWired = true;
     scanBtn.addEventListener('click', tvScan);
     discBtn?.addEventListener('click', tvDisconn);
+    // Incremental device updates during scan
+    window.jarvis.onTvDevicesUpdate(devs => {
+      tvDevices = devs;
+      tvRenderDevices(devs);
+      tvUpdateUI();
+    });
     // Status update from main process (e.g. device disconnected)
     window.jarvis.onTvStatusUpdate(status => {
       if (!status.connected) { tvConnected = null; tvUpdateUI(); }
