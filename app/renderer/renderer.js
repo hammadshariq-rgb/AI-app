@@ -1207,7 +1207,7 @@ function moSparkline(closes, positive) {
       const card = document.createElement('div');
       card.className = 'mo-cf-card';
       const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
-      const pct = (s.changePct || 0).toFixed(2);
+      const pct = parseFloat(s.changePct || 0).toFixed(2);
       const col = s.positive ? '#00e882' : '#ff6060';
       const fillCol = s.positive ? 'rgba(0,232,130,0.18)' : 'rgba(255,96,96,0.18)';
       // mini sparkline for the card face
@@ -1360,7 +1360,7 @@ function moPnlRecalc() {
   }
 }
 
-function showMarketsOverlay() {
+window.showMarketsOverlay = function showMarketsOverlay() {
   if (!finPortfolio.length) {
     if (typeof addMessage === 'function') addMessage('assistant', "You don't have any stocks in your portfolio yet. Add one by saying 'show me Apple stock' and clicking Add to Portfolio.");
     return;
@@ -1533,18 +1533,25 @@ window._checkMarketsOverlay = async function(text) {
     window.jarvis.tvVolume(val / 100).catch(() => {});
   };
 
-  // ── Wire up buttons ──────────────────────────────────────────────────────
+  // ── Wire up buttons (once only) ──────────────────────────────────────────
+  let _tvWired = false;
   function wireTvButtons() {
-    getEl('tvScanBtn')?.addEventListener('click', tvScan);
-    getEl('tvDisconnectBtn')?.addEventListener('click', tvDisconn);
+    if (_tvWired) return;
+    const scanBtn = getEl('tvScanBtn');
+    const discBtn = getEl('tvDisconnectBtn');
+    if (!scanBtn) return; // DOM not ready yet
+    _tvWired = true;
+    scanBtn.addEventListener('click', tvScan);
+    discBtn?.addEventListener('click', tvDisconn);
     // Status update from main process (e.g. device disconnected)
     window.jarvis.onTvStatusUpdate(status => {
       if (!status.connected) { tvConnected = null; tvUpdateUI(); }
     });
   }
-  // Wait for DOM + auth (connectors pane may not exist during splash)
-  window.addEventListener('DOMContentLoaded', wireTvButtons);
-  setTimeout(wireTvButtons, 3000); // fallback if already loaded
+  // Try immediately, then once DOM is ready, then as a late fallback
+  wireTvButtons();
+  document.addEventListener('DOMContentLoaded', wireTvButtons);
+  setTimeout(wireTvButtons, 2000);
 
   // ── Voice command handler ────────────────────────────────────────────────
   window._checkTvCast = async function(text) {
