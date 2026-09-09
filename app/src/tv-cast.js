@@ -13,10 +13,9 @@
  *   Prime    : com.amazon.amazonvideo.livingroom
  */
 
-const mdns    = require('multicast-dns');
-const adb     = require('@devicefarmer/adbkit');
-const { exec } = require('child_process');
-const fetch   = require('node-fetch');
+const mdns         = require('multicast-dns');
+const { Client: AdbClient } = require('@devicefarmer/adbkit');
+const fetch        = require('node-fetch');
 
 const APP_PACKAGES = {
   youtube : 'com.google.android.youtube.tv',
@@ -31,7 +30,7 @@ let scanResults  = [];
 
 // ── ADB client (singleton) ────────────────────────────────────────────────────
 function getAdbClient() {
-  if (!adbClient) adbClient = adb.createClient();
+  if (!adbClient) adbClient = new AdbClient();
   return adbClient;
 }
 
