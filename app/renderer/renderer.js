@@ -1230,7 +1230,7 @@ function moSparkline(closes, positive) {
           <div class="mo-cf-sym">${s.symbol}</div>
           <div class="mo-cf-name">${s.name || s.symbol}</div>
           <div>
-            <span class="mo-cf-price">${sym}${(s.price || 0).toFixed(2)}</span>
+            <span class="mo-cf-price">${sym}${parseFloat(s.price || 0).toFixed(2)}</span>
             <span class="mo-cf-badge ${s.positive ? 'up' : 'dn'}">${s.positive ? '▲ +' : '▼ '}${pct}%</span>
           </div>
         </div>`;
@@ -1284,11 +1284,11 @@ function marketsGoTo(idx) {
   marketsIdx = Math.max(0, Math.min(finPortfolio.length - 1, idx));
   const s = finPortfolio[marketsIdx];
   const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
-  const pct = (s.changePct || 0).toFixed(2);
+  const pct = parseFloat(s.changePct || 0).toFixed(2);
 
   document.getElementById('moDetailSymbol').textContent = s.symbol;
   document.getElementById('moDetailName').textContent = s.name || s.symbol;
-  document.getElementById('moDetailPrice').textContent = sym + (s.price || 0).toFixed(2);
+  document.getElementById('moDetailPrice').textContent = sym + parseFloat(s.price || 0).toFixed(2);
   const badge = document.getElementById('moDetailBadge');
   badge.textContent = (s.positive ? '▲ +' : '▼ ') + pct + '%';
   badge.className = 'mo-detail-badge ' + (s.positive ? 'pos' : 'neg');
