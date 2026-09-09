@@ -107,37 +107,48 @@ function discover(onUpdate, timeoutMs = 6000) {
 // ── Connect ────────────────────────────────────────────────────────────────────
 async function connect(host, port = 8009) {
   // 1. Test ADB connectivity (most important for Android TV)
-  let hasAdb = false;
+  let hasAdb    = false;
+  let adbError  = '';
   try {
-    const out = await adb.shellWithAuth(host, 'echo ok', 6000);
-    hasAdb = out.includes('ok');
-    console.log('[TV] ADB connection:', hasAdb ? 'OK' : 'no response');
+    const out = await adb.shellWithAuth(host, 'echo adb_ok', 8000);
+    hasAdb = out.includes('adb_ok');
+    adbError = hasAdb ? '' : 'no shell response';
+    console.log('[TV] ADB connection:', hasAdb ? 'OK' : 'silent response: ' + out);
   } catch (e) {
-    console.log('[TV] ADB not available:', e.message);
+    adbError = e.message;
+    console.log('[TV] ADB failed:', e.message);
   }
 
-  // 2. Test castv2 connectivity as fallback check
-  let hasCastv2 = false;
+  // 2. Test castv2 connectivity as fallback
+  let hasCastv2  = false;
+  let castError  = '';
   if (!hasAdb) {
     try {
       await new Promise((resolve, reject) => {
         const c = new Client();
-        const t = setTimeout(() => { try { c.close(); } catch(_){} reject(new Error('timeout')); }, 5000);
+        const t = setTimeout(() => { try { c.close(); } catch(_){} reject(new Error('timeout after 5s')); }, 5000);
         c.connect({ host, port }, () => { clearTimeout(t); try { c.close(); } catch(_){} hasCastv2 = true; resolve(); });
         c.on('error', err => { clearTimeout(t); reject(err); });
       });
     } catch (e) {
-      console.log('[TV] castv2 not available:', e.message);
+      castError = e.message;
+      console.log('[TV] castv2 failed:', e.message);
     }
   }
 
   if (!hasAdb && !hasCastv2) {
-    throw new Error('Could not connect via ADB or Chromecast protocol. Is the TV on and on the same Wi-Fi?');
+    throw new Error(
+      `Could not connect to TV.\n` +
+      `• ADB (port 5555): ${adbError || 'failed'}\n` +
+      `• Chromecast (port 8009): ${castError || 'failed'}\n` +
+      `Make sure TV is on and on the same Wi-Fi. For ADB: Settings → More Settings → Developer options → enable USB debugging (Network debugging).`
+    );
   }
 
   connectedDev = scanResults.find(d => d.host === host)
     || { name: host, host, port };
   connectedDev.hasAdb = hasAdb;
+  connectedDev.adbError = adbError;
 
   return { ok: true, name: connectedDev.name, method: hasAdb ? 'ADB' : 'Chromecast' };
 }
@@ -323,6 +334,7 @@ module.exports = {
   getStatus: () => ({
     connected: !!(connectedDev),
     device: connectedDev,
-    method: connectedDev ? (connectedDev.hasAdb ? 'ADB' : 'Chromecast') : null,
+    method: connectedDev ? (connectedDev.hasAdb ? 'ADB (direct shell)' : 'Chromecast protocol') : null,
+    adbError: connectedDev ? (connectedDev.adbError || null) : null,
   }),
 };

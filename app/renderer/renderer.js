@@ -1471,7 +1471,9 @@ window._checkMarketsOverlay = async function(text) {
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
             const method = res.method ? ` (via ${res.method})` : '';
-            addMessage('assistant', `📺 Connected to **${dev.name}**${method}. You can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
+            const adbNote = (res.method && !res.method.includes('ADB') && res.adbError)
+              ? `\n⚠️ ADB unavailable (${res.adbError}) — using Chromecast protocol as fallback.` : '';
+            addMessage('assistant', `📺 Connected to **${dev.name}**${method}.${adbNote}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
             btn.textContent = 'RETRY'; btn.disabled = false;

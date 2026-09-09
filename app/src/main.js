@@ -1343,17 +1343,16 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     if (spotifyConnected && (resolvedService === 'spotify' || resolvedService === '' || !aiService)) {
       const playResult = await connectors.playOnSpotify(query);
       if (playResult.ok) {
-        // Premium — plays in background, no window switch
+        // Premium — plays in background; suppress any Spotify window that pops up
+        setTimeout(() => suppressSpotifyWindow(), 300);
+        setTimeout(() => suppressSpotifyWindow(), 1200);
         const spokenText = `Playing ${playResult.trackName} by ${playResult.artistName} on Spotify.`;
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it silently (minimized, no focus steal)
-        { const { exec } = require('child_process');
-          const sp = `"${process.env.APPDATA}\\Spotify\\Spotify.exe"`;
-          exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {});
-        }
-        keepCallistoFocused(15000);
+        // Spotify not open — launch with /minimized (Spotify's own hidden-start flag)
+        launchSpotifyHidden();
+        for (const t of [1500, 3000, 4500, 6000]) setTimeout(() => suppressSpotifyWindow(), t);
         let lastRetry = null;
         for (const delay of [2500, 3000, 3000]) {
           await new Promise(r => setTimeout(r, delay));
@@ -2528,24 +2527,51 @@ ipcMain.handle('tv:stop',        async () => {
 });
 
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
-// Helper: keep Callisto on top for N ms, fighting any app that steals focus
-function keepCallistoFocused(ms = 5000) {
+// Helper: minimize all Spotify windows and focus Callisto
+function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  // Use PowerShell to minimize every Spotify window (SW_MINIMIZE = 6)
+  const { exec } = require('child_process');
+  const ps = `
+    Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public class W32 {
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+}
+"@
+    Get-Process -Name Spotify -ErrorAction SilentlyContinue | ForEach-Object {
+      if ($_.MainWindowHandle -ne [IntPtr]::Zero) { [W32]::ShowWindow($_.MainWindowHandle, 6) }
+    }
+  `.trim().replace(/\n\s*/g, '; ');
+  exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
+  // Also force Callisto back to front
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.focus();
-  const interval = 300;
-  let elapsed   = 0;
-  const t = setInterval(() => {
-    elapsed += interval;
-    if (!overlayWindow || overlayWindow.isDestroyed() || elapsed >= ms) {
-      clearInterval(t);
-      // Restore normal always-on-top level
-      if (overlayWindow && !overlayWindow.isDestroyed())
-        overlayWindow.setAlwaysOnTop(true, 'floating');
-      return;
-    }
+  setTimeout(() => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    overlayWindow.setAlwaysOnTop(true, 'floating');
     overlayWindow.focus();
-  }, interval);
+  }, 800);
+}
+
+// Launch Spotify hidden (never visible)
+function launchSpotifyHidden() {
+  const { exec } = require('child_process');
+  // Try Store version first (more reliable hidden launch), then roaming
+  const paths = [
+    process.env.LOCALAPPDATA + '\\Microsoft\\WindowsApps\\Spotify.exe',
+    process.env.APPDATA + '\\Spotify\\Spotify.exe',
+  ];
+  const sp = paths.find(p => { try { return require('fs').existsSync(p); } catch(_) { return false; } })
+    || paths[1];
+  // /minimized flag tells Spotify itself to start minimized
+  exec(`"${sp}" /minimized`, err => {
+    if (err) {
+      // fallback: PowerShell Start-Process minimized
+      exec(`powershell -WindowStyle Hidden -Command "Start-Process '${sp}' -ArgumentList '/minimized' -WindowStyle Minimized"`, () => {});
+    }
+  });
 }
 
 ipcMain.handle('spotify:play', async (_e, { query }) => {
@@ -2555,51 +2581,40 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
 
     let result = await connectors.playOnSpotify(query);
     if (result.ok) {
-      // Spotify app may steal focus when playback starts — fight it back
-      keepCallistoFocused(5000);
+      // Spotify app pops up when playback starts — minimize it and refocus Callisto
+      setTimeout(() => suppressSpotifyWindow(), 300);
+      setTimeout(() => suppressSpotifyWindow(), 1200);
+      setTimeout(() => suppressSpotifyWindow(), 2500);
       return result;
     }
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify hidden/minimized — never bring it to foreground
-      const { exec } = require('child_process');
-      const spotifyPaths = [
-        `"${process.env.APPDATA}\\Spotify\\Spotify.exe"`,
-        `"${process.env.LOCALAPPDATA}\\Microsoft\\WindowsApps\\Spotify.exe"`,
-      ];
-      for (const sp of spotifyPaths) {
-        try {
-          // SW_SHOWMINNOACTIVE (7) = show minimized, do NOT activate the window
-          exec(
-            `powershell -WindowStyle Hidden -Command "` +
-            `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;` +
-            `public class Win32{[DllImport(\\\"user32.dll\\\")]public static extern bool ShowWindow(IntPtr h,int n);}';` +
-            `$p=Start-Process -FilePath ${sp} -PassThru;Start-Sleep -Milliseconds 500;` +
-            `[Win32]::ShowWindow($p.MainWindowHandle,7)"`,
-            () => {}
-          );
-          break;
-        } catch(_) {
-          // Fallback: plain minimized launch
-          try { exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {}); break; } catch(_) {}
-        }
-      }
+      // Launch Spotify with /minimized flag — Spotify's own "start hidden" argument
+      launchSpotifyHidden();
 
-      // Start fighting for focus immediately while Spotify loads
-      keepCallistoFocused(15000);
+      // Keep suppressing any window that appears during Spotify startup
+      for (const t of [1500, 3000, 4500, 6000]) {
+        setTimeout(() => suppressSpotifyWindow(), t);
+      }
 
       // Wait for Spotify to register as a device then play via API
       for (const delay of [3000, 3000, 4000]) {
         await new Promise(r => setTimeout(r, delay));
         result = await connectors.playOnSpotify(query);
-        if (result.ok) return result;
+        if (result.ok) {
+          setTimeout(() => suppressSpotifyWindow(), 300);
+          setTimeout(() => suppressSpotifyWindow(), 1500);
+          return result;
+        }
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
 
-      // Last resort: open track URI (Spotify handles it silently if already running)
+      // Last resort: open track URI (plays in already-running Spotify silently)
       if (result.trackUri) {
         const { shell } = require('electron');
         shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
+        setTimeout(() => suppressSpotifyWindow(), 500);
+        setTimeout(() => suppressSpotifyWindow(), 2000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName };
       }
     }
