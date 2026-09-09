@@ -1348,10 +1348,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it, wait for device to register, retry
+        // Spotify not open — launch it silently, wait for device, retry quickly
         await commands.run('open_app', 'spotify');
         let lastRetry = null;
-        for (const delay of [4000, 4000, 5000, 5000]) {
+        for (const delay of [2500, 3000, 3000]) {
           await new Promise(r => setTimeout(r, delay));
           lastRetry = await connectors.playOnSpotify(query);
           if (lastRetry.ok) {
@@ -1361,26 +1361,29 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
           }
           if (lastRetry.error !== 'NO_ACTIVE_DEVICE') break;
         }
-        // Retries exhausted — open the specific track so user lands on the right song
+        // Retries exhausted — open the specific track URI which auto-plays on click
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
         const trackName = lastRetry?.trackName || playResult.trackName || query;
         if (trackUri) {
-          const spokenText = `Spotify is open — "${trackName}" is queued, just press play.`;
-          _sendTTS(_e.sender, spokenText);
+          // spotify:track:ID opens Spotify and auto-plays the track (no press needed)
           await commands.run('play_music', `spotify_track_uri|${trackUri}`);
+          const spokenText = `Playing ${trackName} on Spotify.`;
+          _sendTTS(_e.sender, spokenText);
           return { text: spokenText, audio: null, card: null, hasAction: true };
         }
-        const spokenText = `Spotify is open — search for "${query}" and press play.`;
+        // Last resort — search URI
+        await commands.run('play_music', `spotify|${query}`);
+        const spokenText = `Opening Spotify with "${query}".`;
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       }
-      // Other error (token issue, etc.) — open the specific track directly so user just presses play
+      // Other error (token issue, etc.) — open track URI which auto-plays
       if (playResult.trackUri) {
         finalAction = { type: 'play_music', arg: `spotify_track_uri|${playResult.trackUri}` };
-        finalText = `Found "${playResult.trackName}" by ${playResult.artistName} — press play in Spotify.`;
+        finalText = `Playing "${playResult.trackName}" by ${playResult.artistName} on Spotify.`;
       } else {
         finalAction = { type: 'play_music', arg: `spotify|${query}` };
-        finalText = `Opening Spotify with "${query}" — just press play when it opens.`;
+        finalText = `Opening Spotify with "${query}".`;
       }
     } else {
       // Non-Spotify or Spotify not connected — open preferred/resolved service

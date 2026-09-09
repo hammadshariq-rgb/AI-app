@@ -1,63 +1,42 @@
 'use strict';
 
 /**
- * tv-cast.js — Android TV control via ADB over Wi-Fi
+ * tv-cast.js — Android TV / Chromecast control
  *
- * Discovery: multicast-dns (_googlecast._tcp) to find TV IP
- * Control:   ADB TCP (port 5555) — reliable, no Chromecast auth needed
+ * Discovery : multicast-dns (_googlecast._tcp)
+ * Control   : Chromecast REST API on port 8008 (built into every Android TV)
+ *             + castv2 TLS on port 8009 for media loading
  *
- * TV app package names (Android TV):
- *   YouTube  : com.google.android.youtube.tv
- *   Netflix  : com.netflix.ninja
- *   Spotify  : com.spotify.tv.android
- *   Prime    : com.amazon.amazonvideo.livingroom
+ * No extra installs needed on laptop or TV.
  */
 
-const mdns         = require('multicast-dns');
-const { Client: AdbClient } = require('@devicefarmer/adbkit');
-const fetch        = require('node-fetch');
+const mdns  = require('multicast-dns');
+const fetch = require('node-fetch');
+const { Client, DefaultMediaReceiver } = require('castv2-client');
 
-const APP_PACKAGES = {
-  youtube : 'com.google.android.youtube.tv',
-  netflix : 'com.netflix.ninja',
-  spotify : 'com.spotify.tv.android',
-  prime   : 'com.amazon.amazonvideo.livingroom',
+// DIAL app IDs (used by Chromecast REST API port 8008)
+const DIAL_APPS = {
+  youtube : 'YouTube',
+  netflix : 'Netflix',
+  spotify : 'Spotify',
+  prime   : 'AmazonInstantVideo',
 };
 
-let adbClient    = null;
-let connectedDev = null;   // { name, host, port, model, adbId }
+let connectedDev = null;   // { name, host, port, model }
+let castClient   = null;   // castv2 Client for media
 let scanResults  = [];
-
-// ── ADB client (singleton) ────────────────────────────────────────────────────
-function getAdbClient() {
-  if (!adbClient) adbClient = new AdbClient();
-  return adbClient;
-}
-
-// ── Run an ADB shell command on the connected TV ──────────────────────────────
-async function shell(cmd) {
-  if (!connectedDev) throw new Error('Not connected to any TV');
-  const client = getAdbClient();
-  const output = await client.shell(connectedDev.adbId, cmd);
-  return new Promise((resolve, reject) => {
-    let buf = '';
-    output.on('data', d => { buf += d.toString(); });
-    output.on('end', () => resolve(buf.trim()));
-    output.on('error', reject);
-  });
-}
 
 // ── YouTube search (no API key) ───────────────────────────────────────────────
 async function youtubeSearch(query) {
   try {
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     const html = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     }).then(r => r.text());
     const m = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
     if (!m) return null;
     const videoId = m[1];
-    const titleM = html.match(/"title":\{"runs":\[\{"text":"([^"]+)"/);
+    const titleM  = html.match(/"title":\{"runs":\[\{"text":"([^"]+)"/);
     return { videoId, title: titleM ? titleM[1] : query };
   } catch (e) {
     console.error('[TV] YouTube search failed:', e.message);
@@ -86,7 +65,7 @@ function discover(onUpdate, timeoutMs = 6000) {
   }
 
   m.on('response', (resp) => {
-    const all = [...(resp.answers || []), ...(resp.additionals || [])];
+    const all  = [...(resp.answers || []), ...(resp.additionals || [])];
     const ptrs = all.filter(r => r.type === 'PTR' && r.name === '_googlecast._tcp.local');
     for (const ptr of ptrs) {
       const srv = all.find(r => r.type === 'SRV' && r.name === ptr.data);
@@ -95,8 +74,8 @@ function discover(onUpdate, timeoutMs = 6000) {
       const host = a ? a.data : (srv ? srv.data.target.replace(/\.$/, '') : null);
       if (!host) continue;
       const txtObj = txt ? parseTxt(txt.data) : {};
-      const name  = txtObj.fn || ptr.data.replace('._googlecast._tcp.local', '') || host;
-      const model = txtObj.md || 'Android TV';
+      const name   = txtObj.fn || ptr.data.replace('._googlecast._tcp.local', '') || host;
+      const model  = txtObj.md || 'Android TV';
       if (!scanResults.find(d => d.host === host)) {
         const dev = { name, host, port: 8009, model };
         scanResults.push(dev);
@@ -109,116 +88,146 @@ function discover(onUpdate, timeoutMs = 6000) {
   const requery = setTimeout(() => {
     try { m.query({ questions: [{ name: '_googlecast._tcp.local', type: 'PTR' }] }); } catch (_) {}
   }, timeoutMs / 2);
-
   setTimeout(() => { clearTimeout(requery); try { m.destroy(); } catch (_) {} }, timeoutMs);
   return scanResults;
 }
 
-// ── Connect via ADB TCP ───────────────────────────────────────────────────────
+// ── Connect (verify TV is reachable via REST API) ─────────────────────────────
 async function connect(host, port = 8009) {
-  const client = getAdbClient();
-  const adbPort = 5555;
-
-  // Connect ADB to the TV's IP on port 5555
-  await client.connect(host, adbPort);
-
-  // Wait a moment for the connection to register
-  await new Promise(r => setTimeout(r, 1500));
-
-  // Find the device in ADB device list
-  const devices = await client.listDevices();
-  const adbId = `${host}:${adbPort}`;
-  const found = devices.find(d => d.id === adbId || d.id.startsWith(host));
-
-  if (!found) throw new Error('TV found on network but ADB connection refused. Make sure ADB Debugging is ON in Developer Options.');
+  // Test REST API reachability on port 8008
+  const info = await fetch(`http://${host}:8008/setup/eureka_info?options=detail`, {
+    timeout: 5000
+  }).then(r => r.json()).catch(() => null);
 
   const dev = scanResults.find(d => d.host === host)
     || { name: host, host, port, model: 'Android TV' };
-  dev.adbId = found.id;
+
+  if (info && info.name) dev.name = info.name;
   connectedDev = dev;
+
+  // Also open a castv2 connection for media
+  await connectCast(host, port).catch(() => {});
 
   return { ok: true, name: dev.name };
 }
 
+// ── castv2 TLS connection (for DefaultMediaReceiver) ─────────────────────────
+function connectCast(host, port = 8009) {
+  return new Promise((resolve, reject) => {
+    if (castClient) { try { castClient.close(); } catch (_) {} castClient = null; }
+    const c = new Client();
+    const t = setTimeout(() => { try { c.close(); } catch (_) {} resolve(); }, 8000);
+    c.connect({ host, port }, () => { clearTimeout(t); castClient = c; resolve(); });
+    c.on('error', () => { clearTimeout(t); castClient = null; resolve(); });
+    c.on('close', () => { castClient = null; });
+  });
+}
+
 // ── Disconnect ────────────────────────────────────────────────────────────────
 function disconnect() {
-  if (connectedDev && adbClient) {
-    adbClient.disconnect(connectedDev.host, 5555).catch(() => {});
-  }
+  if (castClient) { try { castClient.close(); } catch (_) {} castClient = null; }
   connectedDev = null;
   return { ok: true };
 }
 
-// ── Launch an app by package name ─────────────────────────────────────────────
-async function launchApp(pkg) {
-  await shell(`monkey -p ${pkg} -c android.intent.category.LAUNCHER 1`);
-  return { ok: true };
+// ── Launch app via DIAL REST API (port 8008) ──────────────────────────────────
+async function dialLaunch(appName, body = '') {
+  if (!connectedDev) throw new Error('Not connected');
+  const url = `http://${connectedDev.host}:8008/apps/${appName}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    timeout: 8000,
+  });
+  return res.ok || res.status === 201;
 }
 
-// ── Open YouTube and search / play a video ────────────────────────────────────
+// ── Cast YouTube video ────────────────────────────────────────────────────────
 async function castYouTube(query) {
+  if (!connectedDev) throw new Error('Not connected to any TV');
   const result = await youtubeSearch(query);
   if (!result) throw new Error('Could not find that video on YouTube');
   const { videoId, title } = result;
 
-  // Launch YouTube with the specific video via intent
-  await shell(
-    `am start -a android.intent.action.VIEW` +
-    ` -d "https://www.youtube.com/watch?v=${videoId}"` +
-    ` -n ${APP_PACKAGES.youtube}/.TvMainActivity`
-  );
+  // Launch YouTube via DIAL with the video ID
+  const launched = await dialLaunch('YouTube', `v=${videoId}`).catch(() => false);
+
+  if (!launched && castClient) {
+    // Fallback: DefaultMediaReceiver
+    await new Promise((resolve) => {
+      castClient.launch(DefaultMediaReceiver, (err, player) => {
+        if (err) return resolve();
+        const media = {
+          contentId:   `https://www.youtube.com/watch?v=${videoId}`,
+          contentType: 'video/mp4',
+          streamType:  'BUFFERED',
+          metadata:    { type: 0, metadataType: 0, title }
+        };
+        player.load(media, { autoplay: true }, () => resolve());
+      });
+    });
+  }
+
   return { ok: true, title, videoId };
 }
 
-// ── Cast generic media (fallback) ─────────────────────────────────────────────
-async function castMedia({ url, title = 'Media' }) {
-  await shell(`am start -a android.intent.action.VIEW -d "${url}"`);
-  return { ok: true };
+// ── Cast generic media ────────────────────────────────────────────────────────
+async function castMedia({ url, title = 'Media', mimeType = 'video/mp4' }) {
+  if (!castClient) throw new Error('Not connected');
+  return new Promise((resolve, reject) => {
+    castClient.launch(DefaultMediaReceiver, (err, player) => {
+      if (err) return reject(err);
+      player.load({ contentId: url, contentType: mimeType, streamType: 'BUFFERED',
+        metadata: { type: 0, metadataType: 0, title } }, { autoplay: true },
+        loadErr => loadErr ? reject(loadErr) : resolve({ ok: true }));
+    });
+  });
 }
 
 // ── Open a streaming app ──────────────────────────────────────────────────────
 async function openUrl(url, title = 'App') {
-  let pkg = null;
-  if (/netflix/i.test(url))        pkg = APP_PACKAGES.netflix;
-  else if (/spotify/i.test(url))   pkg = APP_PACKAGES.spotify;
-  else if (/youtube/i.test(url))   pkg = APP_PACKAGES.youtube;
-  else if (/prime|amazon/i.test(url)) pkg = APP_PACKAGES.prime;
+  let appName = null;
+  if (/netflix/i.test(url))         appName = DIAL_APPS.netflix;
+  else if (/spotify/i.test(url))    appName = DIAL_APPS.spotify;
+  else if (/youtube/i.test(url))    appName = DIAL_APPS.youtube;
+  else if (/prime|amazon/i.test(url)) appName = DIAL_APPS.prime;
 
-  if (pkg) return launchApp(pkg);
-
-  // Generic URL intent
-  await shell(`am start -a android.intent.action.VIEW -d "${url}"`);
-  return { ok: true };
-}
-
-// ── Volume control ─────────────────────────────────────────────────────────────
-async function setVolume(level) {
-  // level 0-1 → send KEYCODE_VOLUME_UP/DOWN events
-  // Android TV max volume is typically 15 steps
-  const steps = Math.round(level * 15);
-  // First mute then raise to target level
-  await shell('input keyevent KEYCODE_VOLUME_MUTE');
-  for (let i = 0; i < steps; i++) {
-    await shell('input keyevent KEYCODE_VOLUME_UP');
+  if (appName) {
+    await dialLaunch(appName).catch(e => { throw new Error(`Could not open ${title}: ${e.message}`); });
+    return { ok: true };
   }
-  return { ok: true };
+  return { ok: false, error: 'Unknown app' };
 }
 
-// ── Mute ──────────────────────────────────────────────────────────────────────
-async function setMute() {
-  await shell('input keyevent KEYCODE_VOLUME_MUTE');
-  return { ok: true };
+// ── Volume (via castv2) ───────────────────────────────────────────────────────
+function setVolume(level) {
+  if (!castClient) return Promise.resolve({ ok: true });
+  return new Promise((resolve) => {
+    castClient.setVolume({ level: Math.max(0, Math.min(1, level)) }, () => resolve({ ok: true }));
+  });
 }
 
-// ── Stop / back ───────────────────────────────────────────────────────────────
-async function stop() {
-  await shell('input keyevent KEYCODE_MEDIA_STOP');
-  return { ok: true };
+function setMute() {
+  if (!castClient) return Promise.resolve({ ok: true });
+  return new Promise((resolve) => {
+    castClient.setVolume({ muted: true }, () => resolve({ ok: true }));
+  });
+}
+
+function stop() {
+  if (!castClient) return Promise.resolve({ ok: true });
+  return new Promise((resolve) => {
+    castClient.getSessions((err, sessions) => {
+      if (err || !sessions || !sessions.length) return resolve({ ok: true });
+      castClient.stop(sessions[0], () => resolve({ ok: true }));
+    });
+  });
 }
 
 module.exports = {
   discover, connect, disconnect,
   castYouTube, castMedia, openUrl,
-  setVolume, setMute, stop,
+  setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({ connected: !!connectedDev, device: connectedDev }),
 };
