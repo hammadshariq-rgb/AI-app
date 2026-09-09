@@ -113,6 +113,7 @@
     }
   },
   "dependencies": {
+    "@devicefarmer/adbkit": "^3.3.9",
     "castv2-client": "^1.2.0",
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0",
