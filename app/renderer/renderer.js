@@ -1689,19 +1689,9 @@ window._checkMarketsOverlay = async function(text) {
 window._checkQuickLaunch = async function(text) {
   const t = text.trim();
 
-  // ── Spotify: "play X on spotify" / "play X" ──────────────────────────────
-  // Skip if this is a TV command — let _checkTvCast handle it
-  const spotifyM = !(/\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
-    && (t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i));
-  if (spotifyM) {
-    const query = spotifyM[1].trim();
-    addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
-    window.jarvis.speak(`Playing ${query} on Spotify.`);
-    // Open via spotify: URI — opens app silently in background if installed
-    // Only fall back to web if app is not installed (user won't see a tab switch)
-    window.jarvis.openUrl(`spotify:search:${encodeURIComponent(query)}`);
-    return true;
-  }
+  // Spotify is handled by the AI pipeline (main.js play_music action)
+  // which uses the Spotify Web API for true background playback.
+  // Do NOT intercept here — fall through to AI.
 
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
   // Skip if this is a TV command
