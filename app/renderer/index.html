@@ -1769,6 +1769,48 @@
                 <button class="connector-btn" id="calendarBtn">CONNECT</button>
               </div>
             </div>
+
+            <!-- ── TV CAST ── -->
+            <div class="connector-section" id="tvSection">
+              <div class="connector-section-title">📺 TV CAST</div>
+              <p class="connector-hint">Connect to your smart TV or Chromecast on the same Wi-Fi. Then say <em>"play X on YouTube on TV"</em>, <em>"open Netflix on TV"</em> or <em>"play X music on TV"</em>.</p>
+              <div class="connector-row" id="tvRow" style="cursor:pointer">
+                <div class="connector-icon tv" style="background:rgba(99,102,241,0.15);color:#818cf8">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
+                  </svg>
+                </div>
+                <div class="connector-info">
+                  <div class="connector-name">CHROMECAST / SMART TV</div>
+                  <div class="connector-status" id="tvStatus">Not connected · Scanning your network…</div>
+                </div>
+                <button class="connector-btn" id="tvScanBtn">SCAN</button>
+              </div>
+              <!-- Device list (shown after scan) -->
+              <div id="tvDeviceList" style="display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+              <!-- Connected banner -->
+              <div id="tvConnectedBanner" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);border-radius:10px">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;color:rgba(130,140,255,0.7)">CONNECTED TO</div>
+                    <div id="tvConnectedName" style="font-size:14px;font-weight:700;color:rgba(200,215,255,0.95);margin-top:2px">—</div>
+                  </div>
+                  <button class="connector-btn" id="tvDisconnectBtn" style="border-color:rgba(255,100,100,0.3);color:rgba(255,120,120,0.8)">DISCONNECT</button>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="tv-quick-btn" onclick="window._tvQuick('youtube')">▶ YouTube</button>
+                  <button class="tv-quick-btn" onclick="window._tvQuick('netflix')">N Netflix</button>
+                  <button class="tv-quick-btn" onclick="window._tvQuick('spotify')">♫ Spotify</button>
+                  <button class="tv-quick-btn" onclick="window._tvQuick('prime')">⭐ Prime</button>
+                </div>
+                <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                  <span style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:rgba(120,140,200,0.5)">VOL</span>
+                  <input type="range" id="tvVolumeSlider" min="0" max="100" value="50" style="flex:1;accent-color:#818cf8" oninput="window._tvVolume(this.value)"/>
+                  <span id="tvVolumeLabel" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(160,180,255,0.7);min-width:28px">50%</span>
+                </div>
+              </div>
+              <p class="connector-hint" style="margin-top:8px">Works with any <strong>Chromecast</strong>, <strong>Google TV</strong>, <strong>Android TV</strong>, <strong>Nvidia Shield</strong>, or any TV with Chromecast built-in.</p>
+            </div>
             <!-- IMPORTANT SENDERS section hidden until email connectors are live -->
             <!--
             <div class="connector-section">

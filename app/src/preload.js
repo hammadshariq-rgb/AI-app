@@ -98,4 +98,18 @@ contextBridge.exposeInMainWorld('jarvis', {
   generateImage: (prompt, size)    => ipcRenderer.invoke('creative:genimage', { prompt, size }),
   openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),
   openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
+
+  // TV Cast (Chromecast)
+  tvDiscover:     ()                  => ipcRenderer.invoke('tv:discover'),
+  tvConnect:      (host, port)        => ipcRenderer.invoke('tv:connect', { host, port }),
+  tvDisconnect:   ()                  => ipcRenderer.invoke('tv:disconnect'),
+  tvStatus:       ()                  => ipcRenderer.invoke('tv:status'),
+  tvCastYouTube:  (query)             => ipcRenderer.invoke('tv:cast-youtube', { query }),
+  tvCastMedia:    (opts)              => ipcRenderer.invoke('tv:cast-media', opts),
+  tvOpenUrl:      (url, title)        => ipcRenderer.invoke('tv:open-url', { url, title }),
+  tvVolume:       (level)             => ipcRenderer.invoke('tv:volume', { level }),
+  tvMute:         ()                  => ipcRenderer.invoke('tv:mute'),
+  tvStop:         ()                  => ipcRenderer.invoke('tv:stop'),
+  onTvDevicesUpdate: (cb)             => ipcRenderer.on('tv:devices-update', (_e, d) => cb(d)),
+  onTvStatusUpdate:  (cb)             => ipcRenderer.on('tv:status-update',  (_e, d) => cb(d)),
 });

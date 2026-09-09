@@ -1404,6 +1404,236 @@ window._checkMarketsOverlay = async function(text) {
   return true;
 };
 
+// ===================== TV CAST (Chromecast) =====================
+(function initTvConnector() {
+  let tvDevices = [];
+  let tvConnected = null;   // {name, host, port}
+  let tvScanning  = false;
+
+  // ── DOM refs (only available after main UI loads) ────────────────────────
+  function getEl(id) { return document.getElementById(id); }
+
+  // ── Update UI state ──────────────────────────────────────────────────────
+  function tvUpdateUI() {
+    const banner   = getEl('tvConnectedBanner');
+    const scanBtn  = getEl('tvScanBtn');
+    const statusEl = getEl('tvStatus');
+    const nameEl   = getEl('tvConnectedName');
+    if (!banner) return;
+
+    if (tvConnected) {
+      banner.style.display = 'block';
+      if (nameEl) nameEl.textContent = tvConnected.name;
+      if (statusEl) statusEl.textContent = `Connected · ${tvConnected.name}`;
+      if (scanBtn) { scanBtn.textContent = 'SCAN'; scanBtn.disabled = false; }
+    } else {
+      banner.style.display = 'none';
+      if (statusEl) statusEl.textContent = tvDevices.length
+        ? `${tvDevices.length} device${tvDevices.length > 1 ? 's' : ''} found — tap to connect`
+        : (tvScanning ? 'Scanning your network…' : 'Not connected');
+    }
+  }
+
+  // ── Render device list ───────────────────────────────────────────────────
+  function tvRenderDevices(devs) {
+    const list = getEl('tvDeviceList');
+    if (!list) return;
+    list.style.display = devs.length ? 'flex' : 'none';
+    list.innerHTML = '';
+    devs.forEach(dev => {
+      const row = document.createElement('div');
+      row.className = 'tv-device-item';
+      row.innerHTML = `
+        <div>
+          <div class="tv-device-name">${dev.name}</div>
+          <div class="tv-device-model">${dev.model || 'Chromecast'} · ${dev.host}</div>
+        </div>
+        <button class="tv-connect-btn">CONNECT</button>`;
+      row.querySelector('.tv-connect-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        btn.textContent = '…'; btn.disabled = true;
+        try {
+          const res = await window.jarvis.tvConnect(dev.host, dev.port);
+          if (res.ok) {
+            tvConnected = dev;
+            tvUpdateUI();
+            addMessage('assistant', `📺 Connected to **${dev.name}**. You can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
+            window.jarvis.speak(`Connected to ${dev.name}.`);
+          } else {
+            btn.textContent = 'RETRY'; btn.disabled = false;
+            addMessage('assistant', `Could not connect to ${dev.name}: ${res.error || 'unknown error'}`);
+          }
+        } catch (err) {
+          btn.textContent = 'RETRY'; btn.disabled = false;
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // ── Scan ────────────────────────────────────────────────────────────────
+  async function tvScan() {
+    if (tvScanning) return;
+    tvScanning = true;
+    tvDevices  = [];
+    const statusEl = getEl('tvStatus');
+    const scanBtn  = getEl('tvScanBtn');
+    const list     = getEl('tvDeviceList');
+    if (statusEl) statusEl.innerHTML = '<span class="tv-scanning-pulse">SCANNING NETWORK…</span>';
+    if (scanBtn)  { scanBtn.textContent = 'SCANNING…'; scanBtn.disabled = true; }
+    if (list)     { list.style.display = 'none'; list.innerHTML = ''; }
+
+    // Listen for incremental device updates
+    window.jarvis.onTvDevicesUpdate(devs => {
+      tvDevices = devs;
+      tvRenderDevices(devs);
+      tvUpdateUI();
+    });
+
+    try {
+      // discover() returns after 6s with whatever was found
+      const devs = await window.jarvis.tvDiscover();
+      tvDevices = Array.isArray(devs) ? devs : [];
+    } catch (_) {}
+
+    tvScanning = false;
+    if (scanBtn)  { scanBtn.textContent = 'RESCAN'; scanBtn.disabled = false; }
+    if (!tvDevices.length && statusEl) statusEl.textContent = 'No Chromecast devices found. Make sure your TV is on the same Wi-Fi.';
+    tvUpdateUI();
+  }
+
+  // ── Disconnect ───────────────────────────────────────────────────────────
+  async function tvDisconn() {
+    await window.jarvis.tvDisconnect().catch(() => {});
+    tvConnected = null;
+    tvUpdateUI();
+  }
+
+  // ── Quick app shortcuts from the connected banner ────────────────────────
+  window._tvQuick = function(app) {
+    const URLS = {
+      youtube: 'https://www.youtube.com',
+      netflix: 'https://www.netflix.com',
+      spotify: 'https://open.spotify.com',
+      prime:   'https://www.primevideo.com',
+    };
+    const NAMES = { youtube: 'YouTube', netflix: 'Netflix', spotify: 'Spotify', prime: 'Prime Video' };
+    const url = URLS[app];
+    if (!url) return;
+    window.jarvis.tvOpenUrl(url, NAMES[app]).catch(() => {});
+    addMessage('assistant', `📺 Opening **${NAMES[app]}** on your TV…`);
+    window.jarvis.speak(`Opening ${NAMES[app]} on your TV.`);
+  };
+
+  // ── Volume slider ────────────────────────────────────────────────────────
+  window._tvVolume = function(val) {
+    const label = getEl('tvVolumeLabel');
+    if (label) label.textContent = val + '%';
+    window.jarvis.tvVolume(val / 100).catch(() => {});
+  };
+
+  // ── Wire up buttons ──────────────────────────────────────────────────────
+  function wireTvButtons() {
+    getEl('tvScanBtn')?.addEventListener('click', tvScan);
+    getEl('tvDisconnectBtn')?.addEventListener('click', tvDisconn);
+    // Status update from main process (e.g. device disconnected)
+    window.jarvis.onTvStatusUpdate(status => {
+      if (!status.connected) { tvConnected = null; tvUpdateUI(); }
+    });
+  }
+  // Wait for DOM + auth (connectors pane may not exist during splash)
+  window.addEventListener('DOMContentLoaded', wireTvButtons);
+  setTimeout(wireTvButtons, 3000); // fallback if already loaded
+
+  // ── Voice command handler ────────────────────────────────────────────────
+  window._checkTvCast = async function(text) {
+    const t = text.trim();
+
+    // Must contain "on tv" / "on the tv" / "on my tv" / "on television" / "on screen"
+    if (!/\bon\s+(the\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t)) return false;
+    if (!tvConnected) {
+      addMessage('assistant', '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your Chromecast first.');
+      return true;
+    }
+
+    const sym = s => s.currency === 'GBP' ? '£' : '$'; // unused here but pattern consistency
+
+    // ── "play X on YouTube on TV" ──────────────────────────────────────────
+    const ytM = t.match(/play\s+(.+?)\s+on\s+youtube/i)
+             || t.match(/youtube\s+(.+?)\s+on\s+tv/i)
+             || t.match(/play\s+(.+?)\s+on\s+(?:the\s+)?(?:tv|screen)/i);
+    if (ytM) {
+      const query = ytM[1].trim().replace(/\s+on\s+(the\s+)?(?:tv|television|screen|chromecast)$/i, '').trim();
+      addMessage('assistant', `📺 Searching YouTube for *"${query}"* and casting to **${tvConnected.name}**…`);
+      window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
+      const res = await window.jarvis.tvCastYouTube(query);
+      if (!res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${res.error || 'unknown error'}`);
+      else addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
+      return true;
+    }
+
+    // ── "open Netflix on TV" ───────────────────────────────────────────────
+    if (/netflix/i.test(t)) {
+      addMessage('assistant', `📺 Opening **Netflix** on **${tvConnected.name}**…`);
+      window.jarvis.speak('Opening Netflix on your TV.');
+      await window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix').catch(() => {});
+      return true;
+    }
+
+    // ── "open Spotify / play X music on TV" ───────────────────────────────
+    if (/spotify/i.test(t) || /music\s+on/i.test(t)) {
+      const songM = t.match(/play\s+(.+?)\s+(?:music\s+)?on/i);
+      const song  = songM ? songM[1].trim() : '';
+      if (song) {
+        addMessage('assistant', `📺 Searching for *"${song}"* on YouTube Music and casting…`);
+        window.jarvis.speak(`Playing ${song} on your TV.`);
+        const res = await window.jarvis.tvCastYouTube(song + ' official audio');
+        if (!res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${res.error || 'unknown error'}`);
+        else addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
+      } else {
+        addMessage('assistant', `📺 Opening **Spotify** on **${tvConnected.name}**…`);
+        window.jarvis.speak('Opening Spotify on your TV.');
+        await window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify').catch(() => {});
+      }
+      return true;
+    }
+
+    // ── "open Prime / Amazon on TV" ───────────────────────────────────────
+    if (/prime|amazon\s+video/i.test(t)) {
+      addMessage('assistant', `📺 Opening **Prime Video** on **${tvConnected.name}**…`);
+      window.jarvis.speak('Opening Prime Video on your TV.');
+      await window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video').catch(() => {});
+      return true;
+    }
+
+    // ── "stop / pause TV" ─────────────────────────────────────────────────
+    if (/stop|pause/i.test(t)) {
+      addMessage('assistant', `⏹ Stopped playback on **${tvConnected.name}**.`);
+      await window.jarvis.tvStop().catch(() => {});
+      return true;
+    }
+
+    // ── "mute TV" ────────────────────────────────────────────────────────
+    if (/mute/i.test(t)) {
+      addMessage('assistant', `🔇 Muted **${tvConnected.name}**.`);
+      await window.jarvis.tvMute().catch(() => {});
+      return true;
+    }
+
+    // ── "volume X on TV" ─────────────────────────────────────────────────
+    const volM = t.match(/volume\s+(?:to\s+)?(\d+)/i);
+    if (volM) {
+      const pct = Math.max(0, Math.min(100, parseInt(volM[1])));
+      addMessage('assistant', `🔊 Setting TV volume to ${pct}%.`);
+      await window.jarvis.tvVolume(pct / 100).catch(() => {});
+      return true;
+    }
+
+    return false;
+  };
+})();
+
 // ===================== QUICK-LAUNCH COMMANDS =====================
 // Spotify, YouTube, Instagram, WhatsApp, Google Calendar
 window._checkQuickLaunch = async function(text) {
@@ -3114,6 +3344,11 @@ async function sendToJarvis(text) {
   // Check markets overlay command
   if (typeof window._checkMarketsOverlay === 'function') {
     const handled = await window._checkMarketsOverlay(text);
+    if (handled) return;
+  }
+  // Check TV cast commands — runs before quick-launch so "play X on YouTube on TV" → TV, not local browser
+  if (typeof window._checkTvCast === 'function') {
+    const handled = await window._checkTvCast(text);
     if (handled) return;
   }
   // Check quick-launch commands (Spotify, YouTube, Instagram, WhatsApp, Calendar)

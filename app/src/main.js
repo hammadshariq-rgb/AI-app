@@ -2462,3 +2462,60 @@ ipcMain.on('music:setService', (e, s) => { store.set('music.service', s); e.retu
 
 ipcMain.on('language:get', (e) => { e.returnValue = store.get('language') || 'English'; });
 ipcMain.on('language:set', (e, lang) => { store.set('language', lang); cloudPushPrefs({ language: lang }).catch(() => {}); e.returnValue = true; });
+
+// ── TV Cast (Chromecast over LAN) ─────────────────────────────────────────────
+const tvCast = require('./tv-cast');
+
+ipcMain.handle('tv:discover', (_e) => new Promise(resolve => {
+  const devs = tvCast.discover(updated => {
+    // push incremental updates so UI can show devices as they're found
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('tv:devices-update', updated);
+    }
+  }, 6000);
+  setTimeout(() => resolve(tvCast.getStatus().connected
+    ? devs
+    : devs), 6200);
+}));
+
+ipcMain.handle('tv:connect', async (_e, { host, port }) => {
+  try {
+    const res = await tvCast.connect(host, port);
+    if (overlayWindow && !overlayWindow.isDestroyed())
+      overlayWindow.webContents.send('tv:status-update', tvCast.getStatus());
+    return res;
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('tv:disconnect', () => {
+  const res = tvCast.disconnect();
+  if (overlayWindow && !overlayWindow.isDestroyed())
+    overlayWindow.webContents.send('tv:status-update', tvCast.getStatus());
+  return res;
+});
+
+ipcMain.handle('tv:status',      () => tvCast.getStatus());
+ipcMain.handle('tv:cast-youtube',async (_e, { query }) => {
+  try { return await tvCast.castYouTube(query); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('tv:cast-media',  async (_e, opts) => {
+  try { return await tvCast.castMedia(opts); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('tv:open-url',    async (_e, { url, title }) => {
+  try { return await tvCast.openUrl(url, title); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('tv:volume',      async (_e, { level }) => {
+  try { return await tvCast.setVolume(level); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('tv:mute',        async () => {
+  try { return await tvCast.setMute(true); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('tv:stop',        async () => {
+  try { return await tvCast.stop(); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
