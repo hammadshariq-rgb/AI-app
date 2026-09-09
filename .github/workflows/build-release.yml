@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 env:
-  RELEASE_TAG: v1.1.9
+  RELEASE_TAG: v1.2.0
 
 jobs:
 
@@ -52,7 +52,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: "PERSONAL AI ASSISTANT CALLISTO V1.1.9"
+          name: "PERSONAL AI ASSISTANT CALLISTO V1.2.0"
           draft: false
           prerelease: false
           make_latest: true
@@ -105,7 +105,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: "PERSONAL AI ASSISTANT CALLISTO V1.1.9"
+          name: "PERSONAL AI ASSISTANT CALLISTO V1.2.0"
           draft: false
           prerelease: false
           make_latest: true
