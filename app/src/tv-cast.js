@@ -143,33 +143,71 @@ function disconnect() {
 // ── Launch native app on TV ────────────────────────────────────────────────
 async function launchNativeApp(appId) {
   const c = await getCastClient();
+
+  // Small delay — let the session establish before sending LAUNCH
+  await new Promise(r => setTimeout(r, 500));
+
   const App = makeAppClass(appId);
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve({ ok: true }), 10000);
-    c.launch(App, (err) => {
-      clearTimeout(timer);
-      if (err) console.warn('[TV] launch', appId, ':', err.message);
+    const timer = setTimeout(() => {
+      console.warn('[TV] launch timed out for', appId);
       resolve({ ok: true });
-    });
+    }, 12000);
+    try {
+      c.launch(App, (err) => {
+        clearTimeout(timer);
+        if (err) console.warn('[TV] launch', appId, ':', err.message);
+        resolve({ ok: true });
+      });
+    } catch(e) {
+      clearTimeout(timer);
+      console.warn('[TV] launch threw:', e.message);
+      resolve({ ok: true });
+    }
   });
+}
+
+// ── DIAL fallback — HTTP API on port 8008 (some Android TVs) ──────────────
+async function dialLaunch(host, appName, body = '') {
+  try {
+    const res = await fetch(`http://${host}:8008/apps/${appName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    return res.ok || res.status === 201;
+  } catch (_) { return false; }
 }
 
 // ── Cast YouTube ───────────────────────────────────────────────────────────
 async function castYouTube(query) {
-  if (!castClient) throw new Error('Not connected to any TV');
+  if (!connectedDev) throw new Error('Not connected to any TV');
 
   const result = await youtubeSearch(query);
   if (!result) throw new Error('No YouTube results found for: ' + query);
   const { videoId, title } = result;
 
-  // Launch YouTube native app — it opens on TV and shows the video automatically
-  // Do NOT launch DefaultMediaReceiver after — it fights the YouTube app and blanks screen
-  await launchNativeApp(APP_IDS.youtube);
-
-  // Disconnect after launching to free TLS connection (no need to keep it open)
-  setTimeout(() => { try { castClient && castClient.close(); } catch(_){} }, 3000);
+  // Try DIAL first (HTTP, more reliable on Android TV)
+  const dialOk = await dialLaunch(connectedDev.host, 'YouTube', `v=${videoId}`);
+  if (!dialOk) {
+    // Fall back to castv2 native app launch
+    await launchNativeApp(APP_IDS.youtube);
+  }
 
   return { ok: true, title, videoId };
+}
+
+// ── Cast generic media ─────────────────────────────────────────────────────
+async function castMedia({ url, title = 'Media', mimeType = 'video/mp4' }) {
+  const c = await getCastClient();
+  return new Promise((resolve, reject) => {
+    c.launch(DefaultMediaReceiver, (err, player) => {
+      if (err) return reject(err);
+      player.load({ contentId: url, contentType: mimeType, streamType: 'BUFFERED',
+        metadata: { type: 0, metadataType: 0, title } }, { autoplay: true },
+        e => e ? reject(e) : resolve({ ok: true }));
+    });
+  });
 }
 
 // ── Cast media URL ─────────────────────────────────────────────────────────
@@ -187,16 +225,23 @@ function castMedia({ url, title = 'Media', mimeType = 'video/mp4' }) {
 
 // ── Open streaming app by URL ──────────────────────────────────────────────
 async function openUrl(url, appName = 'App') {
-  if (!castClient) throw new Error('Not connected to any TV');
+  if (!connectedDev) throw new Error('Not connected to any TV');
 
-  let appId = null;
-  if (/netflix/i.test(url))          appId = APP_IDS.netflix;
-  else if (/spotify/i.test(url))     appId = APP_IDS.spotify;
-  else if (/youtube/i.test(url))     appId = APP_IDS.youtube;
-  else if (/prime|amazon/i.test(url)) appId = APP_IDS.prime;
+  const DIAL_NAMES = { netflix: 'Netflix', spotify: 'Spotify', youtube: 'YouTube', prime: 'AmazonInstantVideo' };
+  let appId = null, dialName = null;
+
+  if (/netflix/i.test(url))           { appId = APP_IDS.netflix;  dialName = DIAL_NAMES.netflix;  }
+  else if (/spotify/i.test(url))      { appId = APP_IDS.spotify;  dialName = DIAL_NAMES.spotify;  }
+  else if (/youtube/i.test(url))      { appId = APP_IDS.youtube;  dialName = DIAL_NAMES.youtube;  }
+  else if (/prime|amazon/i.test(url)) { appId = APP_IDS.prime;    dialName = DIAL_NAMES.prime;    }
 
   if (!appId) throw new Error('Unknown app: ' + appName);
-  return launchNativeApp(appId);
+
+  // Try DIAL first, then castv2
+  const dialOk = await dialLaunch(connectedDev.host, dialName);
+  if (!dialOk) await launchNativeApp(appId);
+
+  return { ok: true };
 }
 
 // ── Volume ─────────────────────────────────────────────────────────────────

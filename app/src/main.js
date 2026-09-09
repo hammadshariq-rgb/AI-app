@@ -2533,22 +2533,31 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
     if (result.ok) return result;
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify minimized so it doesn't steal focus
-      await commands.run('open_app', 'spotify');
-      for (const delay of [2500, 3000, 3000]) {
+      // Launch Spotify hidden/minimized — never bring it to foreground
+      const { exec } = require('child_process');
+      const spotifyPaths = [
+        `"${process.env.APPDATA}\\Spotify\\Spotify.exe"`,
+        `"${process.env.LOCALAPPDATA}\\Microsoft\\WindowsApps\\Spotify.exe"`,
+      ];
+      // Try each path silently
+      for (const sp of spotifyPaths) {
+        try {
+          exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {});
+          break;
+        } catch(_) {}
+      }
+
+      // Wait for Spotify to register as a device then play via API
+      for (const delay of [3000, 3000, 4000]) {
         await new Promise(r => setTimeout(r, delay));
         result = await connectors.playOnSpotify(query);
-        if (result.ok) {
-          // Refocus Callisto so Spotify doesn't stay in foreground
-          setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.focus(); }, 300);
-          return result;
-        }
+        if (result.ok) return result;  // Web API plays silently — no focus change
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
-      // Fallback: open track URI (auto-plays) then snap focus back
+
+      // Last resort: spotify:track URI (auto-plays, may briefly show app)
       if (result.trackUri) {
         await commands.run('play_music', `spotify_track_uri|${result.trackUri}`);
-        setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.focus(); }, 1500);
         return { ok: true, trackName: result.trackName, artistName: result.artistName };
       }
     }
