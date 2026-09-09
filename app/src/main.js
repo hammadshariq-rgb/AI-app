@@ -505,10 +505,9 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
   });
 
-  // Ctrl+Shift+X — Magic Cursor: toggle hand-gesture cursor control
+  // Ctrl+Shift+X — Magic Cursor: open screen-capture lasso overlay (circle anything → AI identifies it)
   globalShortcut.register('Control+Shift+X', () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
+    openCaptureOverlay();
   });
 
   // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer

@@ -1819,6 +1819,25 @@ body {
 }
 .cap-row.is-active .cap-sub { color: rgba(180,220,255,0.75); }
 
+/* shortcut badge shown on capability rows that have a keyboard shortcut */
+.cap-kbd {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-family: 'Rajdhani', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.25);
+  color: rgba(180,220,255,0.5);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.cap-row.is-active .cap-kbd { opacity: 1; }
+
 /* equaliser bars on active row */
 .cap-eq { display: flex; align-items: flex-end; gap: 3px; height: 18px; flex-shrink: 0; }
 .cap-eq span {

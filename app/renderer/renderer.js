@@ -4074,18 +4074,18 @@ async function showSplash(name) {
 // ─────────────────────────────────────────────────────────────────
 function initWelcomeScroll() {
   const CAPS = [
-    { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak and I respond instantly',              colorA: '#00c8ff', colorB: '#003a5c' },
-    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen for answers',      colorA: '#8b5cf6', colorB: '#2d1b69' },
-    { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       colorA: '#00e5b0', colorB: '#00382e' },
-    { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       colorA: '#f472b6', colorB: '#5c1840' },
-    { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             colorA: '#60a5fa', colorB: '#1e3a5c' },
-    { emoji: '◇', title: 'FILE INTELLIGENCE',  sub: 'Google Drive, Docs & Sheets, unified',       colorA: '#34d399', colorB: '#064e3b' },
-    { emoji: '◆', title: 'PERSISTENT MEMORY',  sub: 'I remember everything that matters',         colorA: '#fbbf24', colorB: '#4c2a00' },
-    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    colorA: '#a78bfa', colorB: '#2e1065' },
-    { emoji: '⊕', title: 'WEB SEARCH',         sub: 'Real-time information, instantly',            colorA: '#38bdf8', colorB: '#0c2a40' },
-    { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           colorA: '#4ade80', colorB: '#052e16' },
-    { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                colorA: '#fb923c', colorB: '#431407' },
-    { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           colorA: '#e879f9', colorB: '#4a044e' },
+    { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak to any tab, AI responds by voice',     kbd: 'Ctrl+Shift+C', colorA: '#00c8ff', colorB: '#003a5c' },
+    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen — AI identifies',  kbd: 'Ctrl+Shift+X', colorA: '#8b5cf6', colorB: '#2d1b69' },
+    { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       kbd: null,           colorA: '#00e5b0', colorB: '#00382e' },
+    { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       kbd: null,           colorA: '#f472b6', colorB: '#5c1840' },
+    { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             kbd: null,           colorA: '#60a5fa', colorB: '#1e3a5c' },
+    { emoji: '◇', title: 'FILE INTELLIGENCE',  sub: 'Google Drive, Docs & Sheets, unified',       kbd: null,           colorA: '#34d399', colorB: '#064e3b' },
+    { emoji: '◆', title: 'PERSISTENT MEMORY',  sub: 'I remember everything that matters',         kbd: null,           colorA: '#fbbf24', colorB: '#4c2a00' },
+    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    kbd: 'Ctrl+Shift+J', colorA: '#a78bfa', colorB: '#2e1065' },
+    { emoji: '⊕', title: 'WEB SEARCH',         sub: 'Real-time information, instantly',            kbd: null,           colorA: '#38bdf8', colorB: '#0c2a40' },
+    { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           kbd: null,           colorA: '#4ade80', colorB: '#052e16' },
+    { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                kbd: null,           colorA: '#fb923c', colorB: '#431407' },
+    { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           kbd: 'Ctrl+Shift+E', colorA: '#e879f9', colorB: '#4a044e' },
   ];
 
   const ROW_H = 96;
@@ -4104,6 +4104,9 @@ function initWelcomeScroll() {
   const rowEls = CAPS.map((c, i) => {
     const row = document.createElement('div');
     row.className = 'cap-row';
+    const kbdBadge = c.kbd
+      ? `<span class="cap-kbd" style="border-color:${c.colorA}44;color:${c.colorA}cc">${c.kbd}</span>`
+      : '';
     row.innerHTML = `
       <div class="cap-icon" style="background:linear-gradient(135deg,${c.colorA},${c.colorB})">
         <span style="position:relative;z-index:1;font-size:18px;font-family:'Orbitron',sans-serif">${c.emoji}</span>
@@ -4111,6 +4114,7 @@ function initWelcomeScroll() {
       <div class="cap-text">
         <div class="cap-title">${c.title}</div>
         <div class="cap-sub">${c.sub}</div>
+        ${kbdBadge}
       </div>
       <div class="cap-eq" style="display:none">
         <span style="background:${c.colorA}"></span>
@@ -4368,24 +4372,32 @@ const ONBOARD_STEPS = [
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🎤</span>
           <div class="ob-shortcut-info">
-            <div class="ob-shortcut-name">Voice from anywhere</div>
-            <div class="ob-shortcut-desc">Speak a command — AI responds by voice + card</div>
+            <div class="ob-shortcut-name">Voice to any tab</div>
+            <div class="ob-shortcut-desc">Speak to Callisto from any app — AI responds by voice</div>
           </div>
           <span class="ob-kbd">Ctrl+Shift+C</span>
         </div>
         <div class="ob-shortcut">
-          <span class="ob-shortcut-icon">🔍</span>
+          <span class="ob-shortcut-icon">✏️</span>
           <div class="ob-shortcut-info">
-            <div class="ob-shortcut-name">Circle to identify</div>
-            <div class="ob-shortcut-desc">Draw around anything on screen — AI tells you what it is</div>
+            <div class="ob-shortcut-name">Edit text on other tabs</div>
+            <div class="ob-shortcut-desc">Select text anywhere, press shortcut, speak your edit — AI rewrites it</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+Y</span>
+          <span class="ob-kbd">Ctrl+Shift+E</span>
+        </div>
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">🔮</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Magic cursor — circle to identify</div>
+            <div class="ob-shortcut-desc">Draw a circle around anything on screen — AI tells you what it is</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Shift+X</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">💬</span>
           <div class="ob-shortcut-info">
-            <div class="ob-shortcut-name">Open / hide app</div>
-            <div class="ob-shortcut-desc">Summon or dismiss the Callisto window</div>
+            <div class="ob-shortcut-name">Open / hide Callisto</div>
+            <div class="ob-shortcut-desc">Summon or dismiss the Callisto window instantly</div>
           </div>
           <span class="ob-kbd">Ctrl+Shift+J</span>
         </div>
@@ -4396,6 +4408,14 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-desc">Copy any text, press this — AI analyses it instantly</div>
           </div>
           <span class="ob-kbd">Ctrl+Space</span>
+        </div>
+        <div class="ob-shortcut">
+          <span class="ob-shortcut-icon">🤚</span>
+          <div class="ob-shortcut-info">
+            <div class="ob-shortcut-name">Hand gesture control</div>
+            <div class="ob-shortcut-desc">Toggle camera hand-gesture reader — control Callisto with your hand</div>
+          </div>
+          <span class="ob-kbd">Ctrl+Shift+G</span>
         </div>
       </div>`,
     validate: () => true,
