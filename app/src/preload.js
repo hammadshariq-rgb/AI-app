@@ -99,6 +99,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),
   openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
 
+  // Spotify direct play
+  spotifyPlay: (query) => ipcRenderer.invoke('spotify:play', { query }),
+
   // TV Cast (Chromecast)
   tvDiscover:     ()                  => ipcRenderer.invoke('tv:discover'),
   tvConnect:      (host, port)        => ipcRenderer.invoke('tv:connect', { host, port }),

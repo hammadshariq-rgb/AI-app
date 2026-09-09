@@ -2522,3 +2522,33 @@ ipcMain.handle('tv:stop',        async () => {
   try { return await tvCast.stop(); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+
+// ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
+ipcMain.handle('spotify:play', async (_e, { query }) => {
+  try {
+    const spotifyConnected = !!(store.get('connector.spotify.access_token'));
+    if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
+
+    let result = await connectors.playOnSpotify(query);
+    if (result.ok) return result;
+
+    if (result.error === 'NO_ACTIVE_DEVICE') {
+      // Launch Spotify app and retry
+      await commands.run('open_app', 'spotify');
+      for (const delay of [2500, 3000, 3000]) {
+        await new Promise(r => setTimeout(r, delay));
+        result = await connectors.playOnSpotify(query);
+        if (result.ok) return result;
+        if (result.error !== 'NO_ACTIVE_DEVICE') break;
+      }
+      // Fallback: open track URI which auto-plays
+      if (result.trackUri) {
+        await commands.run('play_music', `spotify_track_uri|${result.trackUri}`);
+        return { ok: true, trackName: result.trackName, artistName: result.artistName, autoplay: false };
+      }
+    }
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});

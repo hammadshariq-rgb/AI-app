@@ -1689,9 +1689,24 @@ window._checkMarketsOverlay = async function(text) {
 window._checkQuickLaunch = async function(text) {
   const t = text.trim();
 
-  // Spotify is handled by the AI pipeline (main.js play_music action)
-  // which uses the Spotify Web API for true background playback.
-  // Do NOT intercept here — fall through to AI.
+  // ── Spotify: "play X on spotify" ─────────────────────────────────────────
+  // Skip if TV command — let _checkTvCast handle it
+  const isTV = /\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t);
+  const spotifyM = !isTV && (t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i));
+  if (spotifyM) {
+    const query = spotifyM[1].trim();
+    addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
+    window.jarvis.speak(`Playing ${query} on Spotify.`);
+    // Call directly — plays in background via Web API, no tab switching
+    const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e.message }));
+    if (res && res.ok) {
+      if (res.trackName) addMessage('assistant', `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`);
+    } else if (res && res.error === 'Spotify not connected') {
+      addMessage('assistant', '🎵 Spotify not connected. Go to **Connectors → Spotify** to connect first.');
+    }
+    // If autoplay:false, the spotify:track URI already opened it
+    return true;
+  }
 
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
   // Skip if this is a TV command
