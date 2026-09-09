@@ -1348,8 +1348,12 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it silently, wait for device, retry quickly
-        await commands.run('open_app', 'spotify');
+        // Spotify not open — launch it silently (minimized, no focus steal)
+        { const { exec } = require('child_process');
+          const sp = `"${process.env.APPDATA}\\Spotify\\Spotify.exe"`;
+          exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {});
+        }
+        keepCallistoFocused(15000);
         let lastRetry = null;
         for (const delay of [2500, 3000, 3000]) {
           await new Promise(r => setTimeout(r, delay));
@@ -2524,13 +2528,37 @@ ipcMain.handle('tv:stop',        async () => {
 });
 
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
+// Helper: keep Callisto on top for N ms, fighting any app that steals focus
+function keepCallistoFocused(ms = 5000) {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  overlayWindow.focus();
+  const interval = 300;
+  let elapsed   = 0;
+  const t = setInterval(() => {
+    elapsed += interval;
+    if (!overlayWindow || overlayWindow.isDestroyed() || elapsed >= ms) {
+      clearInterval(t);
+      // Restore normal always-on-top level
+      if (overlayWindow && !overlayWindow.isDestroyed())
+        overlayWindow.setAlwaysOnTop(true, 'floating');
+      return;
+    }
+    overlayWindow.focus();
+  }, interval);
+}
+
 ipcMain.handle('spotify:play', async (_e, { query }) => {
   try {
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
 
     let result = await connectors.playOnSpotify(query);
-    if (result.ok) return result;
+    if (result.ok) {
+      // Spotify app may steal focus when playback starts — fight it back
+      keepCallistoFocused(5000);
+      return result;
+    }
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
       // Launch Spotify hidden/minimized — never bring it to foreground
@@ -2539,25 +2567,39 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
         `"${process.env.APPDATA}\\Spotify\\Spotify.exe"`,
         `"${process.env.LOCALAPPDATA}\\Microsoft\\WindowsApps\\Spotify.exe"`,
       ];
-      // Try each path silently
       for (const sp of spotifyPaths) {
         try {
-          exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {});
+          // SW_SHOWMINNOACTIVE (7) = show minimized, do NOT activate the window
+          exec(
+            `powershell -WindowStyle Hidden -Command "` +
+            `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;` +
+            `public class Win32{[DllImport(\\\"user32.dll\\\")]public static extern bool ShowWindow(IntPtr h,int n);}';` +
+            `$p=Start-Process -FilePath ${sp} -PassThru;Start-Sleep -Milliseconds 500;` +
+            `[Win32]::ShowWindow($p.MainWindowHandle,7)"`,
+            () => {}
+          );
           break;
-        } catch(_) {}
+        } catch(_) {
+          // Fallback: plain minimized launch
+          try { exec(`powershell -WindowStyle Hidden -Command "Start-Process ${sp} -WindowStyle Minimized"`, () => {}); break; } catch(_) {}
+        }
       }
+
+      // Start fighting for focus immediately while Spotify loads
+      keepCallistoFocused(15000);
 
       // Wait for Spotify to register as a device then play via API
       for (const delay of [3000, 3000, 4000]) {
         await new Promise(r => setTimeout(r, delay));
         result = await connectors.playOnSpotify(query);
-        if (result.ok) return result;  // Web API plays silently — no focus change
+        if (result.ok) return result;
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
 
-      // Last resort: spotify:track URI (auto-plays, may briefly show app)
+      // Last resort: open track URI (Spotify handles it silently if already running)
       if (result.trackUri) {
-        await commands.run('play_music', `spotify_track_uri|${result.trackUri}`);
+        const { shell } = require('electron');
+        shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
         return { ok: true, trackName: result.trackName, artistName: result.artistName };
       }
     }
