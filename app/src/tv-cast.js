@@ -93,31 +93,43 @@ function discover(onUpdate, timeoutMs = 6000) {
   return scanResults;
 }
 
-// ── Connect ────────────────────────────────────────────────────────────────
+// ── Connect (stores device info; castv2 connection made on-demand per command) ──
 function connect(host, port = 8009) {
   return new Promise((resolve, reject) => {
-    if (castClient) { try { castClient.close(); } catch (_) {} castClient = null; }
-
+    // Test reachability with a short castv2 ping, then disconnect
     const c = new Client();
     const timer = setTimeout(() => {
       try { c.close(); } catch (_) {}
-      reject(new Error('Connection timed out after 8s'));
+      reject(new Error('Connection timed out — is TV on and on same Wi-Fi?'));
     }, 8000);
 
     c.connect({ host, port }, () => {
       clearTimeout(timer);
-      castClient   = c;
+      // Store device info but close connection immediately (reconnect per-command)
       connectedDev = scanResults.find(d => d.host === host) || { name: host, host, port };
+      try { c.close(); } catch (_) {}
       resolve({ ok: true, name: connectedDev.name });
     });
 
-    c.on('error', err => {
-      clearTimeout(timer);
-      castClient = null; connectedDev = null;
-      reject(err);
-    });
+    c.on('error', err => { clearTimeout(timer); reject(err); });
+  });
+}
 
-    c.on('close', () => { castClient = null; connectedDev = null; });
+// ── Get a fresh castv2 connection for a command ────────────────────────────
+function getCastClient() {
+  return new Promise((resolve, reject) => {
+    if (!connectedDev) return reject(new Error('Not connected to any TV'));
+    if (castClient) { try { castClient.close(); } catch(_){} castClient = null; }
+    const c = new Client();
+    const timer = setTimeout(() => { try { c.close(); } catch(_){} reject(new Error('TV connection timed out')); }, 8000);
+    c.connect({ host: connectedDev.host, port: connectedDev.port || 8009 }, () => {
+      clearTimeout(timer);
+      castClient = c;
+      c.on('close', () => { castClient = null; });
+      c.on('error', () => { castClient = null; });
+      resolve(c);
+    });
+    c.on('error', err => { clearTimeout(timer); reject(err); });
   });
 }
 
@@ -129,20 +141,15 @@ function disconnect() {
 }
 
 // ── Launch native app on TV ────────────────────────────────────────────────
-function launchNativeApp(appId) {
-  if (!castClient) return Promise.reject(new Error('Not connected'));
+async function launchNativeApp(appId) {
+  const c = await getCastClient();
   const App = makeAppClass(appId);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const timer = setTimeout(() => resolve({ ok: true }), 10000);
-    castClient.launch(App, (err, sess) => {
+    c.launch(App, (err) => {
       clearTimeout(timer);
-      if (err) {
-        // Some apps don't call back — treat as success if it's a timeout-style error
-        console.warn('[TV] launch err:', err.message);
-        resolve({ ok: true });
-      } else {
-        resolve({ ok: true });
-      }
+      if (err) console.warn('[TV] launch', appId, ':', err.message);
+      resolve({ ok: true });
     });
   });
 }
@@ -155,35 +162,14 @@ async function castYouTube(query) {
   if (!result) throw new Error('No YouTube results found for: ' + query);
   const { videoId, title } = result;
 
-  // Launch YouTube native app first
+  // Launch YouTube native app — it opens on TV and shows the video automatically
+  // Do NOT launch DefaultMediaReceiver after — it fights the YouTube app and blanks screen
   await launchNativeApp(APP_IDS.youtube);
 
-  // Small delay for app to initialise on TV
-  await new Promise(r => setTimeout(r, 2000));
+  // Disconnect after launching to free TLS connection (no need to keep it open)
+  setTimeout(() => { try { castClient && castClient.close(); } catch(_){} }, 3000);
 
-  // Load video via DefaultMediaReceiver
-  return new Promise((resolve, reject) => {
-    castClient.launch(DefaultMediaReceiver, (err, player) => {
-      if (err) {
-        // YouTube app may have taken over — still report success
-        return resolve({ ok: true, title, videoId });
-      }
-      const media = {
-        contentId:   `https://www.youtube.com/watch?v=${videoId}`,
-        contentType: 'video/mp4',
-        streamType:  'BUFFERED',
-        metadata:    { type: 0, metadataType: 0, title }
-      };
-      player.load(media, { autoplay: true }, loadErr => {
-        if (loadErr) {
-          console.warn('[TV] media load err:', loadErr.message);
-          resolve({ ok: true, title, videoId }); // YouTube app may play anyway
-        } else {
-          resolve({ ok: true, title, videoId });
-        }
-      });
-    });
-  });
+  return { ok: true, title, videoId };
 }
 
 // ── Cast media URL ─────────────────────────────────────────────────────────

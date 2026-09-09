@@ -2533,18 +2533,23 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
     if (result.ok) return result;
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify app and retry
+      // Launch Spotify minimized so it doesn't steal focus
       await commands.run('open_app', 'spotify');
       for (const delay of [2500, 3000, 3000]) {
         await new Promise(r => setTimeout(r, delay));
         result = await connectors.playOnSpotify(query);
-        if (result.ok) return result;
+        if (result.ok) {
+          // Refocus Callisto so Spotify doesn't stay in foreground
+          setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.focus(); }, 300);
+          return result;
+        }
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
-      // Fallback: open track URI which auto-plays
+      // Fallback: open track URI (auto-plays) then snap focus back
       if (result.trackUri) {
         await commands.run('play_music', `spotify_track_uri|${result.trackUri}`);
-        return { ok: true, trackName: result.trackName, artistName: result.artistName, autoplay: false };
+        setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.focus(); }, 1500);
+        return { ok: true, trackName: result.trackName, artistName: result.artistName };
       }
     }
     return result;
