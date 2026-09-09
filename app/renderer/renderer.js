@@ -1601,9 +1601,11 @@ window._checkMarketsOverlay = async function(text) {
       const query = ytM[1].trim().replace(/\s+on\s+(the\s+)?(?:tv|television|screen|chromecast)$/i, '').trim();
       addMessage('assistant', `📺 Searching YouTube for *"${query}"* and casting to **${tvConnected.name}**…`);
       window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
-      const res = await window.jarvis.tvCastYouTube(query);
-      if (!res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${res.error || 'unknown error'}`);
-      else addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
+      try {
+        const res = await window.jarvis.tvCastYouTube(query);
+        if (res && res.ok) addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
+        else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
+      } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
 
@@ -1611,9 +1613,8 @@ window._checkMarketsOverlay = async function(text) {
     if (/netflix/i.test(t)) {
       addMessage('assistant', `📺 Launching **Netflix** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Netflix on your TV.');
-      window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix').catch(e => {
-        addMessage('assistant', `⚠️ TV error: ${e.message}`);
-      });
+      try { await window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix'); }
+      catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
 
@@ -1621,9 +1622,8 @@ window._checkMarketsOverlay = async function(text) {
     if (/\byoutube\b/i.test(t) && !ytM) {
       addMessage('assistant', `📺 Launching **YouTube** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening YouTube on your TV.');
-      window.jarvis.tvOpenUrl('https://www.youtube.com', 'YouTube').catch(e => {
-        addMessage('assistant', `⚠️ TV error: ${e.message}`);
-      });
+      try { await window.jarvis.tvOpenUrl('https://www.youtube.com', 'YouTube'); }
+      catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
 
@@ -1634,15 +1634,16 @@ window._checkMarketsOverlay = async function(text) {
       if (song) {
         addMessage('assistant', `📺 Searching for *"${song}"* and casting to **${tvConnected.name}**…`);
         window.jarvis.speak(`Playing ${song} on your TV.`);
-        const res = await window.jarvis.tvCastYouTube(song + ' official audio').catch(e => ({ ok: false, error: e.message }));
-        if (!res || !res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${(res && res.error) || 'unknown error'}`);
-        else addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
+        try {
+          const res = await window.jarvis.tvCastYouTube(song + ' official audio');
+          if (res && res.ok) addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
+          else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
+        } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       } else {
         addMessage('assistant', `📺 Launching **Spotify** on **${tvConnected.name}**…`);
         window.jarvis.speak('Opening Spotify on your TV.');
-        window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify').catch(e => {
-          addMessage('assistant', `⚠️ TV error: ${e.message}`);
-        });
+        try { await window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify'); }
+        catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       }
       return true;
     }
@@ -1651,9 +1652,8 @@ window._checkMarketsOverlay = async function(text) {
     if (/prime|amazon\s+video/i.test(t)) {
       addMessage('assistant', `📺 Launching **Prime Video** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Prime Video on your TV.');
-      window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video').catch(e => {
-        addMessage('assistant', `⚠️ TV error: ${e.message}`);
-      });
+      try { await window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video'); }
+      catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
 
