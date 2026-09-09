@@ -1470,7 +1470,8 @@ window._checkMarketsOverlay = async function(text) {
             tvConnected = dev;
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
-            addMessage('assistant', `📺 Connected to **${dev.name}**. You can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
+            const method = res.method ? ` (via ${res.method})` : '';
+            addMessage('assistant', `📺 Connected to **${dev.name}**${method}. You can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
             btn.textContent = 'RETRY'; btn.disabled = false;
