@@ -174,26 +174,45 @@ function disconnect() {
   return { ok: true };
 }
 
+// ── Build a castv2-client App class from an appId string ─────────────────────
+// castv2-client.launch() requires a class with static APP_ID, not a plain object
+function makeAppClass(appId) {
+  function CastApp(client_, sess) {
+    this.client  = client_;
+    this.session = sess;
+  }
+  CastApp.APP_ID = appId;
+  // castv2-client checks for a createChannel method on instances
+  CastApp.prototype.createChannel = function() {};
+  return CastApp;
+}
+
 // ── Launch a native Chromecast app by app ID ──────────────────────────────────
 function launchApp(appId) {
   if (!client) throw new Error('Not connected to any TV');
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => resolve({ ok: true }), 8000); // resolve anyway after 8s
-    client.launch({ appId }, (err, sess) => {
-      clearTimeout(timeout);
-      if (err) {
-        // Many apps don't return a proper callback — treat as success
-        console.warn('[TV] launch callback err (may be ok):', err.message);
+  const AppClass = makeAppClass(appId);
+  return new Promise((resolve) => {
+    // Give it 10 s max — Android TV can be slow to respond
+    const timeout = setTimeout(() => resolve({ ok: true }), 10000);
+    try {
+      client.launch(AppClass, (err, sess) => {
+        clearTimeout(timeout);
+        if (err) {
+          console.warn(`[TV] launch ${appId} err (may be ok):`, err.message);
+        } else {
+          session = sess;
+        }
         resolve({ ok: true });
-        return;
-      }
-      session = sess;
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      console.warn('[TV] launch threw:', e.message);
       resolve({ ok: true });
-    });
+    }
   });
 }
 
-// ── Cast YouTube video (launches YouTube native app + queues video) ────────────
+// ── Cast YouTube video — search + stream via DefaultMediaReceiver ──────────────
 async function castYouTube(query) {
   if (!client) throw new Error('Not connected to any TV');
 
@@ -201,17 +220,10 @@ async function castYouTube(query) {
   if (!result) throw new Error('Could not find that video on YouTube');
   const { videoId, title } = result;
 
-  // First launch the YouTube native app on the TV
-  await launchApp(APP_IDS.youtube).catch(() => {});
-
-  // Then load the video via DefaultMediaReceiver as a fallback stream
-  // (YouTube app intercepts it and plays natively)
-  return new Promise((resolve) => {
+  // Stream the video URL via DefaultMediaReceiver (works on all Android TV / Chromecast)
+  return new Promise((resolve, reject) => {
     client.launch(DefaultMediaReceiver, (err, player) => {
-      if (err) {
-        // YouTube native app took over — this is fine
-        return resolve({ ok: true, title, videoId });
-      }
+      if (err) return reject(new Error('Could not start media receiver: ' + err.message));
       session = player;
       const media = {
         contentId:   `https://www.youtube.com/watch?v=${videoId}`,
@@ -219,7 +231,8 @@ async function castYouTube(query) {
         streamType:  'BUFFERED',
         metadata:    { type: 0, metadataType: 0, title }
       };
-      player.load(media, { autoplay: true }, () => {
+      player.load(media, { autoplay: true }, (loadErr) => {
+        if (loadErr) return reject(new Error('Load failed: ' + loadErr.message));
         resolve({ ok: true, title, videoId });
       });
     });
