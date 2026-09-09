@@ -23,6 +23,7 @@
 const { Client, DefaultMediaReceiver } = require('castv2-client');
 const mdns  = require('multicast-dns');
 const fetch = require('node-fetch');
+const ytdl  = require('ytdl-core');
 
 // ── Chromecast native app IDs ─────────────────────────────────────────────────
 // These launch the actual TV apps, not a web URL in a browser
@@ -212,7 +213,7 @@ function launchApp(appId) {
   });
 }
 
-// ── Cast YouTube video — search + stream via DefaultMediaReceiver ──────────────
+// ── Cast YouTube video — get real stream URL via ytdl-core ────────────────────
 async function castYouTube(query) {
   if (!client) throw new Error('Not connected to any TV');
 
@@ -220,13 +221,34 @@ async function castYouTube(query) {
   if (!result) throw new Error('Could not find that video on YouTube');
   const { videoId, title } = result;
 
-  // Stream the video URL via DefaultMediaReceiver (works on all Android TV / Chromecast)
+  // Get a real streamable MP4 URL (not the watch page)
+  let streamUrl;
+  try {
+    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+    // Pick best MP4 format with both video+audio, under 1080p
+    const fmt = ytdl.chooseFormat(info.formats, {
+      quality: 'highestvideo',
+      filter: f => f.container === 'mp4' && f.hasAudio && f.hasVideo
+    });
+    streamUrl = fmt ? fmt.url : null;
+
+    // Fallback: audio-only if no combined format
+    if (!streamUrl) {
+      const audioFmt = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+      if (audioFmt) streamUrl = audioFmt.url;
+    }
+  } catch (e) {
+    console.warn('[TV] ytdl failed:', e.message);
+  }
+
+  if (!streamUrl) throw new Error('Could not get streamable URL for that video');
+
   return new Promise((resolve, reject) => {
     client.launch(DefaultMediaReceiver, (err, player) => {
       if (err) return reject(new Error('Could not start media receiver: ' + err.message));
       session = player;
       const media = {
-        contentId:   `https://www.youtube.com/watch?v=${videoId}`,
+        contentId:   streamUrl,
         contentType: 'video/mp4',
         streamType:  'BUFFERED',
         metadata:    { type: 0, metadataType: 0, title }
