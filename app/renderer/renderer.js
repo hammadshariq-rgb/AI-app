@@ -1468,6 +1468,7 @@ window._checkMarketsOverlay = async function(text) {
           const res = await window.jarvis.tvConnect(dev.host, dev.port);
           if (res.ok) {
             tvConnected = dev;
+            try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
             addMessage('assistant', `📺 Connected to **${dev.name}**. You can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
             window.jarvis.speak(`Connected to ${dev.name}.`);
@@ -1562,6 +1563,22 @@ window._checkMarketsOverlay = async function(text) {
   wireTvButtons();
   document.addEventListener('DOMContentLoaded', wireTvButtons);
   setTimeout(wireTvButtons, 2000);
+
+  // ── Auto-reconnect to last TV on startup ─────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const last = localStorage.getItem('tv_last_device');
+      if (!last) return;
+      const dev = JSON.parse(last);
+      if (!dev || !dev.host) return;
+      const res = await window.jarvis.tvConnect(dev.host, dev.port || 8009);
+      if (res && res.ok) {
+        tvConnected = dev;
+        tvUpdateUI();
+        console.log('[TV] Auto-reconnected to', dev.name);
+      }
+    } catch (_) {}
+  }, 3000);
 
   // ── Voice command handler ────────────────────────────────────────────────
   window._checkTvCast = async function(text) {
@@ -1673,21 +1690,25 @@ window._checkQuickLaunch = async function(text) {
   const t = text.trim();
 
   // ── Spotify: "play X on spotify" / "play X" ──────────────────────────────
-  const spotifyM = t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i);
+  // Skip if this is a TV command — let _checkTvCast handle it
+  const spotifyM = !(/\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
+    && (t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i));
   if (spotifyM) {
     const query = spotifyM[1].trim();
     addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
     window.jarvis.speak(`Playing ${query} on Spotify.`);
-    // Try native app first, fallback to web player search
+    // Open via spotify: URI — opens app silently in background if installed
+    // Only fall back to web if app is not installed (user won't see a tab switch)
     window.jarvis.openUrl(`spotify:search:${encodeURIComponent(query)}`);
-    setTimeout(() => window.jarvis.openUrl(`https://open.spotify.com/search/${encodeURIComponent(query)}`), 1200);
     return true;
   }
 
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
-  const ytM = t.match(/play\s+(.+?)\s+on\s+(?:youtube|yt)\b/i)
-            || t.match(/(?:open|search)\s+youtube\s+(?:for\s+)?(.+)/i)
-            || t.match(/^youtube\s+(.+)/i);
+  // Skip if this is a TV command
+  const ytM = !(/\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
+    && (t.match(/play\s+(.+?)\s+on\s+(?:youtube|yt)\b/i)
+      || t.match(/(?:open|search)\s+youtube\s+(?:for\s+)?(.+)/i)
+      || t.match(/^youtube\s+(.+)/i));
   if (ytM) {
     const query = ytM[1].trim();
     addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
