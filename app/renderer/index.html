@@ -2514,6 +2514,7 @@
         <div id="finDots"></div>
         <button id="finNext" title="Next">›</button>
       </div>
+      <button id="finExpandBtn" title="Expand portfolio" onclick="showMarketsOverlay()">⤢</button>
       <button id="finPanelClose" title="Close">✕</button>
     </div>
     <div id="finSliderWrap">
@@ -2521,23 +2522,84 @@
     </div>
   </div>
 
-  <!-- ── Markets Overlay ── -->
+  <!-- ── Markets Overlay (coverflow + P&L calculator) ── -->
   <div id="marketsOverlay">
-    <div>
-      <div id="moCard" class="mo-card">
-        <div id="moSymbol" class="mo-symbol"></div>
-        <div id="moName" class="mo-name"></div>
-        <div class="mo-price-row">
-          <span id="moPrice" class="mo-price"></span>
-          <span id="moBadge" class="mo-badge"></span>
+    <div class="mo-overlay-inner">
+
+      <!-- Header row -->
+      <div class="mo-header">
+        <div class="mo-header-left">
+          <span class="mo-header-title">MARKETS</span>
+          <span class="mo-header-sub" id="moHeaderSub">YOUR PORTFOLIO</span>
         </div>
-        <div class="mo-chart" id="moChart"></div>
-        <div class="mo-footer">
-          <div id="moDots" class="mo-dots"></div>
-          <button class="mo-close-btn" id="moCloseBtn">✕ Close</button>
+        <button class="mo-close-btn" id="moCloseBtn">✕ Close</button>
+      </div>
+
+      <!-- Coverflow carousel -->
+      <div class="mo-coverflow-wrap" id="moCoverflowWrap">
+        <button class="mo-cf-arrow left" id="moCfLeft">&#8249;</button>
+        <div class="mo-cf-frame" id="moCfFrame">
+          <!-- cards injected by JS -->
         </div>
+        <button class="mo-cf-arrow right" id="moCfRight">&#8250;</button>
+      </div>
+
+      <!-- Active card details (below carousel) -->
+      <div class="mo-detail-band" id="moDetailBand">
+        <div class="mo-detail-symbol" id="moDetailSymbol"></div>
+        <div class="mo-detail-name" id="moDetailName"></div>
+        <div class="mo-detail-price-row">
+          <span class="mo-detail-price" id="moDetailPrice"></span>
+          <span class="mo-detail-badge" id="moDetailBadge"></span>
+        </div>
+        <div class="mo-detail-chart" id="moDetailChart"></div>
+      </div>
+
+      <!-- Dots navigation -->
+      <div class="mo-dots-row">
+        <div id="moDots" class="mo-dots"></div>
         <div class="mo-nav-hint" id="moNavHint"></div>
       </div>
+
+      <!-- P&L Calculator -->
+      <div class="mo-pnl-section" id="moPnlSection">
+        <div class="mo-pnl-title">PROFIT &amp; LOSS CALCULATOR</div>
+        <div class="mo-pnl-inputs">
+          <div class="mo-pnl-field">
+            <label class="mo-pnl-label">BUY PRICE</label>
+            <div class="mo-pnl-input-wrap">
+              <span class="mo-pnl-curr" id="moPnlCurr">$</span>
+              <input class="mo-pnl-input" id="moPnlBuyPrice" type="number" min="0" step="0.01" placeholder="0.00"/>
+            </div>
+          </div>
+          <div class="mo-pnl-field">
+            <label class="mo-pnl-label">SHARES / UNITS</label>
+            <div class="mo-pnl-input-wrap">
+              <input class="mo-pnl-input" id="moPnlShares" type="number" min="0" step="0.0001" placeholder="0"/>
+            </div>
+          </div>
+        </div>
+        <div class="mo-pnl-result" id="moPnlResult">
+          <div class="mo-pnl-row">
+            <span class="mo-pnl-row-label">INVESTED</span>
+            <span class="mo-pnl-row-val" id="moPnlInvested">—</span>
+          </div>
+          <div class="mo-pnl-row">
+            <span class="mo-pnl-row-label">CURRENT VALUE</span>
+            <span class="mo-pnl-row-val" id="moPnlCurVal">—</span>
+          </div>
+          <div class="mo-pnl-row highlight">
+            <span class="mo-pnl-row-label">PROFIT / LOSS</span>
+            <span class="mo-pnl-row-val" id="moPnlPL">—</span>
+          </div>
+          <div class="mo-pnl-row">
+            <span class="mo-pnl-row-label">RETURN</span>
+            <span class="mo-pnl-row-val" id="moPnlReturn">—</span>
+          </div>
+        </div>
+        <div class="mo-pnl-ai-tip" id="moPnlAiTip"></div>
+      </div>
+
     </div>
   </div>
 

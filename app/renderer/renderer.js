@@ -1123,61 +1123,240 @@ async function finLoad() {
   }, 90000);
 }
 
-// ===================== MARKETS OVERLAY =====================
-// Use window.* so index.html wave gesture code can read these
+// ===================== MARKETS OVERLAY — coverflow + P&L =====================
 window.marketsOverlayOpen = false;
 let marketsIdx = 0;
 
+// ── Sparkline for detail band ─────────────────────────────────────────────
 function moSparkline(closes, positive) {
   if (!closes || closes.length < 2) return '';
-  const W = 288, H = 80;
+  const W = 560, H = 80;
   const mn = Math.min(...closes), mx = Math.max(...closes);
   const range = mx - mn || 1;
   const pts = closes.map((v, i) => {
     const x = (i / (closes.length - 1)) * W;
     const y = H - ((v - mn) / range) * H * 0.8 - H * 0.1;
-    return `${x},${y}`;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   const col = positive ? '#00e882' : '#ff6060';
-  const fillCol = positive ? 'rgba(0,232,130,0.15)' : 'rgba(255,96,96,0.15)';
+  const fillId = `mog${positive ? 'p' : 'n'}${Date.now() % 9999}`;
   const polyline = pts.join(' ');
-  const area = `${pts[0].split(',')[0]},${H} ` + polyline + ` ${pts[pts.length-1].split(',')[0]},${H}`;
+  const area = `${pts[0].split(',')[0]},${H} ` + polyline + ` ${pts[pts.length - 1].split(',')[0]},${H}`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
-    <defs><linearGradient id="mg${positive?'p':'n'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity="0.35"/><stop offset="100%" stop-color="${col}" stop-opacity="0.01"/></linearGradient></defs>
-    <polygon points="${area}" fill="url(#mg${positive?'p':'n'})"/>
+    <defs><linearGradient id="${fillId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${col}" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="${col}" stop-opacity="0.02"/>
+    </linearGradient></defs>
+    <polygon points="${area}" fill="url(#${fillId})"/>
     <polyline points="${polyline}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="3.5" fill="${col}"/>
   </svg>`;
 }
 
-function moRenderCard(idx) {
+// ── Coverflow engine (vanilla JS port, physics-settle) ────────────────────
+(function initCoverflow() {
+  let cfPos = 0, cfTarget = 0, cfVel = 0, cfRaf = null;
+  let cfDrag = null; // {x, pos, v, t}
+  const CARD_W = 210;
+  const GAP_FRAC = 0.1;
+  const ROTATE = 46;
+  const DEPTH = 0.55;
+  const FADE = 0.18;
+  const FALLOFF = 0.56;
+
+  function cfN() { return finPortfolio.length; }
+  function cfClamp(p) { return Math.max(0, Math.min(cfN() - 1, p)); }
+
+  function cfPaint() {
+    const cards = document.querySelectorAll('.mo-cf-card');
+    const pitch = CARD_W * (1 + GAP_FRAC);
+    cards.forEach((card, i) => {
+      const offset = i - cfPos;
+      const dist = Math.abs(offset);
+      const ramp = Math.pow(dist, FALLOFF);
+      const tilt = Math.min(ROTATE * ramp, 80) * Math.sign(offset);
+      const z = -DEPTH * CARD_W * ramp;
+      card.style.transform = `translateX(calc(-50% + ${offset * pitch}px)) translateZ(${z}px) rotateY(${-tilt}deg)`;
+      card.style.opacity = String(Math.max(0, 1 - FADE * dist));
+      card.style.zIndex = String(100 - Math.round(dist * 10));
+    });
+  }
+
+  function cfSettle(target) {
+    if (cfRaf) cancelAnimationFrame(cfRaf);
+    cfTarget = cfClamp(target);
+    marketsGoTo(Math.round(cfTarget));
+    const step = () => {
+      const rem = cfTarget - cfPos;
+      if (Math.abs(rem) < 0.0005) { cfPos = cfTarget; cfPaint(); cfRaf = null; return; }
+      cfPos += rem * 0.16;
+      cfPaint();
+      cfRaf = requestAnimationFrame(step);
+    };
+    cfRaf = requestAnimationFrame(step);
+  }
+
+  window._cfNudge = function(by) { cfSettle(Math.round(cfTarget) + by); };
+  window._cfGoTo = function(i) { cfSettle(i); };
+
+  function cfBuildCards() {
+    const frame = document.getElementById('moCfFrame');
+    if (!frame) return;
+    frame.innerHTML = '';
+    finPortfolio.forEach((s, i) => {
+      const card = document.createElement('div');
+      card.className = 'mo-cf-card';
+      const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
+      const pct = (s.changePct || 0).toFixed(2);
+      const col = s.positive ? '#00e882' : '#ff6060';
+      const fillCol = s.positive ? 'rgba(0,232,130,0.18)' : 'rgba(255,96,96,0.18)';
+      // mini sparkline for the card face
+      let sparkSvg = '';
+      if (s.sparkline && s.sparkline.length > 1) {
+        const vals = s.sparkline.filter(Number.isFinite);
+        if (vals.length > 1) {
+          const W2 = 210, H2 = 110, mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
+          const pts = vals.map((v, j) => `${((j / (vals.length - 1)) * W2).toFixed(1)},${(H2 - ((v - mn) / r) * H2 * 0.75 - H2 * 0.1).toFixed(1)}`);
+          const area = `0,${H2} ` + pts.join(' ') + ` ${W2},${H2}`;
+          sparkSvg = `<svg viewBox="0 0 ${W2} ${H2}" preserveAspectRatio="none" width="${W2}" height="${H2}" style="position:absolute;inset:0;width:100%;height:100%">
+            <polygon points="${area}" fill="${fillCol}"/>
+            <polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`;
+        }
+      }
+      card.innerHTML = `
+        <div class="mo-cf-card-chart">${sparkSvg}</div>
+        <div class="mo-cf-card-info">
+          <div class="mo-cf-sym">${s.symbol}</div>
+          <div class="mo-cf-name">${s.name || s.symbol}</div>
+          <div>
+            <span class="mo-cf-price">${sym}${(s.price || 0).toFixed(2)}</span>
+            <span class="mo-cf-badge ${s.positive ? 'up' : 'dn'}">${s.positive ? '▲ +' : '▼ '}${pct}%</span>
+          </div>
+        </div>`;
+      card.addEventListener('click', () => { if (!cfDrag || Math.abs(cfDrag.moved || 0) < 5) cfSettle(i); });
+      frame.appendChild(card);
+    });
+    cfPos = cfClamp(marketsIdx);
+    cfTarget = cfPos;
+    cfPaint();
+  }
+  window._cfBuildCards = cfBuildCards;
+
+  // Pointer drag on the frame
+  document.addEventListener('pointerdown', e => {
+    const frame = document.getElementById('moCfFrame');
+    if (!frame || !frame.contains(e.target)) return;
+    if (cfRaf) { cancelAnimationFrame(cfRaf); cfRaf = null; }
+    frame.setPointerCapture(e.pointerId);
+    cfDrag = { x: e.clientX, pos: cfPos, v: 0, t: performance.now(), moved: 0 };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!cfDrag) return;
+    const pitch = CARD_W * (1 + GAP_FRAC);
+    const now = performance.now();
+    const newPos = cfClamp(cfDrag.pos - (e.clientX - cfDrag.x) / pitch);
+    const prev = cfPos;
+    cfPos = newPos;
+    cfDrag.v = ((cfPos - prev) / Math.max(now - cfDrag.t, 1)) * 1000;
+    cfDrag.t = now;
+    cfDrag.moved = Math.abs(e.clientX - cfDrag.x);
+    cfPaint();
+    const idx = Math.max(0, Math.min(finPortfolio.length - 1, Math.round(cfPos)));
+    if (idx !== marketsIdx) marketsGoTo(idx);
+  });
+  document.addEventListener('pointerup', e => {
+    if (!cfDrag) return;
+    const carried = Math.max(-2, Math.min(2, cfDrag.v * 0.18));
+    cfDrag = null;
+    cfSettle(cfClamp(Math.round(cfPos + carried)));
+  });
+  document.addEventListener('pointercancel', () => {
+    if (!cfDrag) return;
+    cfDrag = null;
+    cfSettle(cfClamp(Math.round(cfPos)));
+  });
+})();
+
+// ── Detail band render ────────────────────────────────────────────────────
+function marketsGoTo(idx) {
   if (!finPortfolio.length) return;
   marketsIdx = Math.max(0, Math.min(finPortfolio.length - 1, idx));
   const s = finPortfolio[marketsIdx];
-  document.getElementById('moSymbol').textContent = s.symbol;
-  document.getElementById('moName').textContent = s.name || s.symbol;
   const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
-  document.getElementById('moPrice').textContent = sym + (s.price || 0).toFixed(2);
-  const badge = document.getElementById('moBadge');
   const pct = (s.changePct || 0).toFixed(2);
+
+  document.getElementById('moDetailSymbol').textContent = s.symbol;
+  document.getElementById('moDetailName').textContent = s.name || s.symbol;
+  document.getElementById('moDetailPrice').textContent = sym + (s.price || 0).toFixed(2);
+  const badge = document.getElementById('moDetailBadge');
   badge.textContent = (s.positive ? '▲ +' : '▼ ') + pct + '%';
-  badge.className = 'mo-badge ' + (s.positive ? 'pos' : 'neg');
-  document.getElementById('moChart').innerHTML = moSparkline(s.sparkline, s.positive);
+  badge.className = 'mo-detail-badge ' + (s.positive ? 'pos' : 'neg');
+  document.getElementById('moDetailChart').innerHTML = moSparkline(s.sparkline, s.positive);
+
   // Dots
   const dotsEl = document.getElementById('moDots');
   dotsEl.innerHTML = '';
   finPortfolio.forEach((_, i) => {
     const d = document.createElement('div');
     d.className = 'mo-dot' + (i === marketsIdx ? ' active' : '');
+    d.addEventListener('click', () => { window._cfGoTo && window._cfGoTo(i); });
     dotsEl.appendChild(d);
   });
-  // Hint
+
+  // Nav hint
   const hint = document.getElementById('moNavHint');
-  if (finPortfolio.length > 1) {
-    hint.textContent = '← WAVE LEFT HAND TO SCROLL →';
-    hint.style.display = '';
+  hint.textContent = finPortfolio.length > 1 ? '← SWIPE OR DRAG TO BROWSE →' : '';
+
+  // Update P&L currency symbol
+  document.getElementById('moPnlCurr').textContent = sym;
+
+  // Update P&L if inputs are filled
+  moPnlRecalc();
+}
+
+// ── P&L calculator ────────────────────────────────────────────────────────
+function moPnlRecalc() {
+  const buyInput = document.getElementById('moPnlBuyPrice');
+  const sharesInput = document.getElementById('moPnlShares');
+  if (!buyInput || !sharesInput) return;
+  const buyPrice = parseFloat(buyInput.value);
+  const shares = parseFloat(sharesInput.value);
+  const s = finPortfolio[marketsIdx];
+  if (!s || !buyPrice || !shares || isNaN(buyPrice) || isNaN(shares) || buyPrice <= 0 || shares <= 0) {
+    ['moPnlInvested','moPnlCurVal','moPnlPL','moPnlReturn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = '—'; el.className = 'mo-pnl-row-val'; }
+    });
+    document.getElementById('moPnlAiTip').textContent = '';
+    document.getElementById('moPnlAiTip').className = 'mo-pnl-ai-tip';
+    return;
+  }
+  const sym = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
+  const curPrice = s.price || 0;
+  const invested = buyPrice * shares;
+  const curVal = curPrice * shares;
+  const pl = curVal - invested;
+  const ret = invested > 0 ? (pl / invested) * 100 : 0;
+  const fmt = v => sym + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('moPnlInvested').textContent = fmt(invested);
+  document.getElementById('moPnlInvested').className = 'mo-pnl-row-val';
+  document.getElementById('moPnlCurVal').textContent = fmt(curVal);
+  document.getElementById('moPnlCurVal').className = 'mo-pnl-row-val';
+  const plEl = document.getElementById('moPnlPL');
+  plEl.textContent = (pl >= 0 ? '+' : '−') + fmt(pl);
+  plEl.className = 'mo-pnl-row-val ' + (pl >= 0 ? 'profit' : 'loss');
+  const retEl = document.getElementById('moPnlReturn');
+  retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
+  retEl.className = 'mo-pnl-row-val ' + (ret >= 0 ? 'profit' : 'loss');
+  // AI tip
+  const tipEl = document.getElementById('moPnlAiTip');
+  if (Math.abs(pl) > 0.005) {
+    const adj = pl >= 0 ? 'up' : 'down';
+    tipEl.textContent = `You are ${adj} ${fmt(Math.abs(pl))} on ${s.symbol} — a ${Math.abs(ret).toFixed(1)}% ${pl >= 0 ? 'gain' : 'loss'} on your position.`;
+    tipEl.className = 'mo-pnl-ai-tip has-tip';
   } else {
-    hint.style.display = 'none';
+    tipEl.textContent = ''; tipEl.className = 'mo-pnl-ai-tip';
   }
 }
 
@@ -1187,7 +1366,10 @@ function showMarketsOverlay() {
     return;
   }
   window.marketsOverlayOpen = true;
-  moRenderCard(marketsIdx);
+  // Build coverflow cards
+  window._cfBuildCards && window._cfBuildCards();
+  // Render detail band for current index
+  marketsGoTo(marketsIdx);
   document.getElementById('marketsOverlay').classList.add('mo-open');
 }
 
@@ -1196,21 +1378,22 @@ function closeMarketsOverlay() {
   document.getElementById('marketsOverlay').classList.remove('mo-open');
 }
 
-function marketsGoTo(i) {
-  moRenderCard(i);
-}
-
+// Arrow buttons
+document.getElementById('moCfLeft')?.addEventListener('click', () => window._cfNudge && window._cfNudge(-1));
+document.getElementById('moCfRight')?.addEventListener('click', () => window._cfNudge && window._cfNudge(1));
 // Close button
 document.getElementById('moCloseBtn')?.addEventListener('click', closeMarketsOverlay);
 // Escape key
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && marketsOverlayOpen) closeMarketsOverlay(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && window.marketsOverlayOpen) closeMarketsOverlay(); });
 // Click backdrop to close
 document.getElementById('marketsOverlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('marketsOverlay')) closeMarketsOverlay();
 });
+// P&L live recalc
+document.getElementById('moPnlBuyPrice')?.addEventListener('input', moPnlRecalc);
+document.getElementById('moPnlShares')?.addEventListener('input', moPnlRecalc);
 
-// Wire portfolio panel clicks → open overlay
-// Clicking the PORTFOLIO label or the slide area opens the full-screen overlay
+// Wire portfolio panel label → open overlay
 document.getElementById('finPanelLabel')?.addEventListener('click', showMarketsOverlay);
 document.getElementById('finSliderWrap')?.addEventListener('click', showMarketsOverlay);
 
