@@ -1592,35 +1592,51 @@ window._checkMarketsOverlay = async function(text) {
 
     // ── "open Netflix on TV" ───────────────────────────────────────────────
     if (/netflix/i.test(t)) {
-      addMessage('assistant', `📺 Opening **Netflix** on **${tvConnected.name}**…`);
+      addMessage('assistant', `📺 Launching **Netflix** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Netflix on your TV.');
-      await window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix').catch(() => {});
+      window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix').catch(e => {
+        addMessage('assistant', `⚠️ TV error: ${e.message}`);
+      });
+      return true;
+    }
+
+    // ── "open YouTube on TV" (no search query) ────────────────────────────
+    if (/\byoutube\b/i.test(t) && !ytM) {
+      addMessage('assistant', `📺 Launching **YouTube** on **${tvConnected.name}**…`);
+      window.jarvis.speak('Opening YouTube on your TV.');
+      window.jarvis.tvOpenUrl('https://www.youtube.com', 'YouTube').catch(e => {
+        addMessage('assistant', `⚠️ TV error: ${e.message}`);
+      });
       return true;
     }
 
     // ── "open Spotify / play X music on TV" ───────────────────────────────
-    if (/spotify/i.test(t) || /music\s+on/i.test(t)) {
+    if (/spotify/i.test(t) || /\bmusic\b.*\bon\b/i.test(t)) {
       const songM = t.match(/play\s+(.+?)\s+(?:music\s+)?on/i);
       const song  = songM ? songM[1].trim() : '';
       if (song) {
-        addMessage('assistant', `📺 Searching for *"${song}"* on YouTube Music and casting…`);
+        addMessage('assistant', `📺 Searching for *"${song}"* and casting to **${tvConnected.name}**…`);
         window.jarvis.speak(`Playing ${song} on your TV.`);
-        const res = await window.jarvis.tvCastYouTube(song + ' official audio');
-        if (!res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${res.error || 'unknown error'}`);
+        const res = await window.jarvis.tvCastYouTube(song + ' official audio').catch(e => ({ ok: false, error: e.message }));
+        if (!res || !res.ok) addMessage('assistant', `⚠️ Couldn't cast: ${(res && res.error) || 'unknown error'}`);
         else addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
       } else {
-        addMessage('assistant', `📺 Opening **Spotify** on **${tvConnected.name}**…`);
+        addMessage('assistant', `📺 Launching **Spotify** on **${tvConnected.name}**…`);
         window.jarvis.speak('Opening Spotify on your TV.');
-        await window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify').catch(() => {});
+        window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify').catch(e => {
+          addMessage('assistant', `⚠️ TV error: ${e.message}`);
+        });
       }
       return true;
     }
 
     // ── "open Prime / Amazon on TV" ───────────────────────────────────────
     if (/prime|amazon\s+video/i.test(t)) {
-      addMessage('assistant', `📺 Opening **Prime Video** on **${tvConnected.name}**…`);
+      addMessage('assistant', `📺 Launching **Prime Video** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Prime Video on your TV.');
-      await window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video').catch(() => {});
+      window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video').catch(e => {
+        addMessage('assistant', `⚠️ TV error: ${e.message}`);
+      });
       return true;
     }
 

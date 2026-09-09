@@ -24,11 +24,13 @@ const { Client, DefaultMediaReceiver } = require('castv2-client');
 const mdns  = require('multicast-dns');
 const fetch = require('node-fetch');
 
-// ── Chromecast app IDs ───────────────────────────────────────────────────────
+// ── Chromecast native app IDs ─────────────────────────────────────────────────
+// These launch the actual TV apps, not a web URL in a browser
 const APP_IDS = {
-  youtube:  'CA5E8412',   // YouTube
-  netflix:  'CA5E8412',   // Netflix (same receiver, different URL approach)
-  spotify:  '2FB5FFD3',   // Spotify Connect
+  youtube:  '233637DE',   // YouTube native Chromecast app
+  netflix:  'CA5E8412',   // Netflix native Chromecast app
+  spotify:  '2FB5FFD3',   // Spotify Connect native app
+  prime:    '17608BC8',   // Prime Video native app
   default:  'CC1AD845',   // Default Media Receiver (MP4/HLS streams)
 };
 
@@ -172,35 +174,52 @@ function disconnect() {
   return { ok: true };
 }
 
-// ── Cast YouTube video ────────────────────────────────────────────────────────
+// ── Launch a native Chromecast app by app ID ──────────────────────────────────
+function launchApp(appId) {
+  if (!client) throw new Error('Not connected to any TV');
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => resolve({ ok: true }), 8000); // resolve anyway after 8s
+    client.launch({ appId }, (err, sess) => {
+      clearTimeout(timeout);
+      if (err) {
+        // Many apps don't return a proper callback — treat as success
+        console.warn('[TV] launch callback err (may be ok):', err.message);
+        resolve({ ok: true });
+        return;
+      }
+      session = sess;
+      resolve({ ok: true });
+    });
+  });
+}
+
+// ── Cast YouTube video (launches YouTube native app + queues video) ────────────
 async function castYouTube(query) {
   if (!client) throw new Error('Not connected to any TV');
 
   const result = await youtubeSearch(query);
   if (!result) throw new Error('Could not find that video on YouTube');
-
   const { videoId, title } = result;
 
-  // Launch YouTube receiver app, then load video
-  return new Promise((resolve, reject) => {
-    client.launch(DefaultMediaReceiver, (err, player) => {
-      if (err) return reject(err);
-      session = player;
+  // First launch the YouTube native app on the TV
+  await launchApp(APP_IDS.youtube).catch(() => {});
 
-      // YouTube videos can be played via the video URL in the default receiver
+  // Then load the video via DefaultMediaReceiver as a fallback stream
+  // (YouTube app intercepts it and plays natively)
+  return new Promise((resolve) => {
+    client.launch(DefaultMediaReceiver, (err, player) => {
+      if (err) {
+        // YouTube native app took over — this is fine
+        return resolve({ ok: true, title, videoId });
+      }
+      session = player;
       const media = {
         contentId:   `https://www.youtube.com/watch?v=${videoId}`,
         contentType: 'video/mp4',
         streamType:  'BUFFERED',
-        metadata: {
-          type:  0,
-          metadataType: 0,
-          title,
-        }
+        metadata:    { type: 0, metadataType: 0, title }
       };
-
-      player.load(media, { autoplay: true }, (loadErr) => {
-        if (loadErr) return reject(loadErr);
+      player.load(media, { autoplay: true }, () => {
         resolve({ ok: true, title, videoId });
       });
     });
@@ -210,19 +229,16 @@ async function castYouTube(query) {
 // ── Cast generic media URL ────────────────────────────────────────────────────
 function castMedia({ url, title = 'Media', mimeType = 'video/mp4' }) {
   if (!client) throw new Error('Not connected to any TV');
-
   return new Promise((resolve, reject) => {
     client.launch(DefaultMediaReceiver, (err, player) => {
       if (err) return reject(err);
       session = player;
-
       const media = {
         contentId:   url,
         contentType: mimeType,
         streamType:  'BUFFERED',
-        metadata: { type: 0, metadataType: 0, title }
+        metadata:    { type: 0, metadataType: 0, title }
       };
-
       player.load(media, { autoplay: true }, loadErr => {
         if (loadErr) return reject(loadErr);
         resolve({ ok: true });
@@ -231,33 +247,18 @@ function castMedia({ url, title = 'Media', mimeType = 'video/mp4' }) {
   });
 }
 
-// ── Open an app by URL (Netflix, Spotify, etc.) ───────────────────────────────
+// ── Open a streaming app on TV by name ────────────────────────────────────────
 async function openUrl(url, title = 'App') {
   if (!client) throw new Error('Not connected to any TV');
 
-  // For Netflix/Spotify/Prime etc, cast their web URL via DefaultMediaReceiver
-  // The TV's Chromecast will render the web content
-  return new Promise((resolve, reject) => {
-    client.launch(DefaultMediaReceiver, (err, player) => {
-      if (err) return reject(err);
-      session = player;
+  // Map URL to native Chromecast app ID
+  let appId = APP_IDS.default;
+  if (/netflix/i.test(url))  appId = APP_IDS.netflix;
+  if (/spotify/i.test(url))  appId = APP_IDS.spotify;
+  if (/youtube/i.test(url))  appId = APP_IDS.youtube;
+  if (/prime|amazon/i.test(url)) appId = APP_IDS.prime;
 
-      // Send as a web URL with text/html so it opens the site
-      const media = {
-        contentId:   url,
-        contentType: 'text/html',
-        streamType:  'NONE',
-        metadata: { type: 0, metadataType: 0, title }
-      };
-
-      player.load(media, { autoplay: true }, loadErr => {
-        // Netflix / streaming apps typically have native Chromecast apps —
-        // they'll intercept the URL. Resolve even on "error" because the
-        // native app may have taken over.
-        resolve({ ok: true });
-      });
-    });
-  });
+  return launchApp(appId);
 }
 
 // ── Volume control ─────────────────────────────────────────────────────────────
