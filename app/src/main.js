@@ -1350,15 +1350,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch with /minimized (Spotify's own hidden-start flag)
+        // Spotify not open — launch it and wait for it to register as a device
+        // DO NOT suppress windows during startup — Spotify needs to be visible to register
         launchSpotifyHidden();
-        for (const t of [1500, 3000, 4500, 6000]) setTimeout(() => suppressSpotifyWindow(), t);
         let lastRetry = null;
-        for (const delay of [2500, 3000, 3000]) {
+        for (const delay of [4000, 5000, 6000]) {
           await new Promise(r => setTimeout(r, delay));
-          lastRetry = await playOnSpotifyTimed(query, 6000);
+          lastRetry = await playOnSpotifyTimed(query, 8000);
           if (lastRetry.ok) {
-            setTimeout(() => suppressSpotifyWindow(), 300);
+            // NOW suppress — Spotify registered and is playing
+            setTimeout(() => suppressSpotifyWindow(), 400);
+            setTimeout(() => suppressSpotifyWindow(), 1500);
+            setTimeout(() => suppressSpotifyWindow(), 3000);
             const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
             _sendTTS(_e.sender, spokenText);
             return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -2573,20 +2576,35 @@ public class W32 {
 // Launch Spotify hidden (never visible)
 function launchSpotifyHidden() {
   const { exec } = require('child_process');
-  // Try Store version first (more reliable hidden launch), then roaming
-  const paths = [
-    process.env.LOCALAPPDATA + '\\Microsoft\\WindowsApps\\Spotify.exe',
-    process.env.APPDATA + '\\Spotify\\Spotify.exe',
-  ];
-  const sp = paths.find(p => { try { return require('fs').existsSync(p); } catch(_) { return false; } })
-    || paths[1];
-  // /minimized flag tells Spotify itself to start minimized
-  exec(`"${sp}" /minimized`, err => {
-    if (err) {
-      // fallback: PowerShell Start-Process minimized
-      exec(`powershell -WindowStyle Hidden -Command "Start-Process '${sp}' -ArgumentList '/minimized' -WindowStyle Minimized"`, () => {});
-    }
-  });
+  const fs = require('fs');
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const appData = process.env.APPDATA || '';
+
+  // Check which Spotify exe actually exists
+  const roamingExe = appData + '\\Spotify\\Spotify.exe';
+  const windowsAppsExe = localAppData + '\\Microsoft\\WindowsApps\\Spotify.exe';
+
+  let sp = null;
+  try { if (fs.existsSync(roamingExe)) sp = roamingExe; } catch(_) {}
+
+  if (sp) {
+    // Traditional install — /minimized is supported
+    exec(`"${sp}" /minimized`, (err) => {
+      if (err) {
+        console.log('[Spotify] /minimized launch failed:', err.message, '— trying PowerShell');
+        exec(`powershell -WindowStyle Hidden -Command "Start-Process -FilePath '${sp}' -ArgumentList '/minimized' -WindowStyle Minimized"`, () => {});
+      }
+    });
+  } else {
+    // Microsoft Store / AppX install — use PowerShell to launch app package
+    console.log('[Spotify] No roaming exe found, launching via AppX/Store');
+    exec(
+      `powershell -WindowStyle Hidden -Command "` +
+      `$app = Get-AppxPackage -Name 'SpotifyAB.SpotifyMusic' -ErrorAction SilentlyContinue; ` +
+      `if ($app) { Start-Process 'spotify:' } else { Start-Process '${windowsAppsExe}' }"`,
+      () => {}
+    );
+  }
 }
 
 // Wrapper: call playOnSpotify with a hard timeout so it never hangs forever
@@ -2598,8 +2616,8 @@ async function playOnSpotifyTimed(query, timeoutMs = 8000) {
 }
 
 ipcMain.handle('spotify:play', async (_e, { query }) => {
-  // Hard outer timeout: entire handler gives up after 20s no matter what
-  const TOTAL_TIMEOUT = 20000;
+  // Hard outer timeout: 35s — Spotify Store version can take 15s to register as a device
+  const TOTAL_TIMEOUT = 35000;
   const deadline = Date.now() + TOTAL_TIMEOUT;
   const timeLeft = () => Math.max(0, deadline - Date.now());
 
@@ -2617,33 +2635,32 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
     }
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify with /minimized flag — Spotify's own "start hidden" argument
+      // Launch Spotify — DO NOT suppress its window yet; it needs to be visible
+      // long enough to register as a Connect device before we can play via API.
       launchSpotifyHidden();
 
-      // Keep suppressing any window that appears during Spotify startup
-      for (const t of [1500, 3000, 4500, 6000]) {
-        setTimeout(() => suppressSpotifyWindow(), t);
-      }
-
-      // Wait for Spotify to register as a device then play via API
-      for (const delay of [3000, 3000, 4000]) {
-        if (timeLeft() < 2000) break; // bail if running out of time
+      // Wait for Spotify to fully start and register as a device, then retry
+      // Use longer delays: Spotify Store version can take 10–15s to register
+      for (const delay of [4000, 5000, 6000]) {
+        if (timeLeft() < 2000) break;
         await new Promise(r => setTimeout(r, delay));
-        result = await playOnSpotifyTimed(query, Math.min(6000, timeLeft()));
+        result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
         if (result.ok) {
-          setTimeout(() => suppressSpotifyWindow(), 300);
+          // NOW suppress — Spotify is playing, window can be hidden
+          setTimeout(() => suppressSpotifyWindow(), 400);
           setTimeout(() => suppressSpotifyWindow(), 1500);
+          setTimeout(() => suppressSpotifyWindow(), 3000);
           return result;
         }
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
 
-      // Last resort: open track URI (plays in already-running Spotify silently)
+      // Last resort: open track URI directly (plays in Spotify app)
       if (result.trackUri) {
         const { shell } = require('electron');
         shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
-        setTimeout(() => suppressSpotifyWindow(), 500);
-        setTimeout(() => suppressSpotifyWindow(), 2000);
+        setTimeout(() => suppressSpotifyWindow(), 1000);
+        setTimeout(() => suppressSpotifyWindow(), 3000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName };
       }
     }
