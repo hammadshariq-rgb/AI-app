@@ -3162,35 +3162,46 @@
           const offCtx = offscreen.getContext('2d', { willReadFrequently: false });
 
           handsModel = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
-          handsModel.setOptions({ maxNumHands:2, modelComplexity:0, selfieMode:true, minDetectionConfidence:0.65, minTrackingConfidence:0.6 });
+          handsModel.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0,        // lightest model
+            selfieMode: true,
+            minDetectionConfidence: 0.55, // slightly lower = finds hand faster
+            minTrackingConfidence: 0.5,
+          });
           handsModel.onResults(onHandResults);
 
+          // Fire-and-forget send: model result arrives via onHandResults callback.
+          // We track busy state so we never double-send a frame.
           let _mpBusy = false;
           let _mpBusySince = 0;
-          async function loop() {
+          let _lastSendMs = 0;
+          const SEND_INTERVAL = 33; // cap at ~30fps input to model (plenty for gestures)
+
+          function loop(ts) {
             if (!gestureEnabled) return;
-            // Safety: if _mpBusy stuck for >400ms, force-reset (prevents skeleton freeze)
-            if (_mpBusy && Date.now() - _mpBusySince > 400) {
+            rafId = requestAnimationFrame(loop); // schedule next frame first — never misses
+
+            // Safety: if model hangs >500ms, force-unlock
+            if (_mpBusy && Date.now() - _mpBusySince > 500) {
               _mpBusy = false;
-              // Clear stale skeleton so it doesn't freeze on screen
               if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             }
-            if (!_mpBusy && video.readyState >= 2) {
-              _mpBusy = true;
-              _mpBusySince = Date.now();
-              try {
-                offCtx.drawImage(video, 0, 0, procW, procH);
-                await handsModel.send({ image: offscreen });
-              } catch(e) {
-                // On error, clear skeleton so it doesn't freeze
-                if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-              } finally {
-                _mpBusy = false;
-              }
-            }
-            rafId = setTimeout(loop, 67); // ~15fps gesture recognition — snappier gestures
+
+            // Throttle sends so model gets ~30 frames/s max
+            if (_mpBusy || video.readyState < 2 || (Date.now() - _lastSendMs) < SEND_INTERVAL) return;
+
+            _mpBusy = true;
+            _mpBusySince = Date.now();
+            _lastSendMs  = Date.now();
+
+            // Draw current video frame to small offscreen canvas, send to model
+            offCtx.drawImage(video, 0, 0, procW, procH);
+            handsModel.send({ image: offscreen }).catch(() => {
+              if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }).finally(() => { _mpBusy = false; });
           }
-          loop();
+          rafId = requestAnimationFrame(loop);
           gpAction.textContent = 'Show your hand to begin';
         } catch(e) {
           gpAction.textContent = e.name === 'NotAllowedError' ? 'Camera access denied' : 'Camera unavailable';
@@ -3199,7 +3210,7 @@
       }
 
       function stopGesture() {
-        if (rafId) { clearTimeout(rafId); rafId = null; }
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         if (cursorRafId) { cancelAnimationFrame(cursorRafId); cursorRafId = null; }
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
