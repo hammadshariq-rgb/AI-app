@@ -1532,14 +1532,35 @@ window._checkMarketsOverlay = async function(text) {
     if (list)     { list.style.display = 'none'; list.innerHTML = ''; }
 
     try {
-      // discover() returns after 6s with whatever was found
-      const devs = await window.jarvis.tvDiscover();
+      // Hard timeout: if tvDiscover hangs, we unlock after 10s no matter what
+      const devs = await Promise.race([
+        window.jarvis.tvDiscover(),
+        new Promise(r => setTimeout(() => r([]), 10000)),
+      ]);
       tvDevices = Array.isArray(devs) ? devs : [];
-    } catch (_) {}
+    } catch (_) {
+      tvDevices = [];
+    } finally {
+      // ALWAYS reset scan state — even if discover threw or hung
+      tvScanning = false;
+      if (scanBtn) { scanBtn.textContent = 'RESCAN'; scanBtn.disabled = false; }
+    }
 
-    tvScanning = false;
-    if (scanBtn)  { scanBtn.textContent = 'RESCAN'; scanBtn.disabled = false; }
-    if (!tvDevices.length && statusEl) statusEl.textContent = 'No Chromecast devices found. Make sure your TV is on the same Wi-Fi.';
+    if (!tvDevices.length && statusEl) {
+      statusEl.innerHTML =
+        'No devices found via auto-scan. ' +
+        '<br><b>Enter your TV\'s IP address directly:</b> ' +
+        '<input id="tvManualIp" placeholder="192.168.x.x" style="' +
+          'width:130px;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);' +
+          'background:rgba(255,255,255,0.07);color:inherit;font-size:12px;margin:0 6px">' +
+        '<button id="tvManualConnectBtn" style="' +
+          'padding:4px 10px;border-radius:6px;border:1px solid rgba(61,255,180,0.4);' +
+          'background:rgba(61,255,180,0.08);color:rgba(61,255,180,1);cursor:pointer;font-size:12px">' +
+          'Connect</button>';
+      // Re-wire manual button after injecting HTML
+      _tvWired = false;
+      wireTvButtons();
+    }
     tvUpdateUI();
   }
 
@@ -1573,31 +1594,69 @@ window._checkMarketsOverlay = async function(text) {
     window.jarvis.tvVolume(val / 100).catch(() => {});
   };
 
-  // ── Wire up buttons (once only) ──────────────────────────────────────────
+  // ── Wire up buttons — keep retrying until the TV panel is in the DOM ────────
   let _tvWired = false;
   function wireTvButtons() {
     if (_tvWired) return;
     const scanBtn = getEl('tvScanBtn');
     const discBtn = getEl('tvDisconnectBtn');
-    if (!scanBtn) return; // DOM not ready yet
+    if (!scanBtn) return; // panel not rendered yet — retry loop will call again
     _tvWired = true;
-    scanBtn.addEventListener('click', tvScan);
+
+    // Scan button: simple direct click handler, no lock-up
+    scanBtn.addEventListener('click', () => {
+      if (!tvScanning) tvScan();
+    });
     discBtn?.addEventListener('click', tvDisconn);
+
     // Incremental device updates during scan
     window.jarvis.onTvDevicesUpdate(devs => {
       tvDevices = devs;
       tvRenderDevices(devs);
       tvUpdateUI();
     });
-    // Status update from main process (e.g. device disconnected)
+    // Status updates from main process
     window.jarvis.onTvStatusUpdate(status => {
       if (!status.connected) { tvConnected = null; tvUpdateUI(); }
     });
+
+    // Wire the manual-IP connect button if present
+    const manualBtn = getEl('tvManualConnectBtn');
+    const manualInput = getEl('tvManualIp');
+    if (manualBtn && manualInput) {
+      manualBtn.addEventListener('click', async () => {
+        const ip = (manualInput.value || '').trim();
+        if (!ip) return;
+        manualBtn.textContent = 'Connecting…'; manualBtn.disabled = true;
+        try {
+          const fakedev = { name: 'TV (' + ip + ')', host: ip, port: 8009 };
+          const res = await window.jarvis.tvConnect(ip, 8009);
+          if (res && res.ok) {
+            tvConnected = fakedev;
+            try { localStorage.setItem('tv_last_device', JSON.stringify(fakedev)); } catch(_) {}
+            tvUpdateUI();
+            const isAdb = res.method && res.method.includes('ADB');
+            let statusLine = isAdb ? '\n✅ **ADB connected** — full app control active.'
+              : (res.adbError ? `\n⚠️ ADB: ${res.adbError}` : '');
+            addMessage('assistant', `📺 Connected to **${fakedev.name}** via ${res.method || 'TV'}.${statusLine}`);
+            window.jarvis.speak('Connected to TV.');
+          } else {
+            addMessage('assistant', `Could not connect to ${ip}: ${(res && res.error) || 'unknown error'}`);
+          }
+        } catch(e) {
+          addMessage('assistant', 'Connection error: ' + e.message);
+        }
+        manualBtn.textContent = 'Connect'; manualBtn.disabled = false;
+      });
+    }
   }
-  // Try immediately, then once DOM is ready, then as a late fallback
-  wireTvButtons();
-  document.addEventListener('DOMContentLoaded', wireTvButtons);
-  setTimeout(wireTvButtons, 2000);
+
+  // Keep retrying every 500ms until the TV panel is rendered (max 30s)
+  const _tvWireInterval = setInterval(() => {
+    wireTvButtons();
+    if (_tvWired) clearInterval(_tvWireInterval);
+  }, 500);
+  wireTvButtons(); // try immediately too
 
   // ── Auto-reconnect to last TV on startup ─────────────────────────────────
   setTimeout(async () => {
