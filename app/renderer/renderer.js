@@ -1470,18 +1470,21 @@ window._checkMarketsOverlay = async function(text) {
             tvConnected = dev;
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
-            const method = res.method ? ` (via ${res.method})` : '';
-            let adbNote = '';
-            if (res.adbError) {
-              if (res.adbError.includes('adb.exe not found')) {
-                adbNote = `\n\n⚠️ **ADB not installed** — TV commands need Android Platform Tools.\n` +
-                  `Download free from: **platform-tools.googleapps.com** → extract → add to PATH.\n` +
-                  `Then reconnect your TV.`;
+            const isAdb = res.method && res.method.includes('ADB');
+            let statusLine = '';
+            if (isAdb) {
+              statusLine = '\n✅ **ADB connected** — full app control active.';
+            } else if (res.adbError) {
+              if (res.adbError.includes('not found')) {
+                statusLine = '\n⚠️ **ADB not installed** — download Android Platform Tools:\n' +
+                  'https://developer.android.com/tools/releases/platform-tools\n' +
+                  'Extract the zip and add the folder to Windows PATH, then reconnect.';
               } else {
-                adbNote = `\n⚠️ ADB: ${res.adbError}`;
+                statusLine = `\n⚠️ **ADB failed**: ${res.adbError}\n` +
+                  `Using Chromecast fallback (limited — app launching may not work).`;
               }
             }
-            addMessage('assistant', `📺 Connected to **${dev.name}**${method}.${adbNote}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
+            addMessage('assistant', `📺 Connected to **${dev.name}** via ${res.method || 'TV'}.${statusLine}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
             btn.textContent = 'RETRY'; btn.disabled = false;

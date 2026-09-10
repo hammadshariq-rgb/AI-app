@@ -112,17 +112,31 @@ async function connect(host, port = 8009) {
 
   // First check if adb.exe exists at all
   const adbExePath = adb.findAdb();
-  if (!adbExePath && !adb.isAdbAvailable()) {
-    adbError = 'adb.exe not found — install Android Platform Tools (see below)';
+  const adbOnPath  = adb.isAdbAvailable();
+  const adbFound   = adbExePath || adbOnPath;
+  let   adbPath    = adbExePath || (adbOnPath ? 'adb (on PATH)' : null);
+
+  if (!adbFound) {
+    adbError = 'adb.exe not found — install Android Platform Tools';
     console.log('[TV] ADB not available: no adb.exe found');
   } else {
+    // Try connect + shell, capture full output for diagnostics
     try {
-      const out = await adb.shellWithAuth(host, 'echo adb_ok', 10000);
-      hasAdb = out.includes('adb_ok');
-      adbError = hasAdb ? '' : ('unexpected output: ' + out.slice(0, 80));
-      console.log('[TV] ADB connection:', hasAdb ? 'OK' : 'bad response: ' + out);
+      // First: adb connect
+      const connectOut = await adb.connectToDevice(host, 5555).then(() => 'connected').catch(e => 'connect failed: ' + e.message);
+      console.log('[TV] adb connect result:', connectOut);
+
+      if (connectOut.startsWith('connect failed')) {
+        adbError = connectOut + ` (adb at: ${adbPath})`;
+      } else {
+        // Second: run echo test
+        const shellOut = await adb.shellWithAuth(host, 'echo adb_ok', 8000);
+        hasAdb = shellOut.includes('adb_ok');
+        adbError = hasAdb ? '' : (`shell returned: "${shellOut.slice(0, 100)}"`);
+        console.log('[TV] ADB shell test:', hasAdb ? 'OK' : adbError);
+      }
     } catch (e) {
-      adbError = e.message;
+      adbError = e.message + ` (adb at: ${adbPath})`;
       console.log('[TV] ADB failed:', e.message);
     }
   }
@@ -155,10 +169,17 @@ async function connect(host, port = 8009) {
 
   connectedDev = scanResults.find(d => d.host === host)
     || { name: host, host, port };
-  connectedDev.hasAdb = hasAdb;
+  connectedDev.hasAdb   = hasAdb;
   connectedDev.adbError = adbError;
+  connectedDev.adbPath  = adbPath || null;
 
-  return { ok: true, name: connectedDev.name, method: hasAdb ? 'ADB' : 'Chromecast' };
+  return {
+    ok: true,
+    name: connectedDev.name,
+    method: hasAdb ? 'ADB (direct shell)' : 'Chromecast protocol',
+    adbError,
+    adbPath: adbPath || null,
+  };
 }
 
 // ── Disconnect ─────────────────────────────────────────────────────────────────
