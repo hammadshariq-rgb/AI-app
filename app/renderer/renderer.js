@@ -1548,18 +1548,15 @@ window._checkMarketsOverlay = async function(text) {
 
     if (!tvDevices.length && statusEl) {
       statusEl.innerHTML =
-        'No devices found via auto-scan. ' +
-        '<br><b>Enter your TV\'s IP address directly:</b> ' +
+        'No devices found. Enter your TV IP: ' +
         '<input id="tvManualIp" placeholder="192.168.x.x" style="' +
-          'width:130px;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);' +
-          'background:rgba(255,255,255,0.07);color:inherit;font-size:12px;margin:0 6px">' +
+          'width:120px;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);' +
+          'background:rgba(255,255,255,0.07);color:inherit;font-size:12px;margin:0 5px">' +
         '<button id="tvManualConnectBtn" style="' +
           'padding:4px 10px;border-radius:6px;border:1px solid rgba(61,255,180,0.4);' +
           'background:rgba(61,255,180,0.08);color:rgba(61,255,180,1);cursor:pointer;font-size:12px">' +
           'Connect</button>';
-      // Re-wire manual button after injecting HTML
-      _tvWired = false;
-      wireTvButtons();
+      tvWireAll(); // wire the newly injected button immediately
     }
     tvUpdateUI();
   }
@@ -1594,69 +1591,64 @@ window._checkMarketsOverlay = async function(text) {
     window.jarvis.tvVolume(val / 100).catch(() => {});
   };
 
-  // ── Wire up buttons — keep retrying until the TV panel is in the DOM ────────
-  let _tvWired = false;
-  function wireTvButtons() {
-    if (_tvWired) return;
-    const scanBtn = getEl('tvScanBtn');
-    const discBtn = getEl('tvDisconnectBtn');
-    if (!scanBtn) return; // panel not rendered yet — retry loop will call again
-    _tvWired = true;
+  // ── Wire IPC listeners once (these are on the renderer process, always available) ──
+  window.jarvis.onTvDevicesUpdate(devs => {
+    tvDevices = devs; tvRenderDevices(devs); tvUpdateUI();
+  });
+  window.jarvis.onTvStatusUpdate(status => {
+    if (!status.connected) { tvConnected = null; tvUpdateUI(); }
+  });
 
-    // Scan button: simple direct click handler, no lock-up
-    scanBtn.addEventListener('click', () => {
-      if (!tvScanning) tvScan();
-    });
-    discBtn?.addEventListener('click', tvDisconn);
-
-    // Incremental device updates during scan
-    window.jarvis.onTvDevicesUpdate(devs => {
-      tvDevices = devs;
-      tvRenderDevices(devs);
-      tvUpdateUI();
-    });
-    // Status updates from main process
-    window.jarvis.onTvStatusUpdate(status => {
-      if (!status.connected) { tvConnected = null; tvUpdateUI(); }
-    });
-
-    // Wire the manual-IP connect button if present
-    const manualBtn = getEl('tvManualConnectBtn');
-    const manualInput = getEl('tvManualIp');
-    if (manualBtn && manualInput) {
-      manualBtn.addEventListener('click', async () => {
-        const ip = (manualInput.value || '').trim();
-        if (!ip) return;
-        manualBtn.textContent = 'Connecting…'; manualBtn.disabled = true;
-        try {
-          const fakedev = { name: 'TV (' + ip + ')', host: ip, port: 8009 };
-          const res = await window.jarvis.tvConnect(ip, 8009);
-          if (res && res.ok) {
-            tvConnected = fakedev;
-            try { localStorage.setItem('tv_last_device', JSON.stringify(fakedev)); } catch(_) {}
-            tvUpdateUI();
-            const isAdb = res.method && res.method.includes('ADB');
-            let statusLine = isAdb ? '\n✅ **ADB connected** — full app control active.'
-              : (res.adbError ? `\n⚠️ ADB: ${res.adbError}` : '');
-            addMessage('assistant', `📺 Connected to **${fakedev.name}** via ${res.method || 'TV'}.${statusLine}`);
-            window.jarvis.speak('Connected to TV.');
-          } else {
-            addMessage('assistant', `Could not connect to ${ip}: ${(res && res.error) || 'unknown error'}`);
-          }
-        } catch(e) {
-          addMessage('assistant', 'Connection error: ' + e.message);
-        }
-        manualBtn.textContent = 'Connect'; manualBtn.disabled = false;
-      });
-    }
+  // ── Wire scan/disconnect buttons via onclick — no duplicate-listener risk ──
+  // Use a polling interval: buttons live inside a connector panel that may not
+  // be in the DOM yet. Poll until found, assign onclick (idempotent), then stop.
+  function wireBtn(id, fn) {
+    const el = document.getElementById(id);
+    if (el) { el.onclick = fn; return true; }
+    return false;
   }
 
-  // Keep retrying every 500ms until the TV panel is rendered (max 30s)
-  const _tvWireInterval = setInterval(() => {
-    wireTvButtons();
-    if (_tvWired) clearInterval(_tvWireInterval);
-  }, 500);
-  wireTvButtons(); // try immediately too
+  function tvWireAll() {
+    let done = true;
+    done = wireBtn('tvScanBtn',        () => { if (!tvScanning) tvScan(); }) && done;
+    done = wireBtn('tvDisconnectBtn',  tvDisconn) && done;
+    // Manual IP connect (only present after a failed scan — okay if not found)
+    wireBtn('tvManualConnectBtn', async () => {
+      const input = document.getElementById('tvManualIp');
+      const ip = (input?.value || '').trim();
+      if (!ip) { if (input) input.focus(); return; }
+      const btn = document.getElementById('tvManualConnectBtn');
+      if (btn) { btn.textContent = 'Connecting…'; btn.disabled = true; }
+      try {
+        const fakedev = { name: 'TV (' + ip + ')', host: ip, port: 8009 };
+        const res = await window.jarvis.tvConnect(ip, 8009);
+        if (res && res.ok) {
+          tvConnected = fakedev;
+          try { localStorage.setItem('tv_last_device', JSON.stringify(fakedev)); } catch(_) {}
+          tvUpdateUI();
+          const isAdb = res.method && res.method.includes('ADB');
+          const note  = isAdb ? '\n✅ ADB connected — full app control active.'
+            : (res.adbError ? `\n⚠️ ADB: ${res.adbError}` : '');
+          addMessage('assistant', `📺 Connected to **${fakedev.name}** via ${res.method || 'TV'}.${note}`);
+          window.jarvis.speak('Connected to TV.');
+        } else {
+          addMessage('assistant', `Could not connect to ${ip}: ${(res && res.error) || 'unknown error'}`);
+        }
+      } catch(e) { addMessage('assistant', 'Connection error: ' + e.message); }
+      if (btn) { btn.textContent = 'Connect'; btn.disabled = false; }
+    });
+    return done;
+  }
+
+  // Poll every 300ms until both main buttons are wired, then every 2s (for manual btn)
+  let _wired = false;
+  const _wireTimer = setInterval(() => {
+    if (!_wired) {
+      _wired = tvWireAll();
+      if (_wired) clearInterval(_wireTimer);
+    }
+  }, 300);
+  tvWireAll(); // also try immediately
 
   // ── Auto-reconnect to last TV on startup ─────────────────────────────────
   setTimeout(async () => {
