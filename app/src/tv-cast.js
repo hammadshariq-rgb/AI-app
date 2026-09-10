@@ -109,14 +109,22 @@ async function connect(host, port = 8009) {
   // 1. Test ADB connectivity (most important for Android TV)
   let hasAdb    = false;
   let adbError  = '';
-  try {
-    const out = await adb.shellWithAuth(host, 'echo adb_ok', 8000);
-    hasAdb = out.includes('adb_ok');
-    adbError = hasAdb ? '' : 'no shell response';
-    console.log('[TV] ADB connection:', hasAdb ? 'OK' : 'silent response: ' + out);
-  } catch (e) {
-    adbError = e.message;
-    console.log('[TV] ADB failed:', e.message);
+
+  // First check if adb.exe exists at all
+  const adbExePath = adb.findAdb();
+  if (!adbExePath && !adb.isAdbAvailable()) {
+    adbError = 'adb.exe not found — install Android Platform Tools (see below)';
+    console.log('[TV] ADB not available: no adb.exe found');
+  } else {
+    try {
+      const out = await adb.shellWithAuth(host, 'echo adb_ok', 10000);
+      hasAdb = out.includes('adb_ok');
+      adbError = hasAdb ? '' : ('unexpected output: ' + out.slice(0, 80));
+      console.log('[TV] ADB connection:', hasAdb ? 'OK' : 'bad response: ' + out);
+    } catch (e) {
+      adbError = e.message;
+      console.log('[TV] ADB failed:', e.message);
+    }
   }
 
   // 2. Test castv2 connectivity as fallback

@@ -1471,8 +1471,16 @@ window._checkMarketsOverlay = async function(text) {
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
             const method = res.method ? ` (via ${res.method})` : '';
-            const adbNote = (res.method && !res.method.includes('ADB') && res.adbError)
-              ? `\n⚠️ ADB unavailable (${res.adbError}) — using Chromecast protocol as fallback.` : '';
+            let adbNote = '';
+            if (res.adbError) {
+              if (res.adbError.includes('adb.exe not found')) {
+                adbNote = `\n\n⚠️ **ADB not installed** — TV commands need Android Platform Tools.\n` +
+                  `Download free from: **platform-tools.googleapps.com** → extract → add to PATH.\n` +
+                  `Then reconnect your TV.`;
+              } else {
+                adbNote = `\n⚠️ ADB: ${res.adbError}`;
+              }
+            }
             addMessage('assistant', `📺 Connected to **${dev.name}**${method}.${adbNote}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
