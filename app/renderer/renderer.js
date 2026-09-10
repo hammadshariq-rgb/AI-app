@@ -1476,12 +1476,33 @@ window._checkMarketsOverlay = async function(text) {
               statusLine = '\n✅ **ADB connected** — full app control active.';
             } else if (res.adbError) {
               if (res.adbError.includes('not found')) {
-                statusLine = '\n⚠️ **ADB not installed** — download Android Platform Tools:\n' +
-                  'https://developer.android.com/tools/releases/platform-tools\n' +
-                  'Extract the zip and add the folder to Windows PATH, then reconnect.';
+                statusLine = `\n⚠️ **ADB tools not installed** — TV app control needs them.\n` +
+                  `Click **Install ADB tools** below to auto-download (≈10 MB, free from Google).`;
+                // Show install button after message renders
+                setTimeout(() => {
+                  const msgEls = document.querySelectorAll('.message.assistant');
+                  const last = msgEls[msgEls.length - 1];
+                  if (!last) return;
+                  const btn = document.createElement('button');
+                  btn.textContent = '⬇️ Install ADB tools';
+                  btn.style.cssText = 'margin-top:8px;padding:6px 14px;border-radius:8px;border:1px solid rgba(61,255,180,0.4);background:rgba(61,255,180,0.08);color:rgba(61,255,180,1);cursor:pointer;font-size:13px;';
+                  btn.onclick = async () => {
+                    btn.textContent = 'Downloading…'; btn.disabled = true;
+                    window.jarvis.onTvAdbProgress(msg => { btn.textContent = msg; });
+                    const r = await window.jarvis.tvInstallAdb();
+                    if (r.ok) {
+                      btn.textContent = '✅ ADB installed! Reconnect your TV now.';
+                      addMessage('assistant', '✅ ADB tools installed. Click your TV in the list to reconnect — commands will now work.');
+                    } else {
+                      btn.textContent = '❌ Failed: ' + r.error;
+                      btn.disabled = false;
+                    }
+                  };
+                  last.appendChild(btn);
+                }, 100);
               } else {
                 statusLine = `\n⚠️ **ADB failed**: ${res.adbError}\n` +
-                  `Using Chromecast fallback (limited — app launching may not work).`;
+                  `Using Chromecast fallback (limited — app launching may not work on this TV model).`;
               }
             }
             addMessage('assistant', `📺 Connected to **${dev.name}** via ${res.method || 'TV'}.${statusLine}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);

@@ -2526,6 +2526,20 @@ ipcMain.handle('tv:stop',        async () => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
+// ── Download ADB platform-tools automatically ─────────────────────────────────
+ipcMain.handle('tv:install-adb', async (_e) => {
+  try {
+    const adbDirect = require('./adb-direct');
+    const adbExe = await adbDirect.downloadAdb(msg => {
+      if (overlayWindow && !overlayWindow.isDestroyed())
+        overlayWindow.webContents.send('tv:adb-progress', msg);
+    });
+    return { ok: true, path: adbExe };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
