@@ -1341,7 +1341,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     // If Spotify is connected via OAuth, use Web API for true background playback
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (spotifyConnected && (resolvedService === 'spotify' || resolvedService === '' || !aiService)) {
-      const playResult = await connectors.playOnSpotify(query);
+      const playResult = await playOnSpotifyTimed(query, 8000);
       if (playResult.ok) {
         // Premium — plays in background; suppress any Spotify window that pops up
         setTimeout(() => suppressSpotifyWindow(), 300);
@@ -1356,8 +1356,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         let lastRetry = null;
         for (const delay of [2500, 3000, 3000]) {
           await new Promise(r => setTimeout(r, delay));
-          lastRetry = await connectors.playOnSpotify(query);
+          lastRetry = await playOnSpotifyTimed(query, 6000);
           if (lastRetry.ok) {
+            setTimeout(() => suppressSpotifyWindow(), 300);
             const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
             _sendTTS(_e.sender, spokenText);
             return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -2588,12 +2589,25 @@ function launchSpotifyHidden() {
   });
 }
 
+// Wrapper: call playOnSpotify with a hard timeout so it never hangs forever
+async function playOnSpotifyTimed(query, timeoutMs = 8000) {
+  return Promise.race([
+    connectors.playOnSpotify(query),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Spotify API timed out')), timeoutMs)),
+  ]);
+}
+
 ipcMain.handle('spotify:play', async (_e, { query }) => {
+  // Hard outer timeout: entire handler gives up after 20s no matter what
+  const TOTAL_TIMEOUT = 20000;
+  const deadline = Date.now() + TOTAL_TIMEOUT;
+  const timeLeft = () => Math.max(0, deadline - Date.now());
+
   try {
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
 
-    let result = await connectors.playOnSpotify(query);
+    let result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
     if (result.ok) {
       // Spotify app pops up when playback starts — minimize it and refocus Callisto
       setTimeout(() => suppressSpotifyWindow(), 300);
@@ -2613,8 +2627,9 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
 
       // Wait for Spotify to register as a device then play via API
       for (const delay of [3000, 3000, 4000]) {
+        if (timeLeft() < 2000) break; // bail if running out of time
         await new Promise(r => setTimeout(r, delay));
-        result = await connectors.playOnSpotify(query);
+        result = await playOnSpotifyTimed(query, Math.min(6000, timeLeft()));
         if (result.ok) {
           setTimeout(() => suppressSpotifyWindow(), 300);
           setTimeout(() => suppressSpotifyWindow(), 1500);
