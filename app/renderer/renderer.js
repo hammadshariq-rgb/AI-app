@@ -1950,8 +1950,8 @@ window._checkQuickLaunch = async function(text) {
   if (/^open\s+instagram\s*$/i.test(t) || /^launch\s+instagram\s*$/i.test(t)) {
     addMessage('assistant', `📸 Opening Instagram…`);
     window.jarvis.speak('Opening Instagram.');
+    // Try the native app first; only open web if user explicitly asks for web Instagram
     window.jarvis.openUrl('instagram://app');
-    setTimeout(() => window.jarvis.openUrl('https://www.instagram.com'), 1000);
     return true;
   }
 
@@ -1959,8 +1959,16 @@ window._checkQuickLaunch = async function(text) {
   if (/^open\s+whatsapp\s*$/i.test(t) || /^launch\s+whatsapp\s*$/i.test(t)) {
     addMessage('assistant', `💬 Opening WhatsApp…`);
     window.jarvis.speak('Opening WhatsApp.');
+    // Try the native app; if WhatsApp isn't installed the OS handles it gracefully
     window.jarvis.openUrl('whatsapp://');
-    setTimeout(() => window.jarvis.openUrl('https://web.whatsapp.com'), 1000);
+    return true;
+  }
+
+  // ── WhatsApp web: explicit web request ────────────────────────────────────
+  if (/whatsapp\s+web/i.test(t) || /open\s+whatsapp\s+on\s+(the\s+)?web/i.test(t)) {
+    addMessage('assistant', `💬 Opening WhatsApp Web…`);
+    window.jarvis.speak('Opening WhatsApp Web.');
+    window.jarvis.openUrl('https://web.whatsapp.com');
     return true;
   }
 
@@ -3402,6 +3410,12 @@ if (fileBtn) fileBtn.addEventListener('click', async () => {
     addMessage('assistant', `Opened ${result.path} — I can't read this file type directly, but it's open for you.`);
   }
 });
+
+// ── Typing-mode file + clear buttons (distinct IDs — duplicate clearBtn bug fix) ──
+const typeFileBtn  = document.getElementById('typeFileBtn');
+const typeClearBtn = document.getElementById('typeClearBtn');
+if (typeFileBtn)  typeFileBtn.addEventListener('click', () => { if (attachInput) attachInput.click(); });
+if (typeClearBtn) typeClearBtn.addEventListener('click', () => clearBtn.click());
 
 // ===================== ACTION FLASH =====================
 const actionFlash = document.getElementById('actionFlash');

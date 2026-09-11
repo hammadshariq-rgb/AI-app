@@ -5,7 +5,7 @@ const envPath = process.resourcesPath
   ? path.join(process.resourcesPath, '.env')
   : path.join(__dirname, '..', '.env');
 require('dotenv').config({ path: envPath });
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, shell, dialog, screen, protocol, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, shell, dialog, screen, protocol, safeStorage, systemPreferences } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 
@@ -83,18 +83,18 @@ async function cloudPushPrefs(patch = null) {
       await fetch(`${_serverBase()}/user/prefs`, { method: 'PATCH', headers, body: JSON.stringify({ patch }) });
     } else {
       // Full sync
-      // Collect connector OAuth tokens to sync across devices
-      const connectorKeys = [
-        'connector.spotify.access_token', 'connector.spotify.refresh_token',
-        'connector.google.access_token',  'connector.google.refresh_token',
-        'connector.drive.access_token',   'connector.drive.refresh_token',
-        'connector.calendar.access_token','connector.calendar.refresh_token',
-        'connector.youtube.access_token', 'connector.youtube.refresh_token',
+      // Collect ALL connector credentials to sync across devices
+      // Use full service-object keys so shopify/stripe/squarespace (non-OAuth) also sync
+      const connectorServices = [
+        'spotify', 'google', 'youtube', 'calendar', 'drive',
+        'instagram', 'tiktok', 'analytics',
+        'shopify', 'squarespace', 'stripe',
+        'gmail', 'outlook',
       ];
       const connectors = {};
-      for (const k of connectorKeys) {
-        const v = store.get(k);
-        if (v) connectors[k] = v;
+      for (const svc of connectorServices) {
+        const v = store.get(`connector.${svc}`);
+        if (v) connectors[`connector.${svc}`] = v;
       }
       const prefs = {
         memories:     store.get('memories') || [],
@@ -435,6 +435,12 @@ async function _fireReminder(text) {
 
 app.whenReady().then(async () => {
   app.setName('Your Own Personal AI');
+
+  // ── Mac: proactively request microphone access so the system dialog appears ──
+  // Without this, macOS silently blocks mic even though entitlements are set.
+  if (process.platform === 'darwin') {
+    systemPreferences.askForMediaAccess('microphone').catch(() => {});
+  }
   tts.setSpeed(store.get('voiceSpeed') || 0.88);
 
   // Pre-warm the news cache in the background so first query has headlines ready instantly
