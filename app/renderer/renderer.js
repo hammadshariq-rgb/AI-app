@@ -2370,15 +2370,27 @@ window._checkQuickLaunch = async function(text) {
     }
   }
 
-  // ── Wikipedia entity lookup: "who is X" / "tell me about X" ─────────────────
-  // DO NOT intercept — let the AI give the full detailed response (the old behaviour).
-  // Instead, fetch Wikipedia in the background so we can show the card with image
-  // alongside the AI's text reply. The AI handles the voice + bubble; we handle the card.
-  const wikiM = t.match(/^(?:who\s+is|who\s+was)\s+(.+?)[\?\.]?\s*$/i)
-             || t.match(/^(?:show|search)\s+(?:me\s+)?(?:wikipedia\s+for|wikipedia\s+info\s+on)\s+(.+?)[\?\.]?\s*$/i);
+  // ── Wikipedia entity card: persons, animals, objects, places, theories, planets, etc. ──
+  // Fires for ANY factual entity question. Returns false — AI handles voice+bubble,
+  // we just fetch the Wikipedia card in the background to show alongside the AI reply.
+  const wikiM =
+    // "who is / who was" — people
+    t.match(/^(?:who\s+(?:is|was|are|were))\s+(.+?)[\?\.]?\s*$/i) ||
+    // "what is / what are / what's" — things, animals, concepts
+    t.match(/^(?:what(?:'s|\s+(?:is|are|was|were)))\s+(?:a\s+|an\s+|the\s+)?(.+?)[\?\.]?\s*$/i) ||
+    // "tell me about / info on / info about"
+    t.match(/^(?:tell\s+me\s+about|give\s+me\s+info(?:rmation)?\s+(?:on|about)|info(?:rmation)?\s+(?:on|about))\s+(.+?)[\?\.]?\s*$/i) ||
+    // "explain X / describe X / define X"
+    t.match(/^(?:explain|describe|define)\s+(?:the\s+|a\s+|an\s+)?(.+?)[\?\.]?\s*$/i) ||
+    // "show me wikipedia for X"
+    t.match(/^(?:show|search)\s+(?:me\s+)?(?:wikipedia\s+for|wikipedia\s+info\s+on)\s+(.+?)[\?\.]?\s*$/i);
   if (wikiM) {
     const subject = wikiM[1].trim();
-    if (/weather|stock|price|forecast|where|location/i.test(subject)) return false;
+    // Skip non-entity questions: weather, stock/price, time, math, personal questions
+    if (/^(?:the\s+)?(?:weather|time|date|day|temperature|forecast)/i.test(subject)) return false;
+    if (/\b(?:stock|share\s+price|market|crypto|bitcoin|ticker)\b/i.test(subject)) return false;
+    if (/^(?:you|your|my|our|this|that|it)\b/i.test(subject)) return false;
+    if (/\d[\+\-\*\/]\d/.test(subject)) return false; // math expressions
     // Fetch Wikipedia card data in the background — does NOT block or intercept the AI
     (async () => {
       try {
