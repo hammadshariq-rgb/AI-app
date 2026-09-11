@@ -3512,6 +3512,11 @@ function debugFlash(label) {
   const el = document.getElementById('orbLabel');
   if (el) { el.textContent = label; setTimeout(() => { el.textContent = orbLabel.textContent === label ? 'STANDBY' : el.textContent; }, 2000); }
 }
+// Mac fix: force click-through off the moment mouse enters close button
+// (prevents race condition where transparent window ignores the click)
+closeBtn.addEventListener('mouseenter', () => {
+  if (window.jarvis && window.jarvis.setClickThrough) window.jarvis.setClickThrough(false);
+});
 closeBtn.addEventListener('click', () => { debugFlash('CLOSING...'); window.jarvis.hide(); });
 
 clearBtn.addEventListener('click', async () => { debugFlash('CLEARING...');

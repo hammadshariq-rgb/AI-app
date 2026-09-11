@@ -176,6 +176,15 @@ function createOverlayWindow() {
   overlayWindow.on('closed', () => {
     overlayWindow = null;
   });
+  // Mac: reset mouse-event pass-through whenever the window comes into focus.
+  // Transparent frameless windows can get stuck ignoring clicks after losing focus.
+  if (process.platform === 'darwin') {
+    overlayWindow.on('focus', () => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.setIgnoreMouseEvents(false);
+      }
+    });
+  }
 }
 
 // ── HUD overlay window — always-on-top transparent card overlay ─────────────
@@ -191,6 +200,7 @@ function createHudWindow() {
     transparent: true,
     resizable: false,
     alwaysOnTop: true,
+    // 'screen-saver' level floats above full-screen apps on both Windows and Mac
     level: 'screen-saver',
     skipTaskbar: true,
     focusable: false,
@@ -201,13 +211,25 @@ function createHudWindow() {
     },
   });
   hudWindow.loadFile(path.join(__dirname, '..', 'renderer', 'hud.html'));
-  hudWindow.setIgnoreMouseEvents(false); // allow clicking close buttons
+  hudWindow.setIgnoreMouseEvents(false);
+  // Mac: setVisibleOnAllWorkspaces makes the HUD float above every Space and full-screen app
+  if (process.platform === 'darwin') {
+    hudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    hudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  }
   hudWindow.on('closed', () => { hudWindow = null; });
 }
 
 function ensureHud() {
   if (!hudWindow || hudWindow.isDestroyed()) createHudWindow();
-  if (!hudWindow.isVisible()) hudWindow.showInactive();
+  if (!hudWindow.isVisible()) {
+    hudWindow.showInactive();
+    // Re-apply Mac always-on-top each time we show (macOS resets this after hide)
+    if (process.platform === 'darwin') {
+      hudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      hudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    }
+  }
 }
 
 function sendToHud(channel, data) {
@@ -2658,11 +2680,12 @@ function launchSpotifyHidden() {
   const { exec } = require('child_process');
 
   if (process.platform === 'darwin') {
-    // Mac: open -j launches the app without activating/bringing to front
-    // First try direct app bundle, then fall back to URI scheme
-    exec('open -j -a Spotify', (err) => {
+    // Mac: open Spotify normally (NOT -j) so it registers as a Web API device.
+    // After it registers and playback starts, suppressSpotifyWindow() hides it via osascript.
+    // Using -j would keep it from registering as a Connect device (Web API requires it visible).
+    exec('open -a Spotify', (err) => {
       if (err) {
-        console.log('[Spotify Mac] open -j -a failed:', err.message, '— trying spotify: URI');
+        console.log('[Spotify Mac] open -a Spotify failed:', err.message, '— trying spotify: URI');
         exec('open spotify:', () => {});
       }
     });

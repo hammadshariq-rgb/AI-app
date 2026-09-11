@@ -2046,7 +2046,7 @@
 
       <!-- ── Gesture Control ── -->
       <div id="magicCursor"><div class="mc-ring"></div><div class="mc-ring2"></div><div class="mc-dot"></div></div>
-      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)" style="display:none">👋</button>
+      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
           <video id="gestureCamPreview" autoplay playsinline muted></video>
@@ -3147,12 +3147,16 @@
         gpAction.textContent = 'Starting camera…';
         if (!await waitForMP()) { gpAction.textContent = 'Gesture model not available (check internet)'; return; }
         try {
-          // Fast camera init: explicit small size opens immediately
-          // Wide via 4:3 aspect lets user move hands further; MediaPipe gets downscaled copy
-          stream = await navigator.mediaDevices.getUserMedia({
-            video:{ width:320, height:240, frameRate:{ max:20 } },
-            audio:false
-          });
+          // Try ideal constraints first; fall back to any camera if those fail (Mac compatibility)
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { max: 20 } },
+              audio: false
+            });
+          } catch (camErr) {
+            console.warn('[Gesture] ideal constraints failed, trying any camera:', camErr.message);
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
           video.srcObject = stream; await video.play();
 
           // Offscreen canvas for MediaPipe — 160x120 gives better landmark accuracy than 128x96
