@@ -436,10 +436,11 @@ async function _fireReminder(text) {
 app.whenReady().then(async () => {
   app.setName('Your Own Personal AI');
 
-  // ── Mac: proactively request microphone access so the system dialog appears ──
-  // Without this, macOS silently blocks mic even though entitlements are set.
+  // ── Mac: proactively request mic + camera access so the OS dialogs appear ──
+  // Without this, macOS silently blocks them even though entitlements are set.
   if (process.platform === 'darwin') {
     systemPreferences.askForMediaAccess('microphone').catch(() => {});
+    systemPreferences.askForMediaAccess('camera').catch(() => {});
   }
   tts.setSpeed(store.get('voiceSpeed') || 0.88);
 
@@ -2605,9 +2606,23 @@ public class W32 {
   }, 800);
 }
 
-// Launch Spotify hidden (never visible)
+// Launch Spotify hidden (never visible) — works on Windows and Mac
 function launchSpotifyHidden() {
   const { exec } = require('child_process');
+
+  if (process.platform === 'darwin') {
+    // Mac: open -j launches the app without activating/bringing to front
+    // First try direct app bundle, then fall back to URI scheme
+    exec('open -j -a Spotify', (err) => {
+      if (err) {
+        console.log('[Spotify Mac] open -j -a failed:', err.message, '— trying spotify: URI');
+        exec('open spotify:', () => {});
+      }
+    });
+    return;
+  }
+
+  // Windows paths
   const fs = require('fs');
   const localAppData = process.env.LOCALAPPDATA || '';
   const appData = process.env.APPDATA || '';

@@ -1504,9 +1504,10 @@ document.getElementById('marketsOverlay')?.addEventListener('click', e => {
 document.getElementById('moPnlBuyPrice')?.addEventListener('input', moPnlRecalc);
 document.getElementById('moPnlShares')?.addEventListener('input', moPnlRecalc);
 
-// Wire portfolio panel label → open overlay
-document.getElementById('finPanelLabel')?.addEventListener('click', showMarketsOverlay);
-document.getElementById('finSliderWrap')?.addEventListener('click', showMarketsOverlay);
+// Wire portfolio panel label + expand button → open overlay
+document.getElementById('finPanelLabel')?.addEventListener('click', () => showMarketsOverlay());
+document.getElementById('finSliderWrap')?.addEventListener('click', () => showMarketsOverlay());
+document.getElementById('finExpandBtn')?.addEventListener('click', () => showMarketsOverlay());
 
 // Command interception — "show my markets", "open portfolio", etc.
 window._checkMarketsOverlay = async function(text) {
@@ -2088,16 +2089,57 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // ── Stock price in-app: "Amazon stock", "AMZN price", "Tesla stock price" ──
+  // Always show stock cards inside the app — never open Google or Amazon website
+  const stockIntM = t.match(/\b([A-Z]{1,5})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
+                 || t.match(/^(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:price\s+of\s+|stock\s+price\s+(?:of|for)\s+)?([A-Za-z\s]{3,30})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
+                 || t.match(/^(?:show|open|check)\s+(.+?)\s+(?:stock|share|price)\s*[\?\.]?$/i)
+                 || t.match(/^(?:how(?:'s|\s+is|\s+are)?|what(?:'s|\s+is)?)\s+(.+?)\s+(?:stock|share|doing|performing|trading)\s*[\?\.]?$/i);
+  if (stockIntM && !/weather|weather|amazon(?:\s+\.com|\s+site|\s+shopping|\s+deals|\s+order|\s+product|\s+search\s+for)/i.test(t)) {
+    const rawQuery = (stockIntM[1] || '').trim();
+    // Map common company names to tickers
+    const NAME_TO_TICKER = {
+      amazon: 'AMZN', apple: 'AAPL', google: 'GOOGL', alphabet: 'GOOGL',
+      microsoft: 'MSFT', tesla: 'TSLA', meta: 'META', facebook: 'META',
+      netflix: 'NFLX', nvidia: 'NVDA', 'coca cola': 'KO', disney: 'DIS',
+      spotify: 'SPOT', uber: 'UBER', airbnb: 'ABNB', twitter: 'X',
+      paypal: 'PYPL', salesforce: 'CRM', adobe: 'ADBE', intel: 'INTC',
+      amd: 'AMD', arm: 'ARM', 'jp morgan': 'JPM', 'goldman sachs': 'GS',
+    };
+    const lookupSym = NAME_TO_TICKER[rawQuery.toLowerCase()] || rawQuery.toUpperCase();
+    addMessage('assistant', `📈 Looking up **${rawQuery}** stock…`);
+    window.jarvis.speak(`Pulling up ${rawQuery} stock.`);
+    (async () => {
+      try {
+        // Try to resolve the name to a ticker symbol
+        const sym = NAME_TO_TICKER[rawQuery.toLowerCase()]
+          ? lookupSym
+          : (await window.jarvis.financeResolve(rawQuery).catch(() => null)) || lookupSym;
+        const stockData = await window.jarvis.financeGetStock(sym).catch(() => null);
+        if (!stockData) { addMessage('assistant', `❌ Couldn't find stock data for **${rawQuery}**. Try the full ticker symbol.`); return; }
+        showCard({ ...stockData, type: 'stock' });
+        // Open the portfolio panel so user can see and add it
+        document.getElementById('finPanel')?.classList.remove('fp-hidden');
+      } catch (e) { console.error('[stock intercept]', e); }
+    })();
+    return true;
+  }
+
   // ── Amazon / eBay search: "show X on amazon" / "find X on ebay" ──────────
   const amazonM = t.match(/(?:show|find|search|look up|order)\s+(.+?)\s+on\s+amazon/i)
                || t.match(/amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i)
                || t.match(/search\s+amazon\s+(?:for\s+)?(.+)/i);
   if (amazonM) {
     const query = amazonM[1].trim();
-    addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
-    window.jarvis.speak(`Here are Amazon results for ${query}.`);
-    showCard({ type: 'shopping', store: 'amazon', query });
-    return true;
+    // Don't intercept stock/finance queries that happen to mention amazon
+    if (/\b(stock|share|price|ticker|invest|trading|market|ipo|dividend|nasdaq|nyse)\b/i.test(query)) {
+      // fall through to stock handler or AI
+    } else {
+      addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
+      window.jarvis.speak(`Here are Amazon results for ${query}.`);
+      showCard({ type: 'shopping', store: 'amazon', query });
+      return true;
+    }
   }
 
   const ebayM = t.match(/(?:show|find|search|look up)\s+(.+?)\s+on\s+ebay/i)
@@ -2246,6 +2288,56 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // ── Location / city lookup: "where is X" / "where's X" / "location of X" ──
+  const whereM = t.match(/^where(?:'s|\s+is|\s+was)?\s+(.+?)(?:\s+located|\s+situated|\s+found)?\s*[\?\.]?\s*$/i)
+              || t.match(/^(?:location|capital|geography)\s+of\s+(.+?)[\?\.]?\s*$/i)
+              || t.match(/^(?:tell me|show me)\s+(?:where|about)\s+(.+?)\s+(?:is|on the map)[\?\.]?\s*$/i);
+  if (whereM) {
+    const place = whereM[1].trim();
+    if (/weather|stock|price|who|what/.test(place)) { /* fall through */ } else {
+      const lookingUpMsg2 = addMessage('assistant', `🗺️ Looking up **${place}**…`);
+      const lookingUpRow2 = lookingUpMsg2 ? lookingUpMsg2.closest('.msg-row') : null;
+      (async () => {
+        try {
+          const url2 = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place)}`;
+          const res2 = await Promise.race([
+            fetch(url2),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+          ]);
+          if (!res2.ok) throw new Error('not found');
+          const d2 = await res2.json();
+          if (lookingUpRow2) lookingUpRow2.remove(); else if (lookingUpMsg2) lookingUpMsg2.remove();
+          const imgUrl2 = d2.thumbnail ? d2.thumbnail.source : (d2.originalimage ? d2.originalimage.source : null);
+          const desc2 = d2.description || '';
+          const extract2 = (d2.extract || '').slice(0, 280);
+          const mapsUrl2 = d2.coordinates
+            ? `https://maps.google.com/?q=${d2.coordinates.lat},${d2.coordinates.lon}`
+            : `https://maps.google.com/?q=${encodeURIComponent(d2.title)}`;
+          const sourceUrl2 = d2.content_urls ? d2.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(d2.title)}`;
+          addMessage('assistant', `🗺️ **${d2.title}** — ${desc2}${extract2 ? '\n' + extract2 : ''}`);
+          const spoken2 = (extract2 || `Here's what I found about ${d2.title}.`).replace(/\(.*?\)/g, '').trim().slice(0, 200);
+          window.jarvis.speak(spoken2);
+          try {
+            showCard({
+              type: 'location',
+              title: d2.title,
+              description: desc2,
+              summary: extract2,
+              heroImage: imgUrl2,
+              images: imgUrl2 ? [imgUrl2] : [],
+              mapsUrl: mapsUrl2,
+              sourceUrl: sourceUrl2
+            });
+          } catch (e2) { console.error('[location card]', e2); }
+        } catch (_) {
+          if (lookingUpRow2) lookingUpRow2.remove(); else if (lookingUpMsg2) lookingUpMsg2.remove();
+          window.jarvis.chat(t).catch(() => {});
+        }
+      })();
+      return true;
+    }
+  }
+
   // ── Wikipedia entity lookup: "who is X" / "tell me about X" / "info on X" ─
   const wikiM = t.match(/^(?:who\s+is|who\s+was)\s+(.+?)[\?\.]?\s*$/i)
              || t.match(/^(?:tell\s+me\s+about|info(?:rmation)?\s+(?:about|on)|what\s+is|what\s+was)\s+(.+?)[\?\.]?\s*$/i)
@@ -2275,19 +2367,25 @@ window._checkQuickLaunch = async function(text) {
         const cardType = data.type === 'standard' ? _wikiCardType(data) : 'person';
         const imageUrl = data.thumbnail ? data.thumbnail.source : (data.originalimage ? data.originalimage.source : null);
         if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
-        showCard({
-          type: cardType,
-          name: data.title,
-          bio: data.extract ? data.extract.slice(0, 400) : '',
-          description: data.extract ? data.extract.slice(0, 400) : '',
-          summary: data.extract ? data.extract.slice(0, 400) : '',
-          imageUrl,
-          subtitle: data.description ? data.description.toUpperCase() : 'ENTITY',
-          sourceUrl: data.content_urls ? data.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
-        });
-        const spoken = data.extract ? data.extract.slice(0, 200) : `Here's what I found about ${data.title}.`;
-        addMessage('assistant', `📖 **${data.title}** — ${data.description || ''}`);
+        // Add chat bubble BEFORE showCard so it's always visible even if card rendering has issues
+        const bubbleText = `📖 **${data.title}** — ${data.description || data.extract?.slice(0, 120) || ''}`;
+        addMessage('assistant', bubbleText);
+        const spoken = data.extract
+          ? data.extract.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim().slice(0, 220)
+          : `Here's what I found about ${data.title}.`;
         window.jarvis.speak(spoken);
+        try {
+          showCard({
+            type: cardType,
+            name: data.title,
+            bio: data.extract ? data.extract.slice(0, 400) : '',
+            description: data.extract ? data.extract.slice(0, 400) : '',
+            summary: data.extract ? data.extract.slice(0, 400) : '',
+            imageUrl,
+            subtitle: data.description ? data.description.toUpperCase() : 'ENTITY',
+            sourceUrl: data.content_urls ? data.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
+          });
+        } catch (cardErr) { console.error('[wiki showCard]', cardErr); }
       } catch (_) {
         // Remove stuck "Looking up" bubble and let AI answer via the chat route
         if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
