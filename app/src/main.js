@@ -1924,6 +1924,32 @@ ipcMain.handle('jarvis:openUrl', (_e, url) => {
   if (ALLOWED_URL_SCHEMES.test(url)) shell.openExternal(url);
 });
 
+// In-app browser — opens a floating BrowserWindow inside Callisto (no system browser)
+let inAppBrowserWin = null;
+ipcMain.handle('jarvis:openInAppBrowser', (_e, url) => {
+  if (typeof url !== 'string' || !/^https?:/i.test(url)) return;
+  if (inAppBrowserWin && !inAppBrowserWin.isDestroyed()) {
+    inAppBrowserWin.loadURL(url);
+    inAppBrowserWin.show();
+    inAppBrowserWin.focus();
+    return;
+  }
+  const { screen: scrn } = require('electron');
+  const { width, height } = scrn.getPrimaryDisplay().workAreaSize;
+  inAppBrowserWin = new BrowserWindow({
+    width: Math.min(1000, Math.round(width * 0.65)),
+    height: Math.round(height * 0.85),
+    x: Math.round((width - Math.min(1000, Math.round(width * 0.65))) / 2),
+    y: Math.round(height * 0.07),
+    title: 'Callisto Browser',
+    autoHideMenuBar: true,
+    parent: overlayWindow || undefined,
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+  });
+  inAppBrowserWin.loadURL(url);
+  inAppBrowserWin.on('closed', () => { inAppBrowserWin = null; });
+});
+
 ipcMain.handle('jarvis:openCheckout', (_e, plan) => {
   const token = loadAuthToken();
   const base = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
@@ -2581,8 +2607,17 @@ ipcMain.handle('tv:install-adb', async (_e) => {
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  // Use PowerShell to minimize every Spotify window (SW_MINIMIZE = 6)
   const { exec } = require('child_process');
+
+  if (process.platform === 'darwin') {
+    // Mac: minimize Spotify via AppleScript, then bring Callisto back
+    exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false' 2>/dev/null`, () => {});
+    overlayWindow.setAlwaysOnTop(true, 'floating');
+    overlayWindow.focus();
+    return;
+  }
+
+  // Windows: Use PowerShell to minimize every Spotify window (SW_MINIMIZE = 6)
   const ps = `
     Add-Type -TypeDefinition @"
 using System; using System.Runtime.InteropServices;

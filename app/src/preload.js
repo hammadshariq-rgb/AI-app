@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   deleteContact: (id) => ipcRenderer.invoke('contacts:delete', id),
   callContact: (phone, platform) => ipcRenderer.invoke('contacts:call', { phone, platform }),
   openUrl: (url) => ipcRenderer.invoke('jarvis:openUrl', url),
+  openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
   placesNearby: (query, lat, lng, city) => ipcRenderer.invoke('places:nearby', { query, lat, lng, city }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),

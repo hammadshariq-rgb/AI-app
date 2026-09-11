@@ -2094,8 +2094,9 @@ window._checkQuickLaunch = async function(text) {
   const stockIntM = t.match(/\b([A-Z]{1,5})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
                  || t.match(/^(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:price\s+of\s+|stock\s+price\s+(?:of|for)\s+)?([A-Za-z\s]{3,30})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
                  || t.match(/^(?:show|open|check)\s+(.+?)\s+(?:stock|share|price)\s*[\?\.]?$/i)
-                 || t.match(/^(?:how(?:'s|\s+is|\s+are)?|what(?:'s|\s+is)?)\s+(.+?)\s+(?:stock|share|doing|performing|trading)\s*[\?\.]?$/i);
-  if (stockIntM && !/weather|weather|amazon(?:\s+\.com|\s+site|\s+shopping|\s+deals|\s+order|\s+product|\s+search\s+for)/i.test(t)) {
+                 || t.match(/^(?:how(?:'s|\s+is|\s+are)?|what(?:'s|\s+is)?)\s+(.+?)\s+(?:stock|share|doing|performing|trading)\s*[\?\.]?$/i)
+                 || t.match(/^(.+?)\s+(?:stock\s+price|share\s+price)\s*[\?\.]?$/i);
+  if (stockIntM && !/\b(?:show|find|search|order|buy)\b.*\bon\s+amazon\b/i.test(t)) {
     const rawQuery = (stockIntM[1] || '').trim();
     // Map common company names to tickers
     const NAME_TO_TICKER = {
@@ -2137,6 +2138,9 @@ window._checkQuickLaunch = async function(text) {
     } else {
       addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
       window.jarvis.speak(`Here are Amazon results for ${query}.`);
+      // Open Amazon search directly inside Callisto (no system browser)
+      const amazonSearchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(query)}`;
+      window.jarvis.openInAppBrowser(amazonSearchUrl);
       showCard({ type: 'shopping', store: 'amazon', query });
       return true;
     }
@@ -3022,10 +3026,11 @@ function showCard(card) {
         <button class="shopping-deals-btn" id="shopDealsBtn">🔥 Today's Deals</button>
       </div>`;
     setTimeout(() => {
-      document.getElementById('shopMainBtn')?.addEventListener('click',  () => window.jarvis.openUrl(searchUrl));
-      document.getElementById('shopDealsBtn')?.addEventListener('click', () => window.jarvis.openUrl(dealsUrl));
+      const _openShop = (url) => isAmazon ? window.jarvis.openInAppBrowser(url) : window.jarvis.openUrl(url);
+      document.getElementById('shopMainBtn')?.addEventListener('click',  () => _openShop(searchUrl));
+      document.getElementById('shopDealsBtn')?.addEventListener('click', () => _openShop(dealsUrl));
       cardContent.querySelectorAll('.shopping-cat-btn').forEach(btn => {
-        btn.addEventListener('click', () => window.jarvis.openUrl(btn.dataset.url));
+        btn.addEventListener('click', () => _openShop(btn.dataset.url));
       });
     }, 50);
 
@@ -7644,10 +7649,12 @@ micBtn.addEventListener('click', () => {
 // A double-clap (two sharp loud transients within 700ms) shows + focuses the app.
 (function initClapWakeDetector() {
   const CFG = {
-    threshold:   0.28,   // RMS amplitude for a clap transient
-    minGap:      130,    // ms — debounce: ignore peaks within this gap of each other
-    maxWindow:   750,    // ms — two peaks must land within this window
-    cooldown:    3000,   // ms — after a wake, ignore further claps for this long
+    threshold:   0.55,   // RMS amplitude for a clap transient (raised from 0.28 — speech/music
+                         // rarely exceeds 0.4 RMS; real hand claps hit 0.6+, so 0.55 avoids
+                         // false triggers while still catching deliberate double-claps)
+    minGap:      180,    // ms — debounce: ignore peaks within this gap of each other
+    maxWindow:   700,    // ms — two peaks must land within this window
+    cooldown:    4000,   // ms — after a wake, ignore further claps for this long
     pollMs:      40,     // setInterval period (25fps) — works in hidden windows
   };
 
