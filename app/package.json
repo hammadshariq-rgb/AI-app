@@ -76,7 +76,11 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Callisto needs microphone access to hear your voice commands.",
+        "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control."
+      }
     },
     "linux": {
       "target": [

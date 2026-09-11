@@ -61,6 +61,14 @@ async function cloudPullPrefs() {
     if (prefs.voiceSpeed)            store.set('voiceSpeed', prefs.voiceSpeed);
     if (prefs.aiName)                store.set('profile.name', prefs.aiName);
     if (prefs.reminders?.length)     store.set('reminders', prefs.reminders);
+    if (prefs.userLocation)          store.set('userLocation', prefs.userLocation);
+    if (prefs.musicService)          store.set('music.service', prefs.musicService);
+    // Sync connector OAuth tokens (Spotify, Google, etc.) — skip tokens that are already set locally
+    if (prefs.connectors && typeof prefs.connectors === 'object') {
+      for (const [key, val] of Object.entries(prefs.connectors)) {
+        if (val && !store.get(key)) store.set(key, val);
+      }
+    }
     console.log('[cloudSync] prefs loaded from cloud');
   } catch (e) { console.warn('[cloudSync] pull failed:', e.message); }
 }
@@ -73,15 +81,31 @@ async function cloudPushPrefs(patch = null) {
       await fetch(`${_serverBase()}/user/prefs`, { method: 'PATCH', headers, body: JSON.stringify({ patch }) });
     } else {
       // Full sync
+      // Collect connector OAuth tokens to sync across devices
+      const connectorKeys = [
+        'connector.spotify.access_token', 'connector.spotify.refresh_token',
+        'connector.google.access_token',  'connector.google.refresh_token',
+        'connector.drive.access_token',   'connector.drive.refresh_token',
+        'connector.calendar.access_token','connector.calendar.refresh_token',
+        'connector.youtube.access_token', 'connector.youtube.refresh_token',
+      ];
+      const connectors = {};
+      for (const k of connectorKeys) {
+        const v = store.get(k);
+        if (v) connectors[k] = v;
+      }
       const prefs = {
         memories:     store.get('memories') || [],
         profile:      store.get('profile') || {},
-        chatSessions: (store.get('chatSessions') || []).slice(0, 30), // cap at 30 for size
+        chatSessions: (store.get('chatSessions') || []).slice(0, 30),
         contacts:     store.get('contacts') || [],
         language:     store.get('language') || 'English',
         voiceSpeed:   store.get('voiceSpeed') || 0.88,
         aiName:       store.get('profile.name') || 'Jarvis',
         reminders:    store.get('reminders') || [],
+        userLocation: store.get('userLocation') || null,
+        musicService: store.get('music.service') || '',
+        connectors,
       };
       await fetch(`${_serverBase()}/user/prefs`, { method: 'POST', headers, body: JSON.stringify({ prefs }) });
     }

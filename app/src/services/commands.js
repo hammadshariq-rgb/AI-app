@@ -264,7 +264,7 @@ function launchApp(name) {
     }
 
     if (IS_MAC) {
-      // macOS: open -a "App Name" → Spotlight mdfind → web fallback
+      // macOS: URI scheme first (avoids double-open), then open -a, then Spotlight, then web
       const appName = MAC_APPS[lower] || name;
       exec(`open -a "${appName}"`, (err) => {
         if (!err) { resolve(true); return; }
@@ -274,9 +274,9 @@ function launchApp(name) {
           if (!e2 && appPath) {
             exec(`open "${appPath}"`, () => resolve(true));
           } else {
+            // Only open browser if app is truly not installed
             const web = BROWSER_FALLBACKS[lower];
             if (web) { openInChrome(web).then(() => resolve(false)).catch(() => resolve(false)); return; }
-            // Last resort: try open with the raw name
             exec(`open -a "${name}"`, () => resolve(false));
           }
         });
