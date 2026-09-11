@@ -3048,18 +3048,21 @@
           doClapAction(); return;
         }
 
-        // ── Hand role assignment: position-based (reliable) + label as tiebreaker ──
-        // In selfie/mirror mode the user's LEFT hand appears at HIGHER screen-x.
-        // MediaPipe's label field is notoriously unstable — it flips between frames.
-        // Solution: sort by wrist.x to determine role, ignore the label field entirely.
-        //   Higher screen-x wrist → cursor hand (user's physical left hand)
-        //   Lower screen-x wrist  → gesture hand (user's physical right hand)
-        // With one hand visible it gets gesture role by default.
+        // ── Hand role assignment: position-based (reliable) ──────────────────
+        // Camera is in selfie/mirror mode: user's LEFT hand appears at HIGHER screen-x.
+        //   Higher screen-x wrist (x > 0.5) → cursor hand   (physical LEFT hand)
+        //   Lower  screen-x wrist (x ≤ 0.5) → gesture hand  (physical RIGHT hand)
+        // This applies to both 1-hand and 2-hand cases — user can use either hand alone.
         let cursorIdx   = -1; // index into lms[] for cursor hand
         let gestureIdx  = -1; // index into lms[] for gesture hand
 
         if (lms.length === 1) {
-          gestureIdx = 0; // single hand always does gestures
+          // Determine role by which side of screen the hand is on
+          if (lms[0][0].x > 0.5) {
+            cursorIdx  = 0; // left hand alone → cursor
+          } else {
+            gestureIdx = 0; // right hand alone → gestures (voice/stop)
+          }
         } else if (lms.length >= 2) {
           // Higher x = cursor (left in selfie), lower x = gestures (right in selfie)
           const x0 = lms[0][0].x, x1 = lms[1][0].x;
