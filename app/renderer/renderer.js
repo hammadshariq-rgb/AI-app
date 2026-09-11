@@ -1894,6 +1894,44 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // ── YouTube channel stats: "how many subs", "my channel stats", etc. ──────
+  const ytStatsM = /(?:how many|what(?:'s|'re| are| is)?|show|tell me|my)\s+(?:my\s+)?(?:sub(?:scriber)?s?|view(?:s|er)?s?|channel\s+stats?|youtube\s+stats?|channel\s+analytic|youtube\s+analytic|last\s+video|recent\s+video|upload)/i.test(t)
+    || /(?:youtube|channel)\s+(?:stats?|analytic|sub|view|revenue|earning)/i.test(t)
+    || /(?:how(?:'s|\s+is|\s+are)?|what(?:'s| is)?)\s+(?:my\s+)?(?:channel|youtube)/i.test(t);
+  if (ytStatsM && !/\bplay\b|\bopen\b|\bsearch\b/i.test(t)) {
+    (async () => {
+      try {
+        const data = await window.jarvis.analyticsGet('all');
+        const yt = data?.youtube;
+        if (!yt) {
+          addMessage('assistant', `📺 Your YouTube channel isn't connected yet. Open **Connectors** and link your YouTube account to see your stats here.`);
+          window.jarvis.speak('Your YouTube channel is not connected. Please connect it from the connectors panel.');
+          return;
+        }
+        // Build a detailed response
+        const fmtN = n => { if (!n) return '0'; if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return n.toLocaleString(); };
+        const latestVideo = yt.recentVideos?.[0];
+        let replyText = `📺 **${yt.channelName}**\n\n`
+          + `**${fmtN(yt.subscribers)}** subscribers · **${fmtN(yt.totalViews)}** total views · **${yt.videoCount}** videos`;
+        if (yt.revenue30 !== null && yt.revenue30 !== undefined) {
+          replyText += `\n💰 Est. revenue (30d): **$${parseFloat(yt.revenue30).toFixed(2)}**`;
+        }
+        if (latestVideo) {
+          replyText += `\n\n📹 Latest: **${latestVideo.title}** — ${fmtN(latestVideo.views)} views`;
+        }
+        addMessage('assistant', replyText);
+        const spoken = `Your channel ${yt.channelName} has ${fmtN(yt.subscribers)} subscribers and ${fmtN(yt.totalViews)} total views.${latestVideo ? ` Your latest video "${latestVideo.title}" has ${fmtN(latestVideo.views)} views.` : ''}`;
+        window.jarvis.speak(spoken);
+        // Also open the analytics panel
+        const ap = document.getElementById('analyticsPanel');
+        if (ap) { ap.classList.remove('hidden'); ap.scrollTop = 0; loadAnalyticsDashboard(); }
+      } catch(_) {
+        addMessage('assistant', `I couldn't fetch your YouTube stats right now. Try saying "show my analytics" to open the dashboard.`);
+      }
+    })();
+    return true;
+  }
+
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
   // Skip if this is a TV command
   const ytM = !(/\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
@@ -5704,6 +5742,15 @@ function renderAnalyticsDashboard(data) {
   const { youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe } = data;
   const cards = [];
 
+  // Inject Poppins font once
+  if (!document.getElementById('analyticsPoppins')) {
+    const lnk = document.createElement('link');
+    lnk.id = 'analyticsPoppins';
+    lnk.rel = 'stylesheet';
+    lnk.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap';
+    document.head.appendChild(lnk);
+  }
+
   // ── WEBSITE ANALYTICS — always first, unified card across all platforms ──
   const hasWebsite = googleAnalytics || squarespace || shopify || stripe;
   if (hasWebsite) {
@@ -5803,60 +5850,98 @@ function renderAnalyticsDashboard(data) {
   }
 
   if (youtube) {
-    const recentHtml = youtube.recentVideos.slice(0, 3).map(v =>
-      `<div class="apc-recent-item">${v.title}</div>`
-    ).join('');
+    const recentHtml = (youtube.recentVideos || []).slice(0, 5).map(v => {
+      const views = v.views ? `<span class="apc-ri-stat">👁 ${fmtNum(v.views)}</span>` : '';
+      const likes = v.likes ? `<span class="apc-ri-stat">♥ ${fmtNum(v.likes)}</span>` : '';
+      return `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">${esc(v.title)}</div>
+        <div class="apc-ri-stats">${views}${likes}</div>
+      </div>`;
+    }).join('');
+    const revenueRow = youtube.revenue30 !== null && youtube.revenue30 !== undefined
+      ? `<div class="apc-stat apc-stat-accent"><div class="apc-stat-val apc-stat-green">$${parseFloat(youtube.revenue30).toFixed(2)}</div><div class="apc-stat-label">EST. REVENUE (30D)</div></div>` : '';
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card apc-youtube">
         <div class="apc-header">
-          <div class="apc-icon youtube">▶</div>
-          <div>
-            <div class="apc-title">YOUTUBE STUDIO</div>
-            <div class="apc-subtitle">${youtube.channelName}</div>
+          <div class="apc-icon youtube">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.6 3.6 12 3.6 12 3.6s-7.6 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.8.5 9.4.5 9.4.5s7.6 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.75 15.5V8.5l6.5 3.5-6.5 3.5z"/></svg>
           </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient">YOUTUBE STUDIO</div>
+            <div class="apc-subtitle">${esc(youtube.channelName)}</div>
+          </div>
+          <a href="https://studio.youtube.com" class="apc-external-link" title="Open YouTube Studio">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
         </div>
-        <div class="apc-stats">
+        <div class="apc-stats apc-stats-4">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(youtube.subscribers)}</div><div class="apc-stat-label">SUBSCRIBERS</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(youtube.totalViews)}</div><div class="apc-stat-label">TOTAL VIEWS</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(youtube.videoCount)}</div><div class="apc-stat-label">VIDEOS</div></div>
+          ${revenueRow}
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT VIDEOS</div>${recentHtml}</div>` : ''}
       </div>`);
   }
 
   if (instagram) {
-    const recentHtml = instagram.recentPosts.slice(0, 3).map(p =>
-      `<div class="apc-recent-item">${p.caption || 'Post'}<span>♥ ${fmtNum(p.likes)}</span></div>`
+    const recentHtml = (instagram.recentPosts || []).slice(0, 3).map(p =>
+      `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">${esc(p.caption || 'Post')}</div>
+        <div class="apc-ri-stats">
+          <span class="apc-ri-stat">♥ ${fmtNum(p.likes)}</span>
+          ${p.comments ? `<span class="apc-ri-stat">💬 ${fmtNum(p.comments)}</span>` : ''}
+        </div>
+      </div>`
     ).join('');
+    const engRate = instagram.engagementRate ? `<div class="apc-stat"><div class="apc-stat-val apc-stat-green">${instagram.engagementRate}%</div><div class="apc-stat-label">ENG. RATE</div></div>` : '';
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card" style="border-color:rgba(249,83,198,0.2)">
         <div class="apc-header">
-          <div class="apc-icon instagram">📸</div>
-          <div>
-            <div class="apc-title">INSTAGRAM</div>
-            <div class="apc-subtitle">@${instagram.username}</div>
+          <div class="apc-icon instagram">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
           </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient-pink">INSTAGRAM</div>
+            <div class="apc-subtitle">@${esc(instagram.username)}</div>
+          </div>
+          <a href="https://www.instagram.com/${esc(instagram.username)}" class="apc-external-link" title="Open Instagram">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
         </div>
         <div class="apc-stats">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.followers)}</div><div class="apc-stat-label">FOLLOWERS</div></div>
+          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.following || '—')}</div><div class="apc-stat-label">FOLLOWING</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.posts)}</div><div class="apc-stat-label">POSTS</div></div>
+          ${engRate}
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT POSTS</div>${recentHtml}</div>` : ''}
       </div>`);
   }
 
   if (tiktok) {
-    const recentHtml = tiktok.recentVideos.slice(0, 3).map(v =>
-      `<div class="apc-recent-item">${v.title}<span>👁 ${fmtNum(v.views)}</span></div>`
+    const recentHtml = (tiktok.recentVideos || []).slice(0, 3).map(v =>
+      `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">${esc(v.title)}</div>
+        <div class="apc-ri-stats">
+          <span class="apc-ri-stat">👁 ${fmtNum(v.views)}</span>
+          ${v.likes ? `<span class="apc-ri-stat">♥ ${fmtNum(v.likes)}</span>` : ''}
+        </div>
+      </div>`
     ).join('');
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card" style="border-color:rgba(105,201,208,0.2)">
         <div class="apc-header">
-          <div class="apc-icon tiktok">♪</div>
-          <div>
-            <div class="apc-title">TIKTOK</div>
-            <div class="apc-subtitle">${tiktok.username}</div>
+          <div class="apc-icon tiktok">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.54V6.78a4.85 4.85 0 0 1-1.07-.09z"/></svg>
           </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient-tiktok">TIKTOK</div>
+            <div class="apc-subtitle">${esc(tiktok.username)}</div>
+          </div>
+          <a href="https://www.tiktok.com/@${esc(tiktok.username)}" class="apc-external-link" title="Open TikTok">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
         </div>
         <div class="apc-stats">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(tiktok.followers)}</div><div class="apc-stat-label">FOLLOWERS</div></div>
@@ -5868,62 +5953,96 @@ function renderAnalyticsDashboard(data) {
   }
 
   if (shopify) {
+    const recentHtml = (shopify.recentOrders || []).slice(0, 3).map(o => {
+      const date = o.date ? new Date(o.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+      return `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">#${o.orderNumber || o.id} ${o.customer ? '· ' + esc(o.customer) : ''}</div>
+        <div class="apc-ri-stats">
+          <span class="apc-ri-stat apc-stat-green">${o.total || ''}</span>
+          ${date ? `<span class="apc-ri-stat">${date}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card" style="border-color:rgba(150,201,61,0.2)">
         <div class="apc-header">
-          <div class="apc-icon shopify">🛍</div>
-          <div>
-            <div class="apc-title">SHOPIFY</div>
-            <div class="apc-subtitle">${shopify.shopName}</div>
+          <div class="apc-icon shopify">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.9 2.1c-.1 0-.2.1-.3.2l-.9.3c-.2-.6-.5-1.1-.9-1.5A2.5 2.5 0 0 0 12 .3c-.1 0-.2 0-.3.1C11.4.1 11 0 10.5 0 9.2 0 7.9 1 7.2 2.6l-.1.3-1.4.4c-.4.1-.7.5-.7.9v.5L3.5 21.5c0 .3.2.5.5.5h12c.3 0 .5-.2.5-.5L15 3c-.1-.5-.6-.9-1.1-.9zM12 1.3c.2 0 .3 0 .5.1.2.1.3.3.4.5-.4.1-.8.2-1.2.4-.1-.2-.2-.4-.3-.6.2-.2.4-.4.6-.4zm-1.5.9c.1.3.3.5.4.8L9.1 3.4c.4-1 1-1.9 1.7-2.2h.1l-.4 1zm4 .8l-.7.2c-.1-.3-.2-.5-.4-.7l.7-.2c.2.2.3.4.4.7zm-2.5-1c.2.2.4.5.5.8l-1.2.4c-.1-.3-.2-.6-.4-.9l1.1-.3zM8 4.4l6.5-1.9.9 16.5H4.5L8 4.4z"/></svg>
           </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient-green">SHOPIFY</div>
+            <div class="apc-subtitle">${esc(shopify.shopName)}</div>
+          </div>
+          <a href="https://${esc(shopify.shopName)}.myshopify.com/admin" class="apc-external-link" title="Open Shopify Admin">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
         </div>
-        <div class="apc-stats">
+        <div class="apc-stats apc-stats-4">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.last30Days.paidOrders)}</div><div class="apc-stat-label">ORDERS (30D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">$${shopify.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
+          <div class="apc-stat"><div class="apc-stat-val apc-stat-green">$${shopify.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.totalCustomers)}</div><div class="apc-stat-label">CUSTOMERS</div></div>
+          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.productCount || '—')}</div><div class="apc-stat-label">PRODUCTS</div></div>
         </div>
+        ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${recentHtml}</div>` : ''}
       </div>`);
   }
 
   if (squarespace) {
     const recentHtml = (squarespace.recentOrders || []).slice(0, 3).map(o => {
       const date = new Date(o.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-      return `<div class="apc-recent-item">#${o.orderNumber} — ${o.total}<span>${date}</span></div>`;
+      return `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">#${o.orderNumber}</div>
+        <div class="apc-ri-stats">
+          <span class="apc-ri-stat apc-stat-green">${o.total}</span>
+          <span class="apc-ri-stat">${date}</span>
+        </div>
+      </div>`;
     }).join('');
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card" style="border-color:rgba(131,96,195,0.2)">
         <div class="apc-header">
-          <div class="apc-icon squarespace">⬡</div>
-          <div>
-            <div class="apc-title">SQUARESPACE</div>
-            <div class="apc-subtitle">${squarespace.siteName}</div>
+          <div class="apc-icon squarespace">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 3.6L3.6 11.8a3 3 0 0 0 0 4.3l4.3 4.3a3 3 0 0 0 4.3 0l8.2-8.2a3 3 0 0 0 0-4.3L16 3.6a3 3 0 0 0-4.2 0z"/></svg>
+          </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient-purple">SQUARESPACE</div>
+            <div class="apc-subtitle">${esc(squarespace.siteName)}</div>
           </div>
         </div>
         <div class="apc-stats">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(squarespace.last30Days.orders)}</div><div class="apc-stat-label">ORDERS (30D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${squarespace.last30Days.currency} ${squarespace.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
+          <div class="apc-stat"><div class="apc-stat-val apc-stat-green">${squarespace.last30Days.currency} ${squarespace.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
+          ${squarespace.last30Days.visitors ? `<div class="apc-stat"><div class="apc-stat-val">${fmtNum(squarespace.last30Days.visitors)}</div><div class="apc-stat-label">VISITORS (30D)</div></div>` : ''}
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${recentHtml}</div>` : ''}
       </div>`);
   }
 
   if (stripe) {
-    const recentHtml = (stripe.recentPayments || []).map(p =>
-      `<div class="apc-recent-item">${p.description}<span>${p.amount} · ${p.date}</span></div>`
+    const recentHtml = (stripe.recentPayments || []).slice(0, 3).map(p =>
+      `<div class="apc-recent-item apc-recent-video">
+        <div class="apc-ri-title">${esc(p.description || 'Payment')}</div>
+        <div class="apc-ri-stats">
+          <span class="apc-ri-stat apc-stat-green">${p.amount}</span>
+          <span class="apc-ri-stat">${p.date}</span>
+        </div>
+      </div>`
     ).join('');
     cards.push(`
-      <div class="analytics-platform-card">
+      <div class="analytics-platform-card" style="border-color:rgba(99,91,255,0.2)">
         <div class="apc-header">
-          <div class="apc-icon stripe">💳</div>
-          <div>
-            <div class="apc-title">REVENUE & PAYMENTS</div>
+          <div class="apc-icon stripe">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
+          </div>
+          <div style="flex:1">
+            <div class="apc-title apc-title-gradient-stripe">REVENUE & PAYMENTS</div>
             <div class="apc-subtitle">Stripe · any website</div>
           </div>
         </div>
-        <div class="apc-stats">
-          <div class="apc-stat"><div class="apc-stat-val">${stripe.last30Days.currency} ${stripe.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
+        <div class="apc-stats apc-stats-4">
+          <div class="apc-stat"><div class="apc-stat-val apc-stat-green">${stripe.last30Days.currency} ${stripe.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(stripe.last30Days.orders)}</div><div class="apc-stat-label">PAYMENTS (30D)</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${stripe.last7Days.currency || stripe.last30Days.currency} ${stripe.last7Days.revenue}</div><div class="apc-stat-label">REVENUE (7D)</div></div>
+          <div class="apc-stat"><div class="apc-stat-val apc-stat-green">${stripe.last7Days.currency || stripe.last30Days.currency} ${stripe.last7Days.revenue}</div><div class="apc-stat-label">REVENUE (7D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(stripe.last7Days.orders)}</div><div class="apc-stat-label">PAYMENTS (7D)</div></div>
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT PAYMENTS</div>${recentHtml}</div>` : ''}

@@ -3702,6 +3702,150 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
   font-family: 'Share Tech Mono', monospace;
 }
 
+/* ===================== ANALYTICS SAAS REDESIGN — NEW CLASSES ===================== */
+
+/* Poppins gradient title */
+.apc-title-gradient {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #ff4e4e 0%, #ff9900 60%, #ffcc00 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-blue {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #00c6fb 0%, #005bea 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-pink {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #f953c6 0%, #b91d73 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-tiktok {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #69c9d0 0%, #ee1d52 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-green {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #00b09b 0%, #96c93d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-purple {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #8360c3 0%, #2ebf91 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.apc-title-gradient-stripe {
+  font-family: 'Poppins', 'Share Tech Mono', sans-serif !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #635bff 0%, #00d4ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* YouTube card accent border */
+.apc-youtube {
+  border-color: rgba(255, 78, 78, 0.25) !important;
+}
+.apc-youtube:hover {
+  border-color: rgba(255, 78, 78, 0.45) !important;
+}
+
+/* 4-column stats grid */
+.apc-stats-4 {
+  grid-template-columns: repeat(4, 1fr) !important;
+}
+
+/* External link button */
+.apc-external-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(150,160,180,0.7);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.apc-external-link:hover {
+  background: rgba(255,255,255,0.12);
+  color: rgba(200,220,255,0.95);
+}
+
+/* Green accent stat value */
+.apc-stat-green {
+  color: rgba(50, 220, 120, 0.95) !important;
+}
+.apc-stat-accent {
+  border-top: 1px solid rgba(50,220,120,0.12) !important;
+}
+
+/* Video list items */
+.apc-recent-video {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 4px !important;
+  padding: 8px 10px !important;
+}
+.apc-ri-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(200, 215, 240, 0.9);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.apc-ri-stats {
+  display: flex;
+  gap: 10px;
+}
+.apc-ri-stat {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: rgba(100, 150, 200, 0.7);
+  letter-spacing: 0.5px;
+}
+
 /* ===================== SHARED CONNECTOR MODAL OVERLAY ===================== */
 #shopifyModal,
 #stripeConnectModal,

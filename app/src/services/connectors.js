@@ -234,22 +234,69 @@ async function getYouTubeStats() {
     if (!channel) return null;
     const stats = channel.statistics;
 
-    // Last 5 videos
+    // Last 10 videos with IDs
     const videosRes = await fetch(
-      'https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&order=date&maxResults=5',
+      'https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&order=date&maxResults=10',
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const videosData = await videosRes.json();
-    const recentVideos = (videosData.items || []).map(v => ({
-      title: v.snippet.title,
-      published: v.snippet.publishedAt,
-    }));
+    const videoItems = videosData.items || [];
+    const videoIds = videoItems.map(v => v.id?.videoId).filter(Boolean).join(',');
+
+    // Fetch per-video view/like/comment counts
+    let videoStats = {};
+    if (videoIds) {
+      const vStatsRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const vStatsData = await vStatsRes.json();
+      (vStatsData.items || []).forEach(v => {
+        videoStats[v.id] = {
+          views: parseInt(v.statistics?.viewCount || 0),
+          likes: parseInt(v.statistics?.likeCount || 0),
+          comments: parseInt(v.statistics?.commentCount || 0),
+          duration: v.contentDetails?.duration || '',
+        };
+      });
+    }
+
+    const recentVideos = videoItems.slice(0, 5).map(v => {
+      const vid = v.id?.videoId;
+      const vs = vid ? videoStats[vid] : {};
+      return {
+        title: v.snippet.title,
+        published: v.snippet.publishedAt,
+        videoId: vid,
+        views: vs.views || 0,
+        likes: vs.likes || 0,
+        comments: vs.comments || 0,
+        thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url || null,
+      };
+    });
+
+    // YouTube Analytics revenue (requires yt-analytics.readonly scope)
+    let revenue30 = null;
+    try {
+      const endDate = new Date().toISOString().slice(0, 10);
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const revRes = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${startDate}&endDate=${endDate}&metrics=estimatedRevenue,estimatedAdRevenue,views,comments,likes&dimensions=day&sort=day`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const revData = await revRes.json();
+      if (revData.rows && revData.rows.length) {
+        revenue30 = revData.rows.reduce((sum, row) => sum + parseFloat(row[1] || 0), 0);
+      }
+    } catch (_) { /* revenue not available without yt-analytics scope */ }
 
     return {
       channelName: channel.snippet.title,
+      channelId: channel.id,
       subscribers: parseInt(stats.subscriberCount || 0),
       totalViews: parseInt(stats.viewCount || 0),
       videoCount: parseInt(stats.videoCount || 0),
+      revenue30, // null if not available
       recentVideos,
     };
   } catch (err) {

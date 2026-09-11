@@ -225,6 +225,33 @@ function launchApp(name) {
     if (!name) return resolve(false);
     const lower = name.toLowerCase().trim();
 
+    // On Mac: prefer "open -a AppName" over URI scheme to avoid browser fallback issues
+    if (IS_MAC && MAC_APPS[lower]) {
+      const appName = MAC_APPS[lower];
+      exec(`open -a "${appName}"`, (err) => {
+        if (!err) { resolve(true); return; }
+        // App might not be installed — try URI scheme
+        const uri2 = URI_SCHEMES[lower];
+        if (uri2) {
+          shell.openExternal(uri2).then(() => resolve(true)).catch(() => {
+            const web = BROWSER_FALLBACKS[lower];
+            if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
+            else resolve(false);
+          });
+          return;
+        }
+        // Spotlight search
+        exec(`mdfind "kMDItemKind == 'Application' && kMDItemDisplayName == '${appName}*'"`, (e2, stdout2) => {
+          const appPath = (stdout2 || '').trim().split('\n')[0];
+          if (!e2 && appPath) { exec(`open "${appPath}"`, () => resolve(true)); return; }
+          const web = BROWSER_FALLBACKS[lower];
+          if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
+          else resolve(false);
+        });
+      });
+      return;
+    }
+
     // 1. Try URI scheme — works cross-platform via the OS default handler
     const uri = URI_SCHEMES[lower];
     if (uri) {
@@ -264,21 +291,16 @@ function launchApp(name) {
     }
 
     if (IS_MAC) {
-      // macOS: URI scheme first (avoids double-open), then open -a, then Spotlight, then web
-      const appName = MAC_APPS[lower] || name;
+      // macOS: open -a for known app name, then Spotlight, then web fallback
+      const appName = name; // MAC_APPS already handled above; this covers unknown apps
       exec(`open -a "${appName}"`, (err) => {
         if (!err) { resolve(true); return; }
-        // Try Spotlight to find by name
         exec(`mdfind "kMDItemKind == 'Application' && kMDItemDisplayName == '${name}*'"`, (e2, stdout2) => {
           const appPath = (stdout2 || '').trim().split('\n')[0];
-          if (!e2 && appPath) {
-            exec(`open "${appPath}"`, () => resolve(true));
-          } else {
-            // Only open browser if app is truly not installed
-            const web = BROWSER_FALLBACKS[lower];
-            if (web) { openInChrome(web).then(() => resolve(false)).catch(() => resolve(false)); return; }
-            exec(`open -a "${name}"`, () => resolve(false));
-          }
+          if (!e2 && appPath) { exec(`open "${appPath}"`, () => resolve(true)); return; }
+          const web = BROWSER_FALLBACKS[lower];
+          if (web) { openInChrome(web).then(() => resolve(false)).catch(() => resolve(false)); return; }
+          exec(`open -a "${name}"`, () => resolve(false));
         });
       });
       return;
