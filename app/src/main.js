@@ -57,7 +57,9 @@ async function cloudPullPrefs() {
     if (prefs.profile)               store.set('profile', prefs.profile);
     if (prefs.chatSessions?.length)  store.set('chatSessions', prefs.chatSessions);
     if (prefs.contacts?.length)      store.set('contacts', prefs.contacts);
-    if (prefs.language)              store.set('language', prefs.language);
+    // Language is per-device: only pull from cloud if the user has NOT set one locally yet.
+    // This ensures first login always defaults to English instead of inheriting another device's language.
+    if (prefs.language && !store.get('language')) store.set('language', prefs.language);
     if (prefs.voiceSpeed)            store.set('voiceSpeed', prefs.voiceSpeed);
     if (prefs.aiName)                store.set('profile.name', prefs.aiName);
     if (prefs.reminders?.length)     store.set('reminders', prefs.reminders);

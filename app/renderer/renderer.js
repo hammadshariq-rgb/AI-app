@@ -963,21 +963,47 @@ function finSparkline(closes, positive) {
   if (!closes || closes.length < 2) return '';
   const vals = closes.filter(Number.isFinite);
   if (vals.length < 2) return '';
-  const W = 288, H = 130, pad = 0;
+  const W = 288, H = 130, padX = 4, padTop = 10, padBot = 6;
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
+  const drawH = H - padTop - padBot;
   const pts = vals.map((v, i) => {
-    const x = (i / (vals.length - 1)) * W;
-    const y = H - ((v - min) / range) * (H * 0.75) - H * 0.12;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+    const x = padX + (i / (vals.length - 1)) * (W - padX * 2);
+    const y = padTop + drawH - ((v - min) / range) * drawH;
+    return [x.toFixed(1), y.toFixed(1)];
   });
   const color  = positive ? '#3b82f6' : '#ef4444';
-  const fill   = positive ? 'rgba(59,130,246,0.18)' : 'rgba(239,68,68,0.18)';
-  const lastX  = ((vals.length - 1) / (vals.length - 1) * W).toFixed(1);
-  const areaD  = `M ${pts.join(' L ')} L ${lastX},${H} L 0,${H} Z`;
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="${W}" height="${H}">
-    <path d="${areaD}" fill="${fill}"/>
-    <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  const glowColor = positive ? 'rgba(59,130,246,0.7)' : 'rgba(239,68,68,0.7)';
+  const fillTop = positive ? 'rgba(59,130,246,0.18)' : 'rgba(239,68,68,0.18)';
+  const uid = `fsp${Date.now() % 99999}`;
+  const polyPts = pts.map(p => p.join(',')).join(' ');
+  const areaD = `M${pts[0][0]},${H} ` + pts.map(p => `L${p[0]},${p[1]}`).join(' ') + ` L${pts[pts.length-1][0]},${H} Z`;
+  const lastPt = pts[pts.length - 1];
+  // Midpoint reference line (low)
+  const midY = (padTop + drawH).toFixed(1);
+  // Dotted grid: 5 horizontal lines
+  const gridLines = [0.2,0.4,0.6,0.8].map(f => {
+    const gy = (padTop + drawH - f * drawH).toFixed(1);
+    return `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="3 6"/>`;
+  }).join('');
+  // Dot pattern background
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${uid}g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0.02"/>
+      </linearGradient>
+      <filter id="${uid}ls" x="-60%" y="-60%" width="220%" height="220%">
+        <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="${glowColor}"/>
+      </filter>
+      <filter id="${uid}ds" x="-100%" y="-100%" width="300%" height="300%">
+        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.9)"/>
+      </filter>
+    </defs>
+    ${gridLines}
+    <path d="${areaD}" fill="url(#${uid}g)"/>
+    <polyline points="${polyPts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#${uid}ls)"/>
+    <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="4.5" fill="${color}" stroke="rgba(10,14,30,0.9)" stroke-width="2" filter="url(#${uid}ds)"/>
   </svg>`;
 }
 
@@ -1111,7 +1137,7 @@ async function finLoad() {
     if (freshValid.length) { finPortfolio = freshValid; finRender(); }
   }
 
-  // Auto-refresh every 90 seconds
+  // Auto-refresh every 30 seconds for live chart updates
   setInterval(async () => {
     if (!finPortfolio.length) return;
     const syms = finPortfolio.map(s => s.symbol);
@@ -1120,7 +1146,7 @@ async function finLoad() {
     );
     const valid = updated.filter(Boolean);
     if (valid.length) { finPortfolio = valid; finRender(); }
-  }, 90000);
+  }, 30000);
 }
 
 // ===================== MARKETS OVERLAY — coverflow + P&L =====================
@@ -1130,26 +1156,72 @@ let marketsIdx = 0;
 // ── Sparkline for detail band ─────────────────────────────────────────────
 function moSparkline(closes, positive) {
   if (!closes || closes.length < 2) return '';
-  const W = 560, H = 80;
-  const mn = Math.min(...closes), mx = Math.max(...closes);
+  const vals = closes.filter(Number.isFinite);
+  if (vals.length < 2) return '';
+  const W = 560, H = 140, padX = 8, padTop = 14, padBot = 20;
+  const mn = Math.min(...vals), mx = Math.max(...vals);
   const range = mx - mn || 1;
-  const pts = closes.map((v, i) => {
-    const x = (i / (closes.length - 1)) * W;
-    const y = H - ((v - mn) / range) * H * 0.8 - H * 0.1;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  const drawH = H - padTop - padBot;
+  const pts = vals.map((v, i) => {
+    const x = padX + (i / (vals.length - 1)) * (W - padX * 2);
+    const y = padTop + drawH - ((v - mn) / range) * drawH;
+    return [x.toFixed(1), y.toFixed(1)];
   });
   const col = positive ? '#00e882' : '#ff6060';
-  const fillId = `mog${positive ? 'p' : 'n'}${Date.now() % 9999}`;
-  const polyline = pts.join(' ');
-  const area = `${pts[0].split(',')[0]},${H} ` + polyline + ` ${pts[pts.length - 1].split(',')[0]},${H}`;
+  const glowCol = positive ? 'rgba(0,232,130,0.65)' : 'rgba(255,96,96,0.65)';
+  const uid = `mos${Date.now() % 99999}`;
+  const polyPts = pts.map(p => p.join(',')).join(' ');
+  const areaD = `M${pts[0][0]},${H - padBot} ` + pts.map(p => `L${p[0]},${p[1]}`).join(' ') + ` L${pts[pts.length-1][0]},${H - padBot} Z`;
+  const lastPt = pts[pts.length - 1];
+  // Index of the low point (for reference line marker)
+  const minIdx = vals.indexOf(mn);
+  const minPt = pts[minIdx];
+  // Horizontal grid lines (dashed, subtle)
+  const gridLines = [0.25, 0.5, 0.75].map(f => {
+    const gy = (padTop + drawH - f * drawH).toFixed(1);
+    return `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="4 8"/>`;
+  }).join('');
+  // Dot grid background (sparse dots)
+  const dotPat = `<pattern id="${uid}dp" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="9" cy="9" r="0.8" fill="rgba(255,255,255,0.12)"/></pattern>`;
+  // Y-axis tick labels (3 price levels)
+  const tickPrices = [mn, mn + range * 0.5, mx].map(v => v.toFixed(2));
+  const tickYs = [padTop + drawH, padTop + drawH * 0.5, padTop];
+  const tickLabels = tickPrices.map((p, ti) =>
+    `<text x="${padX + 2}" y="${(tickYs[ti] + (ti === 0 ? -3 : 4)).toFixed(1)}" font-size="9" font-family="'Courier New',monospace" fill="rgba(255,255,255,0.3)" text-anchor="start">${p}</text>`
+  ).join('');
+  // X-axis tick labels (first, mid, last)
+  const xTickCount = Math.min(5, vals.length);
+  const xTicks = Array.from({length: xTickCount}, (_, ti) => {
+    const idx = Math.round(ti / (xTickCount - 1) * (vals.length - 1));
+    const px = pts[idx][0];
+    return `<text x="${px}" y="${(H - 4).toFixed(1)}" font-size="9" font-family="'Courier New',monospace" fill="rgba(255,255,255,0.25)" text-anchor="middle">${idx + 1}</text>`;
+  }).join('');
+  // Reference line at the low point
+  const refX = minPt[0];
+  const refLine = `<line x1="${refX}" y1="${padTop}" x2="${refX}" y2="${H - padBot}" stroke="${col}" stroke-width="1" stroke-dasharray="4 4" stroke-opacity="0.5"/>
+    <circle cx="${refX}" cy="${minPt[1]}" r="3" fill="${col}" stroke="rgba(10,14,30,0.9)" stroke-width="1.5"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
-    <defs><linearGradient id="${fillId}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${col}" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="${col}" stop-opacity="0.02"/>
-    </linearGradient></defs>
-    <polygon points="${area}" fill="url(#${fillId})"/>
-    <polyline points="${polyline}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="3.5" fill="${col}"/>
+    <defs>
+      ${dotPat}
+      <linearGradient id="${uid}g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${col}" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="${col}" stop-opacity="0.02"/>
+      </linearGradient>
+      <filter id="${uid}ls" x="-60%" y="-60%" width="220%" height="220%">
+        <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="${glowCol}"/>
+      </filter>
+      <filter id="${uid}ds" x="-100%" y="-100%" width="300%" height="300%">
+        <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.9)"/>
+      </filter>
+    </defs>
+    <rect width="${W}" height="${H}" fill="url(#${uid}dp)"/>
+    ${gridLines}
+    ${tickLabels}
+    ${xTicks}
+    <path d="${areaD}" fill="url(#${uid}g)"/>
+    ${refLine}
+    <polyline points="${polyPts}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#${uid}ls)"/>
+    <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="5" fill="${col}" stroke="rgba(10,14,30,0.9)" stroke-width="2" filter="url(#${uid}ds)"/>
   </svg>`;
 }
 
@@ -1215,12 +1287,40 @@ function moSparkline(closes, positive) {
       if (s.sparkline && s.sparkline.length > 1) {
         const vals = s.sparkline.filter(Number.isFinite);
         if (vals.length > 1) {
-          const W2 = 210, H2 = 110, mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
-          const pts = vals.map((v, j) => `${((j / (vals.length - 1)) * W2).toFixed(1)},${(H2 - ((v - mn) / r) * H2 * 0.75 - H2 * 0.1).toFixed(1)}`);
-          const area = `0,${H2} ` + pts.join(' ') + ` ${W2},${H2}`;
-          sparkSvg = `<svg viewBox="0 0 ${W2} ${H2}" preserveAspectRatio="none" width="${W2}" height="${H2}" style="position:absolute;inset:0;width:100%;height:100%">
-            <polygon points="${area}" fill="${fillCol}"/>
-            <polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          const W2 = 210, H2 = 110, padX2 = 4, padTop2 = 8, padBot2 = 4;
+          const mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
+          const drawH2 = H2 - padTop2 - padBot2;
+          const pts2 = vals.map((v, j) => {
+            const x = padX2 + (j / (vals.length - 1)) * (W2 - padX2 * 2);
+            const y = padTop2 + drawH2 - ((v - mn) / r) * drawH2;
+            return [x.toFixed(1), y.toFixed(1)];
+          });
+          const uid2 = `cfs${i}${Date.now() % 9999}`;
+          const polyPts2 = pts2.map(p => p.join(',')).join(' ');
+          const areaD2 = `M${pts2[0][0]},${H2} ` + pts2.map(p => `L${p[0]},${p[1]}`).join(' ') + ` L${pts2[pts2.length-1][0]},${H2} Z`;
+          const lastPt2 = pts2[pts2.length - 1];
+          const glowCol2 = s.positive ? 'rgba(0,232,130,0.65)' : 'rgba(255,96,96,0.65)';
+          const gridLines2 = [0.33, 0.66].map(f => {
+            const gy = (padTop2 + drawH2 - f * drawH2).toFixed(1);
+            return `<line x1="${padX2}" y1="${gy}" x2="${W2 - padX2}" y2="${gy}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="3 6"/>`;
+          }).join('');
+          sparkSvg = `<svg viewBox="0 0 ${W2} ${H2}" preserveAspectRatio="none" width="${W2}" height="${H2}" style="position:absolute;inset:0;width:100%;height:100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="${uid2}g" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${col}" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="${col}" stop-opacity="0.02"/>
+              </linearGradient>
+              <filter id="${uid2}ls" x="-80%" y="-80%" width="260%" height="260%">
+                <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="${glowCol2}"/>
+              </filter>
+              <filter id="${uid2}ds" x="-150%" y="-150%" width="400%" height="400%">
+                <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.9)"/>
+              </filter>
+            </defs>
+            ${gridLines2}
+            <path d="${areaD2}" fill="url(#${uid2}g)"/>
+            <polyline points="${polyPts2}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#${uid2}ls)"/>
+            <circle cx="${lastPt2[0]}" cy="${lastPt2[1]}" r="4" fill="${col}" stroke="rgba(10,14,30,0.9)" stroke-width="1.5" filter="url(#${uid2}ds)"/>
           </svg>`;
         }
       }
@@ -2108,22 +2208,27 @@ window._checkQuickLaunch = async function(text) {
     const subject = wikiM[1].trim();
     // Don't intercept common weather/stock questions already handled elsewhere
     if (/weather|stock|price|forecast/i.test(subject)) return false;
-    addMessage('assistant', `🔎 Looking up **${subject}**…`);
+    const lookingUpMsg = addMessage('assistant', `🔎 Looking up **${subject}**…`);
+    const lookingUpRow = lookingUpMsg ? lookingUpMsg.closest('.msg-row') : null;
     (async () => {
       try {
         const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`;
-        const res = await fetch(url);
+        // Race fetch against a 8-second timeout so the bubble never gets stuck
+        const res = await Promise.race([
+          fetch(url),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+        ]);
         if (!res.ok) throw new Error('not found');
         const data = await res.json();
         if (data.type === 'disambiguation') {
-          // Try the first suggestion
-          const first = data.description || subject;
+          if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
           addMessage('assistant', `📖 Found info on **${data.title}**. Ask me to be more specific if needed.`);
           window.jarvis.speak(`Here's what I found about ${data.title}.`);
           return;
         }
         const cardType = data.type === 'standard' ? _wikiCardType(data) : 'person';
         const imageUrl = data.thumbnail ? data.thumbnail.source : (data.originalimage ? data.originalimage.source : null);
+        if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
         showCard({
           type: cardType,
           name: data.title,
@@ -2138,8 +2243,10 @@ window._checkQuickLaunch = async function(text) {
         addMessage('assistant', `📖 **${data.title}** — ${data.description || ''}`);
         window.jarvis.speak(spoken);
       } catch (_) {
-        // Fallback — let the AI answer normally by returning false
-        return false;
+        // Remove stuck "Looking up" bubble and let AI answer via the chat route
+        if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
+        // Re-send through the AI chat so user gets a response
+        window.jarvis.chat(t).catch(() => {});
       }
     })();
     return true;
