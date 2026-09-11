@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   callContact: (phone, platform) => ipcRenderer.invoke('contacts:call', { phone, platform }),
   openUrl: (url) => ipcRenderer.invoke('jarvis:openUrl', url),
   openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
+  // Forward a quick-launch result to the HUD overlay (Ctrl+Shift+C mode)
+  hudForward: (text, card) => ipcRenderer.invoke('jarvis:hudForward', { text, card }),
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
   placesNearby: (query, lat, lng, city) => ipcRenderer.invoke('places:nearby', { query, lat, lng, city }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),

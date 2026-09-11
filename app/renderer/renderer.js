@@ -1873,6 +1873,18 @@ window._checkMarketsOverlay = async function(text) {
 
 // ===================== QUICK-LAUNCH COMMANDS =====================
 // Spotify, YouTube, Instagram, WhatsApp, Google Calendar
+
+// Helper: if this request came from Ctrl+Shift+C (HUD mode), forward the result
+// to the HUD overlay so it appears on top of whatever app the user is in.
+// Call this at the end of any quick-launch branch that handles a command.
+function _maybeForwardToHud(responseText, card) {
+  if (!window._hudVoiceActive) return;
+  window._hudVoiceActive = false;
+  if (window.jarvis && window.jarvis.hudForward) {
+    window.jarvis.hudForward(responseText, card || null).catch(() => {});
+  }
+}
+
 window._checkQuickLaunch = async function(text) {
   const t = text.trim();
 
@@ -1882,14 +1894,33 @@ window._checkQuickLaunch = async function(text) {
   const spotifyM = !isTV && (t.match(/play\s+(.+?)\s+on\s+spotify/i) || t.match(/spotify\s+play\s+(.+)/i));
   if (spotifyM) {
     const query = spotifyM[1].trim();
-    addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
+    const playingMsg = addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
     window.jarvis.speak(`Playing ${query} on Spotify.`);
     // Call directly — plays in background via Web API, no tab switching
-    const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e.message }));
+    const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'unknown' }));
+    if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
     if (res && res.ok) {
-      if (res.trackName) addMessage('assistant', `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`);
-    } else if (res && res.error === 'Spotify not connected') {
-      addMessage('assistant', '🎵 Spotify not connected. Go to **Connectors → Spotify** to connect first.');
+      const doneText = res.trackName
+        ? `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`
+        : `🎵 Playing **${query}** on Spotify.`;
+      addMessage('assistant', doneText);
+      window.jarvis.speak(res.trackName ? `Now playing ${res.trackName} by ${res.artistName}.` : `Playing ${query}.`);
+      _maybeForwardToHud(doneText, null);
+    } else {
+      const errMsg = res?.error || '';
+      let reply;
+      if (errMsg === 'Spotify not connected') {
+        reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
+      } else if (errMsg.includes('Premium')) {
+        reply = '🎵 Spotify playback requires a **Premium** account.';
+      } else {
+        // API failed — open Spotify app so user can play manually
+        reply = `🎵 Opening Spotify for **${query}**… (API error: ${errMsg.slice(0, 60)})`;
+        window.jarvis.openUrl('spotify:');
+      }
+      addMessage('assistant', reply);
+      window.jarvis.speak(reply.replace(/\*\*/g, '').replace(/\[.*?\]/g, ''));
+      _maybeForwardToHud(reply, null);
     }
     // If autoplay:false, the spotify:track URI already opened it
     return true;
@@ -2109,17 +2140,23 @@ window._checkQuickLaunch = async function(text) {
     };
     const lookupSym = NAME_TO_TICKER[rawQuery.toLowerCase()] || rawQuery.toUpperCase();
     addMessage('assistant', `📈 Looking up **${rawQuery}** stock…`);
-    window.jarvis.speak(`Pulling up ${rawQuery} stock.`);
+    window.jarvis.speak(`Pulling up ${rawQuery} stock.`).catch(() => {});
     (async () => {
       try {
-        // Try to resolve the name to a ticker symbol
         const sym = NAME_TO_TICKER[rawQuery.toLowerCase()]
           ? lookupSym
           : (await window.jarvis.financeResolve(rawQuery).catch(() => null)) || lookupSym;
         const stockData = await window.jarvis.financeGetStock(sym).catch(() => null);
-        if (!stockData) { addMessage('assistant', `❌ Couldn't find stock data for **${rawQuery}**. Try the full ticker symbol.`); return; }
-        showCard({ ...stockData, type: 'stock' });
-        // Open the portfolio panel so user can see and add it
+        if (!stockData) {
+          const errText = `❌ Couldn't find stock data for **${rawQuery}**. Try the full ticker symbol.`;
+          addMessage('assistant', errText);
+          _maybeForwardToHud(errText, null);
+          return;
+        }
+        const stockCard = { ...stockData, type: 'stock' };
+        const stockText = `📈 **${sym}** — $${stockData.price ?? ''} ${stockData.change ?? ''}`;
+        _maybeForwardToHud(stockText, stockCard);
+        showCard(stockCard);
         document.getElementById('finPanel')?.classList.remove('fp-hidden');
       } catch (e) { console.error('[stock intercept]', e); }
     })();
@@ -2293,111 +2330,82 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Location / city lookup: "where is X" / "where's X" / "location of X" ──
+  // ── Location lookup: "where is X" / "where's X" ─────────────────────────────
+  // Same pattern as wiki — let AI answer (full text + voice), fetch card in background.
   const whereM = t.match(/^where(?:'s|\s+is|\s+was)?\s+(.+?)(?:\s+located|\s+situated|\s+found)?\s*[\?\.]?\s*$/i)
-              || t.match(/^(?:location|capital|geography)\s+of\s+(.+?)[\?\.]?\s*$/i)
-              || t.match(/^(?:tell me|show me)\s+(?:where|about)\s+(.+?)\s+(?:is|on the map)[\?\.]?\s*$/i);
+              || t.match(/^(?:location|capital|geography)\s+of\s+(.+?)[\?\.]?\s*$/i);
   if (whereM) {
     const place = whereM[1].trim();
-    if (/weather|stock|price|who|what/.test(place)) { /* fall through */ } else {
-      const lookingUpMsg2 = addMessage('assistant', `🗺️ Looking up **${place}**…`);
-      const lookingUpRow2 = lookingUpMsg2 ? lookingUpMsg2.closest('.msg-row') : null;
+    if (!/weather|stock|price|who|what/i.test(place)) {
+      // Fetch location card in background — AI handles voice + bubble
       (async () => {
         try {
           const url2 = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place)}`;
           const res2 = await Promise.race([
             fetch(url2),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
           ]);
-          if (!res2.ok) throw new Error('not found');
+          if (!res2.ok) return;
           const d2 = await res2.json();
-          if (lookingUpRow2) lookingUpRow2.remove(); else if (lookingUpMsg2) lookingUpMsg2.remove();
-          const imgUrl2 = d2.thumbnail ? d2.thumbnail.source : (d2.originalimage ? d2.originalimage.source : null);
-          const desc2 = d2.description || '';
-          const extract2 = (d2.extract || '').slice(0, 280);
+          if (!d2 || d2.type === 'disambiguation') return;
+          const imgUrl2 = d2.thumbnail?.source || d2.originalimage?.source || null;
           const mapsUrl2 = d2.coordinates
             ? `https://maps.google.com/?q=${d2.coordinates.lat},${d2.coordinates.lon}`
             : `https://maps.google.com/?q=${encodeURIComponent(d2.title)}`;
-          const sourceUrl2 = d2.content_urls ? d2.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(d2.title)}`;
-          addMessage('assistant', `🗺️ **${d2.title}** — ${desc2}${extract2 ? '\n' + extract2 : ''}`);
-          const spoken2 = (extract2 || `Here's what I found about ${d2.title}.`).replace(/\(.*?\)/g, '').trim().slice(0, 200);
-          window.jarvis.speak(spoken2);
           try {
             showCard({
               type: 'location',
               title: d2.title,
-              description: desc2,
-              summary: extract2,
+              description: d2.description || '',
+              summary: (d2.extract || '').slice(0, 280),
               heroImage: imgUrl2,
               images: imgUrl2 ? [imgUrl2] : [],
               mapsUrl: mapsUrl2,
-              sourceUrl: sourceUrl2
+              sourceUrl: d2.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(d2.title)}`
             });
           } catch (e2) { console.error('[location card]', e2); }
-        } catch (_) {
-          if (lookingUpRow2) lookingUpRow2.remove(); else if (lookingUpMsg2) lookingUpMsg2.remove();
-          window.jarvis.chat(t).catch(() => {});
-        }
+        } catch (_) { /* silent */ }
       })();
-      return true;
+      return false; // let AI respond with full text + voice
     }
   }
 
-  // ── Wikipedia entity lookup: "who is X" / "tell me about X" / "info on X" ─
+  // ── Wikipedia entity lookup: "who is X" / "tell me about X" ─────────────────
+  // DO NOT intercept — let the AI give the full detailed response (the old behaviour).
+  // Instead, fetch Wikipedia in the background so we can show the card with image
+  // alongside the AI's text reply. The AI handles the voice + bubble; we handle the card.
   const wikiM = t.match(/^(?:who\s+is|who\s+was)\s+(.+?)[\?\.]?\s*$/i)
-             || t.match(/^(?:tell\s+me\s+about|info(?:rmation)?\s+(?:about|on)|what\s+is|what\s+was)\s+(.+?)[\?\.]?\s*$/i)
-             || t.match(/^(?:show|search)\s+(?:me\s+)?(?:wikipedia\s+for|wikipedia\s+info\s+on|info\s+on)\s+(.+?)[\?\.]?\s*$/i);
+             || t.match(/^(?:show|search)\s+(?:me\s+)?(?:wikipedia\s+for|wikipedia\s+info\s+on)\s+(.+?)[\?\.]?\s*$/i);
   if (wikiM) {
     const subject = wikiM[1].trim();
-    // Don't intercept common weather/stock questions already handled elsewhere
-    if (/weather|stock|price|forecast/i.test(subject)) return false;
-    const lookingUpMsg = addMessage('assistant', `🔎 Looking up **${subject}**…`);
-    const lookingUpRow = lookingUpMsg ? lookingUpMsg.closest('.msg-row') : null;
+    if (/weather|stock|price|forecast|where|location/i.test(subject)) return false;
+    // Fetch Wikipedia card data in the background — does NOT block or intercept the AI
     (async () => {
       try {
         const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`;
-        // Race fetch against a 8-second timeout so the bubble never gets stuck
         const res = await Promise.race([
           fetch(url),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
         ]);
-        if (!res.ok) throw new Error('not found');
+        if (!res.ok) return; // silent — AI already answering
         const data = await res.json();
-        if (data.type === 'disambiguation') {
-          if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
-          addMessage('assistant', `📖 Found info on **${data.title}**. Ask me to be more specific if needed.`);
-          window.jarvis.speak(`Here's what I found about ${data.title}.`);
-          return;
-        }
+        if (!data || data.type === 'disambiguation') return;
         const cardType = data.type === 'standard' ? _wikiCardType(data) : 'person';
-        const imageUrl = data.thumbnail ? data.thumbnail.source : (data.originalimage ? data.originalimage.source : null);
-        if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
-        // Add chat bubble BEFORE showCard so it's always visible even if card rendering has issues
-        const bubbleText = `📖 **${data.title}** — ${data.description || data.extract?.slice(0, 120) || ''}`;
-        addMessage('assistant', bubbleText);
-        const spoken = data.extract
-          ? data.extract.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim().slice(0, 220)
-          : `Here's what I found about ${data.title}.`;
-        window.jarvis.speak(spoken);
-        try {
-          showCard({
-            type: cardType,
-            name: data.title,
-            bio: data.extract ? data.extract.slice(0, 400) : '',
-            description: data.extract ? data.extract.slice(0, 400) : '',
-            summary: data.extract ? data.extract.slice(0, 400) : '',
-            imageUrl,
-            subtitle: data.description ? data.description.toUpperCase() : 'ENTITY',
-            sourceUrl: data.content_urls ? data.content_urls.desktop.page : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
-          });
-        } catch (cardErr) { console.error('[wiki showCard]', cardErr); }
-      } catch (_) {
-        // Remove stuck "Looking up" bubble and let AI answer via the chat route
-        if (lookingUpRow) lookingUpRow.remove(); else if (lookingUpMsg) lookingUpMsg.remove();
-        // Re-send through the AI chat so user gets a response
-        window.jarvis.chat(t).catch(() => {});
-      }
+        const imageUrl = data.thumbnail?.source || data.originalimage?.source || null;
+        const wikiCard = {
+          type: cardType,
+          name: data.title,
+          bio: data.extract ? data.extract.slice(0, 400) : '',
+          description: data.extract ? data.extract.slice(0, 400) : '',
+          summary: data.extract ? data.extract.slice(0, 400) : '',
+          imageUrl,
+          subtitle: data.description ? data.description.toUpperCase() : 'VISUAL RESULT',
+          sourceUrl: data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
+        };
+        try { showCard(wikiCard); } catch (e) { console.error('[wiki card]', e); }
+      } catch (_) { /* silent — AI is answering anyway */ }
     })();
-    return true;
+    return false; // let the AI respond with full text + voice
   }
 
   return false;
@@ -3538,10 +3546,18 @@ window.jarvis.onVoiceTrigger(() => {
 });
 
 // Ctrl+Shift+C HUD voice trigger — mic runs in hidden app, card appears in HUD overlay
+// Track whether the CURRENT recording was started by HUD (Ctrl+Shift+C) so that
+// quick-launch commands can also forward their response to the HUD overlay.
+window._hudVoiceActive = false;
 if (window.jarvis.onHudVoiceTrigger) {
   window.jarvis.onHudVoiceTrigger(() => {
-    if (isRecording) stopRecording();
-    else startRecording();
+    if (isRecording) {
+      window._hudVoiceActive = false;
+      stopRecording();
+    } else {
+      window._hudVoiceActive = true;
+      startRecording();
+    }
   });
 }
 

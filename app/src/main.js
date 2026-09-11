@@ -1917,6 +1917,18 @@ ipcMain.handle('jarvis:hide', () => {
   if (overlayWindow) overlayWindow.hide();
 });
 
+// Forward a quick-launch result to the HUD overlay when Ctrl+Shift+C mode was active.
+// Called by the renderer when _checkQuickLaunch handles a command that was triggered
+// via the HUD (Ctrl+Shift+C) so the HUD card appears on top of the user's other app.
+ipcMain.handle('jarvis:hudForward', (_e, { text, card }) => {
+  hudVoiceMode = false;
+  hudListening = false;
+  const cardPayload = card
+    ? { type: card.type || 'info', text: text || '', card, title: card.title || card.name || '' }
+    : { type: 'info', text: text || '' };
+  sendToHud('hud:card', cardPayload);
+});
+
 const ALLOWED_URL_SCHEMES = /^(https?|mailto|whatsapp|tg|viber|facetime|tel|spotify|instagram):/i;
 ipcMain.handle('jarvis:openUrl', (_e, url) => {
   if (typeof url !== 'string') return;
