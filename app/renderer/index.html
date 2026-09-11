@@ -2925,10 +2925,10 @@
       // Uses a short 6-frame window so it fires within ~300ms at 20fps.
       // Condition: distance drops sharply (velocity > threshold) AND ends close.
       const clapHist = [];
-      const CLAP_WIN = 7;
-      const CLAP_NEAR = 0.22;       // palms must end up this close (normalised coords) — loosened for reliability
-      const CLAP_DROP = 0.10;       // total distance drop across the window — lowered so partial claps count
-      const CLAP_SPEED = 0.015;     // avg per-frame approach speed — lowered so slower claps register
+      const CLAP_WIN = 8;
+      const CLAP_NEAR = 0.13;       // palms must be VERY close — prevents false-positives from normal gesture use
+      const CLAP_DROP = 0.18;       // large approach distance required — two hands must deliberately move together
+      const CLAP_SPEED = 0.022;     // faster approach required — slow drift toward each other won't trigger it
       function checkClap(lms) {
         if (lms.length < 2) { clapHist.length = 0; return false; }
         // Use index finger MCP (landmark 5) — more reliable centre of palm than wrist
@@ -3048,26 +3048,57 @@
           doClapAction(); return;
         }
 
-        // ── Hand role assignment: position-based (reliable) ──────────────────
-        // Camera is in selfie/mirror mode: user's LEFT hand appears at HIGHER screen-x.
-        //   Higher screen-x wrist (x > 0.5) → cursor hand   (physical LEFT hand)
-        //   Lower  screen-x wrist (x ≤ 0.5) → gesture hand  (physical RIGHT hand)
-        // This applies to both 1-hand and 2-hand cases — user can use either hand alone.
-        let cursorIdx   = -1; // index into lms[] for cursor hand
-        let gestureIdx  = -1; // index into lms[] for gesture hand
+        // ── Hand role assignment ──────────────────────────────────────────────
+        // LEFT hand  (physical) → cursor control (pinch to click)
+        // RIGHT hand (physical) → voice gestures (☝️ start, ✊ stop)
+        //
+        // Strategy: use MediaPipe's `label` field ("Left"/"Right") but stabilise
+        // it with a 4-frame majority-vote buffer per hand slot to prevent flicker.
+        // Fallback: if label is absent, infer from wrist x (selfie/mirror: higher
+        // screen-x = LEFT hand, lower screen-x = RIGHT hand).
+        if (!window._handLabelBuf) window._handLabelBuf = [[], []];
+        const LABEL_BUF_LEN = 4;
+        for (let si = 0; si < 2; si++) {
+          const rawLabel = hands[si]?.label || null;
+          if (rawLabel) {
+            window._handLabelBuf[si].push(rawLabel);
+            if (window._handLabelBuf[si].length > LABEL_BUF_LEN)
+              window._handLabelBuf[si].shift();
+          } else {
+            window._handLabelBuf[si] = [];
+          }
+        }
+        function stableLabel(slotIdx, lm) {
+          const buf = window._handLabelBuf[slotIdx] || [];
+          if (buf.length >= 2) {
+            const lefts  = buf.filter(l => l === 'Left').length;
+            const rights = buf.filter(l => l === 'Right').length;
+            if (lefts  > rights) return 'Left';
+            if (rights > lefts)  return 'Right';
+          }
+          // Fallback: position (selfie mirror — higher x = LEFT hand)
+          return (lm && lm[0].x > 0.5) ? 'Left' : 'Right';
+        }
+
+        let cursorIdx   = -1;
+        let gestureIdx  = -1;
 
         if (lms.length === 1) {
-          // Determine role by which side of screen the hand is on
-          if (lms[0][0].x > 0.5) {
-            cursorIdx  = 0; // left hand alone → cursor
-          } else {
-            gestureIdx = 0; // right hand alone → gestures (voice/stop)
-          }
+          const label = stableLabel(0, lms[0]);
+          if (label === 'Left') { cursorIdx  = 0; }  // left hand alone → cursor
+          else                  { gestureIdx = 0; }  // right hand alone → voice
         } else if (lms.length >= 2) {
-          // Higher x = cursor (left in selfie), lower x = gestures (right in selfie)
-          const x0 = lms[0][0].x, x1 = lms[1][0].x;
-          if (x0 >= x1) { cursorIdx = 0; gestureIdx = 1; }
-          else           { cursorIdx = 1; gestureIdx = 0; }
+          // Assign each hand its role by stable label
+          const l0 = stableLabel(0, lms[0]);
+          const l1 = stableLabel(1, lms[1]);
+          if (l0 === 'Left')  { cursorIdx = 0; gestureIdx = 1; }
+          else                { cursorIdx = 1; gestureIdx = 0; }
+          // If both labels say same thing, fall back to position-sort
+          if (l0 === l1) {
+            const x0 = lms[0][0].x, x1 = lms[1][0].x;
+            if (x0 >= x1) { cursorIdx = 0; gestureIdx = 1; }
+            else          { cursorIdx = 1; gestureIdx = 0; }
+          }
         }
 
         if (cursorIdx >= 0) {

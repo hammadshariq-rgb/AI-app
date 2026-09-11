@@ -1898,6 +1898,7 @@ window._checkQuickLaunch = async function(text) {
     window.jarvis.speak(`Playing ${query} on Spotify.`);
     // Call directly — plays in background via Web API, no tab switching
     const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'unknown' }));
+    console.log('[Spotify] result:', JSON.stringify(res));
     if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
     if (res && res.ok) {
       const doneText = res.trackName
@@ -1909,13 +1910,18 @@ window._checkQuickLaunch = async function(text) {
     } else {
       const errMsg = res?.error || '';
       let reply;
-      if (errMsg === 'Spotify not connected') {
-        reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
-      } else if (errMsg.includes('Premium')) {
+      if (errMsg === 'Spotify not connected' || errMsg === 'not_connected') {
+        reply = '🎵 Spotify token expired. Go to **Connectors → Spotify**, disconnect, then reconnect.';
+      } else if (errMsg.includes('Premium') || errMsg === 'PREMIUM_REQUIRED') {
         reply = '🎵 Spotify playback requires a **Premium** account.';
+      } else if (errMsg === 'track_not_found') {
+        reply = `🎵 Couldn't find **${query}** on Spotify. Try a different song name.`;
+      } else if (errMsg === 'NO_ACTIVE_DEVICE') {
+        reply = `🎵 Spotify couldn't start. Open **Spotify** manually first, then try again.`;
+        window.jarvis.openUrl('spotify:');
       } else {
         // API failed — open Spotify app so user can play manually
-        reply = `🎵 Opening Spotify for **${query}**… (API error: ${errMsg.slice(0, 60)})`;
+        reply = `🎵 Spotify error: ${errMsg.slice(0, 80)}. Opening Spotify…`;
         window.jarvis.openUrl('spotify:');
       }
       addMessage('assistant', reply);
@@ -4039,9 +4045,10 @@ async function sendToJarvis(text) {
     }
   }
 
-  // Show card if returned
+  // Show card if returned — do NOT hide an existing card (e.g. Wikipedia card
+  // already shown from quick-launch background fetch) just because the AI
+  // response didn't include one.
   if (res.card) showCard(res.card);
-  else cardPanel.classList.add('hidden');
 
   // Sports fallback: open Google in the in-app browser panel
   if (res.browserPanelUrl && typeof openBrowserPanel === 'function') {
