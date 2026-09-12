@@ -1915,8 +1915,10 @@ window._checkQuickLaunch = async function(text) {
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=track&limit=1`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      console.log('[Spotify] search status:', searchRes.status);
+      if (searchRes.status === 401) return { ok: false, error: 'token_expired' };
       const searchData = await searchRes.json();
-      console.log('[Spotify] search status:', searchRes.status, 'tracks:', searchData.tracks?.items?.length);
+      console.log('[Spotify] tracks found:', searchData.tracks?.items?.length);
       const track = searchData.tracks?.items?.[0];
       if (!track) return { ok: false, error: 'track_not_found' };
 
@@ -1961,10 +1963,12 @@ window._checkQuickLaunch = async function(text) {
           if (result.error !== 'NO_ACTIVE_DEVICE') break;
         }
         // Last resort: open track URI directly in Spotify app
+        // useUri=true tells the caller NOT to suppress the window immediately —
+        // Spotify needs to stay visible long enough to load and start the track.
         await window.jarvis.spotifyOpenUri(`spotify:track:${trackUri.replace('spotify:track:', '')}`).catch(() => {
           window.jarvis.openUrl(`spotify:track:${trackUri.replace('spotify:track:', '')}`);
         });
-        return { ok: true, trackName, artistName };
+        return { ok: true, trackName, artistName, useUri: true };
       }
 
       return result;
@@ -1975,8 +1979,13 @@ window._checkQuickLaunch = async function(text) {
     if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
 
     if (res && res.ok) {
-      // Suppress Spotify window so it plays in the background
-      window.jarvis.spotifySuppress().catch(() => {});
+      // Suppress Spotify window — but if we used URI fallback, wait 4s so the
+      // track has time to load before hiding Spotify.
+      if (res.useUri) {
+        setTimeout(() => window.jarvis.spotifySuppress().catch(() => {}), 4000);
+      } else {
+        window.jarvis.spotifySuppress().catch(() => {});
+      }
       const doneText = res.trackName
         ? `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`
         : `🎵 Playing **${query}** on Spotify.`;
@@ -1988,6 +1997,8 @@ window._checkQuickLaunch = async function(text) {
       let reply;
       if (errMsg === 'not_connected' || errMsg === 'ipc_failed') {
         reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
+      } else if (errMsg === 'token_expired') {
+        reply = '🎵 Spotify session expired. Go to **Connectors → Spotify**, disconnect, then reconnect.';
       } else if (errMsg.includes('Premium') || errMsg === 'PREMIUM_REQUIRED') {
         reply = '🎵 Spotify playback requires a **Premium** account.';
       } else if (errMsg === 'track_not_found') {

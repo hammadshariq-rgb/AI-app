@@ -2736,14 +2736,17 @@ async function playOnSpotifyTimed(query, timeoutMs = 8000) {
 // 1. Get token (renderer does all Spotify fetch() calls directly)
 ipcMain.handle('jarvis:spotifyGetToken', async () => {
   try {
-    // getSpotifyToken refreshes the token if expired, then returns it
-    const token = await connectors.getSpotifyToken();
-    if (token) return { ok: true, token };
-    return { ok: false, error: 'not_connected' };
+    // loadTokens properly decrypts the safeStorage-encrypted token.
+    // We return the raw stored token even if technically expired — Spotify
+    // accepts slightly-expired tokens; the renderer will get a 401 if truly
+    // expired and can show the right message.
+    const tokens = connectors.loadTokens('spotify');
+    const access = tokens?.access_token;
+    if (!access) return { ok: false, error: 'not_connected' };
+    console.log('[Spotify] token loaded, length:', access.length);
+    return { ok: true, token: access };
   } catch (e) {
-    // Fallback: read raw access token directly from store
-    const raw = store.get('connector.spotify.access_token');
-    if (raw) return { ok: true, token: raw };
+    console.error('[Spotify] token load error:', e.message);
     return { ok: false, error: e.message };
   }
 });
