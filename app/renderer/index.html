@@ -2921,26 +2921,32 @@
         return flips >= WAVE_FLIPS;
       }
 
-      // ── Clap: both palms rapidly approach then reach close proximity ─────────
-      // Uses a short 6-frame window so it fires within ~300ms at 20fps.
-      // Condition: distance drops sharply (velocity > threshold) AND ends close.
+      // ── Clap: intentional bring-together-from-far gesture ────────────────────
+      // Requirements (all must be true):
+      //  1. Hands end up VERY close (< CLAP_NEAR)
+      //  2. Hands started FAR apart — max distance in window > CLAP_FAR_START
+      //  3. Large total drop in distance (> CLAP_DROP)
+      //  4. Fast average approach speed (> CLAP_SPEED)
+      // This prevents false-positives when both hands are already nearby
+      // while doing cursor + gesture at the same time.
       const clapHist = [];
-      const CLAP_WIN = 8;
-      const CLAP_NEAR = 0.13;       // palms must be VERY close — prevents false-positives from normal gesture use
-      const CLAP_DROP = 0.18;       // large approach distance required — two hands must deliberately move together
-      const CLAP_SPEED = 0.022;     // faster approach required — slow drift toward each other won't trigger it
+      const CLAP_WIN       = 10;
+      const CLAP_NEAR      = 0.12;   // final distance must be very small
+      const CLAP_FAR_START = 0.40;   // hands must have been this far apart in the window
+      const CLAP_DROP      = 0.28;   // total distance drop required
+      const CLAP_SPEED     = 0.028;  // per-frame average speed required
       function checkClap(lms) {
         if (lms.length < 2) { clapHist.length = 0; return false; }
-        // Use index finger MCP (landmark 5) — more reliable centre of palm than wrist
         const d = Math.hypot(lms[0][5].x - lms[1][5].x, lms[0][5].y - lms[1][5].y);
         clapHist.push(d);
         if (clapHist.length > CLAP_WIN) clapHist.shift();
         if (clapHist.length < CLAP_WIN) return false;
-        const first = clapHist[0];
         const last  = clapHist[clapHist.length - 1];
-        const drop  = first - last;                          // positive = hands moved together
+        const maxD  = Math.max(...clapHist);   // peak distance seen in this window
+        const drop  = maxD - last;             // how far they came together from the peak
         const speed = drop / CLAP_WIN;
-        return last < CLAP_NEAR && drop > CLAP_DROP && speed > CLAP_SPEED;
+        // All four conditions must be true
+        return last < CLAP_NEAR && maxD > CLAP_FAR_START && drop > CLAP_DROP && speed > CLAP_SPEED;
       }
 
       // ── UI feedback ─────────────────────────────────────────────────────────

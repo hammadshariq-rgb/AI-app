@@ -2736,13 +2736,14 @@ async function playOnSpotifyTimed(query, timeoutMs = 8000) {
 // 1. Get token (renderer does all Spotify fetch() calls directly)
 ipcMain.handle('jarvis:spotifyGetToken', async () => {
   try {
-    const token = await connectors.getSpotifyToken ? connectors.getSpotifyToken() : null;
+    // getSpotifyToken refreshes the token if expired, then returns it
+    const token = await connectors.getSpotifyToken();
     if (token) return { ok: true, token };
-    // Fallback: read raw token from store
-    const raw = store.get('connector.spotify.access_token');
-    if (!raw) return { ok: false, error: 'not_connected' };
-    return { ok: true, token: raw };
+    return { ok: false, error: 'not_connected' };
   } catch (e) {
+    // Fallback: read raw access token directly from store
+    const raw = store.get('connector.spotify.access_token');
+    if (raw) return { ok: true, token: raw };
     return { ok: false, error: e.message };
   }
 });
