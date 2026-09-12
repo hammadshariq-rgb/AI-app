@@ -7660,3 +7660,223 @@ body.light-mode #voiceSpeedSlider::-webkit-slider-runnable-track,
 body.light-mode #voiceVolumeSlider::-webkit-slider-runnable-track {
   background: linear-gradient(to right, rgba(255,255,255,0.55), rgba(255,255,255,0.15));
 }
+
+/* ═══ CALENDAR OVERLAY ═══════════════════════════════════════════════════════ */
+#calendarOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease, background 0.35s ease;
+  -webkit-app-region: no-drag;
+}
+#calendarOverlay.calo-open {
+  opacity: 1;
+  pointer-events: all;
+  background: rgba(4, 8, 28, 0.88);
+  backdrop-filter: blur(32px) saturate(0.55);
+  -webkit-backdrop-filter: blur(32px) saturate(0.55);
+}
+
+/* ── Inner card ── */
+.calo-inner {
+  width: min(480px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(8, 16, 48, 0.72);
+  border: 1px solid rgba(0, 200, 255, 0.12);
+  border-radius: 20px;
+  padding: 28px 26px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 0 80px rgba(0, 180, 255, 0.08), 0 24px 60px rgba(0,0,0,0.6);
+  transform: translateY(24px) scale(0.97);
+  transition: transform 0.38s cubic-bezier(0.22,1,0.36,1), opacity 0.38s ease;
+  opacity: 0;
+  scrollbar-width: none;
+}
+.calo-inner::-webkit-scrollbar { display: none; }
+#calendarOverlay.calo-open .calo-inner {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* ── Header ── */
+.calo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.calo-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(0, 200, 255, 0.45);
+  margin-bottom: 4px;
+}
+.calo-month {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: rgba(200, 230, 255, 0.95);
+  letter-spacing: 0.5px;
+}
+.calo-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.calo-nav {
+  background: rgba(0, 200, 255, 0.06);
+  border: 1px solid rgba(0, 200, 255, 0.14);
+  color: rgba(0, 200, 255, 0.7);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.calo-nav:hover { background: rgba(0, 200, 255, 0.14); color: rgba(0, 200, 255, 1); }
+.calo-close {
+  background: rgba(255, 80, 80, 0.07);
+  border: 1px solid rgba(255, 80, 80, 0.18);
+  color: rgba(200, 200, 220, 0.55);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.calo-close:hover { background: rgba(255, 60, 60, 0.2); color: rgba(255, 120, 120, 0.9); }
+
+/* ── Weekday headers ── */
+.calo-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.calo-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(0, 200, 255, 0.38);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* ── Day grid ── */
+.calo-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 22px;
+}
+.calo-day {
+  aspect-ratio: 1;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: rgba(200, 225, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.calo-blank { cursor: default; }
+.calo-day:not(.calo-blank):hover {
+  background: rgba(0, 200, 255, 0.08);
+  border-color: rgba(0, 200, 255, 0.18);
+}
+.calo-today {
+  border-color: rgba(0, 200, 255, 0.35) !important;
+  color: rgba(0, 220, 255, 0.95) !important;
+  font-weight: 700;
+}
+.calo-selected {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.22), rgba(60, 120, 255, 0.18)) !important;
+  border-color: rgba(0, 200, 255, 0.5) !important;
+  color: #00c8ff !important;
+  font-weight: 700;
+}
+/* Dot for days with events */
+.calo-has-event::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(0, 200, 255, 0.6);
+}
+.calo-selected.calo-has-event::after { background: #00c8ff; }
+
+/* ── Divider ── */
+.calo-divider {
+  height: 1px;
+  background: rgba(0, 200, 255, 0.1);
+  margin-bottom: 18px;
+}
+
+/* ── Events ── */
+.calo-events-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: rgba(0, 200, 255, 0.4);
+  margin-bottom: 12px;
+}
+.calo-events { display: flex; flex-direction: column; gap: 10px; }
+.calo-event-empty {
+  font-size: 12px;
+  color: rgba(200, 225, 255, 0.28);
+  text-align: center;
+  padding: 16px 0;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+}
+.calo-event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(0, 200, 255, 0.04);
+  border-left: 2px solid rgba(0, 200, 255, 0.35);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+}
+.calo-event-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 200, 255, 0.7);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.calo-event-name {
+  font-size: 13px;
+  color: rgba(200, 230, 255, 0.92);
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+.calo-event-time {
+  font-size: 11px;
+  color: rgba(0, 200, 255, 0.55);
+  letter-spacing: 0.5px;
+  font-family: 'Share Tech Mono', monospace;
+}

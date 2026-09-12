@@ -2047,8 +2047,18 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
-  // ── Google Calendar: "what's on my calendar" / "show my schedule" ───────
-  if (/(?:what(?:'s|\s+is)\s+on\s+my\s+calendar|show\s+my\s+(?:calendar|schedule|events?)|my\s+(?:calendar|schedule|events?)\s+today|upcoming\s+events?)/i.test(t)) {
+  // ── Google Calendar: "show my calendar" → full overlay ───────────────────
+  if (/show\s+(?:me\s+)?(?:my\s+)?(?:calendar|schedule)|open\s+(?:my\s+)?calendar|my\s+calendar|calendar\s+view/i.test(t)) {
+    if (typeof window.showCalendarOverlay === 'function') {
+      window.showCalendarOverlay();
+      addMessage('assistant', '📅 Here's your calendar!');
+      window.jarvis.speak('Opening your calendar.');
+      return true;
+    }
+  }
+
+  // ── Google Calendar: "what's on my calendar" / "upcoming events" → card ──
+  if (/(?:what(?:'s|\s+is)\s+on\s+my\s+calendar|my\s+(?:schedule|events?)\s+today|upcoming\s+events?)/i.test(t)) {
     addMessage('assistant', '📅 Checking your calendar…');
     (async () => {
       const res = await window.jarvis.calendarList();
@@ -3382,7 +3392,13 @@ function showCard(card) {
       const timeStr = e.allDay ? 'All day' : start.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
       return `<div class="cal-event"><div class="cal-title">${esc(e.title)}</div><div class="cal-time">${esc(dateStr)} · ${esc(timeStr)}</div></div>`;
     }).join('');
-    cardContent.innerHTML = `<div class="card-calendar"><div class="cal-header">📅 UPCOMING EVENTS</div>${evRows || '<div class="cal-empty">No events found.</div>'}</div>`;
+    cardContent.innerHTML = `<div class="card-calendar">
+      <div class="cal-header" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📅 UPCOMING EVENTS</span>
+        <button onclick="window.showCalendarOverlay&&window.showCalendarOverlay()" title="Expand calendar" style="background:none;border:none;color:rgba(0,200,255,0.5);font-size:14px;cursor:pointer;padding:0 2px;line-height:1;transition:color 0.15s" onmouseover="this.style.color='rgba(0,200,255,0.95)'" onmouseout="this.style.color='rgba(0,200,255,0.5)'">⤢</button>
+      </div>
+      ${evRows || '<div class="cal-empty">No events found.</div>'}
+    </div>`;
 
   } else if (card.type === 'answer' || card.type === 'wiki') {
     // ── Magic cursor capture result — academic answers, identifications, etc. ──
@@ -3863,6 +3879,9 @@ async function sendToJarvis(text) {
   chat.appendChild(thinkingRow);
   chat.scrollTop = chat.scrollHeight;
 
+  // Capture HUD mode BEFORE the async chat call — _maybeForwardToHud clears it afterwards
+  const _wasHudRequest = !!window._hudVoiceActive;
+
   let res;
   try {
     res = await window.jarvis.chat(text, history.slice(-30), attachments);
@@ -4075,10 +4094,10 @@ async function sendToJarvis(text) {
     }
   }
 
-  // Show card if returned — do NOT hide an existing card (e.g. Wikipedia card
-  // already shown from quick-launch background fetch) just because the AI
-  // response didn't include one.
-  if (res.card) showCard(res.card);
+  // Show card if returned — but NOT when this request came via Ctrl+Shift+C
+  // (HUD mode): in that case the card should appear only in the floating HUD
+  // overlay on top of the user's other app, not here in the main Callisto window.
+  if (res.card && !_wasHudRequest) showCard(res.card);
 
   // Sports fallback: open Google in the in-app browser panel
   if (res.browserPanelUrl && typeof openBrowserPanel === 'function') {

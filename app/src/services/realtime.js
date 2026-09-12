@@ -1236,7 +1236,7 @@ async function getMovieCard(query) {
   try {
     // Strip filler words to get the movie title
     const title = query
-      .replace(/when (is|does|will)?|coming out|release date|out|movie|film|sequel|new|latest|upcoming|show me|tell me about|about the|the new|trailer/gi, '')
+      .replace(/\b(when (is|does|will)?|coming out|release date|out|movie|film|sequel|new|latest|upcoming|show me|tell me about|about the|the new|trailer|what is|what was|what's|about|review of|synopsis of|story of|ending of|who made|who wrote|who starred in|who directed|who acted in|the|a|an)\b/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
     if (!title || title.length < 2) return null;
@@ -1400,8 +1400,15 @@ async function _fetchCardDataInner(query) {
     return await googleSportsScore(query);
   }
 
-  // Movie queries — show movie info card
+  // Movie queries — show movie info card (explicit keywords)
   if (/\b(movie|film|cinema|sequel|prequel|release date|coming out|when (is|does|will|does)|box office|cast|director|plot|trailer|watch)\b/i.test(q)) {
+    const card = await getMovieCard(query);
+    if (card) return card;
+  }
+
+  // Movie queries — implicit: "tell me about fight club", "what is interstellar", bare title
+  // Try OMDB/TMDB for any non-person, non-sports, non-stock query that could be a movie title
+  if (/\b(tell me about|what is|what was|about the|review of|synopsis of|story of|ending of|who made|who wrote|who starred)\b/i.test(q) && !/\b(person|people|artist|band|group|politician|president|pm|ceo|founder|scientist|inventor|animal|country|city|food|dish|flag|battle|war|revolution)\b/i.test(q)) {
     const card = await getMovieCard(query);
     if (card) return card;
   }
