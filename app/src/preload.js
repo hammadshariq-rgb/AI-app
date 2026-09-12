@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   deleteContact: (id) => ipcRenderer.invoke('contacts:delete', id),
   callContact: (phone, platform) => ipcRenderer.invoke('contacts:call', { phone, platform }),
   openUrl: (url) => ipcRenderer.invoke('jarvis:openUrl', url),
+  openApp: (name) => ipcRenderer.invoke('jarvis:openApp', name),
   openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
   // Forward a quick-launch result to the HUD overlay (Ctrl+Shift+C mode)
   hudForward: (text, card) => ipcRenderer.invoke('jarvis:hudForward', { text, card }),

@@ -1951,11 +1951,22 @@ ipcMain.handle('jarvis:hudForward', (_e, { text, card }) => {
   sendToHud('hud:card', cardPayload);
 });
 
-const ALLOWED_URL_SCHEMES = /^(https?|mailto|whatsapp|tg|viber|facetime|tel|spotify|instagram):/i;
+const ALLOWED_URL_SCHEMES = /^(https?|mailto|whatsapp|tg|viber|facetime|tel|spotify|instagram|discord|sgnl|skype|snapchat|slack|zoommtg|line|msteams):/i;
 ipcMain.handle('jarvis:openUrl', (_e, url) => {
   if (typeof url !== 'string') return;
   if (/^https?:/i.test(url)) { commands.openInChrome(url); return; }
   if (ALLOWED_URL_SCHEMES.test(url)) shell.openExternal(url);
+});
+
+// Open a named app (Notes, Calculator, Chrome, etc.) via launchApp helper
+ipcMain.handle('jarvis:openApp', async (_e, appName) => {
+  if (typeof appName !== 'string' || !appName) return { ok: false };
+  try {
+    const ok = await commands.run('open_app', appName.slice(0, 64)).then(r => r?.ok !== false);
+    return { ok };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 // In-app browser — opens a floating BrowserWindow inside Callisto (no system browser)

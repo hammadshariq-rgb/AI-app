@@ -1998,21 +1998,41 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
-  // ── WhatsApp: must say "open whatsapp" explicitly ─────────────────────────
-  if (/^open\s+whatsapp\s*$/i.test(t) || /^launch\s+whatsapp\s*$/i.test(t)) {
-    addMessage('assistant', `💬 Opening WhatsApp…`);
-    window.jarvis.speak('Opening WhatsApp.');
-    // Try the native app; if WhatsApp isn't installed the OS handles it gracefully
-    window.jarvis.openUrl('whatsapp://');
-    return true;
-  }
-
-  // ── WhatsApp web: explicit web request ────────────────────────────────────
+  // ── WhatsApp web: explicit web request (check before native open) ───────────
   if (/whatsapp\s+web/i.test(t) || /open\s+whatsapp\s+on\s+(the\s+)?web/i.test(t)) {
     addMessage('assistant', `💬 Opening WhatsApp Web…`);
     window.jarvis.speak('Opening WhatsApp Web.');
     window.jarvis.openUrl('https://web.whatsapp.com');
     return true;
+  }
+
+  // ── General app opener: "open/launch/start [app]" ────────────────────────
+  // Catches WhatsApp, Telegram, Discord, Spotify, Notes, Calculator, etc.
+  // Flexible: "open whatsapp", "open up discord", "can you open telegram", etc.
+  const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|calendar|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
+  const appOpenM = t.match(APP_OPEN_RE) || t.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i);
+  if (appOpenM) {
+    const appName = (appOpenM[1] || '').trim().toLowerCase();
+    if (!appName || appName.length < 2) { /* too short, let AI handle */ }
+    else {
+      // Map to URI schemes / known names
+      const APP_URIS = {
+        whatsapp: 'whatsapp:', telegram: 'tg:', discord: 'discord:', signal: 'sgnl:',
+        skype: 'skype:', snapchat: 'snapchat:', slack: 'slack:', zoom: 'zoommtg:',
+        facetime: 'facetime:', spotify: 'spotify:', messenger: 'https://www.messenger.com/',
+      };
+      const uri = APP_URIS[appName];
+      const label = appName.charAt(0).toUpperCase() + appName.slice(1);
+      addMessage('assistant', `📱 Opening **${label}**…`);
+      window.jarvis.speak(`Opening ${label}.`);
+      if (uri) {
+        window.jarvis.openUrl(uri);
+      } else {
+        // For system apps (Notes, Calculator, etc.) delegate to main process launchApp
+        window.jarvis.openApp(label);
+      }
+      return true;
+    }
   }
 
   // ── Google search: "search X on google" / "google X" ────────────────────
