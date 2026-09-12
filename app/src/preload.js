@@ -102,8 +102,13 @@ contextBridge.exposeInMainWorld('jarvis', {
   openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),
   openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
 
-  // Spotify direct play
-  spotifyPlay: (query) => ipcRenderer.invoke('spotify:play', { query }),
+  // Spotify: renderer-side flow (fetch calls happen in renderer, main just provides token + OS actions)
+  spotifyGetToken:  ()    => ipcRenderer.invoke('jarvis:spotifyGetToken'),
+  spotifyLaunch:    ()    => ipcRenderer.invoke('jarvis:spotifyLaunch'),
+  spotifySuppress:  ()    => ipcRenderer.invoke('jarvis:spotifySuppress'),
+  spotifyOpenUri:   (uri) => ipcRenderer.invoke('jarvis:spotifyOpenUri', uri),
+  // Legacy combined handler (kept for old builds still calling spotify:play)
+  spotifyPlay: (query) => ipcRenderer.invoke('jarvis:spotifyPlay', { query }),
 
   // TV Cast (Chromecast)
   tvDiscover:     ()                  => ipcRenderer.invoke('tv:discover'),

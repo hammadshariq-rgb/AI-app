@@ -837,7 +837,7 @@ module.exports = {
   saveSpotifyTokens, saveCalendarTokens,
   saveYouTubeTokens, saveInstagramTokens, saveTikTokTokens, saveShopifyCredentials,
   saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials,
-  playOnSpotify,
+  playOnSpotify, getSpotifyToken,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,

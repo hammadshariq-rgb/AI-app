@@ -2732,38 +2732,66 @@ async function playOnSpotifyTimed(query, timeoutMs = 8000) {
   ]);
 }
 
-ipcMain.handle('spotify:play', async (_e, { query }) => {
-  // Hard outer timeout: 35s — Spotify Store version can take 15s to register as a device
+// ── Spotify IPC — split into small handlers so renderer controls the flow ──────
+// 1. Get token (renderer does all Spotify fetch() calls directly)
+ipcMain.handle('jarvis:spotifyGetToken', async () => {
+  try {
+    const token = await connectors.getSpotifyToken ? connectors.getSpotifyToken() : null;
+    if (token) return { ok: true, token };
+    // Fallback: read raw token from store
+    const raw = store.get('connector.spotify.access_token');
+    if (!raw) return { ok: false, error: 'not_connected' };
+    return { ok: true, token: raw };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// 2. Launch Spotify app (renderer calls this when NO_ACTIVE_DEVICE)
+ipcMain.handle('jarvis:spotifyLaunch', () => {
+  launchSpotifyHidden();
+  return { ok: true };
+});
+
+// 3. Suppress Spotify window after playback starts
+ipcMain.handle('jarvis:spotifySuppress', () => {
+  setTimeout(() => suppressSpotifyWindow(), 300);
+  setTimeout(() => suppressSpotifyWindow(), 1200);
+  setTimeout(() => suppressSpotifyWindow(), 2500);
+  return { ok: true };
+});
+
+// 4. Open a track URI directly in the Spotify app (last-resort fallback)
+ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
+  const { shell } = require('electron');
+  shell.openExternal(uri);
+  setTimeout(() => suppressSpotifyWindow(), 1000);
+  setTimeout(() => suppressSpotifyWindow(), 3000);
+  return { ok: true };
+});
+
+// Legacy combined handler — kept for backwards compatibility but delegates to new flow
+ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
   const TOTAL_TIMEOUT = 35000;
   const deadline = Date.now() + TOTAL_TIMEOUT;
   const timeLeft = () => Math.max(0, deadline - Date.now());
-
   try {
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
-
     let result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
     if (result.ok) {
-      // Spotify app pops up when playback starts — minimize it and refocus Callisto
       setTimeout(() => suppressSpotifyWindow(), 300);
       setTimeout(() => suppressSpotifyWindow(), 1200);
       setTimeout(() => suppressSpotifyWindow(), 2500);
       return result;
     }
-
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify — DO NOT suppress its window yet; it needs to be visible
-      // long enough to register as a Connect device before we can play via API.
       launchSpotifyHidden();
-
-      // Wait for Spotify to fully start and register as a device, then retry
-      // Use longer delays: Spotify Store version can take 10–15s to register
       for (const delay of [4000, 5000, 6000]) {
         if (timeLeft() < 2000) break;
         await new Promise(r => setTimeout(r, delay));
         result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
         if (result.ok) {
-          // NOW suppress — Spotify is playing, window can be hidden
           setTimeout(() => suppressSpotifyWindow(), 400);
           setTimeout(() => suppressSpotifyWindow(), 1500);
           setTimeout(() => suppressSpotifyWindow(), 3000);
@@ -2771,8 +2799,6 @@ ipcMain.handle('spotify:play', async (_e, { query }) => {
         }
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
-
-      // Last resort: open track URI directly (plays in Spotify app)
       if (result.trackUri) {
         const { shell } = require('electron');
         shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
