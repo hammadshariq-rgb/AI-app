@@ -1896,94 +1896,16 @@ window._checkQuickLaunch = async function(text) {
     const query = spotifyM[1].trim();
     const playingMsg = addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
     window.jarvis.speak(`Playing ${query} on Spotify.`);
-
-    // Renderer-side Spotify flow — all fetch() calls happen here to avoid IPC handler issues.
-    // Main process only provides: token, OS-level launch, and window suppression.
-    const _spotifyPlay = async () => {
-      // 1. Get token via dedicated small IPC (much simpler than the combined handler)
-      const tokenRes = await window.jarvis.spotifyGetToken().catch(() => ({ ok: false, error: 'ipc_failed' }));
-      console.log('[Spotify] token result:', JSON.stringify(tokenRes));
-      if (!tokenRes.ok) return { ok: false, error: tokenRes.error || 'not_connected' };
-      const token = tokenRes.token;
-
-      // 2. Search Spotify for the track
-      let searchQuery = query.replace(/^play\s+/i, '').trim();
-      const byMatch = searchQuery.match(/^(.+?)\s+by\s+(.+)$/i);
-      if (byMatch) searchQuery = `track:${byMatch[1].trim()} artist:${byMatch[2].trim()}`;
-
-      const searchRes = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=track&limit=1`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      console.log('[Spotify] search status:', searchRes.status);
-      if (searchRes.status === 401) return { ok: false, error: 'token_expired' };
-      const searchData = await searchRes.json();
-      console.log('[Spotify] tracks found:', searchData.tracks?.items?.length);
-      const track = searchData.tracks?.items?.[0];
-      if (!track) return { ok: false, error: 'track_not_found' };
-
-      const trackName = track.name;
-      const artistName = track.artists?.[0]?.name || '';
-      const trackUri = track.uri;
-
-      // Helper: try playback on current devices
-      const tryPlay = async () => {
-        const devRes = await fetch('https://api.spotify.com/v1/me/player/devices',
-          { headers: { Authorization: `Bearer ${token}` } });
-        const devData = await devRes.json();
-        console.log('[Spotify] devices:', JSON.stringify(devData.devices?.map(d => ({ name: d.name, active: d.is_active, type: d.type }))));
-        const devices = devData.devices || [];
-        const device = devices.find(d => d.is_active) || devices[0];
-        if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri, trackName, artistName };
-
-        const playRes = await fetch('https://api.spotify.com/v1/me/player/play', {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uris: [trackUri], device_id: device.id }),
-        });
-        console.log('[Spotify] play status:', playRes.status);
-        if (playRes.status === 204 || playRes.status === 200) {
-          return { ok: true, trackName, artistName };
-        }
-        const errBody = await playRes.json().catch(() => ({}));
-        return { ok: false, error: errBody?.error?.reason || `http_${playRes.status}`, trackUri, trackName, artistName };
-      };
-
-      // 3. First attempt
-      let result = await tryPlay();
-      if (result.ok) return result;
-
-      // 4. NO_ACTIVE_DEVICE — launch Spotify and retry
-      if (result.error === 'NO_ACTIVE_DEVICE') {
-        await window.jarvis.spotifyLaunch().catch(() => {});
-        for (const waitMs of [4000, 5000, 6000]) {
-          await new Promise(r => setTimeout(r, waitMs));
-          result = await tryPlay();
-          if (result.ok) return result;
-          if (result.error !== 'NO_ACTIVE_DEVICE') break;
-        }
-        // Last resort: open track URI directly in Spotify app
-        // useUri=true tells the caller NOT to suppress the window immediately —
-        // Spotify needs to stay visible long enough to load and start the track.
-        await window.jarvis.spotifyOpenUri(`spotify:track:${trackUri.replace('spotify:track:', '')}`).catch(() => {
-          window.jarvis.openUrl(`spotify:track:${trackUri.replace('spotify:track:', '')}`);
-        });
-        return { ok: true, trackName, artistName, useUri: true };
-      }
-
-      return result;
-    };
-
-    const res = await _spotifyPlay().catch(e => ({ ok: false, error: e?.message || 'unknown' }));
-    console.log('[Spotify] final result:', JSON.stringify(res));
+    // Use the main-process combined handler (jarvis:spotifyPlay) — it uses
+    // connectors.playOnSpotify() which properly decrypts tokens via safeStorage,
+    // launches Spotify if needed, retries with delays, and falls back to URI.
+    const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'ipc_error' }));
+    console.log('[Spotify] result:', JSON.stringify(res));
     if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
-
     if (res && res.ok) {
-      // Suppress Spotify window — but if we used URI fallback, wait 4s so the
-      // track has time to load before hiding Spotify.
-      if (res.useUri) {
-        setTimeout(() => window.jarvis.spotifySuppress().catch(() => {}), 4000);
-      } else {
+      // Suppress Spotify window — when URI fallback was used, main.js already
+      // schedules suppression with proper delay; only suppress here for direct API play.
+      if (!res.useUri) {
         window.jarvis.spotifySuppress().catch(() => {});
       }
       const doneText = res.trackName
@@ -1995,19 +1917,17 @@ window._checkQuickLaunch = async function(text) {
     } else {
       const errMsg = res?.error || '';
       let reply;
-      if (errMsg === 'not_connected' || errMsg === 'ipc_failed') {
+      if (errMsg === 'Spotify not connected' || errMsg === 'not_connected') {
         reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
-      } else if (errMsg === 'token_expired') {
-        reply = '🎵 Spotify session expired. Go to **Connectors → Spotify**, disconnect, then reconnect.';
       } else if (errMsg.includes('Premium') || errMsg === 'PREMIUM_REQUIRED') {
         reply = '🎵 Spotify playback requires a **Premium** account.';
       } else if (errMsg === 'track_not_found') {
         reply = `🎵 Couldn't find **${query}** on Spotify. Try a different song name.`;
       } else if (errMsg === 'NO_ACTIVE_DEVICE') {
-        reply = `🎵 Couldn't connect to Spotify. Open the **Spotify app** first, then try again.`;
+        reply = `🎵 Spotify couldn't find a device. Open **Spotify** first, then try again.`;
         window.jarvis.openUrl('spotify:');
       } else {
-        reply = `🎵 Spotify error: ${errMsg.slice(0, 80)}. Opening Spotify…`;
+        reply = `🎵 Spotify error: ${errMsg.slice(0, 80)}`;
         window.jarvis.openUrl('spotify:');
       }
       addMessage('assistant', reply);
@@ -3867,7 +3787,12 @@ async function sendToJarvis(text) {
 
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
-  // Check HiggsField video generation
+  // Check Google Flow video creation (must run before HiggsField — takes "make me a video about X")
+  if (typeof window._checkGoogleFlow === 'function') {
+    const handled = await window._checkGoogleFlow(text);
+    if (handled) return;
+  }
+  // Check HiggsField video generation (image-based, animate, effects)
   if (typeof window._checkHiggsfield === 'function') {
     const handled = await window._checkHiggsfield(text, attachments);
     if (handled) return;
@@ -4231,6 +4156,34 @@ window.jarvis.onSentenceAudio(({ audio }) => {
       addMessage('assistant', `HiggsField failed: ${e.message}`);
     }
     setState('idle');
+    return true;
+  };
+})();
+
+// ── Google Flow: AI Video via flow.google.com ────────────────────────────────
+(function() {
+  const googleFlowLink = document.getElementById('googleFlowLink');
+  googleFlowLink?.addEventListener('click', e => {
+    e.preventDefault();
+    window.jarvis.openInAppBrowser('https://flow.google.com/');
+  });
+
+  // Keywords that trigger Google Flow (must NOT overlap with HiggsField animate/effects)
+  // HiggsField: animate, make a video, generate a video, create a video, higgsfield, effects…
+  // Google Flow: "make me a video", "make me a video about", "make me a video of"
+  const FLOW_RE = /\b(make me a video|make me video|create me a video|make a video (about|of|on)|generate a video (about|of|on)|i want a video (about|of))\b/i;
+
+  window._checkGoogleFlow = async function(text) {
+    if (!FLOW_RE.test(text)) return false;
+    // Extract the subject from the prompt
+    const subject = text
+      .replace(/\b(make me a video|make me video|create me a video|make a video|generate a video|i want a video)\s*(about|of|on)?\s*/i, '')
+      .trim() || text.trim();
+    const flowUrl = `https://flow.google.com/?prompt=${encodeURIComponent(subject)}`;
+    addMessage('assistant', `🎥 Opening **Google Flow** to create a video about: *${subject}*`);
+    window.jarvis.speak(`Opening Google Flow to create your video.`);
+    window.jarvis.openInAppBrowser(flowUrl);
+    _maybeForwardToHud(`🎥 Opening Google Flow for: ${subject}`, null);
     return true;
   };
 })();

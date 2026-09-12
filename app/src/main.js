@@ -2806,9 +2806,10 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
       if (result.trackUri) {
         const { shell } = require('electron');
         shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
-        setTimeout(() => suppressSpotifyWindow(), 1000);
-        setTimeout(() => suppressSpotifyWindow(), 3000);
-        return { ok: true, trackName: result.trackName, artistName: result.artistName };
+        // Delay suppression so Spotify has time to load the track before being hidden
+        setTimeout(() => suppressSpotifyWindow(), 4500);
+        setTimeout(() => suppressSpotifyWindow(), 7000);
+        return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
       }
     }
     return result;
