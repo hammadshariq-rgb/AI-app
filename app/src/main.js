@@ -2776,44 +2776,68 @@ ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
 
 // Legacy combined handler — kept for backwards compatibility but delegates to new flow
 ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
-  const TOTAL_TIMEOUT = 35000;
+  const TOTAL_TIMEOUT = 55000; // 55s — enough for Spotify to launch + register + play
   const deadline = Date.now() + TOTAL_TIMEOUT;
   const timeLeft = () => Math.max(0, deadline - Date.now());
+  const { exec } = require('child_process');
   try {
-    const spotifyConnected = !!(store.get('connector.spotify.access_token'));
+    // Use loadTokens() to get the decrypted token — store.get() returns raw encrypted bytes
+    const tokens = connectors.loadTokens('spotify');
+    const spotifyConnected = !!(tokens?.access_token);
     if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
-    let result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
+
+    // First attempt (Spotify already open)
+    let result = await playOnSpotifyTimed(query, Math.min(10000, timeLeft()));
+    console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
     if (result.ok) {
       setTimeout(() => suppressSpotifyWindow(), 300);
       setTimeout(() => suppressSpotifyWindow(), 1200);
       setTimeout(() => suppressSpotifyWindow(), 2500);
       return result;
     }
+
     if (result.error === 'NO_ACTIVE_DEVICE') {
+      // Launch Spotify and wait for it to register as a Spotify Connect device.
+      // Mac needs ~10s; Windows /minimized is faster (~5s).
       launchSpotifyHidden();
-      for (const delay of [4000, 5000, 6000]) {
-        if (timeLeft() < 2000) break;
+      const retryDelays = process.platform === 'darwin'
+        ? [6000, 7000, 8000, 8000]   // Mac: longer — open -a Spotify takes more time
+        : [5000, 6000, 7000];         // Windows: Spotify.exe /minimized is faster
+
+      for (const delay of retryDelays) {
+        if (timeLeft() < 3000) break;
         await new Promise(r => setTimeout(r, delay));
-        result = await playOnSpotifyTimed(query, Math.min(8000, timeLeft()));
+        result = await playOnSpotifyTimed(query, Math.min(10000, timeLeft()));
+        console.log('[Spotify] retry after', delay, 'ms:', result.ok ? 'ok' : result.error);
         if (result.ok) {
-          setTimeout(() => suppressSpotifyWindow(), 400);
-          setTimeout(() => suppressSpotifyWindow(), 1500);
-          setTimeout(() => suppressSpotifyWindow(), 3000);
+          setTimeout(() => suppressSpotifyWindow(), 500);
+          setTimeout(() => suppressSpotifyWindow(), 1800);
+          setTimeout(() => suppressSpotifyWindow(), 3500);
           return result;
         }
         if (result.error !== 'NO_ACTIVE_DEVICE') break;
       }
-      if (result.trackUri) {
-        const { shell } = require('electron');
-        shell.openExternal(`spotify:track:${result.trackUri.replace('spotify:track:', '')}`);
-        // Delay suppression so Spotify has time to load the track before being hidden
-        setTimeout(() => suppressSpotifyWindow(), 4500);
-        setTimeout(() => suppressSpotifyWindow(), 7000);
+
+      // Last resort: open track URI directly. This brings Spotify to front but
+      // at least the track loads. User won't need to search — just press play.
+      const trackId = (result.trackUri || '').replace('spotify:track:', '');
+      if (trackId) {
+        if (process.platform === 'darwin') {
+          // On Mac, use AppleScript to open URI — more reliable than shell.openExternal
+          exec(`osascript -e 'tell application "Spotify" to play track "spotify:track:${trackId}"'`, () => {});
+        } else {
+          const { shell } = require('electron');
+          shell.openExternal(`spotify:track:${trackId}`);
+        }
+        // Suppress after track has had time to load
+        setTimeout(() => suppressSpotifyWindow(), 5000);
+        setTimeout(() => suppressSpotifyWindow(), 8000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
       }
     }
     return result;
   } catch (err) {
+    console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
     return { ok: false, error: err.message };
   }
 });

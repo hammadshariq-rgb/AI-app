@@ -133,25 +133,40 @@ async function playOnSpotify(query) {
     });
     const devData = await devRes.json();
     const devices = devData.devices || [];
+    // Prefer active device, fall back to any device
     const device = devices.find(d => d.is_active) || devices[0];
 
-    // If no device at all, return early with trackUri so caller can open it after launching Spotify
+    // If no device at all, return early with trackUri so caller can launch Spotify and retry
     if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri: track.uri, trackName, artistName };
 
-    // 3. Start playback
-    const playBody = { uris: [track.uri], device_id: device.id };
+    // 3. If device exists but isn't active, transfer playback to it first.
+    //    Spotify requires an explicit transfer before it will accept play commands
+    //    on a device that isn't currently the active player.
+    if (!device.is_active) {
+      try {
+        await fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_ids: [device.id], play: false }),
+        });
+        // Give Spotify a moment to complete the transfer before sending play
+        await new Promise(r => setTimeout(r, 1200));
+      } catch (_) { /* transfer failed — try play anyway */ }
+    }
 
+    // 4. Start playback
     const playRes = await fetch('https://api.spotify.com/v1/me/player/play', {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(playBody),
+      body: JSON.stringify({ uris: [track.uri], device_id: device.id }),
     });
 
     if (playRes.status === 204 || playRes.status === 200) {
       return { ok: true, trackName, artistName };
     }
-    // 403 = no Premium, 404 = no active device — include trackUri so caller can open it directly
+    // 403 = no Premium, 404 = device gone — include trackUri so caller can open it directly
     const errBody = await playRes.json().catch(() => ({}));
+    console.log('[Spotify] play failed:', playRes.status, JSON.stringify(errBody));
     return { ok: false, error: errBody?.error?.reason || `status_${playRes.status}`, trackUri: track.uri, trackName, artistName };
   } catch (err) {
     return { ok: false, error: err.message };
