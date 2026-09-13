@@ -2849,10 +2849,11 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
 
     if (result.ok) {
-      // Play succeeded — now suppress Spotify (AFTER play, never before)
+      // Play succeeded — suppress Spotify window (AFTER play, never before)
       suppressSpotifyWindow();
-      setTimeout(() => suppressSpotifyWindow(), 800);
-      setTimeout(() => suppressSpotifyWindow(), 2000);
+      setTimeout(() => suppressSpotifyWindow(), 500);
+      setTimeout(() => suppressSpotifyWindow(), 1200);
+      setTimeout(() => suppressSpotifyWindow(), 2200);
       setTimeout(() => {
         if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
       }, 5000);
@@ -2864,16 +2865,32 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
       console.log('[Spotify] No device — launching Spotify and polling for registration…');
       launchSpotifyHidden();
 
+      // Start a rapid in-process focus lock the instant Spotify launches.
+      // overlayWindow.focus() is synchronous (no subprocess) so it fires every 120ms
+      // and recaptures focus before the user notices Spotify stole it.
+      let focusLockActive = true;
+      const focusLockInterval = setInterval(() => {
+        if (!focusLockActive) return clearInterval(focusLockInterval);
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+          overlayWindow.focus();
+        }
+      }, 120);
+      // Safety: always clear after 30s max
+      const focusLockSafety = setTimeout(() => { focusLockActive = false; }, 30000);
+
       const devices = await waitForSpotifyDevice(28000); // up to 28s
       if (devices.length > 0) {
-        console.log('[Spotify] Device appeared after launch, waiting 2.5s for it to be fully ready…');
+        console.log('[Spotify] Device appeared, waiting 2.5s for player to be fully ready…');
         await new Promise(r => setTimeout(r, 2500));
         console.log('[Spotify] Retrying play…');
         result = await playOnSpotifyTimed(query, 10000);
         console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
 
         if (result.ok) {
-          // Play succeeded — suppress AFTER (minimizing before kills device registration)
+          // Play succeeded — stop focus lock and suppress Spotify window
+          focusLockActive = false;
+          clearTimeout(focusLockSafety);
           suppressSpotifyWindow();
           setTimeout(() => suppressSpotifyWindow(), 800);
           setTimeout(() => suppressSpotifyWindow(), 2000);
@@ -2886,7 +2903,11 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
 
-      // Last resort URI fallback
+      // Stop focus lock before URI fallback (Spotify needs focus to receive Space key)
+      focusLockActive = false;
+      clearTimeout(focusLockSafety);
+
+      // Last resort URI fallback — open track URI, then send Space to auto-play
       const trackId = (result.trackUri || '').replace('spotify:track:', '');
       if (trackId) {
         if (process.platform === 'darwin') {
@@ -2894,19 +2915,20 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         } else {
           const { shell } = require('electron');
           shell.openExternal(`spotify:track:${trackId}`);
-          // Windows: URI scheme loads the track but doesn't auto-play — send Space after Spotify loads
+          // Send Space to Spotify after it loads the track (~2.5s) to force auto-play
           setTimeout(() => {
             exec(
-              `powershell -WindowStyle Hidden -Command "$wsh = New-Object -ComObject WScript.Shell; if ($wsh.AppActivate('Spotify')) { Start-Sleep -Milliseconds 700; $wsh.SendKeys(' ') }"`,
-              (err) => { console.log('[Spotify] Space key sent to Spotify:', err ? err.message : 'ok'); }
+              `powershell -WindowStyle Hidden -Command "$wsh = New-Object -ComObject WScript.Shell; if ($wsh.AppActivate('Spotify')) { Start-Sleep -Milliseconds 600; $wsh.SendKeys(' ') }"`,
+              (err) => { console.log('[Spotify] Space→play sent:', err ? err.message : 'ok'); }
             );
           }, 2500);
+          // After auto-play triggered, minimize Spotify back
+          setTimeout(() => suppressSpotifyWindow(), 4500);
+          setTimeout(() => suppressSpotifyWindow(), 6500);
         }
-        setTimeout(() => suppressSpotifyWindow(), 4500);
-        setTimeout(() => suppressSpotifyWindow(), 7000);
         setTimeout(() => {
           if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-        }, 10000);
+        }, 8000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
       }
     }
