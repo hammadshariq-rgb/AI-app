@@ -2903,11 +2903,10 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
 
-      // Stop focus lock before URI fallback (Spotify needs focus to receive Space key)
+      // Last resort URI fallback — open track URI, then trigger play via WM_APPCOMMAND
       focusLockActive = false;
       clearTimeout(focusLockSafety);
 
-      // Last resort URI fallback — open track URI, then send Space to auto-play
       const trackId = (result.trackUri || '').replace('spotify:track:', '');
       if (trackId) {
         if (process.platform === 'darwin') {
@@ -2915,16 +2914,35 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         } else {
           const { shell } = require('electron');
           shell.openExternal(`spotify:track:${trackId}`);
-          // Send Space to Spotify after it loads the track (~2.5s) to force auto-play
-          setTimeout(() => {
+          // WM_APPCOMMAND MEDIA_PLAY (46<<16 = 3014656) sent directly to Spotify's window.
+          // Unlike SendKeys this requires NO focus — works even if Spotify is minimized.
+          const sendMediaPlay = () => {
             exec(
-              `powershell -WindowStyle Hidden -Command "$wsh = New-Object -ComObject WScript.Shell; if ($wsh.AppActivate('Spotify')) { Start-Sleep -Milliseconds 600; $wsh.SendKeys(' ') }"`,
-              (err) => { console.log('[Spotify] Space→play sent:', err ? err.message : 'ok'); }
+              `powershell -WindowStyle Hidden -Command "` +
+              `$p = Get-Process spotify -ErrorAction SilentlyContinue | Select-Object -First 1; ` +
+              `if ($p -and $p.MainWindowHandle -ne 0) { ` +
+              `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }'; ` +
+              `  [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656) ` +
+              `}"`,
+              (err, stdout, stderr) => { console.log('[Spotify] MEDIA_PLAY sent:', err ? err.message : 'ok'); }
             );
-          }, 2500);
-          // After auto-play triggered, minimize Spotify back
-          setTimeout(() => suppressSpotifyWindow(), 4500);
-          setTimeout(() => suppressSpotifyWindow(), 6500);
+          };
+          // Send at 2s, 3.5s, 5s — multiple attempts in case Spotify isn't loaded yet
+          setTimeout(sendMediaPlay, 2000);
+          setTimeout(sendMediaPlay, 3500);
+          setTimeout(sendMediaPlay, 5000);
+          // Keep focus on Callisto the whole time (MEDIA_PLAY needs no focus)
+          const uriFocusLock = setInterval(() => {
+            if (overlayWindow && !overlayWindow.isDestroyed()) {
+              overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+              overlayWindow.focus();
+            }
+          }, 120);
+          setTimeout(() => {
+            clearInterval(uriFocusLock);
+            suppressSpotifyWindow();
+            setTimeout(() => suppressSpotifyWindow(), 800);
+          }, 6000);
         }
         setTimeout(() => {
           if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
