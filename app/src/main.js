@@ -2881,14 +2881,18 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
 
       const devices = await waitForSpotifyDevice(28000); // up to 28s
       if (devices.length > 0) {
-        console.log('[Spotify] Device appeared, waiting 2.5s for player to be fully ready…');
-        await new Promise(r => setTimeout(r, 2500));
-        console.log('[Spotify] Retrying play…');
-        result = await playOnSpotifyTimed(query, 10000);
-        console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
+        // Retry play up to 3 times with 2s gaps — device registers before player is ready
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          console.log(`[Spotify] Play attempt ${attempt}/3 (waiting 2s for player to be ready)…`);
+          await new Promise(r => setTimeout(r, 2000));
+          result = await playOnSpotifyTimed(query, 10000);
+          console.log(`[Spotify] attempt ${attempt} result:`, result.ok ? 'ok' : result.error);
+          if (result.ok) break;
+          // PREMIUM_REQUIRED = no point retrying
+          if (result.error === 'PREMIUM_REQUIRED' || result.error === 'status_403') break;
+        }
 
         if (result.ok) {
-          // Play succeeded — stop focus lock and suppress Spotify window
           focusLockActive = false;
           clearTimeout(focusLockSafety);
           suppressSpotifyWindow();
@@ -2899,6 +2903,7 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
           }, 5000);
           return result;
         }
+        console.log('[Spotify] All play attempts failed, error:', result.error, '— falling back to URI');
       } else {
         console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
@@ -2917,14 +2922,21 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
           // WM_APPCOMMAND MEDIA_PLAY (46<<16 = 3014656) sent directly to Spotify's window.
           // Unlike SendKeys this requires NO focus — works even if Spotify is minimized.
           const sendMediaPlay = () => {
+            // Use WScript AppActivate by PID (reliable) then SendKeys Space
+            // Fallback: PostMessage WM_APPCOMMAND MEDIA_PLAY (no focus needed)
             exec(
               `powershell -WindowStyle Hidden -Command "` +
-              `$p = Get-Process spotify -ErrorAction SilentlyContinue | Select-Object -First 1; ` +
-              `if ($p -and $p.MainWindowHandle -ne 0) { ` +
-              `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }'; ` +
-              `  [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656) ` +
-              `}"`,
-              (err, stdout, stderr) => { console.log('[Spotify] MEDIA_PLAY sent:', err ? err.message : 'ok'); }
+              `$p = Get-Process spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; ` +
+              `if ($p) { ` +
+              `  try { ` +
+              `    Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }' -ErrorAction SilentlyContinue; ` +
+              `    [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656); ` +
+              `    Write-Host 'WM_APPCOMMAND sent' ` +
+              `  } catch { ` +
+              `    $wsh = New-Object -ComObject WScript.Shell; $wsh.AppActivate($p.Id); Start-Sleep -Milliseconds 500; $wsh.SendKeys(' ') ` +
+              `  } ` +
+              `} else { Write-Host 'No Spotify window found' }"`,
+              (err, stdout, stderr) => { console.log('[Spotify] play trigger:', stdout?.trim() || err?.message || 'done'); }
             );
           };
           // Send at 2s, 3.5s, 5s — multiple attempts in case Spotify isn't loaded yet
