@@ -1899,8 +1899,20 @@ window._checkQuickLaunch = async function(text) {
     // Use the main-process combined handler (jarvis:spotifyPlay) — it uses
     // connectors.playOnSpotify() which properly decrypts tokens via safeStorage,
     // launches Spotify if needed, retries with delays, and falls back to URI.
-    const res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'ipc_error' }));
+    let res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'ipc_error' }));
     console.log('[Spotify] result:', JSON.stringify(res));
+
+    // If handler is missing (old build / registration failure), fall back to opening
+    // the Spotify search URI directly so the user at least gets the song loaded.
+    if (res?.error?.includes('No handler registered') || res?.error === 'ipc_error') {
+      console.warn('[Spotify] handler missing — falling back to URI');
+      window.jarvis.openUrl(`spotify:search:${encodeURIComponent(query)}`);
+      if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
+      addMessage('assistant', `🎵 Opening **${query}** in Spotify.`);
+      window.jarvis.speak(`Opening ${query} in Spotify.`);
+      return true;
+    }
+
     if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
     if (res && res.ok) {
       // Suppress Spotify window — when URI fallback was used, main.js already
