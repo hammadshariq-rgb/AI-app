@@ -2680,28 +2680,40 @@ function suppressSpotifyWindow() {
     return;
   }
 
-  // Windows: Use PowerShell to minimize every Spotify window (SW_MINIMIZE = 6)
+  // Windows: force-minimize every Spotify window using SW_FORCEMINIMIZE (11).
+  // SW_FORCEMINIMIZE cannot be overridden by Spotify's own code (unlike SW_MINIMIZE = 6),
+  // so Spotify cannot steal focus back after playback starts.
   const ps = `
     Add-Type -TypeDefinition @"
 using System; using System.Runtime.InteropServices;
 public class W32 {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 }
 "@
     Get-Process -Name Spotify -ErrorAction SilentlyContinue | ForEach-Object {
-      if ($_.MainWindowHandle -ne [IntPtr]::Zero) { [W32]::ShowWindow($_.MainWindowHandle, 6) }
+      if ($_.MainWindowHandle -ne [IntPtr]::Zero) {
+        [W32]::ShowWindow($_.MainWindowHandle, 11)
+      }
     }
   `.trim().replace(/\n\s*/g, '; ');
   exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
-  // Also force Callisto back to front
+  // Aggressively bring Callisto back — run multiple times to beat Spotify's focus steal
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.focus();
+  for (const ms of [200, 500, 900, 1400, 2200, 3500]) {
+    setTimeout(() => {
+      if (!overlayWindow || overlayWindow.isDestroyed()) return;
+      exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.focus();
+    }, ms);
+  }
   setTimeout(() => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     overlayWindow.setAlwaysOnTop(true, 'floating');
-    overlayWindow.focus();
-  }, 800);
+  }, 4000);
 }
 
 // Launch Spotify hidden (never visible) — works on Windows and Mac
@@ -2815,9 +2827,10 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
 
     if (result.ok) {
-      setTimeout(() => suppressSpotifyWindow(), 300);
-      setTimeout(() => suppressSpotifyWindow(), 1200);
-      setTimeout(() => suppressSpotifyWindow(), 2500);
+      // Suppress immediately — Spotify steals focus the moment playback starts
+      suppressSpotifyWindow();
+      setTimeout(() => suppressSpotifyWindow(), 600);
+      setTimeout(() => suppressSpotifyWindow(), 1500);
       return result;
     }
 
@@ -2834,10 +2847,9 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
 
         if (result.ok) {
-          // Give the track a moment to buffer, THEN suppress the window
-          setTimeout(() => suppressSpotifyWindow(), 800);
-          setTimeout(() => suppressSpotifyWindow(), 2000);
-          setTimeout(() => suppressSpotifyWindow(), 4000);
+          suppressSpotifyWindow();
+          setTimeout(() => suppressSpotifyWindow(), 600);
+          setTimeout(() => suppressSpotifyWindow(), 1500);
           return result;
         }
       } else {
