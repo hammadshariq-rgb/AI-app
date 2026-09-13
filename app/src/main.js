@@ -1762,6 +1762,25 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     overlayWindow.webContents.send('jarvis:action-fired', { type: finalAction.type });
   }
 
+  // For spotify track URI fallback — start focus lock so Callisto stays in front
+  if (finalAction?.type === 'play_music' && finalAction?.arg?.startsWith('spotify_track_uri|')) {
+    let _spFocusOn = true;
+    const _spFocusInterval = setInterval(() => {
+      if (!_spFocusOn) return clearInterval(_spFocusInterval);
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+        overlayWindow.focus();
+      }
+    }, 120);
+    // Stop focus lock after 8s and minimize Spotify
+    setTimeout(() => {
+      _spFocusOn = false;
+      suppressSpotifyWindow();
+      setTimeout(() => suppressSpotifyWindow(), 800);
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+    }, 8000);
+  }
+
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
 

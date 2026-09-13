@@ -537,7 +537,27 @@ function openMusicUri(uri, web) {
   return new Promise((resolve) => {
     if (IS_WIN || IS_MAC) {
       // shell.openExternal properly triggers registered URI protocol handlers (spotify:, etc.)
-      shell.openExternal(uri).then(resolve).catch(() => {
+      shell.openExternal(uri).then(() => {
+        // Windows: spotify:track: URIs load the track in Spotify but don't auto-play.
+        // Send WM_APPCOMMAND MEDIA_PLAY (0x319, lParam 3014656) directly to Spotify's
+        // window handle — same as pressing the hardware Play key. No focus needed.
+        if (IS_WIN && uri.startsWith('spotify:track:')) {
+          const { exec } = require('child_process');
+          const sendPlay = () => exec(
+            `powershell -WindowStyle Hidden -Command "` +
+            `$p = Get-Process spotify -EA SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; ` +
+            `if ($p) { ` +
+            `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }' -EA SilentlyContinue; ` +
+            `  [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656) ` +
+            `}"`, () => {}
+          );
+          // Send at 2s, 3.5s, 5s — multiple attempts in case Spotify isn't ready yet
+          setTimeout(sendPlay, 2000);
+          setTimeout(sendPlay, 3500);
+          setTimeout(sendPlay, 5000);
+        }
+        resolve();
+      }).catch(() => {
         openInChrome(web).then(resolve).catch(resolve);
       });
     } else {
