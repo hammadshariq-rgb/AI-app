@@ -2838,7 +2838,13 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     const tokens = connectors.loadTokens('spotify');
     if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
 
-    // Lock focus stealing so Spotify cannot bring itself to front during launch/play
+    // Pin Callisto to the top of the Z-order immediately (synchronous — no delay).
+    // 'screen-saver' level is HWND_TOPMOST in Win32; Spotify cannot appear above it.
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.focus();
+    }
+    // Also lock focus stealing at the OS level (async — fires once PowerShell starts)
     lockFocus();
 
     // First attempt — Spotify may already be open and active
@@ -2859,6 +2865,8 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
 
       const devices = await waitForSpotifyDevice(28000); // up to 28s
       if (devices.length > 0) {
+        // Minimize Spotify BEFORE sending play — so it's already hidden when music starts
+        suppressSpotifyWindow();
         console.log('[Spotify] Device appeared after launch, retrying play…');
         result = await playOnSpotifyTimed(query, 10000);
         console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
@@ -2893,9 +2901,14 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     }
 
     unlockFocus();
+    // Drop back to normal floating always-on-top (not screen-saver level)
+    setTimeout(() => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+    }, 5000);
     return result;
   } catch (err) {
     unlockFocus();
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
     console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
     return { ok: false, error: err.message };
   }
