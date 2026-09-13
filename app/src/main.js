@@ -2866,7 +2866,9 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
 
       const devices = await waitForSpotifyDevice(28000); // up to 28s
       if (devices.length > 0) {
-        console.log('[Spotify] Device appeared after launch, retrying play…');
+        console.log('[Spotify] Device appeared after launch, waiting 2.5s for it to be fully ready…');
+        await new Promise(r => setTimeout(r, 2500));
+        console.log('[Spotify] Retrying play…');
         result = await playOnSpotifyTimed(query, 10000);
         console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
 
@@ -2892,9 +2894,16 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         } else {
           const { shell } = require('electron');
           shell.openExternal(`spotify:track:${trackId}`);
+          // Windows: URI scheme loads the track but doesn't auto-play — send Space after Spotify loads
+          setTimeout(() => {
+            exec(
+              `powershell -WindowStyle Hidden -Command "$wsh = New-Object -ComObject WScript.Shell; if ($wsh.AppActivate('Spotify')) { Start-Sleep -Milliseconds 700; $wsh.SendKeys(' ') }"`,
+              (err) => { console.log('[Spotify] Space key sent to Spotify:', err ? err.message : 'ok'); }
+            );
+          }, 2500);
         }
-        setTimeout(() => suppressSpotifyWindow(), 5000);
-        setTimeout(() => suppressSpotifyWindow(), 9000);
+        setTimeout(() => suppressSpotifyWindow(), 4500);
+        setTimeout(() => suppressSpotifyWindow(), 7000);
         setTimeout(() => {
           if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
         }, 10000);

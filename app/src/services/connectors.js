@@ -150,7 +150,7 @@ async function playOnSpotify(query) {
           body: JSON.stringify({ device_ids: [device.id], play: false }),
         });
         // Give Spotify a moment to complete the transfer before sending play
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 2000));
       } catch (_) { /* transfer failed — try play anyway */ }
     }
 
