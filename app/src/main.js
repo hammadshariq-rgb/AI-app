@@ -2667,6 +2667,22 @@ async function waitForSpotifyDevice(maxMs = 28000) {
   return [];
 }
 
+// Lock/unlock Windows focus-stealing prevention.
+// LockSetForegroundWindow(LSFW_LOCK=1) prevents ANY process from calling
+// SetForegroundWindow until we call unlock — Spotify cannot bring itself to front.
+function lockFocus() {
+  if (process.platform !== 'win32') return;
+  const { exec } = require('child_process');
+  const ps = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class FL{[DllImport("user32.dll")]public static extern bool LockSetForegroundWindow(uint c);}'; [FL]::LockSetForegroundWindow(1)`;
+  exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
+}
+function unlockFocus() {
+  if (process.platform !== 'win32') return;
+  const { exec } = require('child_process');
+  const ps = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class FL{[DllImport("user32.dll")]public static extern bool LockSetForegroundWindow(uint c);}'; [FL]::LockSetForegroundWindow(2)`;
+  exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
+}
+
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
@@ -2822,21 +2838,22 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     const tokens = connectors.loadTokens('spotify');
     if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
 
+    // Lock focus stealing so Spotify cannot bring itself to front during launch/play
+    lockFocus();
+
     // First attempt — Spotify may already be open and active
     let result = await playOnSpotifyTimed(query, 10000);
     console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
 
     if (result.ok) {
-      // Suppress immediately — Spotify steals focus the moment playback starts
       suppressSpotifyWindow();
       setTimeout(() => suppressSpotifyWindow(), 600);
-      setTimeout(() => suppressSpotifyWindow(), 1500);
+      setTimeout(() => { suppressSpotifyWindow(); unlockFocus(); }, 4000);
       return result;
     }
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
       // Spotify isn't running — launch it, then poll every 2s until a device appears.
-      // Polling is far more reliable than fixed delays because Spotify startup time varies.
       console.log('[Spotify] No device — launching Spotify and polling for registration…');
       launchSpotifyHidden();
 
@@ -2849,12 +2866,13 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         if (result.ok) {
           suppressSpotifyWindow();
           setTimeout(() => suppressSpotifyWindow(), 600);
-          setTimeout(() => suppressSpotifyWindow(), 1500);
+          setTimeout(() => { suppressSpotifyWindow(); unlockFocus(); }, 4000);
           return result;
         }
       } else {
         console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
+      unlockFocus();
 
       // Last resort: open the track URI directly in Spotify.
       // On Mac: AppleScript plays the track immediately.
@@ -2874,8 +2892,10 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
       }
     }
 
+    unlockFocus();
     return result;
   } catch (err) {
+    unlockFocus();
     console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
     return { ok: false, error: err.message };
   }
