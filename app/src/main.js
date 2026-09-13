@@ -2838,23 +2838,24 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     const tokens = connectors.loadTokens('spotify');
     if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
 
-    // Pin Callisto to the top of the Z-order immediately (synchronous — no delay).
-    // 'screen-saver' level is HWND_TOPMOST in Win32; Spotify cannot appear above it.
+    // Pin Callisto above everything immediately (synchronous — beats any async steal)
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.setAlwaysOnTop(true, 'screen-saver');
       overlayWindow.focus();
     }
-    // Also lock focus stealing at the OS level (async — fires once PowerShell starts)
-    lockFocus();
 
     // First attempt — Spotify may already be open and active
     let result = await playOnSpotifyTimed(query, 10000);
     console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
 
     if (result.ok) {
+      // Play succeeded — now suppress Spotify (AFTER play, never before)
       suppressSpotifyWindow();
-      setTimeout(() => suppressSpotifyWindow(), 600);
-      setTimeout(() => { suppressSpotifyWindow(); unlockFocus(); }, 4000);
+      setTimeout(() => suppressSpotifyWindow(), 800);
+      setTimeout(() => suppressSpotifyWindow(), 2000);
+      setTimeout(() => {
+        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+      }, 5000);
       return result;
     }
 
@@ -2865,27 +2866,25 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
 
       const devices = await waitForSpotifyDevice(28000); // up to 28s
       if (devices.length > 0) {
-        // Minimize Spotify BEFORE sending play — so it's already hidden when music starts
-        suppressSpotifyWindow();
         console.log('[Spotify] Device appeared after launch, retrying play…');
         result = await playOnSpotifyTimed(query, 10000);
         console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
 
         if (result.ok) {
+          // Play succeeded — suppress AFTER (minimizing before kills device registration)
           suppressSpotifyWindow();
-          setTimeout(() => suppressSpotifyWindow(), 600);
-          setTimeout(() => { suppressSpotifyWindow(); unlockFocus(); }, 4000);
+          setTimeout(() => suppressSpotifyWindow(), 800);
+          setTimeout(() => suppressSpotifyWindow(), 2000);
+          setTimeout(() => {
+            if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+          }, 5000);
           return result;
         }
       } else {
         console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
-      unlockFocus();
 
-      // Last resort: open the track URI directly in Spotify.
-      // On Mac: AppleScript plays the track immediately.
-      // On Windows: shell.openExternal brings Spotify forward (user must press play —
-      //   this is a Spotify limitation on the URI scheme, not our bug).
+      // Last resort URI fallback
       const trackId = (result.trackUri || '').replace('spotify:track:', '');
       if (trackId) {
         if (process.platform === 'darwin') {
@@ -2896,18 +2895,16 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
         }
         setTimeout(() => suppressSpotifyWindow(), 5000);
         setTimeout(() => suppressSpotifyWindow(), 9000);
+        setTimeout(() => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+        }, 10000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
       }
     }
 
-    unlockFocus();
-    // Drop back to normal floating always-on-top (not screen-saver level)
-    setTimeout(() => {
-      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-    }, 5000);
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
     return result;
   } catch (err) {
-    unlockFocus();
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
     console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
     return { ok: false, error: err.message };
