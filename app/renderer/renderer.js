@@ -1901,7 +1901,8 @@ window._checkQuickLaunch = async function(text) {
     // Uses only spotifyGetToken / spotifyLaunch / spotifySuppress which are stable.
     const _spotifyPlay = async (q) => {
       // 1. Get decrypted access token from main process
-      const token = await window.jarvis.spotifyGetToken().catch(() => null);
+      const tokenRes = await window.jarvis.spotifyGetToken().catch(() => null);
+      const token = tokenRes?.token || null;
       if (!token) return { ok: false, error: 'Spotify not connected' };
 
       // 2. Search for track
