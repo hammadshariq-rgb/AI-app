@@ -2051,7 +2051,7 @@ window._checkQuickLaunch = async function(text) {
   if (/show\s+(?:me\s+)?(?:my\s+)?(?:calendar|schedule)|open\s+(?:my\s+)?calendar|my\s+calendar|calendar\s+view/i.test(t)) {
     if (typeof window.showCalendarOverlay === 'function') {
       window.showCalendarOverlay();
-      addMessage('assistant', '📅 Here's your calendar!');
+      addMessage('assistant', '📅 Here\'s your calendar!');
       window.jarvis.speak('Opening your calendar.');
       return true;
     }
