@@ -1398,8 +1398,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     if (spotifyConnected && (resolvedService === 'spotify' || resolvedService === '' || !aiService)) {
       const playResult = await playOnSpotifyTimed(query, 8000);
       if (playResult.ok) {
-        // Premium — plays in background; suppress any Spotify window that pops up
-        setTimeout(() => suppressSpotifyWindow(), 300);
+        // Plays in background — suppress Spotify window immediately
+        suppressSpotifyWindow();
+        setTimeout(() => suppressSpotifyWindow(), 400);
         setTimeout(() => suppressSpotifyWindow(), 1200);
         const spokenText = `Playing ${playResult.trackName} by ${playResult.artistName} on Spotify.`;
         _sendTTS(_e.sender, spokenText);
@@ -1407,19 +1408,36 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
         // Spotify not open — launch it, then poll every 2s until a device registers
         launchSpotifyHidden();
+
+        // Focus lock: keep Callisto in front every 120ms while Spotify launches
+        let _focusLockOn = true;
+        const _focusInterval = setInterval(() => {
+          if (!_focusLockOn) return clearInterval(_focusInterval);
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+            overlayWindow.focus();
+          }
+        }, 120);
+        setTimeout(() => { _focusLockOn = false; }, 32000);
+
         const devices = await waitForSpotifyDevice(28000);
         let lastRetry = null;
         if (devices.length > 0) {
+          // Wait 2.5s for Spotify player to be fully ready before sending play command
+          await new Promise(r => setTimeout(r, 2500));
           lastRetry = await playOnSpotifyTimed(query, 10000);
           if (lastRetry.ok) {
+            _focusLockOn = false;
+            suppressSpotifyWindow();
             setTimeout(() => suppressSpotifyWindow(), 800);
             setTimeout(() => suppressSpotifyWindow(), 2000);
-            setTimeout(() => suppressSpotifyWindow(), 4000);
+            setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating'); }, 5000);
             const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
             _sendTTS(_e.sender, spokenText);
             return { text: spokenText, audio: null, card: null, hasAction: true };
           }
         }
+        _focusLockOn = false;
         // Retries exhausted — open the specific track URI which auto-plays on click
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
         const trackName = lastRetry?.trackName || playResult.trackName || query;
