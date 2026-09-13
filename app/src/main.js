@@ -1405,23 +1405,20 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it and wait for it to register as a device
-        // DO NOT suppress windows during startup — Spotify needs to be visible to register
+        // Spotify not open — launch it, then poll every 2s until a device registers
         launchSpotifyHidden();
+        const devices = await waitForSpotifyDevice(28000);
         let lastRetry = null;
-        for (const delay of [4000, 5000, 6000]) {
-          await new Promise(r => setTimeout(r, delay));
-          lastRetry = await playOnSpotifyTimed(query, 8000);
+        if (devices.length > 0) {
+          lastRetry = await playOnSpotifyTimed(query, 10000);
           if (lastRetry.ok) {
-            // NOW suppress — Spotify registered and is playing
-            setTimeout(() => suppressSpotifyWindow(), 400);
-            setTimeout(() => suppressSpotifyWindow(), 1500);
-            setTimeout(() => suppressSpotifyWindow(), 3000);
+            setTimeout(() => suppressSpotifyWindow(), 800);
+            setTimeout(() => suppressSpotifyWindow(), 2000);
+            setTimeout(() => suppressSpotifyWindow(), 4000);
             const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
             _sendTTS(_e.sender, spokenText);
             return { text: spokenText, audio: null, card: null, hasAction: true };
           }
-          if (lastRetry.error !== 'NO_ACTIVE_DEVICE') break;
         }
         // Retries exhausted — open the specific track URI which auto-plays on click
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
@@ -2649,6 +2646,27 @@ ipcMain.handle('tv:install-adb', async (_e) => {
 });
 
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
+
+// Poll Spotify's /devices endpoint every 2s until at least one device appears or timeout.
+// Returns the device list (may be empty on timeout).
+async function waitForSpotifyDevice(maxMs = 28000) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const token = await connectors.getSpotifyToken();
+      if (!token) break;
+      const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.devices && data.devices.length > 0) return data.devices;
+    } catch (_) { /* keep polling */ }
+  }
+  return [];
+}
+
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
@@ -2785,21 +2803,17 @@ ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
   return { ok: true };
 });
 
-// Legacy combined handler — kept for backwards compatibility but delegates to new flow
+// Combined handler — searches track, launches Spotify if needed, plays via Web API
 ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
-  const TOTAL_TIMEOUT = 55000; // 55s — enough for Spotify to launch + register + play
-  const deadline = Date.now() + TOTAL_TIMEOUT;
-  const timeLeft = () => Math.max(0, deadline - Date.now());
   const { exec } = require('child_process');
   try {
-    // Use loadTokens() to get the decrypted token — store.get() returns raw encrypted bytes
     const tokens = connectors.loadTokens('spotify');
-    const spotifyConnected = !!(tokens?.access_token);
-    if (!spotifyConnected) return { ok: false, error: 'Spotify not connected' };
+    if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
 
-    // First attempt (Spotify already open)
-    let result = await playOnSpotifyTimed(query, Math.min(10000, timeLeft()));
+    // First attempt — Spotify may already be open and active
+    let result = await playOnSpotifyTimed(query, 10000);
     console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
+
     if (result.ok) {
       setTimeout(() => suppressSpotifyWindow(), 300);
       setTimeout(() => suppressSpotifyWindow(), 1200);
@@ -2808,44 +2822,46 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
     }
 
     if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Launch Spotify and wait for it to register as a Spotify Connect device.
-      // Mac needs ~10s; Windows /minimized is faster (~5s).
+      // Spotify isn't running — launch it, then poll every 2s until a device appears.
+      // Polling is far more reliable than fixed delays because Spotify startup time varies.
+      console.log('[Spotify] No device — launching Spotify and polling for registration…');
       launchSpotifyHidden();
-      const retryDelays = process.platform === 'darwin'
-        ? [6000, 7000, 8000, 8000]   // Mac: longer — open -a Spotify takes more time
-        : [5000, 6000, 7000];         // Windows: Spotify.exe /minimized is faster
 
-      for (const delay of retryDelays) {
-        if (timeLeft() < 3000) break;
-        await new Promise(r => setTimeout(r, delay));
-        result = await playOnSpotifyTimed(query, Math.min(10000, timeLeft()));
-        console.log('[Spotify] retry after', delay, 'ms:', result.ok ? 'ok' : result.error);
+      const devices = await waitForSpotifyDevice(28000); // up to 28s
+      if (devices.length > 0) {
+        console.log('[Spotify] Device appeared after launch, retrying play…');
+        result = await playOnSpotifyTimed(query, 10000);
+        console.log('[Spotify] post-launch play:', result.ok ? 'ok' : result.error);
+
         if (result.ok) {
-          setTimeout(() => suppressSpotifyWindow(), 500);
-          setTimeout(() => suppressSpotifyWindow(), 1800);
-          setTimeout(() => suppressSpotifyWindow(), 3500);
+          // Give the track a moment to buffer, THEN suppress the window
+          setTimeout(() => suppressSpotifyWindow(), 800);
+          setTimeout(() => suppressSpotifyWindow(), 2000);
+          setTimeout(() => suppressSpotifyWindow(), 4000);
           return result;
         }
-        if (result.error !== 'NO_ACTIVE_DEVICE') break;
+      } else {
+        console.log('[Spotify] No device appeared within 28s — falling back to URI');
       }
 
-      // Last resort: open track URI directly. This brings Spotify to front but
-      // at least the track loads. User won't need to search — just press play.
+      // Last resort: open the track URI directly in Spotify.
+      // On Mac: AppleScript plays the track immediately.
+      // On Windows: shell.openExternal brings Spotify forward (user must press play —
+      //   this is a Spotify limitation on the URI scheme, not our bug).
       const trackId = (result.trackUri || '').replace('spotify:track:', '');
       if (trackId) {
         if (process.platform === 'darwin') {
-          // On Mac, use AppleScript to open URI — more reliable than shell.openExternal
           exec(`osascript -e 'tell application "Spotify" to play track "spotify:track:${trackId}"'`, () => {});
         } else {
           const { shell } = require('electron');
           shell.openExternal(`spotify:track:${trackId}`);
         }
-        // Suppress after track has had time to load
         setTimeout(() => suppressSpotifyWindow(), 5000);
-        setTimeout(() => suppressSpotifyWindow(), 8000);
+        setTimeout(() => suppressSpotifyWindow(), 9000);
         return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
       }
     }
+
     return result;
   } catch (err) {
     console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
