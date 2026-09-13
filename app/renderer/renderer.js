@@ -1896,55 +1896,104 @@ window._checkQuickLaunch = async function(text) {
     const query = spotifyM[1].trim();
     const playingMsg = addMessage('assistant', `🎵 Playing **${query}** on Spotify…`);
     window.jarvis.speak(`Playing ${query} on Spotify.`);
-    // Use the main-process combined handler (jarvis:spotifyPlay) — it uses
-    // connectors.playOnSpotify() which properly decrypts tokens via safeStorage,
-    // launches Spotify if needed, retries with delays, and falls back to URI.
-    let res = await window.jarvis.spotifyPlay(query).catch(e => ({ ok: false, error: e?.message || 'ipc_error' }));
-    console.log('[Spotify] result:', JSON.stringify(res));
 
-    // If handler is missing (old build / registration failure), fall back to opening
-    // the Spotify search URI directly so the user at least gets the song loaded.
-    if (res?.error?.includes('No handler registered') || res?.error === 'ipc_error') {
-      console.warn('[Spotify] handler missing — falling back to URI');
-      window.jarvis.openUrl(`spotify:search:${encodeURIComponent(query)}`);
-      if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
-      addMessage('assistant', `🎵 Opening **${query}** in Spotify.`);
-      window.jarvis.speak(`Opening ${query} in Spotify.`);
-      return true;
-    }
+    // ── Renderer-side Spotify play (bypasses jarvis:spotifyPlay IPC handler) ──
+    // Uses only spotifyGetToken / spotifyLaunch / spotifySuppress which are stable.
+    const _spotifyPlay = async (q) => {
+      // 1. Get decrypted access token from main process
+      const token = await window.jarvis.spotifyGetToken().catch(() => null);
+      if (!token) return { ok: false, error: 'Spotify not connected' };
+
+      // 2. Search for track
+      let sq = q.replace(/^play\s+/i, '').trim();
+      const byM = sq.match(/^(.+?)\s+by\s+(.+)$/i);
+      if (byM) sq = `track:${byM[1].trim()} artist:${byM[2].trim()}`;
+      const sRes = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(sq)}&type=track&limit=1`,
+        { headers: { Authorization: `Bearer ${token}` } });
+      const sData = await sRes.json();
+      const track = sData.tracks?.items?.[0];
+      if (!track) return { ok: false, error: 'track_not_found' };
+      const trackName = track.name, artistName = track.artists?.[0]?.name || '';
+
+      // 3. Get devices — retry up to 3x with 2s gaps after launching if needed
+      const getDevices = async () => {
+        const r = await fetch('https://api.spotify.com/v1/me/player/devices',
+          { headers: { Authorization: `Bearer ${token}` } });
+        const d = await r.json();
+        return d.devices || [];
+      };
+      let devices = await getDevices();
+      if (!devices.length) {
+        // Launch Spotify and poll every 2s up to 28s
+        await window.jarvis.spotifyLaunch().catch(() => {});
+        for (let i = 0; i < 14; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          devices = await getDevices();
+          if (devices.length) break;
+        }
+      }
+      if (!devices.length) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri: track.uri, trackName, artistName };
+
+      const device = devices.find(d => d.is_active) || devices[0];
+
+      // 4. Transfer playback if device isn't active, then play
+      if (!device.is_active) {
+        await fetch('https://api.spotify.com/v1/me/player',
+          { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_ids: [device.id], play: false }) });
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      // 5. Play — retry up to 3x
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+        const pRes = await fetch('https://api.spotify.com/v1/me/player/play',
+          { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uris: [track.uri], device_id: device.id }) });
+        if (pRes.status === 204 || pRes.status === 200) return { ok: true, trackName, artistName };
+        const pErr = await pRes.json().catch(() => ({}));
+        const reason = pErr?.error?.reason || `status_${pRes.status}`;
+        console.warn(`[Spotify] play attempt ${attempt+1} failed:`, reason);
+        if (reason === 'PREMIUM_REQUIRED' || pRes.status === 403) return { ok: false, error: reason, trackUri: track.uri, trackName, artistName };
+      }
+      return { ok: false, error: 'play_failed', trackUri: track.uri, trackName, artistName };
+    };
+
+    let res;
+    try { res = await _spotifyPlay(query); }
+    catch (e) { res = { ok: false, error: e?.message || 'unknown' }; }
+    console.log('[Spotify] renderer result:', JSON.stringify(res));
 
     if (playingMsg) { const r = playingMsg.closest?.('.msg-row'); if (r) r.remove(); else playingMsg.remove(); }
+
     if (res && res.ok) {
-      // Suppress Spotify window — when URI fallback was used, main.js already
-      // schedules suppression with proper delay; only suppress here for direct API play.
-      if (!res.useUri) {
-        window.jarvis.spotifySuppress().catch(() => {});
-      }
-      const doneText = res.trackName
-        ? `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`
-        : `🎵 Playing **${query}** on Spotify.`;
+      window.jarvis.spotifySuppress().catch(() => {});
+      setTimeout(() => window.jarvis.spotifySuppress().catch(() => {}), 800);
+      setTimeout(() => window.jarvis.spotifySuppress().catch(() => {}), 2000);
+      const doneText = `🎵 Playing **${res.trackName}** by ${res.artistName} on Spotify.`;
       addMessage('assistant', doneText);
-      window.jarvis.speak(res.trackName ? `Now playing ${res.trackName} by ${res.artistName}.` : `Playing ${query}.`);
+      window.jarvis.speak(`Now playing ${res.trackName} by ${res.artistName}.`);
       _maybeForwardToHud(doneText, null);
     } else {
       const errMsg = res?.error || '';
-      let reply;
-      if (errMsg === 'Spotify not connected' || errMsg === 'not_connected') {
-        reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
-      } else if (errMsg.includes('Premium') || errMsg === 'PREMIUM_REQUIRED') {
-        reply = '🎵 Spotify playback requires a **Premium** account.';
-      } else if (errMsg === 'track_not_found') {
-        reply = `🎵 Couldn't find **${query}** on Spotify. Try a different song name.`;
-      } else if (errMsg === 'NO_ACTIVE_DEVICE') {
-        reply = `🎵 Spotify couldn't find a device. Open **Spotify** first, then try again.`;
-        window.jarvis.openUrl('spotify:');
+      // URI fallback for when Web API can't play
+      const trackUri = res?.trackUri?.replace('spotify:track:', '');
+      if (trackUri && errMsg !== 'Spotify not connected' && errMsg !== 'track_not_found') {
+        window.jarvis.openUrl(`spotify:track:${trackUri}`);
+        const fbText = `🎵 Playing **${res.trackName || query}** by ${res.artistName || ''} on Spotify.`;
+        addMessage('assistant', fbText);
+        window.jarvis.speak(`Playing ${res.trackName || query} on Spotify.`);
+        _maybeForwardToHud(fbText, null);
       } else {
-        reply = `🎵 Spotify error: ${errMsg.slice(0, 80)}`;
-        window.jarvis.openUrl('spotify:');
+        let reply;
+        if (errMsg === 'Spotify not connected') reply = '🎵 Spotify not connected. Go to **Connectors → Spotify** to link your account.';
+        else if (errMsg.includes('PREMIUM') || errMsg === 'status_403') reply = '🎵 Spotify playback requires a **Premium** account.';
+        else if (errMsg === 'track_not_found') reply = `🎵 Couldn\'t find **${query}** on Spotify.`;
+        else reply = `🎵 Spotify error: ${errMsg.slice(0, 80)}`;
+        addMessage('assistant', reply);
+        window.jarvis.speak(reply.replace(/\*\*/g, ''));
+        _maybeForwardToHud(reply, null);
       }
-      addMessage('assistant', reply);
-      window.jarvis.speak(reply.replace(/\*\*/g, '').replace(/\[.*?\]/g, ''));
-      _maybeForwardToHud(reply, null);
     }
     return true;
   }
