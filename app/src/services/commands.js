@@ -551,6 +551,26 @@ function readFileContent(filePath) {
 // ─── MUSIC ────────────────────────────────────────────────────────────────────
 function openMusicUri(uri, web) {
   return new Promise((resolve) => {
+    // Mac + spotify:track: URI → use AppleScript to play directly (no UI shown, no play button needed)
+    if (IS_MAC && uri.startsWith('spotify:track:')) {
+      const { exec } = require('child_process');
+      // AppleScript: open Spotify if needed and play the track immediately
+      const script = `tell application "Spotify" to play track "${uri}"`;
+      exec(`osascript -e '${script}'`, (err) => {
+        if (!err) {
+          // Hide Spotify so it plays in background — give it 1s to register playback first
+          setTimeout(() => {
+            exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false'`, () => {});
+          }, 1000);
+          resolve();
+        } else {
+          // AppleScript failed — fall back to URI scheme
+          shell.openExternal(uri).then(resolve).catch(() => openInChrome(web).then(resolve).catch(resolve));
+        }
+      });
+      return;
+    }
+
     if (IS_WIN || IS_MAC) {
       // shell.openExternal properly triggers registered URI protocol handlers (spotify:, etc.)
       shell.openExternal(uri).then(() => {
