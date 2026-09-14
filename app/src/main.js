@@ -1090,6 +1090,69 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
+  // ── Fast path: play commands — skip AI entirely, go straight to Spotify ──────
+  // Catches: "play X", "play X on spotify", "play X by Y", "put on X", "i want to hear X", etc.
+  const _playM = _lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/);
+  if (_playM) {
+    const songQuery = _playM[1].trim();
+    // Only intercept if Spotify is connected; otherwise let AI handle it
+    const _spotifyConnected = !!(store.get('connector.spotify.access_token'));
+    if (_spotifyConnected) {
+      // Fire-and-forget: attempt Spotify Web API play in background, then suppress/focus Callisto
+      (async () => {
+        let result = null;
+        try { result = await playOnSpotifyTimed(songQuery, 8000); } catch (_) { result = { ok: false, error: 'timeout' }; }
+
+        if (result.ok) {
+          // Played in background — suppress Spotify window
+          suppressSpotifyWindow();
+          setTimeout(() => suppressSpotifyWindow(), 400);
+          setTimeout(() => suppressSpotifyWindow(), 1200);
+          return;
+        }
+
+        if (result.error === 'NO_ACTIVE_DEVICE') {
+          // Launch Spotify, wait for device, retry
+          launchSpotifyHidden();
+          startSpotifyFocusLock(32000);
+          const devices = await waitForSpotifyDevice(28000);
+          let retry = null;
+          if (devices.length > 0) {
+            await new Promise(r => setTimeout(r, 2500));
+            try { retry = await playOnSpotifyTimed(songQuery, 10000); } catch (_) { retry = { ok: false, error: 'timeout' }; }
+          }
+          if (retry?.ok) {
+            stopSpotifyFocusLock();
+            suppressSpotifyWindow();
+            setTimeout(() => suppressSpotifyWindow(), 800);
+            setTimeout(() => suppressSpotifyWindow(), 2000);
+            return;
+          }
+          stopSpotifyFocusLock();
+          // Fall through to track URI
+          const trackUri = retry?.trackUri || result.trackUri;
+          if (trackUri) {
+            await commands.run('play_music', `spotify_track_uri|${trackUri}`).catch(() => {});
+            return;
+          }
+        }
+
+        // Not connected / other error — try track URI if we have one, else open search
+        if (result.trackUri) {
+          await commands.run('play_music', `spotify_track_uri|${result.trackUri}`).catch(() => {});
+        } else {
+          commands.run('play_music', `spotify|${songQuery}`).catch(() => {});
+        }
+      })();
+
+      // Respond immediately without waiting for the async Spotify flow
+      const spokenText = `Playing ${songQuery} on Spotify.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const memories = store.get('memories') || [];
 
   // Sports query — fetch ESPN card first; only open Google if no card found
