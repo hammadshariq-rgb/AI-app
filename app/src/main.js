@@ -1396,7 +1396,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     // If Spotify is connected via OAuth, use Web API for true background playback
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (spotifyConnected && (resolvedService === 'spotify' || resolvedService === '' || !aiService)) {
-      const playResult = await playOnSpotifyTimed(query, 8000);
+      // Wrap entirely — any network/timeout rejection must NOT crash the whole handler
+      let playResult = null;
+      try { playResult = await playOnSpotifyTimed(query, 8000); } catch (_) { playResult = { ok: false, error: 'timeout' }; }
+
       if (playResult.ok) {
         // Plays in background — suppress Spotify window immediately
         suppressSpotifyWindow();
@@ -1417,7 +1420,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         if (devices.length > 0) {
           // Wait 2.5s for Spotify player to be fully ready before sending play command
           await new Promise(r => setTimeout(r, 2500));
-          lastRetry = await playOnSpotifyTimed(query, 10000);
+          try { lastRetry = await playOnSpotifyTimed(query, 10000); } catch (_) { lastRetry = { ok: false, error: 'timeout' }; }
           if (lastRetry.ok) {
             stopSpotifyFocusLock();
             suppressSpotifyWindow();
@@ -1430,27 +1433,27 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
           }
         }
         stopSpotifyFocusLock();
-        // Retries exhausted — open the specific track URI which auto-plays on click
+        // Retries exhausted — open the specific track URI which auto-plays via AppleScript (Mac) or WM_APPCOMMAND (Win)
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
         const trackName = lastRetry?.trackName || playResult.trackName || query;
         if (trackUri) {
-          // spotify:track:ID opens Spotify and auto-plays the track (no press needed)
-          await commands.run('play_music', `spotify_track_uri|${trackUri}`);
+          await commands.run('play_music', `spotify_track_uri|${trackUri}`).catch(() => {});
           const spokenText = `Playing ${trackName} on Spotify.`;
           _sendTTS(_e.sender, spokenText);
           return { text: spokenText, audio: null, card: null, hasAction: true };
         }
         // Last resort — search URI
-        await commands.run('play_music', `spotify|${query}`);
+        await commands.run('play_music', `spotify|${query}`).catch(() => {});
         const spokenText = `Opening Spotify with "${query}".`;
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       }
-      // Other error (token issue, etc.) — open track URI which auto-plays
+      // Other error (token issue, network, etc.) — use track URI fallback if we have one
       if (playResult.trackUri) {
         finalAction = { type: 'play_music', arg: `spotify_track_uri|${playResult.trackUri}` };
         finalText = `Playing "${playResult.trackName}" by ${playResult.artistName} on Spotify.`;
       } else {
+        // No track URI — open Spotify search as last resort
         finalAction = { type: 'play_music', arg: `spotify|${query}` };
         finalText = `Opening Spotify with "${query}".`;
       }
