@@ -1409,16 +1409,8 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         // Spotify not open — launch it, then poll every 2s until a device registers
         launchSpotifyHidden();
 
-        // Focus lock: keep Callisto in front every 120ms while Spotify launches
-        let _focusLockOn = true;
-        const _focusInterval = setInterval(() => {
-          if (!_focusLockOn) return clearInterval(_focusInterval);
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-            overlayWindow.focus();
-          }
-        }, 120);
-        setTimeout(() => { _focusLockOn = false; }, 32000);
+        // Focus lock: keep Callisto in front while Spotify launches (singleton — cancels any prior lock)
+        startSpotifyFocusLock(32000);
 
         const devices = await waitForSpotifyDevice(28000);
         let lastRetry = null;
@@ -1427,7 +1419,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
           await new Promise(r => setTimeout(r, 2500));
           lastRetry = await playOnSpotifyTimed(query, 10000);
           if (lastRetry.ok) {
-            _focusLockOn = false;
+            stopSpotifyFocusLock();
             suppressSpotifyWindow();
             setTimeout(() => suppressSpotifyWindow(), 800);
             setTimeout(() => suppressSpotifyWindow(), 2000);
@@ -1437,7 +1429,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
             return { text: spokenText, audio: null, card: null, hasAction: true };
           }
         }
-        _focusLockOn = false;
+        stopSpotifyFocusLock();
         // Retries exhausted — open the specific track URI which auto-plays on click
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
         const trackName = lastRetry?.trackName || playResult.trackName || query;
@@ -1764,25 +1756,25 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // For spotify track URI fallback — start focus lock so Callisto stays in front
   if (finalAction?.type === 'play_music' && finalAction?.arg?.startsWith('spotify_track_uri|')) {
-    let _spFocusOn = true;
-    const _spFocusInterval = setInterval(() => {
-      if (!_spFocusOn) return clearInterval(_spFocusInterval);
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-        overlayWindow.focus();
-      }
-    }, 120);
-    // Stop focus lock after 8s and minimize Spotify
+    startSpotifyFocusLock(10000);
+    // After 8s suppress Spotify and restore normal alwaysOnTop
     setTimeout(() => {
-      _spFocusOn = false;
       suppressSpotifyWindow();
       setTimeout(() => suppressSpotifyWindow(), 800);
-      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
     }, 8000);
   }
 
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
+
+  // For open_app: temporarily drop alwaysOnTop so the launched app can come to front
+  if (finalAction?.type === 'open_app' && overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.setAlwaysOnTop(false);
+    // Restore floating after 6s so Callisto is still accessible
+    setTimeout(() => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+    }, 6000);
+  }
 
   // ── Split-screen: when HUD voice triggered an open_file or open_app, snap main app to left half ──
   if (hudVoiceMode && finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_app')) {
@@ -2681,6 +2673,38 @@ ipcMain.handle('tv:install-adb', async (_e) => {
     return { ok: false, error: err.message };
   }
 });
+
+// ── Spotify focus-lock singleton ─────────────────────────────────────────────
+// Only ONE focus-lock can run at a time. Each new call cancels the previous one.
+let _spFocusInterval = null;
+let _spFocusActive = false;
+
+function startSpotifyFocusLock(durationMs = 30000) {
+  // Cancel any previous lock immediately
+  _spFocusActive = false;
+  if (_spFocusInterval) { clearInterval(_spFocusInterval); _spFocusInterval = null; }
+  // Drop alwaysOnTop back to base so we can re-raise cleanly
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
+  _spFocusActive = true;
+  _spFocusInterval = setInterval(() => {
+    if (!_spFocusActive) { clearInterval(_spFocusInterval); _spFocusInterval = null; return; }
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.focus();
+    }
+  }, 150);
+  // Auto-stop after durationMs
+  setTimeout(() => stopSpotifyFocusLock(), durationMs);
+}
+
+function stopSpotifyFocusLock() {
+  _spFocusActive = false;
+  if (_spFocusInterval) { clearInterval(_spFocusInterval); _spFocusInterval = null; }
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.setAlwaysOnTop(false);
+    overlayWindow.setAlwaysOnTop(true, 'floating');
+  }
+}
 
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
 

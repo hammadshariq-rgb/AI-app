@@ -256,9 +256,25 @@ function launchApp(name) {
     const uri = URI_SCHEMES[lower];
     if (uri) {
       shell.openExternal(uri).then(() => resolve(true)).catch(() => {
-        const web = BROWSER_FALLBACKS[lower];
-        if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-        else resolve(false);
+        // On Windows: URI scheme failed (app not installed or not registered).
+        // Try Get-StartApps (Microsoft Store / modern apps) before falling to web.
+        if (IS_WIN) {
+          const ps = `powershell -Command "Get-StartApps | Where-Object { $_.Name -like '*${name}*' } | Select-Object -First 1 -ExpandProperty AppID"`;
+          exec(ps, (err, stdout) => {
+            const appId = (stdout || '').trim();
+            if (!err && appId) {
+              exec(`start shell:AppsFolder\\${appId}`, () => resolve(true));
+            } else {
+              const web = BROWSER_FALLBACKS[lower];
+              if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
+              else resolve(false);
+            }
+          });
+        } else {
+          const web = BROWSER_FALLBACKS[lower];
+          if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
+          else resolve(false);
+        }
       });
       return;
     }
@@ -543,18 +559,24 @@ function openMusicUri(uri, web) {
         // window handle — same as pressing the hardware Play key. No focus needed.
         if (IS_WIN && uri.startsWith('spotify:track:')) {
           const { exec } = require('child_process');
+          // Send WM_APPCOMMAND MEDIA_PLAY to all Spotify windows.
+          // If no process has a MainWindowHandle yet (Spotify just launched),
+          // fall back to FindWindow by class name "Chrome_WidgetWin_0" which CEF uses.
           const sendPlay = () => exec(
             `powershell -WindowStyle Hidden -Command "` +
-            `$p = Get-Process spotify -EA SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; ` +
-            `if ($p) { ` +
-            `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }' -EA SilentlyContinue; ` +
-            `  [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656) ` +
-            `}"`, () => {}
+            `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { ` +
+            `[DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); ` +
+            `[DllImport(""user32.dll"")] public static extern IntPtr FindWindow(string c, string t); }' -EA SilentlyContinue; ` +
+            `$sent = $false; ` +
+            `Get-Process spotify -EA SilentlyContinue | ForEach-Object { if ($_.MainWindowHandle -ne 0) { [W]::PostMessage($_.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656); $sent = $true } }; ` +
+            `if (-not $sent) { $h = [W]::FindWindow('Chrome_WidgetWin_0', [NullString]::Value); if ($h -ne 0) { [W]::PostMessage($h, 0x319, [IntPtr]0, [IntPtr]3014656) } }` +
+            `"`, () => {}
           );
-          // Send at 2s, 3.5s, 5s — multiple attempts in case Spotify isn't ready yet
-          setTimeout(sendPlay, 2000);
-          setTimeout(sendPlay, 3500);
+          // Send at 1.5s, 3s, 5s, 7s — multiple attempts as Spotify registers its window
+          setTimeout(sendPlay, 1500);
+          setTimeout(sendPlay, 3000);
           setTimeout(sendPlay, 5000);
+          setTimeout(sendPlay, 7000);
         }
         resolve();
       }).catch(() => {
