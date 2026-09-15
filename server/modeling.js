@@ -12,6 +12,7 @@ const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
 const MAX_JOBS_PER_DAY = 3;    // each generation costs credits (5,500/month plan)
 const dailyCount = new Map();
+const refineJobs = new Map();  // preview task id -> refine (texture) task id
 
 function today() { return new Date().toISOString().slice(0, 10); }
 
@@ -75,15 +76,43 @@ function mountModeling(app, { authMiddleware }) {
   });
 
   // Poll a job. Returns { status, progress, url } — url only once succeeded.
+  // The client only knows the preview (shape) id. When the shape finishes we start
+  // the refine (colour/texture) pass on it and keep polling that behind the same id,
+  // so progress reads 0-50% for shape and 50-100% for colour.
   app.get('/models/job/:id', authMiddleware, async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: 'Not configured.' });
-      const job = await meshy(`/text-to-3d/${encodeURIComponent(req.params.id)}`);
+      const previewId = req.params.id;
+      const preview = await meshy(`/text-to-3d/${encodeURIComponent(previewId)}`);
+      const pStatus = String(preview?.status || '').toUpperCase();
+
+      if (pStatus !== 'SUCCEEDED') {
+        return res.json({
+          ok: true,
+          status: pStatus === 'FAILED' || pStatus === 'CANCELED' ? 'FAILED' : 'IN_PROGRESS',
+          progress: Math.round((preview?.progress ?? 0) / 2),
+          url: null,
+          error: preview?.task_error?.message || null,
+        });
+      }
+
+      // Store the promise, not the id, so overlapping polls can't start (and pay for) two refines.
+      if (!refineJobs.has(previewId)) {
+        const starting = meshy('/text-to-3d', {
+          method: 'POST',
+          body: JSON.stringify({ mode: 'refine', preview_task_id: previewId, enable_pbr: true }),
+        }).then((r) => r?.result);
+        starting.catch(() => refineJobs.delete(previewId));
+        refineJobs.set(previewId, starting);
+      }
+      const refineId = await refineJobs.get(previewId);
+
+      const job = await meshy(`/text-to-3d/${encodeURIComponent(refineId)}`);
       const status = String(job?.status || '').toUpperCase();
       res.json({
         ok: true,
-        status,                                   // PENDING | IN_PROGRESS | SUCCEEDED | FAILED
-        progress: job?.progress ?? 0,
+        status: status === 'CANCELED' ? 'FAILED' : status,   // PENDING | IN_PROGRESS | SUCCEEDED | FAILED
+        progress: 50 + Math.round((job?.progress ?? 0) / 2),
         url: status === 'SUCCEEDED' ? (job?.model_urls?.glb || null) : null,
         thumbnail: job?.thumbnail_url || null,
         error: job?.task_error?.message || null,
