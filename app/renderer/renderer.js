@@ -693,6 +693,71 @@ const SPARKLES_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 const COPY_SVG   = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 const CHECK_SVG  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 
+// ── Formatted assistant answers ───────────────────────────────────────────────
+// Small, safe Markdown renderer for chat bubbles: headings, bold/italic, inline
+// code, bullet and numbered lists, tables, code blocks and paragraphs. All text is
+// HTML-escaped before any tags are added, so model output can't inject markup.
+function _looksLikeMarkdown(t) {
+  return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```/.test(t);
+}
+
+function _renderChatMarkdown(src) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+  const lines = String(src).replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let i = 0;
+  const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+  const isSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+  const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (/^\s*```/.test(line)) {
+      const buf = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre><code>${esc(buf.join('\n'))}</code></pre>`);
+      continue;
+    }
+    const h = /^\s*(#{1,4})\s+(.*)$/.exec(line);
+    if (h) { const lvl = Math.min(4, h[1].length + 2); out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`); i++; continue; }
+
+    if (isTableRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const head = cells(line); i += 2;
+      const rows = [];
+      while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
+      out.push(`<div class="msg-table-wrap"><table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${
+        rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      continue;
+    }
+    if (/^\s*(?:[-*•])\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*(?:[-*•])\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*(?:[-*•])\s+/, ''));
+      out.push(`<ul>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ul>`);
+      continue;
+    }
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+[.)]\s+/, ''));
+      out.push(`<ol>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ol>`);
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|```)/.test(lines[i]) && !isTableRow(lines[i])) para.push(lines[i++]);
+    if (para.length) out.push(`<p>${para.map(inline).join('<br>')}</p>`);
+    else { out.push(`<p>${inline(line)}</p>`); i++; }
+  }
+  return out.join('');
+}
+
 function addMessage(role, text) {
   // Row wrapper (flex row, aligns avatar + bubble)
   const row = document.createElement('div');
@@ -712,7 +777,12 @@ function addMessage(role, text) {
 
   const textSpan = document.createElement('span');
   textSpan.className = 'msg-text';
-  textSpan.textContent = text;
+  if (role === 'assistant' && _looksLikeMarkdown(text)) {
+    textSpan.classList.add('msg-rich');
+    textSpan.innerHTML = _renderChatMarkdown(text);   // HTML is escaped first
+  } else {
+    textSpan.textContent = text;
+  }
   div.appendChild(textSpan);
 
   if (role === 'assistant') {

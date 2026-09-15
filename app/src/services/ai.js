@@ -726,7 +726,9 @@ STUDY MODE (activate when user asks to study, be quizzed, make flashcards, or pr
 - Be an encouraging, precise tutor. Correct errors kindly but clearly.
 
 REPLY STYLE:
-- Replies are spoken aloud — keep them to 1-3 sentences maximum for general chat. For science/math explanations, be thorough — use as many sentences as needed to explain properly.
+- Replies are spoken aloud — keep them to 1-3 sentences maximum for small talk and quick commands.
+- KNOWLEDGE QUESTIONS (accounting, finance, tax, business, law, science, maths, history, technology, health — any subject): answer directly in chat, thoroughly and accurately, the way a top expert would. Open with a one- or two-sentence direct answer, then structure the detail with short **bold** lead-ins or "## " headings, bullet or numbered lists for steps and options, and a Markdown table when comparing things or showing figures (e.g. a journal entry, a worked calculation). Include a short worked example when it helps. Keep it tight — no filler, no restating the question.
+- NEVER create a document, report file or slides for a question. Only use create_document / create_slides when the user explicitly asks for a document, report, doc, PDF or presentation to be made.
 - When opening or launching something, respond with short, composed phrases: "Right away.", "Consider it done.", "Opening that for you now." Never over-explain. Never end a response with "Understood." as a standalone word or sentence.
 - Speak with quiet confidence. Never sound eager or casual. Never use slang, exclamation marks, or filler words like "Sure!", "Of course!", "Absolutely!" or "Great question!".
 - Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${userNameBlock}${reminderBlock}${memoryBlock}${realtimeBlock}`;
@@ -734,6 +736,26 @@ REPLY STYLE:
 
 // Keywords that suggest the user wants to perform an action
 const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note)\b/i;
+
+// A document/slides deck is only made when the user actually asks for one.
+const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|presentation|powerpoint|ppt)\b|\bgoogle (doc|slides)\b|\bas a (document|doc|pdf|report)\b/i;
+
+// Questions about a subject ("how does depreciation work?", "explain EBITDA")
+// should be answered in chat, not routed to a tool because they contain words
+// like "report", "book" or "file".
+const KNOWLEDGE_Q = /^\s*(?:hey|hi|ok|okay|so|please|callisto)?[\s,]*(what|what's|whats|how|why|when|where|who|which|explain|describe|define|compare|tell me (?:about|how|why|what)|can you (?:explain|tell me|help me understand)|could you explain|help me understand|walk me through|is it|is there|are there|should i|do i|does|difference between|pros and cons|give me (?:an? )?(?:overview|summary|breakdown|rundown|example))\b/i;
+const STRONG_ACTION = /\b(open|launch|play|pause|call|ring|phone|message|text|dm|remind|schedule|add (?:an? )?event|book (?:a|an|me)|send|email|search (?:for|my)|find (?:my|me a)|generate|draw|paint|sketch|create|make|set|turn (?:on|off|up|down)|mute|unmute|volume|shut ?down|restart|reboot|remember|forget|note that|what'?s on my|my (?:schedule|calendar|events|day)|briefing|weather|news|score|stock|price of|near me|nearby)\b/i;
+
+function isKnowledgeQuestion(message) {
+  const m = String(message || '');
+  return KNOWLEDGE_Q.test(m) && !STRONG_ACTION.test(m) && !DOC_INTENT.test(m);
+}
+
+// Tools offered for this message — document/slide creation only when requested.
+function toolsFor(message) {
+  if (DOC_INTENT.test(String(message || ''))) return TOOLS;
+  return TOOLS.filter(t => !['create_document', 'create_slides'].includes(t.function?.name));
+}
 
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
 const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
@@ -805,7 +827,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const local = tryLocalCommand(message);
   if (local) return { ...local, memory: null };
 
-  const needsTools = ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message);
+  const needsTools = (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message);
 
   // Fast path: action queries with no context get a minimal prompt and trimmed history for speed
   if (fast && needsTools && !realtimeContext) {
@@ -814,7 +836,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
       ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
       { role: 'user', content: message },
     ];
-    const fastBody = { model: 'gpt-4o-mini', max_tokens: 150, messages: fastMessages, tools: TOOLS, tool_choice: 'required' };
+    const fastBody = { model: 'gpt-4o-mini', max_tokens: 150, messages: fastMessages, tools: toolsFor(message), tool_choice: 'required' };
     try {
       const fastRes = await serverFetch('chat', fastBody, { timeout: 15000, retries: 1 });
       const fastData = await fastRes.json();
@@ -868,7 +890,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     max_tokens: needsTools ? 1500 : (hasImages ? 3000 : 1024),
     messages,
   };
-  if (needsTools) { body.tools = TOOLS; body.tool_choice = 'required'; }
+  if (needsTools) { body.tools = toolsFor(message); body.tool_choice = 'required'; }
 
   const res = await serverFetch('chat', body, { timeout: 40000, retries: 2 });
   const data = await res.json();
@@ -929,7 +951,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
   const hasImages = attachments.some(a => a.kind === 'image');
 
   // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
-  const needsTools = !skipToolFallback && (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message));
+  const needsTools = !skipToolFallback && (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message);
   if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }
@@ -945,7 +967,8 @@ async function respondStreaming({ message, history = [], assistantName, memories
     (async () => {
       // Educational/study/homework queries need full budget; all other replies are 1-3 sentences
       const EDUCATIONAL_REGEX = /\b(explain|how does|how do|why does|why is|what is|what are|teach me|study|quiz|flashcard|revise|revision|step by step|in detail|describe|define|history of|science|math|chemistry|physics|biology|formula|equation|calculate|solve|homework|assignment|essay|question|answer|problem|working|workings?|proof|derive|derivation|simplify|factorise|factorize|integrate|differentiate|expand|balance|reaction|compound|element|periodic)\b/i;
-      const streamTokens = EDUCATIONAL_REGEX.test(message) ? 2000 : 500;
+      const BUSINESS_REGEX = /\b(accounting|finance|financial|tax|taxes|vat|gst|invoice|ledger|balance sheet|cash ?flow|income statement|profit|loss|revenue|margin|ebitda|depreciation|amorti[sz]ation|audit|payroll|budget|forecast|valuation|equity|debt|loan|interest|investment|portfolio|dividend|inflation|economics?|marketing|strategy|business|startup|company|management|operations|supply chain|pricing|sales|contract|law|legal|compliance|hr|negotiat\w*|leadership|entrepreneur\w*)\b/i;
+      const streamTokens = (EDUCATIONAL_REGEX.test(message) || BUSINESS_REGEX.test(message) || isKnowledgeQuestion(message)) ? 2000 : 500;
       const res = await serverFetch('chat/stream', {
         model: 'gpt-4o-mini', max_tokens: streamTokens, temperature: 0.3, messages,
       }, { timeout: 25000, retries: 1 });
@@ -1012,4 +1035,4 @@ async function generateImage(prompt, size = '1024x1024') {
   return { url: data.url };
 }
 
-module.exports = { respond, respondStreaming, generateImage, ACTION_KEYWORDS, serverFetch };
+module.exports = { respond, respondStreaming, generateImage, ACTION_KEYWORDS, isKnowledgeQuestion, serverFetch };

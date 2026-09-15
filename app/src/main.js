@@ -1377,7 +1377,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   }
 
   console.log('[CHAT] calling AI, needsAction:', ai.ACTION_KEYWORDS.test(message), 'isEmailSend:', isEmailSendRequest);
-  const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message);
+  // Subject questions ("how do I record depreciation?") are answered in chat even
+  // if they contain action-ish words like "report" or "book".
+  const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message) && !ai.isKnowledgeQuestion(message);
 
   const trimmedHistory = needsAction ? history.slice(-5) : history.slice(-30);
   const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: combinedContext, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
@@ -1402,11 +1404,19 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         ...aiParams,
         skipToolFallback: isEmailSendRequest,
         onSentence: (sentence) => {
+          // Formatted answers: speak the prose, skip tables/code, and only read the
+          // opening of long answers — the full version is on screen.
+          if (/^\s*\|/.test(sentence) || /```/.test(sentence) || /^\s*[-:| ]{3,}$/.test(sentence)) return;
+          if (sentenceIdx >= 6) return;
           const clean = sentence
             .replace(/\[\[REMEMBER:[^\]]*\]\]/gi, '')
             .replace(/\[\[ACTION:[^\]]*\]\]/gi, '')
             .replace(/\*\*([^*]+)\*\*/g, '$1')
             .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/^\s*#{1,6}\s*/gm, '')
+            .replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, '')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\|/g, ', ')
             .trim();
           if (!clean) return;
           // For email drafts, only speak the intro — skip reading the full email body aloud
