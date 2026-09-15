@@ -2160,33 +2160,41 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Amazon / eBay search: "show X on amazon" / "find X on ebay" ──────────
-  const amazonM = t.match(/(?:show|find|search|look up|order)\s+(.+?)\s+on\s+amazon/i)
-               || t.match(/amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i)
-               || t.match(/search\s+amazon\s+(?:for\s+)?(.+)/i);
+  const amazonM = t.match(/(?:show|find|search|look up|order|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+amazon/i)
+               || t.match(/search\s+amazon\s+(?:for\s+)?(.+)/i)
+               || t.match(/amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i);
   if (amazonM) {
     const query = amazonM[1].trim();
     // Don't intercept stock/finance queries that happen to mention amazon
     if (/\b(stock|share|price|ticker|invest|trading|market|ipo|dividend|nasdaq|nyse)\b/i.test(query)) {
       // fall through to stock handler or AI
     } else {
-      addMessage('assistant', `🛒 Searching Amazon for **${query}**…`);
-      window.jarvis.speak(`Here are Amazon results for ${query}.`);
-      // Open Amazon search directly inside Callisto (no system browser)
-      const amazonSearchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(query)}`;
-      window.jarvis.openInAppBrowser(amazonSearchUrl);
-      showCard({ type: 'shopping', store: 'amazon', query });
+      runShoppingSearch('amazon', cleanShoppingQuery(query));
       return true;
     }
   }
 
-  const ebayM = t.match(/(?:show|find|search|look up)\s+(.+?)\s+on\s+ebay/i)
-             || t.match(/ebay\s+(?:search\s+for\s+|find\s+)?(.+)/i)
-             || t.match(/search\s+ebay\s+(?:for\s+)?(.+)/i);
+  // "find me X on ebay" — the optional "me"/"us" is dropped so it doesn't end up
+  // in the search query (it used to search for "me used batman action figures").
+  const ebayM = t.match(/(?:show|find|search|look up|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+ebay/i)
+             || t.match(/search\s+ebay\s+(?:for\s+)?(.+)/i)
+             || t.match(/ebay\s+(?:search\s+for\s+|find\s+)?(.+)/i);
   if (ebayM) {
-    const query = ebayM[1].trim();
-    addMessage('assistant', `🛍️ Searching eBay for **${query}**…`);
-    window.jarvis.speak(`Here are eBay results for ${query}.`);
-    showCard({ type: 'shopping', store: 'ebay', query });
+    runShoppingSearch('ebay', cleanShoppingQuery(ebayM[1]));
+    return true;
+  }
+
+  const aliM = t.match(/(?:show|find|search|look up|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+(?:aliexpress|ali express)/i)
+            || t.match(/(?:aliexpress|ali express)\s+(?:search\s+for\s+|find\s+)?(.+)/i);
+  if (aliM) {
+    runShoppingSearch('aliexpress', cleanShoppingQuery(aliM[1]));
+    return true;
+  }
+
+  const temuM = t.match(/(?:show|find|search|look up|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+temu/i)
+             || t.match(/temu\s+(?:search\s+for\s+|find\s+)?(.+)/i);
+  if (temuM) {
+    runShoppingSearch('temu', cleanShoppingQuery(temuM[1]));
     return true;
   }
 
@@ -2708,6 +2716,141 @@ function getTeamEmoji(name) {
   return '🏟️';
 }
 
+// ── Shopping ──────────────────────────────────────────────────────────────────
+const STORE_META = {
+  ebay:       { name: 'eBay',       color: '#E43137', emoji: '🛍️' },
+  amazon:     { name: 'Amazon',     color: '#FF9900', emoji: '🛒' },
+  aliexpress: { name: 'AliExpress', color: '#FF4747', emoji: '📦' },
+  temu:       { name: 'Temu',       color: '#FB7701', emoji: '🧡' },
+};
+
+// Trims filler the speech/command prefix leaves behind ("me", "some", a trailing
+// "please") so the marketplace gets the actual product terms.
+function cleanShoppingQuery(raw) {
+  return String(raw || '')
+    .replace(/^\s*(?:me|us|some|a|an|the)\s+/i, '')
+    .replace(/\s+(?:please|pls|thanks|thank you)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function runShoppingSearch(store, query) {
+  const meta = STORE_META[store] || STORE_META.ebay;
+  if (!query) return;
+
+  addMessage('assistant', `${meta.emoji} Searching ${meta.name} for **${query}**…`);
+  window.jarvis.speak(`Searching ${meta.name} for ${query}.`);
+
+  // Render the card immediately in a loading state so it never feels stalled
+  showCard({ type: 'shopping', store, query, loading: true, products: [] });
+
+  let res = null;
+  try { res = await window.jarvis.shopSearch(store, query, 12); } catch (_) {}
+
+  showCard({
+    type: 'shopping',
+    store,
+    query,
+    loading: false,
+    products: res?.products || [],
+    searchUrl: res?.searchUrl || '',
+    note: res?.note || '',
+  });
+
+  const n = res?.products?.length || 0;
+  if (n) window.jarvis.speak(`Found ${n} results. The cheapest is ${formatMoney(res.products[0].currency, lowestPrice(res.products))}.`);
+}
+
+function lowestPrice(products) {
+  const priced = products.filter(p => typeof p.price === 'number');
+  return priced.length ? Math.min(...priced.map(p => p.price)) : null;
+}
+
+function formatMoney(currency, value) {
+  if (typeof value !== 'number') return '';
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(value);
+  } catch {
+    return `${currency || ''} ${value.toFixed(2)}`.trim();
+  }
+}
+
+function renderShoppingCard(card) {
+  const meta = STORE_META[card.store] || STORE_META.ebay;
+  const products = card.products || [];
+
+  const header = `
+    <div class="shop-head">
+      <span class="shop-store" style="color:${meta.color}">${esc(meta.name)}</span>
+      <span class="shop-query">${esc(card.query)}</span>
+    </div>`;
+
+  if (card.loading) {
+    return `<div class="card-shopping">${header}
+      <div class="shop-skeletons">
+        ${Array.from({ length: 4 }).map(() => `<div class="shop-skel"></div>`).join('')}
+      </div></div>`;
+  }
+
+  // Amazon, AliExpress and Temu publish no product API we can call for a shopper,
+  // so those searches hand off to the site rather than showing a broken empty grid.
+  if (!products.length) {
+    const why = card.note === 'no_api'
+      ? `${meta.name} doesn't offer a product feed, so I can't preview prices here.`
+      : card.note === 'not_configured'
+        ? 'Live results aren\'t set up on the server yet.'
+        : 'No results came back.';
+    return `<div class="card-shopping">${header}
+      <div class="shop-empty">${esc(why)}</div>
+      <button class="shop-all-btn" data-url="${esc(card.searchUrl || '')}" style="background:${meta.color}">
+        Open ${esc(meta.name)} →
+      </button>
+    </div>`;
+  }
+
+  const rows = products.map((p) => {
+    const price = formatMoney(p.currency, p.price);
+    const isAuction = /AUCTION/i.test(p.buyingOption || '');
+    return `
+      <button class="shop-item" data-url="${esc(p.url)}">
+        <div class="shop-thumb">${p.image
+          ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+          : '<div class="shop-thumb-blank"></div>'}</div>
+        <div class="shop-info">
+          <div class="shop-title">${esc(p.title)}</div>
+          <div class="shop-price-row">
+            <span class="shop-price">${esc(price)}</span>
+            ${isAuction ? '<span class="shop-tag">bid</span>' : ''}
+            ${p.condition ? `<span class="shop-cond">${esc(p.condition)}</span>` : ''}
+          </div>
+          ${p.shipping ? `<div class="shop-ship">${esc(p.shipping)}</div>` : ''}
+        </div>
+      </button>`;
+  }).join('');
+
+  return `<div class="card-shopping">
+    ${header}
+    <div class="shop-count">${products.length} result${products.length === 1 ? '' : 's'}</div>
+    <div class="shop-list">${rows}</div>
+    <button class="shop-all-btn" data-url="${esc(card.searchUrl || '')}" style="background:${meta.color}">
+      See all on ${esc(meta.name)} →
+    </button>
+  </div>`;
+}
+
+function wireShoppingCard() {
+  cardContent.querySelectorAll('.shop-item, .shop-all-btn').forEach((el) => {
+    el.addEventListener('click', () => {
+      const url = el.getAttribute('data-url');
+      if (!url) return;
+      // Product pages open in the in-app browser so the user stays signed in
+      // and can check out with their saved payment method.
+      if (window.jarvis.openInAppBrowser) window.jarvis.openInAppBrowser(url);
+      else window.jarvis.openGoogleUrl(url);
+    });
+  });
+}
+
 // ── AI phone call card ────────────────────────────────────────────────────────
 // Shows live call status and, when the other party proposes something the
 // assistant isn't authorised to accept, an approve/decline prompt. The assistant
@@ -3108,52 +3251,8 @@ function showCard(card) {
     }, 50);
 
   } else if (card.type === 'shopping') {
-    // Amazon / eBay sidebar card — quick-access links with category suggestions
-    const isAmazon = card.store === 'amazon';
-    const storeName  = isAmazon ? 'Amazon'  : 'eBay';
-    const storeColor = isAmazon ? '#FF9900' : '#E43137';
-    const storeLogo  = isAmazon
-      ? `<svg width="60" height="18" viewBox="0 0 120 35" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="0" y="28" font-family="Arial" font-weight="bold" font-size="28" fill="${storeColor}">amazon</text></svg>`
-      : `<svg width="42" height="18" viewBox="0 0 80 28" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="0" y="22" font-family="Arial" font-weight="bold" font-size="22" fill="${storeColor}">ebay</text></svg>`;
-    const searchUrl = isAmazon
-      ? `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}`
-      : `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}`;
-    const dealsUrl = isAmazon
-      ? `https://www.amazon.com/deals`
-      : `https://www.ebay.com/deals`;
-    const categoryLinks = isAmazon ? [
-      { label: 'Electronics',  url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:172282` },
-      { label: 'Clothing',     url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:7141123011` },
-      { label: 'Home',         url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:1055398` },
-      { label: 'Sports',       url: `https://www.amazon.com/s?k=${encodeURIComponent(card.query)}&rh=n:3375251` },
-    ] : [
-      { label: 'Buy It Now',   url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_BIN=1` },
-      { label: 'Auction',      url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_Auction=1` },
-      { label: 'New',          url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_ItemCondition=3` },
-      { label: 'Used',         url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(card.query)}&LH_ItemCondition=4` },
-    ];
-    cardContent.innerHTML = `
-      <div class="card-shopping">
-        <div class="shopping-store-logo">${storeLogo}</div>
-        <div class="shopping-label">SEARCH RESULTS FOR</div>
-        <div class="shopping-query">"${esc(card.query)}"</div>
-        <button class="shopping-main-btn" id="shopMainBtn" style="background:${storeColor}">
-          View Results on ${storeName} →
-        </button>
-        <div class="shopping-cat-title">FILTER BY</div>
-        <div class="shopping-cats">
-          ${categoryLinks.map(c => `<button class="shopping-cat-btn" data-url="${esc(c.url)}">${esc(c.label)}</button>`).join('')}
-        </div>
-        <button class="shopping-deals-btn" id="shopDealsBtn">🔥 Today's Deals</button>
-      </div>`;
-    setTimeout(() => {
-      const _openShop = (url) => isAmazon ? window.jarvis.openInAppBrowser(url) : window.jarvis.openUrl(url);
-      document.getElementById('shopMainBtn')?.addEventListener('click',  () => _openShop(searchUrl));
-      document.getElementById('shopDealsBtn')?.addEventListener('click', () => _openShop(dealsUrl));
-      cardContent.querySelectorAll('.shopping-cat-btn').forEach(btn => {
-        btn.addEventListener('click', () => _openShop(btn.dataset.url));
-      });
-    }, 50);
+    cardContent.innerHTML = renderShoppingCard(card);
+    wireShoppingCard();
 
   } else if (card.type === 'movie') {
     const ratingHtml = card.imdbRating ? `<div class="movie-rating">⭐ ${esc(card.imdbRating)} <span style="opacity:.5;font-size:11px">IMDb</span></div>` : '';

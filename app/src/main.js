@@ -17,6 +17,7 @@ const commands = require('./services/commands');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
 const calling = require('./services/calling');
+const shopping = require('./services/shopping');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
@@ -2078,6 +2079,16 @@ ipcMain.handle('call:enabled', async () => {
 ipcMain.handle('call:history', async () => {
   const token = loadAuthToken();
   return token ? await calling.history(token) : [];
+});
+
+// Real product results (images + prices) for the shopping card.
+ipcMain.handle('shop:search', async (_e, { store: shopStore, query, limit }) => {
+  return shopping.search({
+    token: loadAuthToken(),
+    store: shopStore || 'ebay',
+    query: String(query || '').trim(),
+    limit: limit || 12,
+  });
 });
 
 ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);

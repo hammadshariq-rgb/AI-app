@@ -88,6 +88,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
+  // Shopping — real product results (images, prices) from the license server
+  shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
   callStart:     (payload) => ipcRenderer.invoke('call:start', payload),
   callRespond:   (callId, approved, note) => ipcRenderer.invoke('call:respond', { callId, approved, note }),

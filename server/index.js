@@ -1578,5 +1578,8 @@ require('./calling').mountCalling(app, {
   resolvePublicUrl: getPublicUrl,
 });
 
+// ── Shopping search (real product results) ────────────────────────────────────
+require('./shopping').mountShopping(app, { authMiddleware });
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));
