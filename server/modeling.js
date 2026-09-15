@@ -9,14 +9,16 @@
 
 const MESHY_BASE = 'https://api.meshy.ai/openapi/v2';
 const MESHY_BASE_V1 = 'https://api.meshy.ai/openapi/v1';   // retexture lives on v1
-const MAX_REPAINTS_PER_DAY = 3;
 const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
-const MAX_JOBS_PER_DAY = 3;    // each generation costs credits (5,500/month plan)
-const dailyCount = new Map();
+// Every Meshy action (new model or repaint) shares one daily allowance per customer.
+const MESHY_USES_PER_DAY = Number(process.env.MESHY_USES_PER_DAY) || 4;
+const usage = require('./usage');
 const refineJobs = new Map();  // preview task id -> refine (texture) task id
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function limitMessage() {
+  return `You've used all ${MESHY_USES_PER_DAY} of today's 3D creations (new models and repaints). Try again tomorrow.`;
+}
 
 async function meshy(path, options = {}) {
   const { base = MESHY_BASE, ...rest } = options;
@@ -53,26 +55,28 @@ function mountModeling(app, { authMiddleware }) {
       const prompt = String(req.body?.prompt || '').trim();
       if (!prompt) return res.status(400).json({ error: 'Describe the model you want.' });
 
-      const key = `${req.userId}:${today()}`;
-      const used = dailyCount.get(key) || 0;
-      if (used >= MAX_JOBS_PER_DAY) {
-        return res.status(429).json({ error: `You've hit the limit of ${MAX_JOBS_PER_DAY} models today.` });
-      }
+      const slot = await usage.reserve('meshy', req.userId, MESHY_USES_PER_DAY);
+      if (!slot.ok) return res.status(429).json({ error: limitMessage() });
 
       // "preview" returns untextured geometry fast; texture is a second, slower pass.
-      const job = await meshy('/text-to-3d', {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'preview',
-          prompt: prompt.slice(0, 800),
-          // Meshy's current spec only accepts 'realistic'; 'sculpture' was removed.
-          art_style: 'realistic',
-          should_remesh: true,
-        }),
-      });
+      let job;
+      try {
+        job = await meshy('/text-to-3d', {
+          method: 'POST',
+          body: JSON.stringify({
+            mode: 'preview',
+            prompt: prompt.slice(0, 800),
+            // Meshy's current spec only accepts 'realistic'; 'sculpture' was removed.
+            art_style: 'realistic',
+            should_remesh: true,
+          }),
+        });
+      } catch (err) {
+        await usage.release('meshy', req.userId);   // rejected before any work — don't charge
+        throw err;
+      }
 
-      dailyCount.set(key, used + 1);
-      res.json({ ok: true, jobId: job?.result || job?.id || null });
+      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: MESHY_USES_PER_DAY - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
@@ -127,8 +131,8 @@ function mountModeling(app, { authMiddleware }) {
   });
 
   // Repaint an existing model from a description ("black and silver"). Uses Meshy's
-  // retexture endpoint, which keeps the shape and regenerates the textures. It has
-  // its own daily allowance so repainting doesn't eat into new models.
+  // retexture endpoint, which keeps the shape and regenerates the textures. Counts
+  // against the same daily Meshy allowance as new models.
   app.post('/models/retexture', authMiddleware, async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: '3D generation is not configured on this server.' });
@@ -137,24 +141,26 @@ function mountModeling(app, { authMiddleware }) {
       if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
       if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
 
-      const key = `rt:${req.userId}:${today()}`;
-      const used = dailyCount.get(key) || 0;
-      if (used >= MAX_REPAINTS_PER_DAY) {
-        return res.status(429).json({ error: `You've hit the limit of ${MAX_REPAINTS_PER_DAY} repaints today.` });
-      }
+      const slot = await usage.reserve('meshy', req.userId, MESHY_USES_PER_DAY);
+      if (!slot.ok) return res.status(429).json({ error: limitMessage() });
 
-      const job = await meshy('/retexture', {
-        method: 'POST',
-        base: MESHY_BASE_V1,
-        body: JSON.stringify({
-          input_task_id: taskId,
-          text_style_prompt: prompt.slice(0, 600),
-          enable_original_uv: true,
-          enable_pbr: true,
-        }),
-      });
-      dailyCount.set(key, used + 1);
-      res.json({ ok: true, jobId: job?.result || job?.id || null });
+      let job;
+      try {
+        job = await meshy('/retexture', {
+          method: 'POST',
+          base: MESHY_BASE_V1,
+          body: JSON.stringify({
+            input_task_id: taskId,
+            text_style_prompt: prompt.slice(0, 600),
+            enable_original_uv: true,
+            enable_pbr: true,
+          }),
+        });
+      } catch (err) {
+        await usage.release('meshy', req.userId);
+        throw err;
+      }
+      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: MESHY_USES_PER_DAY - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }

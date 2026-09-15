@@ -14,18 +14,18 @@ const HF_BASE = 'https://api.higgsfield.ai';
 const HF_KEY_ID = process.env.HF_API_KEY_ID || '';
 const HF_KEY_SECRET = process.env.HF_API_KEY_SECRET || '';
 
-const PER_USER_PER_DAY = Number(process.env.VIDEO_PER_USER_PER_DAY) || 1;
-const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 5;
+// Every Higgsfield action shares one daily allowance per customer.
+const PER_USER_PER_DAY = Number(process.env.HIGGSFIELD_USES_PER_DAY) || 5;
+// Optional server-wide cap to protect a small credit balance; 0 / unset = off.
+const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 0;
+const usage = require('./usage');
 
 // Seedance Lite is the cheapest text- and image-to-video tier in the API.
 const TEXT_TO_VIDEO = '/bytedance/seedance/v1/lite/text-to-video';
 const IMAGE_TO_VIDEO = '/bytedance/seedance/v1/lite/image-to-video';
 
-const dailyCount = new Map();   // `${userId}:${day}` -> n, and `*:${day}` -> total
 const images = new Map();       // token -> { buf, type, expires }
 const IMAGE_TTL_MS = 60 * 60 * 1000;
-
-function today() { return new Date().toISOString().slice(0, 10); }
 
 async function hf(path, options = {}) {
   const url = path.startsWith('http') ? path : `${HF_BASE}${path}`;
@@ -68,8 +68,6 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
   setInterval(() => {
     const now = Date.now();
     for (const [k, v] of images) if (v.expires < now) images.delete(k);
-    const day = today();
-    for (const k of dailyCount.keys()) if (!k.endsWith(day)) dailyCount.delete(k);
   }, 10 * 60 * 1000).unref();
 
   app.get('/video/config', authMiddleware, (_req, res) => {
@@ -92,17 +90,21 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       const prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
       if (!prompt) return res.status(400).json({ error: 'Describe the video you want.' });
 
-      const day = today();
-      const userKey = `${req.userId}:${day}`;
-      const allKey = `*:${day}`;
-      const used = dailyCount.get(userKey) || 0;
-      if (used >= PER_USER_PER_DAY) {
-        const n = PER_USER_PER_DAY;
-        return res.status(429).json({ error: `You've used your ${n} video${n === 1 ? '' : 's'} for today. Try again tomorrow.` });
+      const slot = await usage.reserve('higgsfield', req.userId, PER_USER_PER_DAY);
+      if (!slot.ok) {
+        return res.status(429).json({ error: `You've used all ${PER_USER_PER_DAY} of today's videos. Try again tomorrow.` });
       }
-      if ((dailyCount.get(allKey) || 0) >= ALL_USERS_PER_DAY) {
-        return res.status(429).json({ error: 'Video generation has hit its daily limit. Try again tomorrow.' });
+      if (ALL_USERS_PER_DAY) {
+        const all = await usage.reserve('higgsfield-all', 'everyone', ALL_USERS_PER_DAY);
+        if (!all.ok) {
+          await usage.release('higgsfield', req.userId);
+          return res.status(429).json({ error: 'Video generation has hit its daily limit. Try again tomorrow.' });
+        }
       }
+      const refund = async () => {
+        await usage.release('higgsfield', req.userId);
+        if (ALL_USERS_PER_DAY) await usage.release('higgsfield-all', 'everyone');
+      };
 
       const body = { prompt, duration: 5, resolution: '720', aspect_ratio: '16:9' };
       let endpoint = TEXT_TO_VIDEO;
@@ -113,6 +115,7 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
         const type = match ? match[1] : (req.body?.mimeType || 'image/png');
         const buf = Buffer.from(match ? match[2] : imageBase64, 'base64');
         if (!buf.length || buf.length > 10 * 1024 * 1024) {
+          await refund();
           return res.status(400).json({ error: 'That image is too large (10 MB max).' });
         }
         const token = crypto.randomBytes(24).toString('hex');
@@ -122,15 +125,17 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
         endpoint = IMAGE_TO_VIDEO;
       }
 
-      const job = await hf(endpoint, { method: 'POST', body: JSON.stringify(body) });
-      const requestId = job?.request_id || job?.id;
-      if (!requestId) throw new Error("Higgsfield didn't accept that request.");
+      let requestId = null;
+      try {
+        const job = await hf(endpoint, { method: 'POST', body: JSON.stringify(body) });
+        requestId = job?.request_id || job?.id;
+      } catch (err) {
+        await refund();   // rejected before any work — don't count it
+        throw err;
+      }
+      if (!requestId) { await refund(); throw new Error("Higgsfield didn't accept that request."); }
 
-      // Count only accepted jobs. Higgsfield refunds failures, so this errs on the
-      // side of protecting credits.
-      dailyCount.set(userKey, used + 1);
-      dailyCount.set(allKey, (dailyCount.get(allKey) || 0) + 1);
-      res.json({ ok: true, jobId: requestId });
+      res.json({ ok: true, jobId: requestId, remaining: PER_USER_PER_DAY - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
