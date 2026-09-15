@@ -140,6 +140,14 @@ let captureWindow = null;   // Ctrl+Shift+Y screen capture overlay
 let tray = null;
 let hudVoiceMode  = false;   // true while waiting for a Ctrl+Shift+C response
 let hudListening  = false;   // tracks whether HUD mic is currently active
+let isQuitting    = false;   // true only during a real quit, so 'close' can hide instead
+
+// Bring the app back up from the tray/dock. Recreates the window if it is gone.
+function showOverlay() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) { createOverlayWindow(); return; }
+  if (!overlayWindow.isVisible()) overlayWindow.show();
+  overlayWindow.focus();
+}
 
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -148,12 +156,15 @@ function createOverlayWindow() {
     height,
     x: 0,
     y: 0,
-    show: true,
+    // Stay hidden until the renderer has actually painted. Showing a transparent,
+    // frameless window before first paint is what draws stray lines/artifacts on macOS.
+    show: false,
     frame: false,
     transparent: true,
     resizable: false,
     alwaysOnTop: false,
     skipTaskbar: false,
+    backgroundColor: '#00000000',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -168,10 +179,27 @@ function createOverlayWindow() {
     const allowed = ['media', 'microphone', 'audioCapture', 'geolocation'];
     callback(allowed.includes(permission));
   });
+  // ready-to-show fires after the first paint — showing here avoids the flash of
+  // unpainted transparent surface (the stray lines users saw during startup).
+  overlayWindow.once('ready-to-show', () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.show();
+      overlayWindow.focus();
+    }
+  });
   overlayWindow.webContents.once('did-finish-load', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    if (!overlayWindow.isVisible()) overlayWindow.show();
     overlayWindow.focus();
     const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
     overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
+  });
+  // The X button should park the app in the tray, not tear the window down.
+  // Destroying it left nothing to re-show, which is why reopening needed a force-quit.
+  overlayWindow.on('close', (e) => {
+    if (isQuitting) return;
+    e.preventDefault();
+    overlayWindow.hide();
   });
   overlayWindow.on('closed', () => {
     overlayWindow = null;
@@ -360,7 +388,7 @@ ipcMain.handle('capture:identify', async (_e, bounds) => {
 });
 
 function toggleOverlay() {
-  if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
+  if (!overlayWindow || overlayWindow.isDestroyed()) { createOverlayWindow(); return; }
   if (overlayWindow.isVisible()) {
     overlayWindow.hide();
   } else {
@@ -418,7 +446,7 @@ function handleDeepLink(url) {
 app.on('second-instance', (_e, argv) => {
   const url = argv.find(a => a.startsWith('jarvis://'));
   if (url) handleDeepLink(url);
-  if (overlayWindow) { overlayWindow.show(); overlayWindow.focus(); }
+  showOverlay();
 });
 
 function createTray() {
@@ -689,6 +717,12 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', (e) => e.preventDefault()); // keep running in tray
+
+// macOS fires 'activate' when the dock icon is clicked while the app is still running.
+// Without this the window never came back after the X button and needed a force-quit.
+app.on('activate', () => showOverlay());
+
+app.on('before-quit', () => { isQuitting = true; });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 // ---- IPC: renderer <-> services ----
@@ -1097,10 +1131,8 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const songQuery = _playM[1].trim();
     const _spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (_spotifyConnected) {
-      // Respond immediately, then run the full proven Spotify play logic in background
-      _coreSpotifyPlay(songQuery).catch(() => {
-        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-      });
+      // Respond immediately, then run the play logic in the background
+      _coreSpotifyPlay(songQuery).catch(() => stopSpotifyFocusLock());
       const spokenText = `Playing ${songQuery} on Spotify.`;
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -1444,7 +1476,6 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
             suppressSpotifyWindow();
             setTimeout(() => suppressSpotifyWindow(), 800);
             setTimeout(() => suppressSpotifyWindow(), 2000);
-            setTimeout(() => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating'); }, 5000);
             const spokenText = `Playing ${lastRetry.trackName} by ${lastRetry.artistName} on Spotify.`;
             _sendTTS(_e.sender, spokenText);
             return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -1788,13 +1819,11 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
 
-  // For open_app: temporarily drop alwaysOnTop so the launched app can come to front
-  if (finalAction?.type === 'open_app' && overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.setAlwaysOnTop(false);
-    // Restore floating after 6s so Callisto is still accessible
-    setTimeout(() => {
-      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-    }, 6000);
+  // For open_app: make sure nothing is pinning Callisto on top, so the launched
+  // app comes to the front — every time, not just the first. The window's default
+  // is alwaysOnTop:false, so we simply return it there and leave it there.
+  if (finalAction?.type === 'open_app') {
+    stopSpotifyFocusLock();
   }
 
   // ── Split-screen: when HUD voice triggered an open_file or open_app, snap main app to left half ──
@@ -2696,45 +2725,41 @@ ipcMain.handle('tv:install-adb', async (_e) => {
 });
 
 // ── Spotify focus-lock singleton ─────────────────────────────────────────────
-// Only ONE focus-lock can run at a time. Each new call cancels the previous one.
+// Exactly ONE focus-lock may exist at a time. Every start cancels the previous.
+// Leaking these intervals is what froze the app after repeated plays.
 let _spFocusInterval = null;
-let _spFocusActive = false;
+let _spFocusTimer = null;
+// Bumped on every play. An older in-flight run sees its generation is stale and bails,
+// so a second "play another song" cleanly supersedes the first instead of fighting it.
+let _spotifyGen = 0;
 
-function startSpotifyFocusLock(durationMs = 30000) {
-  // Cancel any previous lock immediately
-  _spFocusActive = false;
-  if (_spFocusInterval) { clearInterval(_spFocusInterval); _spFocusInterval = null; }
-  // Drop alwaysOnTop back to base so we can re-raise cleanly
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
-  _spFocusActive = true;
+function startSpotifyFocusLock(durationMs = 12000) {
+  stopSpotifyFocusLock();
   _spFocusInterval = setInterval(() => {
-    if (!_spFocusActive) { clearInterval(_spFocusInterval); _spFocusInterval = null; return; }
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.setAlwaysOnTop(true, 'screen-saver');
       overlayWindow.focus();
     }
-  }, 150);
-  // Auto-stop after durationMs
-  setTimeout(() => stopSpotifyFocusLock(), durationMs);
+  }, 200);
+  _spFocusTimer = setTimeout(() => stopSpotifyFocusLock(), durationMs);
 }
 
+// Always returns the window to its CREATION default (alwaysOnTop: false, see the
+// BrowserWindow options). Leaving it pinned is what made other apps open behind Callisto.
 function stopSpotifyFocusLock() {
-  _spFocusActive = false;
   if (_spFocusInterval) { clearInterval(_spFocusInterval); _spFocusInterval = null; }
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.setAlwaysOnTop(false);
-    overlayWindow.setAlwaysOnTop(true, 'floating');
-  }
+  if (_spFocusTimer) { clearTimeout(_spFocusTimer); _spFocusTimer = null; }
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
 }
 
 // ── Spotify direct play (bypasses AI, calls Web API directly) ────────────────
 
 // Poll Spotify's /devices endpoint every 2s until at least one device appears or timeout.
 // Returns the device list (may be empty on timeout).
-async function waitForSpotifyDevice(maxMs = 28000) {
+async function waitForSpotifyDevice(maxMs = 14000) {
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 700));
     try {
       const token = await connectors.getSpotifyToken();
       if (!token) break;
@@ -2771,9 +2796,9 @@ function suppressSpotifyWindow() {
   const { exec } = require('child_process');
 
   if (process.platform === 'darwin') {
-    // Mac: minimize Spotify via AppleScript, then bring Callisto back
+    // Mac: hide Spotify via AppleScript, then bring Callisto back.
+    // Never pin alwaysOnTop here — that would keep other apps stuck behind us.
     exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false' 2>/dev/null`, () => {});
-    overlayWindow.setAlwaysOnTop(true, 'floating');
     overlayWindow.focus();
     return;
   }
@@ -2797,21 +2822,16 @@ public class W32 {
     }
   `.trim().replace(/\n\s*/g, '; ');
   exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
-  // Aggressively bring Callisto back — run multiple times to beat Spotify's focus steal
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.focus();
-  for (const ms of [200, 500, 900, 1400, 2200, 3500]) {
+  // Two light repeats to beat Spotify's own focus grab. No alwaysOnTop churn here —
+  // the focus lock owns that, and it always restores alwaysOnTop(false) when it ends.
+  for (const ms of [600, 1500]) {
     setTimeout(() => {
       if (!overlayWindow || overlayWindow.isDestroyed()) return;
       exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
       overlayWindow.focus();
     }, ms);
   }
-  setTimeout(() => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    overlayWindow.setAlwaysOnTop(true, 'floating');
-  }, 4000);
 }
 
 // Launch Spotify hidden (never visible) — works on Windows and Mac
@@ -2822,10 +2842,11 @@ function launchSpotifyHidden() {
     // Mac: open Spotify normally (NOT -j) so it registers as a Web API device.
     // After it registers and playback starts, suppressSpotifyWindow() hides it via osascript.
     // Using -j would keep it from registering as a Connect device (Web API requires it visible).
-    exec('open -a Spotify', (err) => {
+    // -g launches WITHOUT bringing Spotify to the foreground, so Callisto keeps focus.
+    exec('open -g -a Spotify', (err) => {
       if (err) {
-        console.log('[Spotify Mac] open -a Spotify failed:', err.message, '— trying spotify: URI');
-        exec('open spotify:', () => {});
+        console.log('[Spotify Mac] open -g -a Spotify failed:', err.message, '— trying spotify: URI');
+        exec('open -g spotify:', () => {});
       }
     });
     return;
@@ -2914,138 +2935,125 @@ ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
 });
 
 // ── Core Spotify play logic — shared by fast-path and IPC handler ─────────────
+// Every call bumps _spotifyGen. An older run that is still awaiting something checks
+// alive() and bails out, so asking for a second song cleanly supersedes the first
+// instead of two runs fighting over the window and the player.
 async function _coreSpotifyPlay(query) {
   const { exec } = require('child_process');
+  const gen = ++_spotifyGen;
+  const alive = () => gen === _spotifyGen;
+  const superseded = { ok: false, error: 'superseded' };
+
+  // Any exit through here leaves the window back at its default (not always-on-top)
+  const finish = (res) => { if (alive()) stopSpotifyFocusLock(); return res; };
+
   const tokens = connectors.loadTokens('spotify');
   if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
 
-    // Pin Callisto above everything immediately (synchronous — beats any async steal)
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-      overlayWindow.focus();
+  // ── macOS ──────────────────────────────────────────────────────────────────
+  // AppleScript `play track <uri>` starts playback instantly. It needs no Connect
+  // device registration, so we skip the launch/poll/retry dance entirely — this is
+  // what makes Mac fast. Spotify is pre-launched with `open -g` so it never takes focus.
+  if (process.platform === 'darwin') {
+    const found = await connectors.searchSpotifyTrack(query).catch(() => null);
+    if (!alive()) return superseded;
+    if (!found?.ok) return finish({ ok: false, error: found?.error || 'track_not_found' });
+
+    const playTrack = () => new Promise((resolve) => {
+      exec(`osascript -e 'tell application "Spotify" to play track "${found.trackUri}"'`,
+        (err) => resolve(!err));
+    });
+
+    const running = await new Promise((r) =>
+      exec('pgrep -x Spotify', (_e2, out) => r(!!String(out || '').trim())));
+
+    if (!running) {
+      // Background launch — `-g` keeps Callisto in front
+      exec('open -g -a Spotify', () => {});
+      await new Promise(r => setTimeout(r, 900));
     }
 
-    // First attempt — Spotify may already be open and active
-    let result = await playOnSpotifyTimed(query, 10000);
-    console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
-
-    if (result.ok) {
-      // Play succeeded — suppress Spotify window (AFTER play, never before)
-      suppressSpotifyWindow();
-      setTimeout(() => suppressSpotifyWindow(), 500);
-      setTimeout(() => suppressSpotifyWindow(), 1200);
-      setTimeout(() => suppressSpotifyWindow(), 2200);
-      setTimeout(() => {
-        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-      }, 5000);
-      return result;
+    let ok = await playTrack();
+    // Spotify may still be booting — retry briefly until it accepts AppleScript
+    for (let i = 0; i < 10 && !ok; i++) {
+      if (!alive()) return superseded;
+      await new Promise(r => setTimeout(r, 400));
+      ok = await playTrack();
     }
+    if (!alive()) return superseded;
 
-    if (result.error === 'NO_ACTIVE_DEVICE') {
-      // Spotify isn't running — launch it, then poll every 2s until a device appears.
-      console.log('[Spotify] No device — launching Spotify and polling for registration…');
-      launchSpotifyHidden();
+    if (ok) {
+      // Keep it out of the way without pinning Callisto on top
+      setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 250);
+      setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 1000);
+      return finish({ ok: true, trackName: found.trackName, artistName: found.artistName });
+    }
+    return finish({ ok: false, error: 'play_failed' });
+  }
 
-      // Start a rapid in-process focus lock the instant Spotify launches.
-      // overlayWindow.focus() is synchronous (no subprocess) so it fires every 120ms
-      // and recaptures focus before the user notices Spotify stole it.
-      let focusLockActive = true;
-      const focusLockInterval = setInterval(() => {
-        if (!focusLockActive) return clearInterval(focusLockInterval);
-        if (overlayWindow && !overlayWindow.isDestroyed()) {
-          overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-          overlayWindow.focus();
-        }
-      }, 120);
-      // Safety: always clear after 30s max
-      const focusLockSafety = setTimeout(() => { focusLockActive = false; }, 30000);
+  // ── Windows ────────────────────────────────────────────────────────────────
+  let result = await playOnSpotifyTimed(query, 8000).catch(() => ({ ok: false, error: 'timeout' }));
+  if (!alive()) return superseded;
+  console.log('[Spotify] first attempt:', result.ok ? 'ok' : result.error);
 
-      const devices = await waitForSpotifyDevice(28000); // up to 28s
-      if (devices.length > 0) {
-        // Retry play up to 3 times with 2s gaps — device registers before player is ready
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          console.log(`[Spotify] Play attempt ${attempt}/3 (waiting 2s for player to be ready)…`);
-          await new Promise(r => setTimeout(r, 2000));
-          result = await playOnSpotifyTimed(query, 10000);
-          console.log(`[Spotify] attempt ${attempt} result:`, result.ok ? 'ok' : result.error);
-          if (result.ok) break;
-          // PREMIUM_REQUIRED = no point retrying
-          if (result.error === 'PREMIUM_REQUIRED' || result.error === 'status_403') break;
-        }
+  if (result.ok) {
+    suppressSpotifyWindow();
+    setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 700);
+    return finish(result);
+  }
 
-        if (result.ok) {
-          focusLockActive = false;
-          clearTimeout(focusLockSafety);
-          suppressSpotifyWindow();
-          setTimeout(() => suppressSpotifyWindow(), 800);
-          setTimeout(() => suppressSpotifyWindow(), 2000);
-          setTimeout(() => {
-            if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-          }, 5000);
-          return result;
-        }
-        console.log('[Spotify] All play attempts failed, error:', result.error, '— falling back to URI');
-      } else {
-        console.log('[Spotify] No device appeared within 28s — falling back to URI');
+  if (result.error === 'NO_ACTIVE_DEVICE') {
+    console.log('[Spotify] No device — launching Spotify and polling for registration…');
+    launchSpotifyHidden();
+    startSpotifyFocusLock(20000);
+
+    const devices = await waitForSpotifyDevice(14000);
+    if (!alive()) return superseded;
+
+    if (devices.length > 0) {
+      // Device registers a moment before the player will accept commands
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        await new Promise(r => setTimeout(r, attempt === 1 ? 600 : 1200));
+        if (!alive()) return superseded;
+        result = await playOnSpotifyTimed(query, 8000).catch(() => ({ ok: false, error: 'timeout' }));
+        console.log(`[Spotify] attempt ${attempt} result:`, result.ok ? 'ok' : result.error);
+        if (result.ok) break;
+        if (result.error === 'PREMIUM_REQUIRED' || result.error === 'status_403') break;
       }
-
-      // Last resort URI fallback — open track URI, then trigger play via WM_APPCOMMAND
-      focusLockActive = false;
-      clearTimeout(focusLockSafety);
-
-      const trackId = (result.trackUri || '').replace('spotify:track:', '');
-      if (trackId) {
-        if (process.platform === 'darwin') {
-          exec(`osascript -e 'tell application "Spotify" to play track "spotify:track:${trackId}"'`, () => {});
-        } else {
-          const { shell } = require('electron');
-          shell.openExternal(`spotify:track:${trackId}`);
-          // WM_APPCOMMAND MEDIA_PLAY (46<<16 = 3014656) sent directly to Spotify's window.
-          // Unlike SendKeys this requires NO focus — works even if Spotify is minimized.
-          const sendMediaPlay = () => {
-            // Use WScript AppActivate by PID (reliable) then SendKeys Space
-            // Fallback: PostMessage WM_APPCOMMAND MEDIA_PLAY (no focus needed)
-            exec(
-              `powershell -WindowStyle Hidden -Command "` +
-              `$p = Get-Process spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; ` +
-              `if ($p) { ` +
-              `  try { ` +
-              `    Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); }' -ErrorAction SilentlyContinue; ` +
-              `    [W]::PostMessage($p.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656); ` +
-              `    Write-Host 'WM_APPCOMMAND sent' ` +
-              `  } catch { ` +
-              `    $wsh = New-Object -ComObject WScript.Shell; $wsh.AppActivate($p.Id); Start-Sleep -Milliseconds 500; $wsh.SendKeys(' ') ` +
-              `  } ` +
-              `} else { Write-Host 'No Spotify window found' }"`,
-              (err, stdout, stderr) => { console.log('[Spotify] play trigger:', stdout?.trim() || err?.message || 'done'); }
-            );
-          };
-          // Send at 2s, 3.5s, 5s — multiple attempts in case Spotify isn't loaded yet
-          setTimeout(sendMediaPlay, 2000);
-          setTimeout(sendMediaPlay, 3500);
-          setTimeout(sendMediaPlay, 5000);
-          // Keep focus on Callisto the whole time (MEDIA_PLAY needs no focus)
-          const uriFocusLock = setInterval(() => {
-            if (overlayWindow && !overlayWindow.isDestroyed()) {
-              overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-              overlayWindow.focus();
-            }
-          }, 120);
-          setTimeout(() => {
-            clearInterval(uriFocusLock);
-            suppressSpotifyWindow();
-            setTimeout(() => suppressSpotifyWindow(), 800);
-          }, 6000);
-        }
-        setTimeout(() => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-        }, 8000);
-        return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
+      if (result.ok) {
+        suppressSpotifyWindow();
+        setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 700);
+        return finish(result);
       }
     }
+    console.log('[Spotify] falling back to track URI + MEDIA_PLAY');
+  }
 
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
-    return result;
+  // URI fallback — open the track, then press play via WM_APPCOMMAND (needs no focus)
+  const trackId = String(result.trackUri || '').replace('spotify:track:', '');
+  if (trackId) {
+    require('electron').shell.openExternal(`spotify:track:${trackId}`);
+
+    const sendMediaPlay = () => exec(
+      `powershell -WindowStyle Hidden -Command "` +
+      `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { ` +
+      `[DllImport(""user32.dll"")] public static extern IntPtr PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l); ` +
+      `[DllImport(""user32.dll"")] public static extern IntPtr FindWindow(string c, string t); }' -EA SilentlyContinue; ` +
+      `$sent = $false; ` +
+      `Get-Process spotify -EA SilentlyContinue | ForEach-Object { if ($_.MainWindowHandle -ne 0) { ` +
+      `[W]::PostMessage($_.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656); $sent = $true } }; ` +
+      `if (-not $sent) { $h = [W]::FindWindow('Chrome_WidgetWin_0', [NullString]::Value); ` +
+      `if ($h -ne 0) { [W]::PostMessage($h, 0x319, [IntPtr]0, [IntPtr]3014656) } }"`, () => {});
+
+    startSpotifyFocusLock(6000);
+    for (const ms of [1200, 2500, 4000]) setTimeout(() => { if (alive()) sendMediaPlay(); }, ms);
+    for (const ms of [1600, 3200, 4800]) setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, ms);
+    setTimeout(() => { if (alive()) stopSpotifyFocusLock(); }, 5500);
+
+    return { ok: true, trackName: result.trackName, artistName: result.artistName, useUri: true };
+  }
+
+  return finish(result);
 }
 
 // Combined handler — searches track, launches Spotify if needed, plays via Web API
@@ -3053,7 +3061,7 @@ ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
   try {
     return await _coreSpotifyPlay(query);
   } catch (err) {
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(true, 'floating');
+    stopSpotifyFocusLock();
     console.error('[Spotify] jarvis:spotifyPlay error:', err.message);
     return { ok: false, error: err.message };
   }

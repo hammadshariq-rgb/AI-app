@@ -102,46 +102,78 @@ async function getSpotifyToken() {
   return tokens.access_token;
 }
 
-// Play a song on Spotify in the background using the Web API
-// Returns: { ok, trackName, artistName } or { ok: false, error }
-async function playOnSpotify(query) {
-  const token = await getSpotifyToken();
+// Search for a track and return its URI. Handles a stale token by refreshing once.
+// Returns: { ok, trackUri, trackName, artistName } or { ok: false, error }
+async function searchSpotifyTrack(query) {
+  let token = await getSpotifyToken();
   if (!token) return { ok: false, error: 'not_connected' };
 
-  try {
-    // 1. Search for the track — format query for best accuracy
-    // Remove leading "play " if AI passed it through
-    let searchQuery = query.replace(/^play\s+/i, '').trim();
-    // "song by artist" → Spotify field filter "track:song artist:artist"
-    const byMatch = searchQuery.match(/^(.+?)\s+by\s+(.+)$/i);
-    if (byMatch) searchQuery = `track:${byMatch[1].trim()} artist:${byMatch[2].trim()}`;
+  // Strip a leading "play " the AI may have passed through
+  const plain = query.replace(/^play\s+/i, '').trim();
+  // "song by artist" → Spotify field filter for best accuracy
+  const byMatch = plain.match(/^(.+?)\s+by\s+(.+)$/i);
+  const strict = byMatch ? `track:${byMatch[1].trim()} artist:${byMatch[2].trim()}` : plain;
 
-    const searchRes = await fetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=track&limit=1`,
-      { headers: { Authorization: `Bearer ${token}` } }
+  const hit = async (q, t) => {
+    const res = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`,
+      { headers: { Authorization: `Bearer ${t}` } }
     );
-    const searchData = await searchRes.json();
-    const track = searchData.tracks?.items?.[0];
+    return res;
+  };
+
+  try {
+    let res = await hit(strict, token);
+    // 401 = token stale or safeStorage returned undecrypted bytes — refresh once and retry
+    if (res.status === 401) {
+      const fresh = await refreshSpotifyToken();
+      if (!fresh) return { ok: false, error: 'not_connected' };
+      token = fresh;
+      res = await hit(strict, token);
+    }
+    let track = (await res.json().catch(() => ({})))?.tracks?.items?.[0];
+
+    // Field-filtered search found nothing — retry with the plain phrase
+    if (!track && byMatch) {
+      const r2 = await hit(plain, token);
+      track = (await r2.json().catch(() => ({})))?.tracks?.items?.[0];
+    }
     if (!track) return { ok: false, error: 'track_not_found' };
 
-    const trackName = track.name;
-    const artistName = track.artists?.[0]?.name || '';
+    return {
+      ok: true,
+      trackUri: track.uri,
+      trackName: track.name,
+      artistName: track.artists?.[0]?.name || '',
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
 
-    // 2. Get available devices (Spotify must be open on some device)
+// Play a song on Spotify in the background using the Web API.
+// Always carries trackUri back on failure so callers can fall back to the URI/AppleScript path.
+async function playOnSpotify(query) {
+  const found = await searchSpotifyTrack(query);
+  if (!found.ok) return found;
+  const { trackUri, trackName, artistName } = found;
+
+  const token = await getSpotifyToken();
+  if (!token) return { ok: false, error: 'not_connected', trackUri, trackName, artistName };
+
+  try {
+    // Get available devices (Spotify must be open on some device)
     const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const devData = await devRes.json();
     const devices = devData.devices || [];
-    // Prefer active device, fall back to any device
     const device = devices.find(d => d.is_active) || devices[0];
 
-    // If no device at all, return early with trackUri so caller can launch Spotify and retry
-    if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri: track.uri, trackName, artistName };
+    // No device at all — caller launches Spotify and retries
+    if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri, trackName, artistName };
 
-    // 3. If device exists but isn't active, transfer playback to it first.
-    //    Spotify requires an explicit transfer before it will accept play commands
-    //    on a device that isn't currently the active player.
+    // Transfer playback if the device isn't the active player
     if (!device.is_active) {
       try {
         await fetch('https://api.spotify.com/v1/me/player', {
@@ -149,27 +181,32 @@ async function playOnSpotify(query) {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ device_ids: [device.id], play: false }),
         });
-        // Give Spotify a moment to complete the transfer before sending play
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 400));
       } catch (_) { /* transfer failed — try play anyway */ }
     }
 
-    // 4. Start playback
+    // Start playback
     const playRes = await fetch('https://api.spotify.com/v1/me/player/play', {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: [track.uri], device_id: device.id }),
+      body: JSON.stringify({ uris: [trackUri], device_id: device.id }),
     });
 
     if (playRes.status === 204 || playRes.status === 200) {
-      return { ok: true, trackName, artistName };
+      // Transferring playback can leave the device at a very low volume — lift it
+      if (typeof device.volume_percent === 'number' && device.volume_percent < 40) {
+        fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=75&device_id=${device.id}`, {
+          method: 'PUT', headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
+      return { ok: true, trackName, artistName, trackUri };
     }
-    // 403 = no Premium, 404 = device gone — include trackUri so caller can open it directly
+    // 403 = no Premium, 404 = device gone
     const errBody = await playRes.json().catch(() => ({}));
     console.log('[Spotify] play failed:', playRes.status, JSON.stringify(errBody));
-    return { ok: false, error: errBody?.error?.reason || `status_${playRes.status}`, trackUri: track.uri, trackName, artistName };
+    return { ok: false, error: errBody?.error?.reason || `status_${playRes.status}`, trackUri, trackName, artistName };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, trackUri, trackName, artistName };
   }
 }
 
@@ -852,7 +889,7 @@ module.exports = {
   saveSpotifyTokens, saveCalendarTokens,
   saveYouTubeTokens, saveInstagramTokens, saveTikTokTokens, saveShopifyCredentials,
   saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials,
-  playOnSpotify, getSpotifyToken, loadTokens,
+  playOnSpotify, searchSpotifyTrack, getSpotifyToken, loadTokens,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
