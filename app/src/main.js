@@ -1578,7 +1578,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
   if (finalAction?.type === 'place_phone_call') {
-    const started = await _startPhoneCall(finalAction.payload || {});
+    // Don't dial with no purpose — "call Zakir Tikka" alone should ask what to do.
+    const p = finalAction.payload || {};
+    const goal = String(p.goal || '').trim();
+    const vague = !goal || goal.length < 15 || /^(call|phone|ring|contact|speak to|talk to)\b[^,.]*$/i.test(goal)
+      || !/\b(book|reserv|order|ask|check|find out|appointment|table|cancel|confirm|enquir|inquir|price|open|availab|deliver|pick ?up|takeaway|quote|schedul|change|move)\w*/i.test(goal + ' ' + message);
+    if (vague) {
+      const who = p.contactName || 'them';
+      const ask = `Sure — I can phone ${who} for you. What should I ask or book? For example, "book a table for 4 at 8pm".`;
+      _sendTTS(_e.sender, ask);
+      return { text: ask, audio: null, card: null, hasAction: false };
+    }
+    const started = await _startPhoneCall(p);
     if (!started.ok) {
       _sendTTS(_e.sender, started.error);
       return { text: started.error, audio: null, card: null, hasAction: false };

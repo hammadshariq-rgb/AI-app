@@ -178,7 +178,7 @@ function mountCalling(app, { authMiddleware, resolvePublicUrl }) {
   app.post('/calls/start', authMiddleware, async (req, res) => {
     try {
       if (!configured) {
-        return res.status(503).json({ error: 'Calling is not configured on this server.' });
+        return res.status(503).json({ error: "Phone calls aren't available yet — they're being switched on soon." });
       }
       const { phone, goal, constraints, businessName, userName, defaultCountry } = req.body || {};
 

@@ -41,7 +41,7 @@
   let root, canvas, titleEl, statusEl, ringEl, ringPct, ringLabel, inspector, cmdInput, busyEl, dlBtn;
   let renderer = null, scene = null, camera = null, modelRoot = null, brushMesh = null;
   let rafId = null, open = false, loaderReady = null;
-  let raycaster = null;
+  let raycaster = null, rimLight = null;
 
   let current = { title: '', taskId: null, prompt: '', bytes: null, edited: false };
   let loadingKey = null;
@@ -339,7 +339,7 @@
     scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x1a0b12, 1.0));
     const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(3, 5, 4); scene.add(key);
     const fill = new THREE.DirectionalLight(0x8ec5ff, 0.6); fill.position.set(-4, 1, 3); scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xff2d5c, 1.8); rim.position.set(-2, 2.5, -5); scene.add(rim);
+    rimLight = new THREE.DirectionalLight(0xff2d5c, 1.8); rimLight.position.set(-2, 2.5, -5); scene.add(rimLight);
 
     // Brush preview — a soft crimson shell showing what the selection covers.
     brushMesh = new THREE.Mesh(
@@ -354,8 +354,19 @@
     brushMesh.visible = false;
     brushMesh.renderOrder = 10;
     scene.add(brushMesh);
+    refreshAccent();
 
     window.addEventListener('resize', resize);
+  }
+
+  // Rim light and selection highlight follow the colour chosen in the app's picker.
+  function refreshAccent() {
+    if (!rimLight || !brushMesh) return;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--app-accent-rgb').trim() || '0, 200, 255';
+    const [r, g, b] = raw.split(',').map((v) => Number(v) / 255);
+    if ([r, g, b].some((v) => !Number.isFinite(v))) return;
+    rimLight.color.setRGB(r, g, b, window.THREE.SRGBColorSpace);
+    brushMesh.material.color.setRGB(r, g, b, window.THREE.SRGBColorSpace);
   }
 
   function resize() {
@@ -1012,5 +1023,6 @@
     hasSelection,
     editSelection,
     notify,
+    refreshAccent,
   };
 })();

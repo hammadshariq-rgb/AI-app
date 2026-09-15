@@ -7933,6 +7933,9 @@ micBtn.addEventListener('click', () => {
 
     // 2. Orb ring borders + halo glow behind orb
     document.documentElement.style.setProperty('--orb-ring-color', `rgba(${r255},${g255},${b255},0.3)`);
+    // App accent for surfaces that follow the chosen colour (3D studio, artifacts)
+    document.documentElement.style.setProperty('--app-accent-rgb', `${r255}, ${g255}, ${b255}`);
+    if (window.CallistoModelViewer?.refreshAccent) window.CallistoModelViewer.refreshAccent();
     // inject a dynamic keyframe override for the idle pulse glow
     let styleTag = document.getElementById('orbIdleOverride');
     if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = 'orbIdleOverride'; document.head.appendChild(styleTag); }
@@ -7978,6 +7981,8 @@ micBtn.addEventListener('click', () => {
     if (window._hills) window._hills.setColor(null); // null = revert to theme default
     window._waveformColor = null;
     localStorage.removeItem('orbColor');
+    document.documentElement.style.removeProperty('--app-accent-rgb');   // back to the default accent
+    if (window.CallistoModelViewer?.refreshAccent) window.CallistoModelViewer.refreshAccent();
     // Mark reset swatch active
     document.querySelectorAll('.orb-swatch').forEach(s => s.classList.remove('active'));
     document.getElementById('orbColorReset')?.classList.add('active');
