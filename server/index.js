@@ -1605,6 +1605,7 @@ require('./shopping').mountShopping(app, { authMiddleware });
 
 // ── Text-to-3D ────────────────────────────────────────────────────────────────
 require('./modeling').mountModeling(app, { authMiddleware });
+require('./video').mountVideo(app, { authMiddleware, publicUrl: getPublicUrl });
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));

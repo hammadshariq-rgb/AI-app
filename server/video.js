@@ -1,0 +1,159 @@
+// ── AI video (Higgsfield) ─────────────────────────────────────────────────────
+// Customers generate videos on the owner's Higgsfield account instead of pasting
+// their own key. Credits are shared and scarce, so there is a per-user daily limit
+// and a server-wide daily cap on top of it.
+//
+// Higgsfield takes images only as a URL, and has no upload endpoint, so an attached
+// photo is held in memory here for an hour and served from /video/img/:token.
+//
+// Dormant until HF_API_KEY_ID and HF_API_KEY_SECRET are set (cloud.higgsfield.ai).
+
+const crypto = require('crypto');
+
+const HF_BASE = 'https://api.higgsfield.ai';
+const HF_KEY_ID = process.env.HF_API_KEY_ID || '';
+const HF_KEY_SECRET = process.env.HF_API_KEY_SECRET || '';
+
+const PER_USER_PER_DAY = Number(process.env.VIDEO_PER_USER_PER_DAY) || 1;
+const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 5;
+
+// Seedance Lite is the cheapest text- and image-to-video tier in the API.
+const TEXT_TO_VIDEO = '/bytedance/seedance/v1/lite/text-to-video';
+const IMAGE_TO_VIDEO = '/bytedance/seedance/v1/lite/image-to-video';
+
+const dailyCount = new Map();   // `${userId}:${day}` -> n, and `*:${day}` -> total
+const images = new Map();       // token -> { buf, type, expires }
+const IMAGE_TTL_MS = 60 * 60 * 1000;
+
+function today() { return new Date().toISOString().slice(0, 10); }
+
+async function hf(path, options = {}) {
+  const url = path.startsWith('http') ? path : `${HF_BASE}${path}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Key ${HF_KEY_ID}:${HF_KEY_SECRET}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+  if (!res.ok) {
+    const msg = body?.detail || body?.message || body?.error;
+    throw new Error(typeof msg === 'string' ? msg : `Higgsfield returned ${res.status}`);
+  }
+  return body;
+}
+
+// The status schema isn't fully published, so accept the plausible shapes.
+function pickVideoUrl(job) {
+  const v = job?.video || job?.videos?.[0] || job?.output?.video || job?.result?.video;
+  if (typeof v === 'string') return v;
+  return v?.url || job?.video_url || job?.output?.url || null;
+}
+
+function normaliseStatus(raw) {
+  const s = String(raw || '').toLowerCase();
+  if (s === 'completed' || s === 'succeeded' || s === 'success') return 'SUCCEEDED';
+  if (s === 'failed' || s === 'nsfw' || s === 'canceled' || s === 'cancelled' || s === 'error') return 'FAILED';
+  return 'IN_PROGRESS';
+}
+
+function mountVideo(app, { authMiddleware, publicUrl }) {
+  const configured = !!(HF_KEY_ID && HF_KEY_SECRET);
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of images) if (v.expires < now) images.delete(k);
+    const day = today();
+    for (const k of dailyCount.keys()) if (!k.endsWith(day)) dailyCount.delete(k);
+  }, 10 * 60 * 1000).unref();
+
+  app.get('/video/config', authMiddleware, (_req, res) => {
+    res.json({ ok: true, enabled: configured, perDay: PER_USER_PER_DAY });
+  });
+
+  // Public on purpose: Higgsfield fetches the photo from here. Tokens are random
+  // and expire after an hour.
+  app.get('/video/img/:token', (req, res) => {
+    const img = images.get(req.params.token);
+    if (!img || img.expires < Date.now()) return res.status(404).end();
+    res.set('Content-Type', img.type).send(img.buf);
+  });
+
+  app.post('/video/generate', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) {
+        return res.status(503).json({ error: 'Video generation is not set up on this server yet.' });
+      }
+      const prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
+      if (!prompt) return res.status(400).json({ error: 'Describe the video you want.' });
+
+      const day = today();
+      const userKey = `${req.userId}:${day}`;
+      const allKey = `*:${day}`;
+      const used = dailyCount.get(userKey) || 0;
+      if (used >= PER_USER_PER_DAY) {
+        const n = PER_USER_PER_DAY;
+        return res.status(429).json({ error: `You've used your ${n} video${n === 1 ? '' : 's'} for today. Try again tomorrow.` });
+      }
+      if ((dailyCount.get(allKey) || 0) >= ALL_USERS_PER_DAY) {
+        return res.status(429).json({ error: 'Video generation has hit its daily limit. Try again tomorrow.' });
+      }
+
+      const body = { prompt, duration: 5, resolution: '720', aspect_ratio: '16:9' };
+      let endpoint = TEXT_TO_VIDEO;
+
+      const imageBase64 = req.body?.imageBase64;
+      if (imageBase64) {
+        const match = /^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i.exec(imageBase64);
+        const type = match ? match[1] : (req.body?.mimeType || 'image/png');
+        const buf = Buffer.from(match ? match[2] : imageBase64, 'base64');
+        if (!buf.length || buf.length > 10 * 1024 * 1024) {
+          return res.status(400).json({ error: 'That image is too large (10 MB max).' });
+        }
+        const token = crypto.randomBytes(24).toString('hex');
+        images.set(token, { buf, type, expires: Date.now() + IMAGE_TTL_MS });
+        const base = typeof publicUrl === 'function' ? publicUrl(req) : publicUrl;
+        body.image_url = `${base}/video/img/${token}`;
+        endpoint = IMAGE_TO_VIDEO;
+      }
+
+      const job = await hf(endpoint, { method: 'POST', body: JSON.stringify(body) });
+      const requestId = job?.request_id || job?.id;
+      if (!requestId) throw new Error("Higgsfield didn't accept that request.");
+
+      // Count only accepted jobs. Higgsfield refunds failures, so this errs on the
+      // side of protecting credits.
+      dailyCount.set(userKey, used + 1);
+      dailyCount.set(allKey, (dailyCount.get(allKey) || 0) + 1);
+      res.json({ ok: true, jobId: requestId });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  app.get('/video/job/:id', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) return res.status(503).json({ error: 'Not configured.' });
+      const job = await hf(`/requests/${encodeURIComponent(req.params.id)}/status`);
+      const status = normaliseStatus(job?.status);
+      const url = status === 'SUCCEEDED' ? pickVideoUrl(job) : null;
+      res.json({
+        ok: true,
+        status: status === 'SUCCEEDED' && !url ? 'FAILED' : status,
+        url,
+        error: String(job?.status).toLowerCase() === 'nsfw'
+          ? 'That request was blocked by the content filter.'
+          : (job?.error || (status === 'SUCCEEDED' && !url ? 'Finished, but no video was returned.' : null)),
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+}
+
+module.exports = { mountVideo };

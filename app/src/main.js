@@ -19,6 +19,7 @@ const connectors = require('./services/connectors');
 const calling = require('./services/calling');
 const shopping = require('./services/shopping');
 const modeling = require('./services/modeling');
+const video = require('./services/video');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
@@ -799,23 +800,14 @@ ipcMain.handle('higgsfield:saveKey', (_e, key) => {
   return { ok: true };
 });
 ipcMain.handle('higgsfield:getKey', () => store.get('higgsfield_api_key') || null);
-ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, type }) => {
-  const apiKey = store.get('higgsfield_api_key');
-  if (!apiKey) return { error: 'No HiggsField API key saved. Please connect in Settings > Connectors.' };
+// Runs on the license server with Callisto's own Higgsfield account (daily limits
+// apply there), so customers no longer paste a key.
+ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64 }) => {
+  const token = loadAuthToken();
+  if (!token) return { error: 'Please sign in first.' };
   try {
-    const nodeFetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
-    // HiggsField video generation endpoint
-    const body = { prompt, num_frames: 81, fps: 24, guidance_scale: 7.5, seed: Math.floor(Math.random()*99999) };
-    if (imageBase64) body.image = imageBase64; // image-to-video mode
-    const res = await nodeFetch('https://api.higgsfield.ai/v1/video/generate', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120000),
-    });
-    const data = await res.json();
-    if (!res.ok) return { error: data.message || data.error || 'HiggsField API error' };
-    return { ok: true, videoUrl: data.video_url || data.url || null, jobId: data.job_id || data.id || null, raw: data };
+    const r = await video.generate({ token, prompt, imageBase64 });
+    return r.ok ? { ok: true, videoUrl: r.url } : { error: r.error };
   } catch (err) {
     return { error: err.message };
   }

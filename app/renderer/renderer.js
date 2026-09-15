@@ -4344,63 +4344,30 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   // Open higgsfield.ai in browser
   higgsLink?.addEventListener('click', e => { e.preventDefault(); window.jarvis.openUrl('https://higgsfield.ai'); });
 
-  async function refreshHiggsStatus() {
-    if (!window.jarvis?.higgsGetKey) return;
-    const key = await window.jarvis.higgsGetKey();
-    if (key) {
-      if (higgsStatus) higgsStatus.textContent = 'Connected ✓';
-      if (higgsBtn)    { higgsBtn.textContent = 'DISCONNECT'; higgsBtn.style.color = 'rgba(255,100,100,0.8)'; }
-      if (higgsKeyRow) higgsKeyRow.style.display = 'none';
-    } else {
-      if (higgsStatus) higgsStatus.textContent = 'Not connected';
-      if (higgsBtn)    { higgsBtn.textContent = 'CONNECT'; higgsBtn.style.color = ''; }
-    }
-  }
-
-  higgsBtn?.addEventListener('click', async () => {
-    const key = await window.jarvis.higgsGetKey();
-    if (key) {
-      // Disconnect
-      await window.jarvis.higgsSaveKey('');
-      refreshHiggsStatus();
-    } else {
-      // Show key input row
-      if (higgsKeyRow) higgsKeyRow.style.display = 'flex';
-    }
-  });
-
-  higgsSaveBtn?.addEventListener('click', async () => {
-    const key = higgsApiInput?.value?.trim();
-    if (!key) return;
-    await window.jarvis.higgsSaveKey(key);
-    if (higgsApiInput) higgsApiInput.value = '';
-    refreshHiggsStatus();
-  });
-
-  refreshHiggsStatus();
+  // Video now runs on Callisto's own Higgsfield account, so there's nothing for
+  // the customer to connect. Show it as included and hide the old key controls.
+  if (higgsStatus) higgsStatus.textContent = 'Included with Callisto ✓';
+  if (higgsBtn)    higgsBtn.style.display = 'none';
+  if (higgsKeyRow) higgsKeyRow.style.setProperty('display', 'none', 'important');
+  void higgsApiInput; void higgsSaveBtn;
 
   // ── Detection: "animate this / make a video / higgsfield" ───────────────────
   const HIGGS_RE = /\b(animate|make a video|generate a video|create a video|higgsfield|make it move|bring to life|video of|turn.*into.*video|apply.*effect)\b/i;
 
   window._checkHiggsfield = async function(text, attachments) {
     if (!HIGGS_RE.test(text)) return false;
-    const key = await window.jarvis.higgsGetKey();
-    if (!key) {
-      addMessage('assistant', '🎬 HiggsField isn\'t connected yet. Go to **Connectors → HiggsField** and paste your API key from higgsfield.ai.');
-      return true;
-    }
     // Get image from attachments if any
     let imageBase64 = null;
     if (attachments && attachments.length > 0) {
       const img = attachments.find(a => a.type && a.type.startsWith('image/'));
       if (img) imageBase64 = img.data || img.base64 || null;
     }
-    addMessage('assistant', `🎬 Sending to HiggsField AI… this takes about 30–60 seconds.`);
+    addMessage('assistant', `🎬 Making your video… this usually takes 1–3 minutes.`);
     setState('thinking');
     try {
       const res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64 });
       if (res.error) {
-        addMessage('assistant', `HiggsField error: ${res.error}`);
+        addMessage('assistant', `Couldn't make the video: ${res.error}`);
       } else if (res.videoUrl) {
         // Show video in browser sidebar
         if (typeof openBrowserPanel === 'function') openBrowserPanel(res.videoUrl, 'HiggsField Video', '🎬');
