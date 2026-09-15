@@ -185,8 +185,8 @@
     renderer.render(scene, camera);
   }
 
-  // GLTFLoader isn't in the bundled three build, so pull it once through the
-  // main process (the renderer sandbox can't fetch it directly).
+  // GLTFLoader ships locally as GLTFLoader.global.js (r185, matching three.global.js).
+  // The CDN copy is only a last resort — three removed examples/js after r147.
   function ensureLoader() {
     if (window.THREE && window.THREE.GLTFLoader) return Promise.resolve(true);
     if (loaderReady) return loaderReady;
@@ -194,7 +194,6 @@
       try {
         const src = await window.jarvis.fetchCdnScript(GLTF_CDN);
         if (!src) return false;
-        // The example build attaches itself to the THREE global
         (0, eval)(src);
         return !!(window.THREE && window.THREE.GLTFLoader);
       } catch (_) { return false; }
@@ -263,11 +262,16 @@
     const ok = await ensureLoader();
     if (!ok) { setStatus('error', "Couldn't load the 3D engine. Check your connection."); return false; }
 
+    // Download in the main process: generator file hosts don't always send CORS
+    // headers the renderer would need. Fall back to a direct load if that fails.
+    let bytes = null;
+    try {
+      if (window.jarvis.fetchModelFile) bytes = await window.jarvis.fetchModelFile(url);
+    } catch (_) { bytes = null; }
+
     return new Promise((resolve) => {
       const loader = new window.THREE.GLTFLoader();
-      loader.load(
-        url,
-        (gltf) => {
+      const onLoad = (gltf) => {
           clearModel();
           modelRoot = gltf.scene || gltf.scenes?.[0];
           if (!modelRoot) { setStatus('error', 'That model came back empty.'); return resolve(false); }
@@ -276,10 +280,14 @@
           autoSpin = !reduceMotion;
           setStatus('', '');
           resolve(true);
-        },
-        undefined,
-        () => { setStatus('error', "Couldn't load that model file."); resolve(false); }
-      );
+      };
+      const onError = () => { setStatus('error', "Couldn't load that model file."); resolve(false); };
+      if (bytes && bytes.byteLength) {
+        const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        loader.parse(buf, '', onLoad, onError);
+      } else {
+        loader.load(url, onLoad, undefined, onError);
+      }
     });
   }
 

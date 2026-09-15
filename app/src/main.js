@@ -2092,6 +2092,20 @@ ipcMain.handle('model:enabled', async () => {
   return token ? await modeling.isEnabled(token) : false;
 });
 
+// Download a generated model's bytes for the viewer (avoids renderer CORS limits).
+ipcMain.handle('model:fetchFile', async (_e, url) => {
+  try {
+    if (!/^https:\/\//i.test(String(url))) return null;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 150 * 1024 * 1024) return null;
+    return new Uint8Array(buf);
+  } catch (_) {
+    return null;
+  }
+});
+
 ipcMain.handle('model:generate', async (_e, { prompt, style }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };

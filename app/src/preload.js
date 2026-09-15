@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   // 3D model generation
   modelEnabled:  () => ipcRenderer.invoke('model:enabled'),
   modelGenerate: (prompt, style) => ipcRenderer.invoke('model:generate', { prompt, style }),
+  fetchModelFile: (url) => ipcRenderer.invoke('model:fetchFile', url),
   onModelProgress: (cb) => ipcRenderer.on('model:progress', (_e, d) => cb(d)),
   onModelStart:  (cb) => ipcRenderer.on('model:start', (_e, d) => cb(d)),
   // Save a generated image or painting to disk
