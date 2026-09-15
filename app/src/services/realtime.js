@@ -1,4 +1,23 @@
-const fetch = require('node-fetch');
+const _nodeFetch = require('node-fetch');
+
+// node-fetch v2's `timeout` option sets a socket timer that fires while a gzipped
+// body is still being decompressed, so a response that actually arrives in ~365ms
+// can die at ~770ms with ERR_STREAM_PREMATURE_CLOSE. That silently killed the
+// Wikipedia lookups behind most cards. Route every call through AbortController,
+// which aborts on real elapsed time instead.
+// Wikipedia's API policy rejects library default User-Agents and answers with an
+// HTML error page, which then fails JSON parsing — the silent cause of most
+// missing cards. Identify the app on every request unless a caller overrides it.
+const DEFAULT_UA = 'CallistoDesktop/1.2 (+https://github.com/hammadshariq-rgb/AI-app)';
+
+function fetch(url, opts = {}) {
+  const { timeout, ...rest } = opts || {};
+  rest.headers = { 'User-Agent': DEFAULT_UA, ...(rest.headers || {}) };
+  if (!timeout) return _nodeFetch(url, rest);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  return _nodeFetch(url, { ...rest, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
 
 // ── In-memory cache — avoid repeat fetches for the same query within 60s ─────
 const _cache = new Map();
@@ -615,13 +634,170 @@ function _looksLikePerson(extract) {
 }
 
 async function _fetchWikiPage(title) {
-  const res = await fetch(
-    `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts&exintro&explaintext&pithumbsize=400&format=json`,
-    { timeout: 2500 }
-  ).catch(() => null);
-  if (!res) return null;
-  const data = await res.json().catch(() => null);
-  return Object.values(data?.query?.pages || {})[0] || null;
+  // Retried once: a dropped fetch here silently removes the real article from the
+  // candidate list, which is how "Keanu Reeves" lost to "Keanu Reeves filmography".
+  const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages|extracts&exintro&explaintext&pithumbsize=400&format=json`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(url, { timeout: 6000 }).catch(() => null);
+    if (res) {
+      const data = await res.json().catch(() => null);
+      const page = Object.values(data?.query?.pages || {})[0];
+      if (page) return page;
+    }
+    if (attempt === 0) await new Promise(r => setTimeout(r, 250));
+  }
+  return null;
+}
+
+// ── Robust entity resolution ─────────────────────────────────────────────────
+// Wikipedia's search is close to exact-match: "keanue reeves" returns nothing at
+// all, which used to kill the whole card. This walks three strategies so a
+// misspelled subject still resolves to the right article.
+async function resolveWikiTitles(term, limit = 5) {
+  const titles = [];
+  const push = (t) => { if (t && !titles.includes(t)) titles.push(t); };
+
+  // 1. Straight search, also asking for a spelling suggestion
+  try {
+    const r = await _timedFetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srinfo=suggestion&format=json&srlimit=${limit}`,
+      {}, 3000
+    );
+    const d = await r.json();
+    (d?.query?.search || []).forEach(s => push(s.title));
+
+    // 2. "Did you mean" — this is what rescues typos like keanue → keanu
+    const suggestion = d?.query?.searchinfo?.suggestion;
+    if (!titles.length && suggestion) {
+      const r2 = await _timedFetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(suggestion)}&format=json&srlimit=${limit}`,
+        {}, 3000
+      );
+      const d2 = await r2.json();
+      (d2?.query?.search || []).forEach(s => push(s.title));
+    }
+  } catch (_) { /* fall through to opensearch */ }
+
+  // 3. opensearch does prefix/fuzzy matching and catches what search misses
+  if (!titles.length) {
+    try {
+      const r3 = await _timedFetch(
+        `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(term)}&limit=${limit}&format=json`,
+        {}, 3000
+      );
+      const d3 = await r3.json();
+      (Array.isArray(d3) ? d3[1] || [] : []).forEach(push);
+    } catch (_) {}
+  }
+
+  return titles;
+}
+
+// Ranks a Wikipedia page against the subject the user actually asked about.
+function _scoreWikiCandidate(subject, page) {
+  const title = String(page.title || '');
+  const t = title.toLowerCase().trim();
+  const s = String(subject || '').toLowerCase().trim();
+  let score = 0;
+
+  if (t === s) score += 100;
+  else if (t.replace(/\s*\(.*\)$/, '') === s) score += 80;  // "Keanu Reeves (song)" base matches
+  else if (t.startsWith(s)) score += 40;
+  else if (t.includes(s)) score += 15;
+
+  // Spin-off and meta pages are almost never what was meant
+  if (/\(disambiguation\)/i.test(title)) score -= 90;
+  if (/^list of\b/i.test(title)) score -= 70;
+  if (/\b(filmography|discography|bibliography|awards and nominations)\b/i.test(title)) score -= 60;
+  if (/\((song|album|film|band|TV series|video game|novel)\)/i.test(title)) score -= 45;
+
+  // A page with a picture makes a far better card
+  if (page.thumbnail) score += 30;
+  score += Math.min((page.extract || '').length / 400, 5);
+
+  return score;
+}
+
+// Distinguishes a biography from an article about a thing. "is a" alone matched
+// everything ("AK-47 is a rifle"), so look for how the subject is referred to.
+function _isBiography(extract, title) {
+  const head = String(extract || '').slice(0, 500);
+  if (!head) return false;
+  if (/^list of\b/i.test(String(title || ''))) return false;
+  const personalPronoun = /\b(he|she|his|her|they|their)\b/i.test(head);
+  const bornWithYear = /\bborn\b[^.]{0,60}\b(1[5-9]\d{2}|20\d{2})\b/i.test(head);
+  return personalPronoun || bornWithYear;
+}
+
+// Strips question scaffolding to leave just the subject being asked about.
+function _entitySubject(query) {
+  return String(query || '')
+    .replace(/^[a-z]+[,\s]+(?=who|what|which|where|tell)/i, '') // "Jarvis, who is…"
+    .replace(/\b(who|what|which|where)\s+(is|are|was|were)\b/gi, ' ')
+    .replace(/\b(who'?s|what'?s|tell me about|give me|show me|explain|describe|define|information about|info on|about)\b/gi, ' ')
+    .replace(/\b(a|an|the|some)\b/gi, ' ')
+    .replace(/[?!.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Any question that names a thing and expects a description. Deliberately broad —
+// this is the net that catches insects, birds, vehicles, spacecraft, weapons,
+// equations, towns, influencers and everything else without a bespoke regex each.
+const ENTITY_INTENT_REGEX = /\b(who|what|which|where)\s+(is|are|was|were)\b|\b(who'?s|what'?s)\b|\btell me about\b|\bexplain\b|\bdescribe\b|\bshow me\b|\bdefine\b/i;
+
+// ── Universal entity card ────────────────────────────────────────────────────
+// Last resort when no specialised handler claimed the query. Because every
+// category ultimately resolves through Wikipedia, this one path covers them all.
+async function genericEntityCard(query) {
+  try {
+    const subject = _entitySubject(query);
+    if (subject.length < 2) return null;
+
+    const titles = await resolveWikiTitles(subject, 5);
+    if (!titles.length) return null;
+
+    const pages = (await Promise.all(titles.slice(0, 5).map(t => _fetchWikiPage(t).catch(() => null))))
+      .filter(p => p && !p.missing && (p.extract || '').length > 40);
+    if (!pages.length) return null;
+
+    // Wikipedia's first hit is often a spin-off page — "Keanu Reeves (song)",
+    // "MrBeast Burger", "Cristiano Ronaldo (disambiguation)". Rank by how well the
+    // title matches what was asked before falling back to search order.
+    const page = pages.slice().sort((a, b) => _scoreWikiCandidate(subject, b) - _scoreWikiCandidate(subject, a))[0];
+    if (!page) return null;
+
+    const extract = page.extract || '';
+    const firstSentence = extract.split(/\.\s/)[0]?.trim() || '';
+    const summary = extract.split(/\.\s/).slice(0, 3).join('. ').trim();
+    const sourceUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`;
+
+    // People get the richer person layout
+    if (page.thumbnail && _isBiography(extract, page.title) && !_isOfficeArticle(page.title || '')) {
+      return {
+        type: 'person',
+        name: page.title,
+        imageUrl: page.thumbnail.source,
+        subtitle: firstSentence.length > 280 ? firstSentence.slice(0, 280) + '…' : firstSentence,
+        bio: summary.length > 500 ? summary.slice(0, 500) + '…' : summary,
+        source: 'Wikipedia',
+        sourceUrl,
+      };
+    }
+
+    return {
+      type: 'wiki_card',
+      title: page.title,
+      category: 'OVERVIEW',
+      imageUrl: page.thumbnail?.source || null,
+      heroImage: page.thumbnail?.source || null,
+      subtitle: firstSentence.length > 280 ? firstSentence.slice(0, 280) + '…' : firstSentence,
+      description: summary.length > 500 ? summary.slice(0, 500) + '…' : summary,
+      summary: summary.length > 500 ? summary.slice(0, 500) + '…' : summary,
+      source: 'Wikipedia',
+      sourceUrl,
+    };
+  } catch { return null; }
 }
 
 async function getPersonCard(query) {
@@ -649,24 +825,23 @@ async function getPersonCard(query) {
     const searchTerms = isRoleQuery ? [`current ${subject}`, subject] : [subject];
 
     for (const term of searchTerms) {
-      const searchRes = await fetch(
-        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&srlimit=8`,
-        { timeout: 3000 }
-      ).catch(() => null);
-      if (!searchRes) continue;
-      const searchData = await searchRes.json().catch(() => null);
-      const results = searchData?.query?.search || [];
-      if (!results.length) continue;
+      // Typo-tolerant: falls back to Wikipedia's spelling suggestion and opensearch
+      const titles = await resolveWikiTitles(term, 8);
+      if (!titles.length) continue;
 
       // Fetch top 5 results in parallel — each title individually encoded (no | encoding issue)
-      const pages = await Promise.all(results.slice(0, 5).map(r => _fetchWikiPage(r.title)));
+      const pages = await Promise.all(titles.slice(0, 5).map(t => _fetchWikiPage(t).catch(() => null)));
 
       // Return first result that has a photo, isn't an office article, and looks like a person
-      const personPage = pages.find(p =>
-        p?.thumbnail &&
-        !_isOfficeArticle(p.title || '') &&
-        _looksLikePerson(p.extract || '')
-      );
+      // Rank rather than take the first hit — search order puts "Keanu Reeves
+      // filmography" and "Messi–Ronaldo rivalry" above the actual biography.
+      const personPage = pages
+        .filter(p =>
+          p?.thumbnail &&
+          !_isOfficeArticle(p.title || '') &&
+          _isBiography(p.extract || '', p.title || '')
+        )
+        .sort((a, b) => _scoreWikiCandidate(subject, b) - _scoreWikiCandidate(subject, a))[0];
       if (personPage) {
         const extract = personPage.extract || '';
         const firstSentence = extract.split(/\.\s/)[0]?.trim() || '';
@@ -1465,8 +1640,10 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
-  // Fictional character queries — show character photo card
-  if (!COMPANY_FINANCE_REGEX.test(q) && (CHARACTER_REGEX.test(q) || /\bwho is\b|\bwho('s| is) (the |a )?\b|\btell me about\b/i.test(q))) {
+  // Fictional character queries — show character photo card.
+  // Requires an explicit character signal: matching bare "who is" sent real people
+  // here first and returned things like "Feastables" for "who is MrBeast".
+  if (!COMPANY_FINANCE_REGEX.test(q) && CHARACTER_REGEX.test(q)) {
     const charCard = await getCharacterCard(query);
     if (charCard) return charCard;
   }
@@ -1524,6 +1701,16 @@ async function _fetchCardDataInner(query) {
         return card;
       }
     }
+  }
+
+  // ── Universal entity fallback ─────────────────────────────────────────────
+  // Nothing above claimed this query. If it names a thing and asks what it is,
+  // resolve it through Wikipedia so celebrities, animals, politicians, cities,
+  // towns, objects, weapons, history, paintings, influencers, foods, insects,
+  // birds, equations, vehicles and spacecraft all get a card.
+  if (ENTITY_INTENT_REGEX.test(q)) {
+    const card = await genericEntityCard(query);
+    if (card) return card;
   }
 
   return null;
