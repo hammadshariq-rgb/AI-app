@@ -72,7 +72,7 @@ async function poll(token, path, onProgress, timeoutError) {
 
     try { onProgress && onProgress({ status: job.status, progress: job.progress || 0 }); } catch (_) {}
 
-    if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url, taskId: job.taskId || null };
+    if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url, taskId: job.taskId || null, thumbnail: job.thumbnail || null };
     if (job.status === 'FAILED') return { ok: false, error: job.error || 'Generation failed.' };
   }
   return { ok: false, error: timeoutError };

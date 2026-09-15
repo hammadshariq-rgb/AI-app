@@ -94,6 +94,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   modelRetexture: (taskId, prompt, jobKey) => ipcRenderer.invoke('model:retexture', { taskId, prompt, jobKey }),
   saveModelFile: (bytes, suggestedName) => ipcRenderer.invoke('model:saveFile', { bytes, suggestedName }),
   fetchModelFile: (url) => ipcRenderer.invoke('model:fetchFile', url),
+  artifactsList:   ()   => ipcRenderer.invoke('artifacts:list'),
+  artifactsRemove: (id) => ipcRenderer.invoke('artifacts:remove', id),
+  artifactsSave:   (id) => ipcRenderer.invoke('artifacts:save', { id }),
   onModelProgress: (cb) => ipcRenderer.on('model:progress', (_e, d) => cb(d)),
   onModelStart:  (cb) => ipcRenderer.on('model:start', (_e, d) => cb(d)),
   // Save a generated image or painting to disk

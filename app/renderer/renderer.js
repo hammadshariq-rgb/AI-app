@@ -3820,6 +3820,7 @@ async function openLeftNavSection(section) {
   if (section === 'history') await loadHistory();
   if (section === 'connectors') await renderConnectors();
   if (section === 'favourites') renderFavourites();
+  if (section === 'artifacts' && typeof window._renderArtifacts === 'function') await window._renderArtifacts();
   if (section === 'settings') await loadSettingsPane();
 }
 
@@ -8229,3 +8230,148 @@ micBtn.addEventListener('click', () => {
   window._testClapWake = _onDoubleClapWake;
 })();
 // ================================================================
+
+// ===================== ARTIFACTS (this week's creations) =====================
+// AI images, Meshy 3D models and Higgsfield videos made in the app. Files are kept
+// locally by the main process and cleared every Monday.
+(function () {
+  const grid = document.getElementById('artGrid');
+  const empty = document.getElementById('artEmpty');
+  const resets = document.getElementById('artResets');
+  if (!grid || !window.jarvis?.artifactsList) return;
+
+  let items = [];
+  let filter = 'all';
+
+  const KIND_LABEL = { image: 'Image', model: '3D model', video: 'Video' };
+  const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function when(ts) {
+    const d = new Date(ts), now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return sameDay ? `Today, ${time}` : `${d.toLocaleDateString([], { weekday: 'short' })}, ${time}`;
+  }
+
+  function thumbHtml(a) {
+    if (a.kind === 'image') return `<img src="${esc(a.url)}" alt="" loading="lazy">`;
+    if (a.kind === 'video') return `<video src="${esc(a.url)}#t=0.5" muted preload="metadata" playsinline></video><span class="art-play" aria-hidden="true"></span>`;
+    if (a.thumb) return `<img src="${esc(a.thumb)}" alt="" loading="lazy">`;
+    return `<span class="art-cube" aria-hidden="true"></span>`;
+  }
+
+  function render() {
+    const counts = { all: items.length, image: 0, model: 0, video: 0 };
+    items.forEach((a) => { counts[a.kind] = (counts[a.kind] || 0) + 1; });
+    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n ? n : ''; };
+    setCount('artCountAll', counts.all); setCount('artCountImage', counts.image);
+    setCount('artCountModel', counts.model); setCount('artCountVideo', counts.video);
+
+    const shown = filter === 'all' ? items : items.filter((a) => a.kind === filter);
+    empty.hidden = shown.length > 0;
+    grid.innerHTML = shown.map((a) => `
+      <article class="art-card" data-id="${esc(a.id)}">
+        <button class="art-thumb art-kind-${a.kind}" data-open aria-label="Open ${esc(a.title)}">
+          ${thumbHtml(a)}
+          <span class="art-badge">${KIND_LABEL[a.kind]}</span>
+        </button>
+        <div class="art-meta">
+          <div class="art-name" title="${esc(a.prompt || a.title)}">${esc(a.title)}</div>
+          <div class="art-time">${when(a.createdAt)}</div>
+        </div>
+        <div class="art-actions">
+          <button class="art-act" data-save aria-label="Download ${esc(a.title)}" title="Download">
+            <svg viewBox="0 0 20 20"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16h12"/></svg>
+          </button>
+          <button class="art-act" data-del aria-label="Delete ${esc(a.title)}" title="Delete">
+            <svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6.5 6l.7 10h5.6l.7-10"/></svg>
+          </button>
+        </div>
+      </article>`).join('');
+  }
+
+  async function load() {
+    try {
+      const res = await window.jarvis.artifactsList();
+      items = res?.items || [];
+      if (res?.resetsAt && resets) {
+        const d = new Date(res.resetsAt);
+        resets.textContent = `Clears ${d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`;
+      }
+    } catch (_) { items = []; }
+    render();
+  }
+  window._renderArtifacts = load;
+
+  // ── Lightbox for images and videos ─────────────────────────────────────────
+  function lightbox(a) {
+    const box = document.createElement('div');
+    box.className = 'art-lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', a.title);
+    box.innerHTML = `
+      <div class="art-lb-backdrop"></div>
+      <figure class="art-lb-frame">
+        ${a.kind === 'video'
+          ? `<video src="${esc(a.url)}" controls autoplay playsinline></video>`
+          : `<img src="${esc(a.url)}" alt="${esc(a.prompt || a.title)}">`}
+        <figcaption>
+          <span class="art-lb-title">${esc(a.title)}</span>
+          <span class="art-lb-actions">
+            <button class="art-lb-btn art-lb-primary" data-save>Download</button>
+            <button class="art-lb-btn" data-close aria-label="Close">Close</button>
+          </span>
+        </figcaption>
+      </figure>`;
+    const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    box.querySelector('.art-lb-backdrop').addEventListener('click', close);
+    box.querySelector('[data-close]').addEventListener('click', close);
+    box.querySelector('[data-save]').addEventListener('click', () => window.jarvis.artifactsSave(a.id));
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(box);
+  }
+
+  function open(a) {
+    if (a.kind === 'model') {
+      if (window.CallistoModelViewer) window.CallistoModelViewer.open(a.url, { title: a.title, taskId: a.taskId, prompt: a.prompt });
+      return;
+    }
+    lightbox(a);
+  }
+
+  grid.addEventListener('click', async (e) => {
+    const card = e.target.closest('.art-card');
+    if (!card) return;
+    const a = items.find((x) => x.id === card.dataset.id);
+    if (!a) return;
+    if (e.target.closest('[data-open]')) open(a);
+    else if (e.target.closest('[data-save]')) window.jarvis.artifactsSave(a.id);
+    else if (e.target.closest('[data-del]')) {
+      if (!confirm(`Delete "${a.title}"? This can't be undone.`)) return;
+      await window.jarvis.artifactsRemove(a.id);
+      load();
+    }
+  });
+
+  // Preview videos on hover
+  grid.addEventListener('mouseover', (e) => {
+    const v = e.target.closest('.art-kind-video')?.querySelector('video');
+    if (v) v.play().catch(() => {});
+  });
+  grid.addEventListener('mouseout', (e) => {
+    const v = e.target.closest('.art-kind-video')?.querySelector('video');
+    if (v && !e.relatedTarget?.closest?.('.art-kind-video')) { v.pause(); v.currentTime = 0.5; }
+  });
+
+  document.querySelectorAll('.art-filter').forEach((b) => b.addEventListener('click', () => {
+    filter = b.dataset.kind;
+    document.querySelectorAll('.art-filter').forEach((x) => {
+      const on = x === b;
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-selected', String(on));
+    });
+    render();
+  }));
+})();

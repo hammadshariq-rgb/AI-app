@@ -33,6 +33,7 @@ if (process.defaultApp) {
 }
 
 const store = new Store();
+const artifacts = require('./services/artifacts').createStore(store);
 
 // ── Cloud prefs sync — saves user settings to MongoDB so they follow across devices ──
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
@@ -807,6 +808,7 @@ ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64 }) => {
   if (!token) return { error: 'Please sign in first.' };
   try {
     const r = await video.generate({ token, prompt, imageBase64 });
+    if (r.ok) artifacts.add({ kind: 'video', url: r.url, prompt, source: 'Higgsfield' });
     return r.ok ? { ok: true, videoUrl: r.url } : { error: r.error };
   } catch (err) {
     return { error: err.message };
@@ -818,8 +820,35 @@ ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
     const res  = await ai.serverFetch('image', { prompt, size: size || '1024x1024' }, { timeout: 60000, retries: 1 });
     const data = await res.json();
     if (data.error) return { error: data.error };
+    if (data.url) artifacts.add({ kind: 'image', url: data.url, prompt, source: 'AI image' });
     return { url: data.url };
   } catch (err) { return { error: err.message }; }
+});
+
+// ── Artifacts (this week's creations) ────────────────────────────────────────
+ipcMain.handle('artifacts:list', () => ({ items: artifacts.list(), resetsAt: artifacts.nextReset() }));
+ipcMain.handle('artifacts:add', (_e, entry) => artifacts.add(entry || {}));
+ipcMain.handle('artifacts:remove', (_e, id) => artifacts.remove(id));
+ipcMain.handle('artifacts:save', async (_e, { id }) => {
+  try {
+    const item = artifacts.list().find(a => a.id === id);
+    if (!item) return { ok: false, error: 'Not found.' };
+    const bytes = item.local ? artifacts.readLocal(item.url)
+      : Buffer.from(await (await fetch(item.url)).arrayBuffer());
+    if (!bytes) return { ok: false, error: 'File is missing.' };
+    const ext = { image: 'png', model: 'glb', video: 'mp4' }[item.kind];
+    const where = { image: 'pictures', model: 'documents', video: 'videos' }[item.kind];
+    const name = String(item.title).replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto';
+    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+      title: 'Save', defaultPath: path.join(app.getPath(where), `${name}.${ext}`),
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+    if (canceled || !filePath) return { ok: false, cancelled: true };
+    require('fs').writeFileSync(filePath, bytes);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.handle('creative:paint', async (_e, { subject, imageUrl }) => {
@@ -1832,6 +1861,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     try {
       const imgRes = await ai.generateImage(finalAction.arg, finalAction.size);
       imageCard = { type: 'image', imageUrl: imgRes.url, title: 'Generated Image', description: finalAction.arg, source: 'DALL-E 3', sourceUrl: null };
+      if (imgRes.url) artifacts.add({ kind: 'image', url: imgRes.url, prompt: finalAction.arg, source: 'AI image' });
     } catch (e) {
       finalText = 'Sorry, I couldn\'t generate that image. ' + (e.message || '');
     }
@@ -2131,6 +2161,10 @@ ipcMain.handle('model:enabled', async () => {
 // Download a generated model's bytes for the viewer (avoids renderer CORS limits).
 ipcMain.handle('model:fetchFile', async (_e, url) => {
   try {
+    if (/^file:\/\//i.test(String(url))) {
+      const local = artifacts.readLocal(url);   // restricted to the artifacts folder
+      return local ? new Uint8Array(local) : null;
+    }
     if (!/^https:\/\//i.test(String(url))) return null;
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -2152,7 +2186,9 @@ ipcMain.handle('model:generate', async (_e, { prompt, style, jobKey }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
   try {
-    return await modeling.generate({ token, prompt, style }, (p) => sendModelProgress(jobKey, p));
+    const r = await modeling.generate({ token, prompt, style }, (p) => sendModelProgress(jobKey, p));
+    if (r.ok) artifacts.add({ kind: 'model', url: r.url, prompt, title: String(prompt || '').split(',')[0], source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail });
+    return r;
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -2162,7 +2198,9 @@ ipcMain.handle('model:retexture', async (_e, { taskId, prompt, jobKey }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
   try {
-    return await modeling.retexture({ token, taskId, prompt }, (p) => sendModelProgress(jobKey, p));
+    const r = await modeling.retexture({ token, taskId, prompt }, (p) => sendModelProgress(jobKey, p));
+    if (r.ok) artifacts.add({ kind: 'model', url: r.url, prompt, title: `${String(prompt || '').split('.')[0]} (repainted)`, source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail });
+    return r;
   } catch (err) {
     return { ok: false, error: err.message };
   }

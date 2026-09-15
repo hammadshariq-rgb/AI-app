@@ -1713,6 +1713,15 @@
               </svg>
               <span>Connectors</span>
             </button>
+            <button class="lnav-tab" data-section="artifacts">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2.75" y="2.75" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.35"/>
+                <rect x="11.25" y="2.75" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.35"/>
+                <rect x="2.75" y="11.25" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.35"/>
+                <path d="M14.25 11.5l2.9 1.65v3.2l-2.9 1.65-2.9-1.65v-3.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>
+              </svg>
+              <span>Artifacts</span>
+            </button>
             <button class="lnav-tab" data-section="settings">
               <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.35"/>
@@ -1917,6 +1926,28 @@
           </div>
 
           <!-- ── SETTINGS PANE (Account + Language) ── -->
+          <!-- ── ARTIFACTS PANE ── -->
+          <div class="lnav-pane hidden" id="lnavPaneArtifacts">
+            <div class="art-head">
+              <div>
+                <div class="art-title">This week's creations</div>
+                <div class="art-sub" id="artResets">Clears every Monday</div>
+              </div>
+            </div>
+            <div class="art-filters" role="tablist" aria-label="Filter artifacts">
+              <button class="art-filter active" data-kind="all" role="tab" aria-selected="true">All <span id="artCountAll"></span></button>
+              <button class="art-filter" data-kind="image" role="tab" aria-selected="false">Images <span id="artCountImage"></span></button>
+              <button class="art-filter" data-kind="model" role="tab" aria-selected="false">3D <span id="artCountModel"></span></button>
+              <button class="art-filter" data-kind="video" role="tab" aria-selected="false">Videos <span id="artCountVideo"></span></button>
+            </div>
+            <div class="art-grid" id="artGrid"></div>
+            <div class="art-empty" id="artEmpty" hidden>
+              <div class="art-empty-mark" aria-hidden="true"></div>
+              <div class="art-empty-title">Nothing yet this week</div>
+              <div class="art-empty-text">Ask Callisto to “paint a dragon”, “make a 3D model of a helmet” or “make a video of a cat surfing” — they'll collect here.</div>
+            </div>
+          </div>
+
           <div class="lnav-pane hidden" id="lnavPaneSettings">
             <div class="settings-tabs">
               <button class="settings-tab active" id="settingsTabAccount">ACCOUNT</button>
@@ -2672,7 +2703,7 @@
   <script src="GLTFLoader.global.js"></script>
   <script src="GLTFExporter.global.js"></script>
   <script src="model-viewer.js?v=3"></script>
-  <script src="renderer.js?v=57"></script>
+  <script src="renderer.js?v=58"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
   <script src="panels.js?v=3"></script>

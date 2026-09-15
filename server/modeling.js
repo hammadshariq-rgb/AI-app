@@ -178,6 +178,7 @@ function mountModeling(app, { authMiddleware }) {
         progress: job?.progress ?? 0,
         url: status === 'SUCCEEDED' ? (job?.model_urls?.glb || null) : null,
         taskId: status === 'SUCCEEDED' ? id : null,
+        thumbnail: job?.thumbnail_url || null,
         error: job?.task_error?.message || null,
       });
     } catch (err) {
