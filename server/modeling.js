@@ -10,7 +10,7 @@
 const MESHY_BASE = 'https://api.meshy.ai/openapi/v2';
 const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
-const MAX_JOBS_PER_DAY = 15;   // each generation costs credits
+const MAX_JOBS_PER_DAY = 3;    // each generation costs credits (5,500/month plan)
 const dailyCount = new Map();
 
 function today() { return new Date().toISOString().slice(0, 10); }
