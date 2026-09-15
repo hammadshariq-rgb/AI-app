@@ -15,7 +15,10 @@ const HF_KEY_ID = process.env.HF_API_KEY_ID || '';
 const HF_KEY_SECRET = process.env.HF_API_KEY_SECRET || '';
 
 // Every Higgsfield action shares one daily allowance per customer.
-const PER_USER_PER_DAY = Number(process.env.HIGGSFIELD_USES_PER_DAY) || 5;
+const envInt = (x, d) => (x === undefined || x === '' || isNaN(Number(x)) ? d : Math.max(0, Math.floor(Number(x))));
+const PER_USER_PER_DAY = envInt(process.env.HIGGSFIELD_USES_PER_DAY, 5);
+// Free-trial customers get a small weekly allowance instead
+const TRIAL_PER_WEEK = envInt(process.env.TRIAL_HIGGSFIELD_USES_PER_WEEK, 1);
 // Optional server-wide cap to protect a small credit balance; 0 / unset = off.
 const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 0;
 const usage = require('./usage');
@@ -140,19 +143,25 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       let prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
       if (!prompt) return res.status(400).json({ error: 'Describe the video you want.' });
 
-      const slot = await usage.reserve('higgsfield', req.userId, PER_USER_PER_DAY);
+      const allow = await usage.allowance(req.userId, { paidPerDay: PER_USER_PER_DAY, trialPerWeek: TRIAL_PER_WEEK });
+      const slot = await usage.reserve('higgsfield', req.userId, allow.limit, allow.period);
       if (!slot.ok) {
-        return res.status(429).json({ error: `You've used all ${PER_USER_PER_DAY} of today's videos. Try again tomorrow.` });
+        const msg = allow.plan === 'trial'
+          ? (allow.limit === 0
+              ? 'Video creation is available on the paid plan. Upgrade to start making videos.'
+              : `The free trial includes ${allow.limit} video${allow.limit === 1 ? '' : 's'} a week, and you've used it. Upgrade for ${PER_USER_PER_DAY} a day.`)
+          : `You've used all ${allow.limit} of today's videos. Try again tomorrow.`;
+        return res.status(429).json({ error: msg, upgrade: allow.plan === 'trial' });
       }
       if (ALL_USERS_PER_DAY) {
         const all = await usage.reserve('higgsfield-all', 'everyone', ALL_USERS_PER_DAY);
         if (!all.ok) {
-          await usage.release('higgsfield', req.userId);
+          await usage.release('higgsfield', req.userId, allow.period);
           return res.status(429).json({ error: 'Video generation has hit its daily limit. Try again tomorrow.' });
         }
       }
       const refund = async () => {
-        await usage.release('higgsfield', req.userId);
+        await usage.release('higgsfield', req.userId, allow.period);
         if (ALL_USERS_PER_DAY) await usage.release('higgsfield-all', 'everyone');
       };
 
@@ -185,7 +194,7 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       }
       if (!requestId) { await refund(); throw new Error("Higgsfield didn't accept that request."); }
 
-      res.json({ ok: true, jobId: requestId, remaining: PER_USER_PER_DAY - slot.used });
+      res.json({ ok: true, jobId: requestId, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }

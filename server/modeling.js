@@ -11,13 +11,22 @@ const MESHY_BASE = 'https://api.meshy.ai/openapi/v2';
 const MESHY_BASE_V1 = 'https://api.meshy.ai/openapi/v1';   // retexture lives on v1
 const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
-// Every Meshy action (new model or repaint) shares one daily allowance per customer.
-const MESHY_USES_PER_DAY = Number(process.env.MESHY_USES_PER_DAY) || 4;
+// Every Meshy action (new model or repaint) shares one allowance per customer:
+// paying customers (monthly or yearly) get a daily allowance, free-trial
+// customers a small weekly one.
+const envInt = (v, d) => (v === undefined || v === '' || isNaN(Number(v)) ? d : Math.max(0, Math.floor(Number(v))));
+const MESHY_USES_PER_DAY = envInt(process.env.MESHY_USES_PER_DAY, 4);
+const TRIAL_MESHY_USES_PER_WEEK = envInt(process.env.TRIAL_MESHY_USES_PER_WEEK, 1);
 const usage = require('./usage');
 const refineJobs = new Map();  // preview task id -> refine (texture) task id
 
-function limitMessage() {
-  return `You've used all ${MESHY_USES_PER_DAY} of today's 3D creations (new models and repaints). Try again tomorrow.`;
+function limitMessage(a) {
+  if (a.plan === 'trial') {
+    return a.limit === 0
+      ? '3D creation is available on the paid plan. Upgrade to start making models.'
+      : `The free trial includes ${a.limit} 3D creation${a.limit === 1 ? '' : 's'} a week, and you've used it. Upgrade for ${MESHY_USES_PER_DAY} a day.`;
+  }
+  return `You've used all ${a.limit} of today's 3D creations (new models and repaints). Try again tomorrow.`;
 }
 
 async function meshy(path, options = {}) {
@@ -55,8 +64,9 @@ function mountModeling(app, { authMiddleware }) {
       const prompt = String(req.body?.prompt || '').trim();
       if (!prompt) return res.status(400).json({ error: 'Describe the model you want.' });
 
-      const slot = await usage.reserve('meshy', req.userId, MESHY_USES_PER_DAY);
-      if (!slot.ok) return res.status(429).json({ error: limitMessage() });
+      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerWeek: TRIAL_MESHY_USES_PER_WEEK });
+      const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
+      if (!slot.ok) return res.status(429).json({ error: limitMessage(allow), upgrade: allow.plan === 'trial' });
 
       // "preview" returns untextured geometry fast; texture is a second, slower pass.
       let job;
@@ -72,11 +82,11 @@ function mountModeling(app, { authMiddleware }) {
           }),
         });
       } catch (err) {
-        await usage.release('meshy', req.userId);   // rejected before any work — don't charge
+        await usage.release('meshy', req.userId, allow.period);   // rejected before any work — don't charge
         throw err;
       }
 
-      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: MESHY_USES_PER_DAY - slot.used });
+      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
@@ -141,8 +151,9 @@ function mountModeling(app, { authMiddleware }) {
       if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
       if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
 
-      const slot = await usage.reserve('meshy', req.userId, MESHY_USES_PER_DAY);
-      if (!slot.ok) return res.status(429).json({ error: limitMessage() });
+      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerWeek: TRIAL_MESHY_USES_PER_WEEK });
+      const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
+      if (!slot.ok) return res.status(429).json({ error: limitMessage(allow), upgrade: allow.plan === 'trial' });
 
       let job;
       try {
@@ -157,10 +168,10 @@ function mountModeling(app, { authMiddleware }) {
           }),
         });
       } catch (err) {
-        await usage.release('meshy', req.userId);
+        await usage.release('meshy', req.userId, allow.period);
         throw err;
       }
-      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: MESHY_USES_PER_DAY - slot.used });
+      res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
