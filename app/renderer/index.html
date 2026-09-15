@@ -2654,43 +2654,56 @@
       </div>
 
       <!-- P&L Calculator -->
-      <div class="mo-pnl-section" id="moPnlSection">
-        <div class="mo-pnl-title">PROFIT &amp; LOSS CALCULATOR</div>
+      <section class="mo-pnl-section" id="moPnlSection" aria-labelledby="moPnlTitle">
+        <span class="mo-pnl-spot" aria-hidden="true"></span>
+        <header class="mo-pnl-head">
+          <div>
+            <h3 class="mo-pnl-title" id="moPnlTitle">Profit &amp; loss</h3>
+            <p class="mo-pnl-sub">Enter your position to see how it's doing at today's price.</p>
+          </div>
+          <button type="button" class="mo-pnl-reset" id="moPnlReset">
+            <span class="mo-pnl-reset-glow" aria-hidden="true"></span>
+            <span class="mo-pnl-reset-label">Clear</span>
+          </button>
+        </header>
+
         <div class="mo-pnl-inputs">
-          <div class="mo-pnl-field">
-            <label class="mo-pnl-label">BUY PRICE</label>
-            <div class="mo-pnl-input-wrap">
+          <label class="mo-pnl-field">
+            <span class="mo-pnl-label">Buy price</span>
+            <span class="mo-pnl-input-wrap">
               <span class="mo-pnl-curr" id="moPnlCurr">$</span>
-              <input class="mo-pnl-input" id="moPnlBuyPrice" type="number" min="0" step="0.01" placeholder="0.00"/>
+              <input class="mo-pnl-input" id="moPnlBuyPrice" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal"/>
+            </span>
+          </label>
+          <label class="mo-pnl-field">
+            <span class="mo-pnl-label">Shares / units</span>
+            <span class="mo-pnl-input-wrap">
+              <input class="mo-pnl-input" id="moPnlShares" type="number" min="0" step="0.0001" placeholder="0" inputmode="decimal"/>
+            </span>
+          </label>
+        </div>
+
+        <div class="mo-pnl-result" id="moPnlResult" aria-live="polite">
+          <div class="mo-pnl-hero">
+            <span class="mo-pnl-row-label">Profit / loss</span>
+            <div class="mo-pnl-hero-line">
+              <span class="mo-pnl-row-val" id="moPnlPL">—</span>
+              <span class="mo-pnl-row-val mo-pnl-pill" id="moPnlReturn">—</span>
             </div>
           </div>
-          <div class="mo-pnl-field">
-            <label class="mo-pnl-label">SHARES / UNITS</label>
-            <div class="mo-pnl-input-wrap">
-              <input class="mo-pnl-input" id="moPnlShares" type="number" min="0" step="0.0001" placeholder="0"/>
+          <dl class="mo-pnl-stats">
+            <div class="mo-pnl-stat">
+              <dt class="mo-pnl-row-label">Invested</dt>
+              <dd class="mo-pnl-row-val" id="moPnlInvested">—</dd>
             </div>
-          </div>
+            <div class="mo-pnl-stat">
+              <dt class="mo-pnl-row-label">Current value</dt>
+              <dd class="mo-pnl-row-val" id="moPnlCurVal">—</dd>
+            </div>
+          </dl>
         </div>
-        <div class="mo-pnl-result" id="moPnlResult">
-          <div class="mo-pnl-row">
-            <span class="mo-pnl-row-label">INVESTED</span>
-            <span class="mo-pnl-row-val" id="moPnlInvested">—</span>
-          </div>
-          <div class="mo-pnl-row">
-            <span class="mo-pnl-row-label">CURRENT VALUE</span>
-            <span class="mo-pnl-row-val" id="moPnlCurVal">—</span>
-          </div>
-          <div class="mo-pnl-row highlight">
-            <span class="mo-pnl-row-label">PROFIT / LOSS</span>
-            <span class="mo-pnl-row-val" id="moPnlPL">—</span>
-          </div>
-          <div class="mo-pnl-row">
-            <span class="mo-pnl-row-label">RETURN</span>
-            <span class="mo-pnl-row-val" id="moPnlReturn">—</span>
-          </div>
-        </div>
-        <div class="mo-pnl-ai-tip" id="moPnlAiTip"></div>
-      </div>
+        <p class="mo-pnl-ai-tip" id="moPnlAiTip"></p>
+      </section>
 
     </div>
   </div>
@@ -2699,7 +2712,7 @@
   <script src="GLTFLoader.global.js"></script>
   <script src="GLTFExporter.global.js"></script>
   <script src="model-viewer.js?v=5"></script>
-  <script src="renderer.js?v=61"></script>
+  <script src="renderer.js?v=62"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
   <script src="panels.js?v=3"></script>

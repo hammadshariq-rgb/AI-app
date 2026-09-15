@@ -1496,7 +1496,7 @@ function moPnlRecalc() {
   if (!s || !buyPrice || !shares || isNaN(buyPrice) || isNaN(shares) || buyPrice <= 0 || shares <= 0) {
     ['moPnlInvested','moPnlCurVal','moPnlPL','moPnlReturn'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.textContent = '—'; el.className = 'mo-pnl-row-val'; }
+      if (el) { el.textContent = '—'; el.className = 'mo-pnl-row-val' + (id === 'moPnlReturn' ? ' mo-pnl-pill' : ''); }
     });
     document.getElementById('moPnlAiTip').textContent = '';
     document.getElementById('moPnlAiTip').className = 'mo-pnl-ai-tip';
@@ -1518,7 +1518,7 @@ function moPnlRecalc() {
   plEl.className = 'mo-pnl-row-val ' + (pl >= 0 ? 'profit' : 'loss');
   const retEl = document.getElementById('moPnlReturn');
   retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
-  retEl.className = 'mo-pnl-row-val ' + (ret >= 0 ? 'profit' : 'loss');
+  retEl.className = 'mo-pnl-row-val mo-pnl-pill ' + (ret >= 0 ? 'profit' : 'loss');
   // AI tip
   const tipEl = document.getElementById('moPnlAiTip');
   if (Math.abs(pl) > 0.005) {
@@ -1572,6 +1572,40 @@ document.getElementById('marketsOverlay')?.addEventListener('click', e => {
 });
 // P&L live recalc
 document.getElementById('moPnlBuyPrice')?.addEventListener('input', moPnlRecalc);
+
+// Calculator spotlight: a soft glow follows the cursor across the card and the
+// Clear button (same effect as the reference spotlight button).
+(function initPnlSpotlight() {
+  const card = document.getElementById('moPnlSection');
+  const reset = document.getElementById('moPnlReset');
+  if (!card) return;
+  let raf = 0, px = 0, py = 0;
+  card.addEventListener('pointermove', (e) => {
+    px = e.clientX; py = e.clientY;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--sx', (px - r.left) + 'px');
+      card.style.setProperty('--sy', (py - r.top) + 'px');
+      if (reset) {
+        const b = reset.getBoundingClientRect();
+        reset.style.setProperty('--bx', (px - b.left) + 'px');
+        reset.style.setProperty('--by', (py - b.top) + 'px');
+      }
+    });
+  });
+  card.addEventListener('pointerenter', () => card.classList.add('is-lit'));
+  card.addEventListener('pointerleave', () => { if (!card.contains(document.activeElement)) card.classList.remove('is-lit'); });
+  card.addEventListener('focusin', () => card.classList.add('is-lit'));
+  card.addEventListener('focusout', () => { if (!card.matches(':hover')) card.classList.remove('is-lit'); });
+  reset?.addEventListener('click', () => {
+    const b = document.getElementById('moPnlBuyPrice'), sh = document.getElementById('moPnlShares');
+    if (b) b.value = ''; if (sh) sh.value = '';
+    moPnlRecalc();
+    b?.focus();
+  });
+})();
 document.getElementById('moPnlShares')?.addEventListener('input', moPnlRecalc);
 
 // Wire portfolio panel label + expand button → open overlay
