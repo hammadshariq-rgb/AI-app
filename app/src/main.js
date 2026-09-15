@@ -2254,6 +2254,32 @@ ipcMain.handle('model:saveFile', async (_e, { bytes, suggestedName }) => {
 
 // Save a generated image to disk. An <a download> pointing at a remote URL is
 // unreliable in Electron's sandbox, so the main process fetches and writes it.
+ipcMain.handle('media:saveVideo', async (_e, { url, suggestedName }) => {
+  try {
+    const fs = require('fs');
+    const safe = String(suggestedName || 'callisto-video')
+      .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-video';
+    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+      title: 'Save video',
+      defaultPath: path.join(app.getPath('videos'), `${safe}.mp4`),
+      filters: [{ name: 'MP4 video', extensions: ['mp4'] }],
+    });
+    if (canceled || !filePath) return { ok: false, cancelled: true };
+    let bytes;
+    if (/^file:\/\//i.test(String(url))) bytes = artifacts.readLocal(url);
+    else if (/^https:\/\//i.test(String(url))) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      bytes = Buffer.from(await res.arrayBuffer());
+    }
+    if (!bytes) throw new Error('Video not available.');
+    fs.writeFileSync(filePath, bytes);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('media:saveImage', async (_e, { url, suggestedName }) => {
   try {
     const { dialog } = require('electron');

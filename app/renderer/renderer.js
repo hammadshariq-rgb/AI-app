@@ -4702,24 +4702,42 @@ if (window.jarvis.onSentenceText) {
       const img = attachments.find(a => a.type && a.type.startsWith('image/'));
       if (img) imageBase64 = img.data || img.base64 || null;
     }
-    addMessage('assistant', `🎬 Making your video… this usually takes 1–3 minutes.`);
-    setState('thinking');
+    // Same experience as 3D models: a centred studio card with a progress ring.
+    // Closing it doesn't stop the render; a "Video ready" notice brings it back.
+    const VV = window.CallistoVideoViewer;
+    const title = text
+      .replace(/\b(?:please|can you|could you|create|make|generate|me|a|an|the|video|of|using|with|on|in|via)\b/gi, ' ')
+      .replace(/\bh[io]c?k?g?g?s\s*f[ei]{1,2}ld\b/gi, ' ')
+      .replace(/\s+/g, ' ').trim().slice(0, 60) || 'Your video';
+    const jobKey = `vid-${Date.now()}`;
+    addMessage('assistant', `🎬 Making your video — this usually takes 1–3 minutes.`);
+    if (VV) VV.showLoading({ title, jobKey });
+
+    let res;
     try {
-      const res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64 });
-      if (res.error) {
-        addMessage('assistant', `Couldn't make the video: ${res.error}`);
-      } else if (res.videoUrl) {
-        // Show video in browser sidebar
-        if (typeof openBrowserPanel === 'function') openBrowserPanel(res.videoUrl, 'HiggsField Video', '🎬');
-        window.jarvis.speak('Your video is ready!');
-        addMessage('assistant', `✅ Video generated! It's playing in the side panel.\n\n[Open video](${res.videoUrl})`);
-      } else {
-        addMessage('assistant', `🎬 Job submitted (ID: ${res.jobId || 'unknown'}). HiggsField is rendering your video — it may take a minute. Check higgsfield.ai for the result.`);
-      }
-    } catch(e) {
-      addMessage('assistant', `HiggsField failed: ${e.message}`);
+      res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64 });
+    } catch (e) {
+      res = { error: e.message };
     }
-    setState('idle');
+    const onScreen = VV && VV.isOpen() && VV.loadingJobKey() === jobKey;
+
+    if (res && res.videoUrl) {
+      const video = { url: res.videoUrl, title };
+      window._lastVideo = video;
+      window.jarvis.speak('Your video is ready.');
+      if (onScreen) {
+        VV.open(video.url, { title });
+      } else if (VV && typeof _modelTell === 'function') {
+        _modelTell('Video ready', title, 'Play', () => VV.open(video.url, { title }));
+      } else if (VV) {
+        VV.open(video.url, { title });
+      }
+    } else {
+      const msg = (res && res.error) || "Couldn't make the video.";
+      if (onScreen) VV.fail(msg);
+      else if (typeof _modelTell === 'function') _modelTell('Video failed', msg);
+      addMessage('assistant', msg);
+    }
     return true;
   };
 })();
@@ -8546,6 +8564,10 @@ micBtn.addEventListener('click', () => {
   function open(a) {
     if (a.kind === 'model') {
       if (window.CallistoModelViewer) window.CallistoModelViewer.open(a.url, { title: a.title, taskId: a.taskId, prompt: a.prompt });
+      return;
+    }
+    if (a.kind === 'video' && window.CallistoVideoViewer) {
+      window.CallistoVideoViewer.open(a.url, { title: a.title });
       return;
     }
     lightbox(a);

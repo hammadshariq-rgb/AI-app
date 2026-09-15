@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onModelStart:  (cb) => ipcRenderer.on('model:start', (_e, d) => cb(d)),
   // Save a generated image or painting to disk
   saveImage:     (url, suggestedName) => ipcRenderer.invoke('media:saveImage', { url, suggestedName }),
+  saveVideo:     (url, suggestedName) => ipcRenderer.invoke('media:saveVideo', { url, suggestedName }),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf

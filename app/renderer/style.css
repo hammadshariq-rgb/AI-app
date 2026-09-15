@@ -8633,3 +8633,16 @@ body.light-mode .msg-table-wrap { border-color: rgba(0, 0, 0, 0.1); }
 body.light-mode .msg-rich th, body.light-mode .msg-rich td { border-bottom-color: rgba(0, 0, 0, 0.07); }
 .msg-rich a.msg-link { color: rgb(var(--mv-accent-rgb)); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .msg-rich a.msg-link:hover { text-decoration-thickness: 2px; }
+
+/* ── Video studio (reuses the 3D studio card) ─────────────────────────────── */
+.vv-screen {
+  position: absolute; inset: 84px 28px 28px; display: grid; place-items: center;
+}
+.vv-video {
+  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  border-radius: 14px; background: #000;
+  border: 1px solid rgba(var(--mv-accent-rgb), 0.28);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(var(--mv-accent-rgb), 0.12);
+}
+.vv-video[hidden] { display: none; }
+@media (max-width: 760px) { .vv-screen { inset: 76px 12px 16px; } }
