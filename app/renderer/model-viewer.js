@@ -4,9 +4,10 @@
    Full-screen overlay that loads a .glb and lets people spin, zoom, select an
    area of the model and reshape / recolour it, then download the result.
 
-   Input comes from three sources through one path: mouse/trackpad, touch, and
-   Callisto's hand cursor (pinch = grab, pinch + move toward the camera = zoom,
-   quick pinch = select, pinch on a slider = drag it).
+   Input: mouse/trackpad and touch, plus a two-handed scheme separate from the
+   main page's gestures — the RIGHT hand steers (open palm moves the model,
+   pinch + up/down zooms, fist pauses) and the LEFT hand is the Callisto cursor
+   (pinch to select an area, pinch a slider to drag it).
 
    Generated models are usually a single merged mesh, so "parts" are selected as
    an area: click a point and everything within the brush radius is selected,
@@ -20,7 +21,8 @@
      loadingJobKey()                               → key of the job on screen
      fail(message)
      close(), isOpen()
-     handInput({ x, y, pinching, handSize })       // x/y normalised 0..1
+     handInput({ x, y, pinching })                 // LEFT hand cursor, x/y normalised 0..1
+     rightHand(landmarks | null, now)              // RIGHT hand steering (MediaPipe landmarks)
      onCommand(fn)                                 // fn(text) from the command bar
      setBusy(label | null)                         // repaint in progress etc.
      info()                                        → { title, taskId, prompt }
@@ -53,7 +55,7 @@
   let autoSpin = true;
 
   const drag = { active: false, lastX: 0, lastY: 0, source: null, downX: 0, downY: 0, downAt: 0, moved: 0 };
-  const hand = { zoomBase: 0, radiusBase: 0, sizeEma: 0, slider: null };
+  const hand = { slider: null, pinchStarted: false };
 
   const reduceMotion = window.matchMedia
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -167,7 +169,18 @@
           <button class="mv-btn mv-btn-primary mv-btn-sm" type="submit">Apply</button>
         </form>
 
-        <div class="mv-hint">Drag to rotate · scroll to zoom · click a part to edit · hand: pinch to grab, pinch and move closer to zoom, quick pinch to select</div>
+        <div class="mv-hands" aria-label="Hand controls">
+          <div class="mv-hand" data-hand="right">
+            <span class="mv-hand-dot"></span>
+            <span class="mv-hand-text"><strong>Right hand</strong> <span class="mv-hand-state">Open palm to rotate</span></span>
+          </div>
+          <div class="mv-hand" data-hand="left">
+            <span class="mv-hand-dot"></span>
+            <span class="mv-hand-text"><strong>Left hand</strong> Pinch to select</span>
+          </div>
+        </div>
+
+        <div class="mv-hint">Mouse: drag to rotate · scroll to zoom · click a part to edit &nbsp;|&nbsp; Right hand: palm moves it, pinch + up/down zooms, fist pauses &nbsp;|&nbsp; Left hand: cursor, pinch to select</div>
       </div>`;
     document.body.appendChild(root);
 
@@ -266,27 +279,21 @@
     cam.phi    = clamp(cam.phi - dy * 0.009, 0.12, Math.PI - 0.12);
   }
 
-  // Hand cursor. Pinch over the model grabs it; moving the pinched hand toward
-  // the camera zooms in. A quick pinch without moving selects. Pinch over a
-  // slider drags the slider. Buttons are clicked by the gesture loop itself.
+  // ── LEFT hand: the Callisto cursor, for selecting ─────────────────────────
+  // Pinch on the model selects the area under the cursor. Pinch on a slider
+  // drags it. Buttons are clicked by the gesture loop itself. It never rotates.
   function handInput(state) {
     if (!open || !state) return;
     const px = state.x * window.innerWidth;
     const py = state.y * window.innerHeight;
-    const size = state.handSize || 0;
-    if (size) hand.sizeEma = hand.sizeEma ? hand.sizeEma + (size - hand.sizeEma) * 0.25 : size;
+    setHandChip('left', true);
 
     if (state.pinching) {
-      if (drag.source !== 'hand' && !hand.slider) {
+      if (!hand.pinchStarted) {
+        hand.pinchStarted = true;
         const el = document.elementFromPoint(px, py);
-        if (el && el.matches && el.matches('.mv-inspector input[type="range"]')) {
-          hand.slider = el;
-        } else if (el === canvas) {
-          drag.active = true; drag.source = 'hand';
-          drag.lastX = drag.downX = px; drag.lastY = drag.downY = py;
-          drag.downAt = performance.now(); drag.moved = 0;
-          hand.zoomBase = hand.sizeEma; hand.radiusBase = cam.targetRadius;
-        }
+        if (el && el.matches && el.matches('.mv-inspector input[type="range"]')) hand.slider = el;
+        else if (el === canvas) selectAt(px, py);
       }
       if (hand.slider) {
         const r = hand.slider.getBoundingClientRect();
@@ -294,29 +301,96 @@
         const min = Number(hand.slider.min), max = Number(hand.slider.max);
         hand.slider.value = String(Math.round(min + t * (max - min)));
         hand.slider.dispatchEvent(new Event('input', { bubbles: true }));
-      } else if (drag.source === 'hand') {
-        const dx = px - drag.lastX, dy = py - drag.lastY;
-        drag.moved += Math.abs(dx) + Math.abs(dy);
-        if (drag.moved > 14) { autoSpin = false; orbitBy(dx * 1.15, dy * 1.15); }
-        drag.lastX = px; drag.lastY = py;
-
-        // Depth zoom with a dead-band so ordinary pinching doesn't wobble the camera
-        if (hand.zoomBase && hand.sizeEma) {
-          const ratio = hand.sizeEma / hand.zoomBase;
-          if (Math.abs(ratio - 1) > 0.08) {
-            autoSpin = false;
-            cam.targetRadius = clamp(hand.radiusBase / Math.pow(ratio, 1.6), 0.7, 9);
-          }
-        }
       }
     } else {
-      if (drag.source === 'hand') {
-        const wasTap = drag.moved <= 14 && performance.now() - drag.downAt < 380;
-        drag.active = false; drag.source = null;
-        if (wasTap) selectAt(drag.downX, drag.downY);
-      }
+      hand.pinchStarted = false;
       hand.slider = null;
     }
+  }
+
+  // ── RIGHT hand: steer the model ───────────────────────────────────────────
+  // Open palm: the model follows the hand — move left/right to spin, up/down to
+  // tilt. Pinch (thumb + index) and move up/down to zoom. Make a fist to "let go"
+  // so you can reposition your hand without moving the model.
+  const steer = { x: 0, y: 0, has: false, mode: null, lostAt: 0, zoomY: 0, zoomBase: 0 };
+
+  function palmCentre(lm) {
+    const ids = [0, 5, 9, 13, 17];
+    let x = 0, y = 0;
+    for (const i of ids) { x += lm[i].x; y += lm[i].y; }
+    return { x: x / ids.length, y: y / ids.length };
+  }
+
+  function extendedFingers(lm) {
+    // Fingertip further from the wrist than its middle joint ⇒ extended
+    const d = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
+    return [[8, 6], [12, 10], [16, 14], [20, 18]].filter(([tip, pip]) => d(tip, 0) > d(pip, 0) * 1.08).length;
+  }
+
+  function rightHand(lm, now) {
+    if (!open) return;
+    if (!lm) {
+      setHandChip('right', false);
+      if (!steer.lostAt) steer.lostAt = now;
+      if (now - steer.lostAt > 250) { steer.has = false; steer.mode = null; }
+      return;
+    }
+    steer.lostAt = 0;
+    setHandChip('right', true);
+
+    const scale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.15;
+    const pinch = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / scale < 0.38;
+    const fingers = extendedFingers(lm);
+    const mode = pinch ? 'zoom' : fingers >= 3 ? 'rotate' : 'hold';
+    const c = palmCentre(lm);
+
+    // Re-anchor whenever the hand appears or changes mode, so nothing jumps
+    if (!steer.has || mode !== steer.mode) {
+      steer.x = c.x; steer.y = c.y; steer.has = true; steer.mode = mode;
+      steer.zoomY = c.y; steer.zoomBase = cam.targetRadius;
+      setSteerState(mode);
+      return;
+    }
+
+    // Light smoothing on the palm, then use the frame-to-frame movement
+    const sx = steer.x + (c.x - steer.x) * 0.6;
+    const sy = steer.y + (c.y - steer.y) * 0.6;
+    const dx = sx - steer.x, dy = sy - steer.y;
+    steer.x = sx; steer.y = sy;
+
+    if (mode === 'rotate') {
+      if (Math.abs(dx) + Math.abs(dy) < 0.0025) return;   // ignore tremor
+      autoSpin = false;
+      syncSpinButton();
+      // Same feel as dragging with a mouse across the stage
+      const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
+      orbitBy(dx * w * 1.6, dy * h * 1.6);
+    } else if (mode === 'zoom') {
+      autoSpin = false;
+      const travel = sy - steer.zoomY;                   // hand up (negative) = closer
+      cam.targetRadius = clamp(steer.zoomBase * Math.exp(travel * 4.5), 0.7, 9);
+    }
+  }
+
+  function syncSpinButton() {
+    const b = root && root.querySelector('[data-act="spin"]');
+    if (b) b.setAttribute('aria-pressed', String(autoSpin));
+  }
+
+  function setHandChip(which, on) {
+    if (!root) return;
+    const chip = root.querySelector(`[data-hand="${which}"]`);
+    if (!chip) return;
+    if (which === 'left') {
+      clearTimeout(setHandChip._t);
+      setHandChip._t = setTimeout(() => chip.classList.remove('on'), 400);
+    }
+    chip.classList.toggle('on', on);
+  }
+
+  function setSteerState(mode) {
+    const el = root && root.querySelector('[data-hand="right"] .mv-hand-state');
+    if (el) el.textContent = mode === 'zoom' ? 'Zooming' : mode === 'rotate' ? 'Rotating' : 'Paused';
   }
 
   // ── three.js ──────────────────────────────────────────────────────────────
@@ -1017,6 +1091,7 @@
     close,
     isOpen: () => open,
     handInput,
+    rightHand,
     onCommand: (fn) => { commandHandler = fn; },
     setBusy,
     info: () => ({ title: current.title, taskId: current.taskId, prompt: current.prompt, loaded: !!modelRoot }),

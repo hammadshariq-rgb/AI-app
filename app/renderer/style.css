@@ -8432,6 +8432,20 @@ body.light-mode .voice-preview-status { color: rgba(20, 30, 80, 0.55); }
   color: var(--mv-faint); pointer-events: none;
 }
 
+/* Hand-control guide (3D studio) */
+.mv-hands { position: absolute; left: 22px; bottom: 96px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.mv-hand {
+  display: flex; align-items: center; gap: 8px; padding: 6px 11px 6px 9px; border-radius: 999px;
+  font-size: 11px; color: var(--mv-faint); background: var(--mv-glass); border: 1px solid var(--mv-line-soft);
+  backdrop-filter: blur(8px); transition: color .2s, border-color .2s;
+}
+.mv-hand strong { font-weight: 700; color: var(--mv-mute); margin-right: 3px; }
+.mv-hand-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.18); transition: background .2s, box-shadow .2s; }
+.mv-hand.on { color: var(--mv-ink); border-color: rgba(var(--mv-accent-rgb), .45); }
+.mv-hand.on strong { color: var(--mv-ink); }
+.mv-hand.on .mv-hand-dot { background: var(--mv-crimson); box-shadow: 0 0 10px var(--mv-crimson); }
+@media (max-width: 760px) { .mv-hands { display: none; } }
+
 /* Top-of-screen notification */
 .mv-notify-host {
   position: fixed; top: 18px; left: 50%; transform: translateX(-50%);

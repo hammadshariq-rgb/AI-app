@@ -2698,7 +2698,7 @@
   <script src="three.global.js"></script>
   <script src="GLTFLoader.global.js"></script>
   <script src="GLTFExporter.global.js"></script>
-  <script src="model-viewer.js?v=4"></script>
+  <script src="model-viewer.js?v=5"></script>
   <script src="renderer.js?v=59"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
@@ -2841,13 +2841,11 @@
         // instead of driving clicks. Fed from the smoothed cursor so it inherits
         // the same easing as the on-screen pointer.
         if (window.CallistoModelViewer && window.CallistoModelViewer.isOpen()) {
-          const hl = lastLeftLm;
+          // Left hand = selection cursor only (rotation is the right hand's job)
           window.CallistoModelViewer.handInput({
             x: smoothX / window.innerWidth,
             y: smoothY / window.innerHeight,
             pinching: isPinching,
-            // Apparent hand size: grows as the hand moves toward the camera → zoom
-            handSize: Math.hypot(hl[0].x - hl[9].x, hl[0].y - hl[9].y),
           });
         }
 
@@ -3135,8 +3133,10 @@
         // hands untrackable, so this has to see the zero-hand frames too.
         const clapLanded = checkClap(lms, performance.now());
 
+        const studioOpen = !!(window.CallistoModelViewer && window.CallistoModelViewer.isOpen());
         if (!lms.length) {
-          if (clapLanded && canFire('clap')) { doClapAction(); return; }
+          if (studioOpen) window.CallistoModelViewer.rightHand(null, performance.now());
+          if (clapLanded && canFire('clap') && !studioOpen) { doClapAction(); return; }
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           isPinching = false; pinchFired = false; lastLeftLm = null;
@@ -3160,7 +3160,7 @@
         }
 
         // ── 1. CLAP — highest priority, needs 2 hands ──────────────────────
-        if (clapLanded && canFire('clap')) {
+        if (clapLanded && canFire('clap') && !studioOpen) {
           doClapAction(); return;
         }
 
@@ -3224,6 +3224,15 @@
           isPinching = false; pinchFired = false; pinchHeldSince = 0;
           cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
           velX = 0; velY = 0; lastLeftLm = null; _hoverEl = null;
+        }
+
+        // ── 3D studio mode ─────────────────────────────────────────────────
+        // A separate control scheme: the RIGHT hand steers the model (open palm
+        // moves it, pinch + up/down zooms); the LEFT hand stays the cursor for
+        // selecting areas. None of the main-page gestures fire here.
+        if (window.CallistoModelViewer && window.CallistoModelViewer.isOpen()) {
+          window.CallistoModelViewer.rightHand(gestureIdx >= 0 ? lms[gestureIdx] : null, performance.now());
+          return;
         }
 
         // ── Per-hand gestures (gesture hand only) ────────────────────────
