@@ -1,4 +1,4 @@
-﻿// â”€â”€ Text-to-3D client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Text-to-3D client ─────────────────────────────────────────────────────────
 // Starts a generation on the license server and polls until the GLB is ready.
 // Generation runs 40-90s, so progress is reported back through a callback rather
 // than blocking a single request.
@@ -54,7 +54,7 @@ async function generate({ token, prompt, style }, onProgress) {
     try {
       job = await api(`/models/job/${encodeURIComponent(jobId)}`, { token, timeoutMs: 15000 });
     } catch (_) {
-      continue; // a dropped poll isn't fatal â€” keep waiting
+      continue; // a dropped poll isn't fatal — keep waiting
     }
 
     try { onProgress && onProgress({ status: job.status, progress: job.progress || 0 }); } catch (_) {}
@@ -62,7 +62,7 @@ async function generate({ token, prompt, style }, onProgress) {
     if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url };
     if (job.status === 'FAILED') return { ok: false, error: job.error || 'Generation failed.' };
   }
-  return { ok: false, error: 'That took too long â€” try a simpler description.' };
+  return { ok: false, error: 'That took too long — try a simpler description.' };
 }
 
 module.exports = { isEnabled, generate };
