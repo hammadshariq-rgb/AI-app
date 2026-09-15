@@ -60,8 +60,9 @@ function mountModeling(app, { authMiddleware }) {
         method: 'POST',
         body: JSON.stringify({
           mode: 'preview',
-          prompt: prompt.slice(0, 600),
-          art_style: req.body?.style === 'realistic' ? 'realistic' : 'sculpture',
+          prompt: prompt.slice(0, 800),
+          // Meshy's current spec only accepts 'realistic'; 'sculpture' was removed.
+          art_style: 'realistic',
           should_remesh: true,
         }),
       });
