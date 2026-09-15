@@ -7215,6 +7215,47 @@ voiceVolumeSlider.addEventListener('input', () => {
       await window.jarvis.setProfile(p);
     });
   });
+
+  // ── Accent ────────────────────────────────────────────────────────────────
+  const accentBtns = [
+    document.getElementById('profileAccentBritish'),
+    document.getElementById('profileAccentAmerican'),
+    document.getElementById('profileAccentAustralian'),
+  ].filter(Boolean);
+
+  const savedAccent = (await window.jarvis.getProfile())?.accent || 'british';
+  function applyAccentPref(pref) {
+    accentBtns.forEach(b => b.classList.toggle('active', b.dataset.accent === pref));
+  }
+  applyAccentPref(savedAccent);
+
+  accentBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pref = btn.dataset.accent;
+      applyAccentPref(pref);
+      const p = await window.jarvis.getProfile() || {};
+      p.accent = pref;
+      await window.jarvis.setProfile(p);
+    });
+  });
+
+  // Preview — speaks a line in whatever voice+accent is currently selected
+  const previewBtn = document.getElementById('profileVoicePreview');
+  const previewStatus = document.getElementById('profileVoicePreviewStatus');
+  if (previewBtn) {
+    previewBtn.addEventListener('click', async () => {
+      previewBtn.disabled = true;
+      if (previewStatus) previewStatus.textContent = 'Generating…';
+      try {
+        await window.jarvis.speak("Hello. This is how I'll sound from now on.");
+        if (previewStatus) previewStatus.textContent = '';
+      } catch (_) {
+        if (previewStatus) previewStatus.textContent = 'Preview unavailable';
+      } finally {
+        previewBtn.disabled = false;
+      }
+    });
+  }
 })();
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {

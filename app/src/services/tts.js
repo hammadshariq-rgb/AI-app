@@ -2,9 +2,29 @@ const fetch = require('node-fetch');
 const Store = require('electron-store');
 const store = new Store();
 
-function getVoice() {
-  const pref = store.get('profile.voice') || 'male';
-  return pref === 'female' ? 'nova' : 'fable';
+// OpenAI's voices each carry a fixed accent — fable is British, nova American, and
+// there is no Australian at all. So we pick the closest base voice for each
+// gender/accent pair and steer the rest with an instruction, which only the
+// gpt-4o-mini-tts model honours. Base voices chosen to give the steering the least
+// work: fable already sounds British, onyx and nova already sound American.
+const VOICE_MATRIX = {
+  'british-male':    { voice: 'fable',   accent: 'a natural British English (Received Pronunciation) accent' },
+  'british-female':  { voice: 'shimmer', accent: 'a natural British English (Received Pronunciation) accent' },
+  'american-male':   { voice: 'onyx',    accent: 'a natural General American accent' },
+  'american-female': { voice: 'nova',    accent: 'a natural General American accent' },
+  'australian-male': { voice: 'ash',     accent: 'a natural Australian English accent' },
+  'australian-female': { voice: 'coral', accent: 'a natural Australian English accent' },
+};
+
+function getVoiceConfig() {
+  const gender = store.get('profile.voice') || 'male';
+  const accent = store.get('profile.accent') || 'british';
+  const key = `${accent}-${gender}`;
+  const entry = VOICE_MATRIX[key] || VOICE_MATRIX[`british-${gender}`] || VOICE_MATRIX['british-male'];
+  return {
+    voice: entry.voice,
+    instructions: `Speak with ${entry.accent}. Sound like a calm, articulate personal assistant — warm and natural, never robotic or exaggerated. Keep the accent consistent throughout.`,
+  };
 }
 
 const { safeStorage } = require('electron');
@@ -29,7 +49,11 @@ async function synthesize(text) {
     const res = await fetch(`${SERVER()}/ai/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ text: text.slice(0, 4096), voice: getVoice(), speed: currentSpeed }),
+      body: JSON.stringify({
+        text: text.slice(0, 4096),
+        ...getVoiceConfig(),
+        speed: currentSpeed,
+      }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);

@@ -1280,16 +1280,38 @@ app.post('/ai/chat/stream', authMiddleware, aiLimiter, async (req, res) => {
 });
 
 // Text-to-speech
+// `instructions` steers accent and delivery, but only gpt-4o-mini-tts honours it —
+// tts-1 voices have a fixed accent baked in. When the client asks for an accent we
+// use the steerable model and fall back to tts-1 if it is unavailable.
 app.post('/ai/tts', authMiddleware, aiLimiter, async (req, res) => {
   try {
-    const { text, voice, speed } = req.body;
+    const { text, voice, speed, instructions } = req.body;
     if (!text) return res.status(400).json({ error: 'text required' });
-    const result = await openai.audio.speech.create({
-      model: 'tts-1',
-      voice: voice || 'fable',
-      speed: speed || 0.92,
-      input: text.slice(0, 4096),
-    });
+
+    const input = text.slice(0, 4096);
+    const chosenVoice = voice || 'fable';
+    const rate = speed || 0.92;
+
+    let result;
+    if (instructions) {
+      try {
+        result = await openai.audio.speech.create({
+          model: 'gpt-4o-mini-tts',
+          voice: chosenVoice,
+          speed: rate,
+          instructions: String(instructions).slice(0, 500),
+          input,
+        });
+      } catch (steerErr) {
+        console.warn('[TTS] steerable model failed, falling back:', steerErr.message);
+      }
+    }
+    if (!result) {
+      result = await openai.audio.speech.create({
+        model: 'tts-1', voice: chosenVoice, speed: rate, input,
+      });
+    }
+
     const buffer = Buffer.from(await result.arrayBuffer());
     res.json({ audio: buffer.toString('base64') });
   } catch (err) {
