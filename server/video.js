@@ -20,9 +20,55 @@ const PER_USER_PER_DAY = Number(process.env.HIGGSFIELD_USES_PER_DAY) || 5;
 const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 0;
 const usage = require('./usage');
 
-// Seedance Lite is the cheapest text- and image-to-video tier in the API.
-const TEXT_TO_VIDEO = '/bytedance/seedance/v1/lite/text-to-video';
-const IMAGE_TO_VIDEO = '/bytedance/seedance/v1/lite/image-to-video';
+// Documented video models, cheapest first. Which ones an account can use varies
+// (an unavailable one answers "model_not_found"), so we try them in order and
+// remember the first that's accepted. Each model takes slightly different fields.
+const IMAGE_MODELS = [
+  { path: '/bytedance/seedance/v1/lite/image-to-video', body: (p, img) => ({ prompt: p, image_url: img, duration: 5, resolution: '720', aspect_ratio: '16:9' }) },
+  { path: '/higgsfield-ai/dop/lite', body: (p, img) => ({ prompt: p, image_url: img }) },
+  { path: '/kling-video/v2.5-turbo/standard/image-to-video', body: (p, img) => ({ prompt: p, image_url: img, duration: 5 }) },
+  { path: '/kling-video/v2.1/standard/image-to-video', body: (p, img) => ({ prompt: p, image_url: img, duration: 5 }) },
+  { path: '/bytedance/seedance/v1/pro/fast/image-to-video', body: (p, img) => ({ prompt: p, image_url: img, duration: 5, resolution: '720', aspect_ratio: '16:9' }) },
+  { path: '/higgsfield-ai/dop/turbo', body: (p, img) => ({ prompt: p, image_url: img }) },
+  { path: '/veo3.1/fast/image-to-video', body: (p, img) => ({ prompt: p, image_url: img, duration: '4', resolution: '720', aspect_ratio: '16:9' }) },
+];
+const TEXT_MODELS = [
+  { path: '/bytedance/seedance/v1/lite/text-to-video', body: (p) => ({ prompt: p, duration: 5, resolution: '720', aspect_ratio: '16:9' }) },
+  { path: '/bytedance/seedance/v1/pro/fast/text-to-video', body: (p) => ({ prompt: p, duration: 5, resolution: '720', aspect_ratio: '16:9' }) },
+  { path: '/kling-video/v2.5-turbo/pro/text-to-video', body: (p) => ({ prompt: p, duration: 5 }) },
+  { path: '/veo3.1/fast', body: (p) => ({ prompt: p, duration: '4', resolution: '720', aspect_ratio: '16:9' }) },
+];
+const workingModel = { image: null, text: null };   // index of the model that last worked
+
+// Optional override: HIGGSFIELD_IMAGE_MODEL / HIGGSFIELD_TEXT_MODEL = an exact path above.
+function orderedModels(list, kind) {
+  const pinned = process.env[kind === 'image' ? 'HIGGSFIELD_IMAGE_MODEL' : 'HIGGSFIELD_TEXT_MODEL'];
+  const order = list.map((m, i) => i);
+  const first = pinned ? list.findIndex((m) => m.path === pinned) : workingModel[kind];
+  if (first != null && first >= 0) { order.splice(order.indexOf(first), 1); order.unshift(first); }
+  return order;
+}
+
+const isModelMissing = (err) => /model[_ ]not[_ ]found|not found|no such model|unknown model|404/i.test(String(err && err.message));
+
+async function submitWithFallback(kind, prompt, imageUrl) {
+  const list = kind === 'image' ? IMAGE_MODELS : TEXT_MODELS;
+  let lastErr = null;
+  for (const i of orderedModels(list, kind)) {
+    try {
+      const job = await hf(list[i].path, { method: 'POST', body: JSON.stringify(list[i].body(prompt, imageUrl)) });
+      workingModel[kind] = i;
+      return job;
+    } catch (err) {
+      lastErr = err;
+      if (!isModelMissing(err)) throw err;   // real error (credits, content, auth) — stop here
+      console.warn(`[video] ${list[i].path} unavailable, trying next`);
+    }
+  }
+  throw new Error(lastErr && isModelMissing(lastErr)
+    ? 'None of the video models are enabled on this Higgsfield account.'
+    : (lastErr?.message || 'Video generation failed.'));
+}
 
 const images = new Map();       // token -> { buf, type, expires }
 const IMAGE_TTL_MS = 60 * 60 * 1000;
@@ -87,7 +133,7 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       if (!configured) {
         return res.status(503).json({ error: 'Video generation is not set up on this server yet.' });
       }
-      const prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
+      let prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
       if (!prompt) return res.status(400).json({ error: 'Describe the video you want.' });
 
       const slot = await usage.reserve('higgsfield', req.userId, PER_USER_PER_DAY);
@@ -106,8 +152,9 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
         if (ALL_USERS_PER_DAY) await usage.release('higgsfield-all', 'everyone');
       };
 
-      const body = { prompt, duration: 5, resolution: '720', aspect_ratio: '16:9' };
-      let endpoint = TEXT_TO_VIDEO;
+      let imageUrl = null;
+      // "…driving in Higgsfield" names the tool, not the scene.
+      prompt = prompt.replace(/\s*\b(?:in|on|with|using|via|through)\s+h[io]c?k?g?g?s\s*field\b/ig, '').trim() || prompt;
 
       const imageBase64 = req.body?.imageBase64;
       if (imageBase64) {
@@ -121,13 +168,12 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
         const token = crypto.randomBytes(24).toString('hex');
         images.set(token, { buf, type, expires: Date.now() + IMAGE_TTL_MS });
         const base = typeof publicUrl === 'function' ? publicUrl(req) : publicUrl;
-        body.image_url = `${base}/video/img/${token}`;
-        endpoint = IMAGE_TO_VIDEO;
+        imageUrl = `${base}/video/img/${token}`;
       }
 
       let requestId = null;
       try {
-        const job = await hf(endpoint, { method: 'POST', body: JSON.stringify(body) });
+        const job = await submitWithFallback(imageUrl ? 'image' : 'text', prompt, imageUrl);
         requestId = job?.request_id || job?.id;
       } catch (err) {
         await refund();   // rejected before any work — don't count it
