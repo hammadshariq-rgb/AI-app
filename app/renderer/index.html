@@ -2946,31 +2946,66 @@
       }
 
       // ── Clap: intentional bring-together-from-far gesture ────────────────────
-      // Requirements (all must be true):
-      //  1. Hands end up VERY close (< CLAP_NEAR)
-      //  2. Hands started FAR apart — max distance in window > CLAP_FAR_START
-      //  3. Large total drop in distance (> CLAP_DROP)
-      //  4. Fast average approach speed (> CLAP_SPEED)
-      // This prevents false-positives when both hands are already nearby
-      // while doing cursor + gesture at the same time.
-      const clapHist = [];
-      const CLAP_WIN       = 10;
-      const CLAP_NEAR      = 0.12;   // final distance must be very small
-      const CLAP_FAR_START = 0.40;   // hands must have been this far apart in the window
-      const CLAP_DROP      = 0.28;   // total distance drop required
-      const CLAP_SPEED     = 0.028;  // per-frame average speed required
-      function checkClap(lms) {
-        if (lms.length < 2) { clapHist.length = 0; return false; }
-        const d = Math.hypot(lms[0][5].x - lms[1][5].x, lms[0][5].y - lms[1][5].y);
-        clapHist.push(d);
-        if (clapHist.length > CLAP_WIN) clapHist.shift();
-        if (clapHist.length < CLAP_WIN) return false;
-        const last  = clapHist[clapHist.length - 1];
-        const maxD  = Math.max(...clapHist);   // peak distance seen in this window
-        const drop  = maxD - last;             // how far they came together from the peak
-        const speed = drop / CLAP_WIN;
-        // All four conditions must be true
-        return last < CLAP_NEAR && maxD > CLAP_FAR_START && drop > CLAP_DROP && speed > CLAP_SPEED;
+      // The old version required a final "very close" frame and wiped its history
+      // the moment fewer than two hands were visible. But MediaPipe almost always
+      // loses one hand at the instant the palms meet — so the frames that prove the
+      // clap landed never arrived, and the reset erased the approach that led to it.
+      // That is why clapping rarely registered.
+      //
+      // This version is time-based (so it behaves the same at any frame rate),
+      // measures palm centres rather than a single knuckle, and treats "hands
+      // vanished immediately after a fast close" as the clap landing.
+      const CLAP_WINDOW_MS  = 650;   // how far back we look
+      const CLAP_FAR_START  = 0.32;  // palms must have been at least this far apart
+      const CLAP_NEAR       = 0.17;  // counts as contact
+      const CLAP_MIN_DROP   = 0.18;  // total closing distance
+      const CLAP_MIN_SPEED  = 0.5;   // normalised units per second
+      const CLAP_LOST_GRACE = 300;   // ms after a fast close where losing a hand still counts
+
+      let clapSamples = [];
+      let clapArmedAt = 0;
+
+      // Wrist + the four finger MCPs. Much steadier than any single landmark,
+      // and still valid when the fingers are splayed or curled.
+      function palmCenter(lm) {
+        let x = 0, y = 0;
+        for (let k = 0; k < 5; k++) { const i = [0, 5, 9, 13, 17][k]; x += lm[i].x; y += lm[i].y; }
+        return { x: x / 5, y: y / 5 };
+      }
+
+      // Call once per result frame, before any early return. True on the frame the clap lands.
+      function checkClap(lms, now) {
+        if (lms.length >= 2) {
+          const a = palmCenter(lms[0]), b = palmCenter(lms[1]);
+          clapSamples.push({ t: now, d: Math.hypot(a.x - b.x, a.y - b.y) });
+        }
+        const cutoff = now - CLAP_WINDOW_MS;
+        while (clapSamples.length && clapSamples[0].t < cutoff) clapSamples.shift();
+
+        if (clapSamples.length >= 3) {
+          const last = clapSamples[clapSamples.length - 1];
+          let peak = clapSamples[0];
+          for (let i = 1; i < clapSamples.length; i++) if (clapSamples[i].d > peak.d) peak = clapSamples[i];
+
+          const drop = peak.d - last.d;
+          const dt = Math.max((last.t - peak.t) / 1000, 0.001);
+          const speed = drop / dt;
+
+          if (peak.d > CLAP_FAR_START && drop > CLAP_MIN_DROP && speed > CLAP_MIN_SPEED) {
+            if (last.d < CLAP_NEAR) { clapSamples = []; clapArmedAt = 0; return true; }
+            // A real close is under way. Arm it — the contact frames may not survive tracking.
+            clapArmedAt = now;
+          }
+        }
+
+        if (lms.length < 2 && clapArmedAt) {
+          if (now - clapArmedAt < CLAP_LOST_GRACE) {
+            clapSamples = []; clapArmedAt = 0;
+            return true;   // hands disappeared mid-clap — that is the clap
+          }
+          clapArmedAt = 0;
+        }
+        return false;
       }
 
       // ── UI feedback ─────────────────────────────────────────────────────────
@@ -3053,8 +3088,12 @@
         const hands = results.multiHandedness    || [];
         const W = overlayCanvas.width, H = overlayCanvas.height;
 
+        // Evaluated before the early return below: a clap usually ENDS with the
+        // hands untrackable, so this has to see the zero-hand frames too.
+        const clapLanded = checkClap(lms, performance.now());
+
         if (!lms.length) {
-          clapHist.length = 0;
+          if (clapLanded && canFire('clap')) { doClapAction(); return; }
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           isPinching = false; pinchFired = false; lastLeftLm = null;
@@ -3068,13 +3107,17 @@
         // Show "hand detected" so user knows detection is working
         if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
 
-        // Draw skeletons — left hand = green/cyan palette, right hand = blue/cyan palette
-        const h0Left = (hands[0]?.label === 'Left');
-        drawHand(ctx, lms[0], W, H, h0Left);
-        if (lms[1]) { const h1Left = (hands[1]?.label === 'Left'); drawHand(ctx, lms[1], W, H, h1Left); }
+        // Draw skeletons — left hand = green/cyan palette, right hand = blue/cyan palette.
+        // Skipped entirely when the preview panel is closed: gestures still work, but
+        // we were repainting a canvas nobody could see on every single frame.
+        if (!panel.classList.contains('hidden')) {
+          const h0Left = (hands[0]?.label === 'Left');
+          drawHand(ctx, lms[0], W, H, h0Left);
+          if (lms[1]) { const h1Left = (hands[1]?.label === 'Left'); drawHand(ctx, lms[1], W, H, h1Left); }
+        }
 
         // ── 1. CLAP — highest priority, needs 2 hands ──────────────────────
-        if (lms.length >= 2 && checkClap(lms) && canFire('clap')) {
+        if (clapLanded && canFire('clap')) {
           doClapAction(); return;
         }
 
@@ -3223,8 +3266,11 @@
           }
           video.srcObject = stream; await video.play();
 
-          // Offscreen canvas for MediaPipe — 160x120 gives better landmark accuracy than 128x96
-          const procW = 160, procH = 120;
+          // MediaPipe rescales its input to 256px internally, so feeding it 160x120
+          // threw away detail for no compute saving and made landmarks — especially
+          // two-hand ones — noticeably worse. 320x240 costs almost nothing and is
+          // the single biggest accuracy win here.
+          const procW = 320, procH = 240;
           const offscreen = document.createElement('canvas');
           offscreen.width = procW; offscreen.height = procH;
           const offCtx = offscreen.getContext('2d', { willReadFrequently: false });
@@ -3244,30 +3290,47 @@
           let _mpBusy = false;
           let _mpBusySince = 0;
           let _lastSendMs = 0;
-          const SEND_INTERVAL = 33; // cap at ~30fps input to model (plenty for gestures)
 
-          function loop(ts) {
+          // MediaPipe's WASM inference runs on THIS thread, so every send blocks the
+          // UI, the orb and the cursor. A fixed 33ms target meant that on a slower
+          // machine — where inference takes 40ms+ — we queued work faster than it
+          // could finish and the whole app stuttered.
+          //
+          // Instead, measure how long inference actually takes and leave roughly
+          // that much thread time free between frames. On a fast machine this settles
+          // near 15-20fps; on a slow one it backs off on its own instead of choking.
+          // Gestures don't need more than ~12fps to feel instant.
+          const MIN_INTERVAL = 55;    // never exceed ~18fps
+          const MAX_INTERVAL = 140;   // never drop below ~7fps
+          let _inferMs = 60;          // rolling estimate
+          let sendInterval = 66;
+
+          function loop() {
             if (!gestureEnabled) return;
             rafId = requestAnimationFrame(loop); // schedule next frame first — never misses
 
-            // Safety: if model hangs >500ms, force-unlock
-            if (_mpBusy && Date.now() - _mpBusySince > 500) {
+            // Safety: if the model hangs, force-unlock
+            if (_mpBusy && Date.now() - _mpBusySince > 700) {
               _mpBusy = false;
               if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             }
 
-            // Throttle sends so model gets ~30 frames/s max
-            if (_mpBusy || video.readyState < 2 || (Date.now() - _lastSendMs) < SEND_INTERVAL) return;
+            if (_mpBusy || video.readyState < 2 || (Date.now() - _lastSendMs) < sendInterval) return;
 
             _mpBusy = true;
             _mpBusySince = Date.now();
             _lastSendMs  = Date.now();
+            const t0 = performance.now();
 
-            // Draw current video frame to small offscreen canvas, send to model
             offCtx.drawImage(video, 0, 0, procW, procH);
             handsModel.send({ image: offscreen }).catch(() => {
               if (overlayCtx) overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            }).finally(() => { _mpBusy = false; });
+            }).finally(() => {
+              _mpBusy = false;
+              // Smooth the estimate so one slow frame doesn't swing the cadence
+              _inferMs = _inferMs * 0.8 + (performance.now() - t0) * 0.2;
+              sendInterval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, Math.round(_inferMs * 1.5)));
+            });
           }
           rafId = requestAnimationFrame(loop);
           gpAction.textContent = 'Show your hand to begin';
@@ -3283,7 +3346,7 @@
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (handsModel) { try { handsModel.close(); } catch {} handsModel = null; }
         video.srcObject = null;
-        clapHist.length = 0; waveHist[0] = []; waveHist[1] = [];
+        clapSamples = []; clapArmedAt = 0; waveHist[0] = []; waveHist[1] = [];
         if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
         isPinching = false; pinchFired = false; pinchHeldSince = 0; lastLeftLm = null;
         cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
