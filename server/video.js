@@ -61,7 +61,11 @@ async function submitWithFallback(kind, prompt, imageUrl) {
       return job;
     } catch (err) {
       lastErr = err;
-      if (!isModelMissing(err)) throw err;   // real error (credits, content, auth) — stop here
+      if (/not_enough_credits|insufficient|credits/i.test(String(err && err.message))) {
+        console.error('[video] Higgsfield account is out of API credits');
+        throw new Error("Video generation is temporarily unavailable. Please try again later.");
+      }
+      if (!isModelMissing(err)) throw err;   // real error (content, auth) — stop here
       console.warn(`[video] ${list[i].path} unavailable, trying next`);
     }
   }
