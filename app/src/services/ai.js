@@ -123,7 +123,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'make_call',
-      description: 'Call someone on any app. Use whenever the user says "call", "ring", "phone", "video call", or "voice call" and names a person and/or platform. Pass the contact name exactly as the user said it — the system will look them up in the device contacts automatically.',
+      description: 'Call a PERSON (friend, family, colleague) through a calling app — WhatsApp, FaceTime, etc. Use when the user names a platform ("call Ahmed on WhatsApp") or clearly means a personal contact ("call mum"). Do NOT use this for businesses — restaurants, shops, clinics, salons, hotels or any place name; those are place_phone_call. Pass the contact name exactly as the user said it.',
       parameters: {
         type: 'object',
         properties: {
@@ -162,7 +162,7 @@ const TOOLS = [
     function: {
       name: 'place_phone_call',
       description:
-        'Place a REAL outbound phone call where the AI speaks to a business on the user\'s behalf to accomplish a task — booking a table, making a reservation or appointment, asking about availability, opening hours, or prices. Use this ONLY when the user wants something ACCOMPLISHED by phone (e.g. "call Luigi\'s and book a table for two at 6pm tomorrow", "ring the dentist and get me an appointment next week"). Do NOT use it for simply dialling a friend on WhatsApp/FaceTime — that is make_call.',
+        'Place a REAL outbound phone call where the AI speaks to a business on the user\'s behalf to accomplish a task — booking a table, making a reservation or appointment, asking about availability, opening hours, or prices. Use this whenever the user asks to call a BUSINESS or place (restaurant, takeaway, shop, clinic, salon, hotel — including names you don\'t recognise, like "call Zakir Tikka"), e.g. "call Luigi\'s and book a table for two at 6pm tomorrow". The number is found automatically (saved contacts, then a local business search), so never ask for it. If the user did not say what the call is for, do NOT call yet — ask them in one short sentence what you should ask or book. Do NOT use it for dialling a friend on WhatsApp/FaceTime — that is make_call.',
       parameters: {
         type: 'object',
         properties: {

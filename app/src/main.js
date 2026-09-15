@@ -1512,6 +1512,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const parts = result.action.arg.split('|');
     const platform = parts[0].toLowerCase().trim();
     const contactName = (parts[1] || '').trim().toLowerCase();
+
+    // Safety net: the user didn't name an app and this isn't a saved contact, so
+    // it's almost certainly a business ("call Zakir Tikka"). Don't open WhatsApp —
+    // ask what the call is for, and the next turn places a real phone call.
+    const namedApp = /\b(whatsapp|facetime|viber|telegram|signal|skype|discord|messenger|instagram|teams|zoom|snapchat|line|facebook)\b/i.test(message);
+    if (contactName && !namedApp && !_findContact(contactName)) {
+      const pretty = (parts[1] || '').trim();
+      const ask = `Sure — I can phone ${pretty} for you. What should I ask or book? For example, "book a table for 4 at 8pm".`;
+      _sendTTS(_e.sender, ask);
+      return { text: ask, audio: null, card: null, hasAction: false };
+    }
+
     if (contactName && (platform === 'whatsapp' || platform === 'viber' || platform === 'facetime')) {
       const contacts = store.get('contacts') || [];
       const match = contacts.find(c => c.name.toLowerCase().includes(contactName) || contactName.includes(c.name.toLowerCase()));
@@ -2030,6 +2042,21 @@ function _findContact(name) {
   }) || null;
 }
 
+async function _lookupBusinessPhone(name, token) {
+  try {
+    const loc = store.get('userLocation') || {};
+    const r = await fetch(`${_serverBase()}/ai/place-phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ query: name, lat: loc.lat, lng: loc.lon ?? loc.lng, city: loc.city, country: loc.country }),
+    });
+    const d = await r.json();
+    return d && d.found ? { phone: d.phone, name: d.name } : { noPhone: !!d?.noPhone, name: d?.name };
+  } catch (_) {
+    return {};
+  }
+}
+
 async function _startPhoneCall({ contactName, phone, goal, constraints }) {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
@@ -2039,11 +2066,20 @@ async function _startPhoneCall({ contactName, phone, goal, constraints }) {
 
   if (!number && business) {
     const match = _findContact(business);
-    if (!match?.phone) {
-      return { ok: false, error: `I don't have a phone number saved for "${business}". Add it in the contacts panel and I'll call.` };
+    if (match?.phone) {
+      number = match.phone;
+      business = match.name || business;
+    } else {
+      // Not a saved contact — look the business up near the user.
+      const found = await _lookupBusinessPhone(business, token);
+      if (!found.phone) {
+        return { ok: false, error: found.noPhone
+          ? `I found ${found.name || business}, but it doesn't list a phone number. Tell me the number and I'll call.`
+          : `I couldn't find a phone number for "${business}" near you. Tell me the number and I'll call.` };
+      }
+      number = found.phone;
+      business = found.name || business;
     }
-    number = match.phone;
-    business = match.name || business;
   }
   if (!number) return { ok: false, error: 'I need a phone number to call. Add the contact in the sidebar first.' };
 

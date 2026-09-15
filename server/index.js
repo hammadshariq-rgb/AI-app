@@ -1563,6 +1563,41 @@ app.post('/ai/places', authMiddleware, async (req, res) => {
   }
 });
 
+// ── Find a business's phone number (for AI phone calls) ───────────────────────
+// "Call Zakir Tikka" names a local business the user hasn't saved, so look it up
+// near them and return the best match's number.
+app.post('/ai/place-phone', authMiddleware, async (req, res) => {
+  try {
+    const { query, lat, lng, city, country } = req.body || {};
+    if (!query) return res.status(400).json({ error: 'query required' });
+    const placesKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!placesKey) return res.status(503).json({ error: 'Business lookup is not configured.', noKey: true });
+
+    const location = (lat && lng) ? `&location=${lat},${lng}&radius=30000` : '';
+    const where = location ? '' : [city, country].filter(Boolean).join(', ');
+    const q = where ? `${query} in ${where}` : query;
+    const search = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(q)}${location}&key=${placesKey}`).then(r => r.json());
+    if (search.status !== 'OK' || !search.results?.length) {
+      return res.json({ found: false });
+    }
+
+    // Check the top few; the first result doesn't always list a phone number.
+    for (const p of search.results.slice(0, 3)) {
+      const fields = 'name,formatted_address,international_phone_number,formatted_phone_number';
+      const d = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=${fields}&key=${placesKey}`).then(r => r.json());
+      const r = d.result || {};
+      const phone = r.international_phone_number || r.formatted_phone_number;
+      if (phone) {
+        return res.json({ found: true, name: r.name || p.name, address: r.formatted_address || p.formatted_address || '', phone });
+      }
+    }
+    res.json({ found: false, name: search.results[0].name, noPhone: true });
+  } catch (err) {
+    console.error('[place-phone]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Magic Editor — edit highlighted text via voice instruction ─────────────────
 app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
   try {
