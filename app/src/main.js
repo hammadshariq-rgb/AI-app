@@ -20,6 +20,7 @@ const calling = require('./services/calling');
 const shopping = require('./services/shopping');
 const modeling = require('./services/modeling');
 const video = require('./services/video');
+const publishing = require('./services/publishing');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
@@ -1590,6 +1591,26 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
+  // Posting to a social account — never done straight away. The renderer shows a
+  // confirm card with what will be posted and where, and only posts on approval.
+  if (finalAction?.type === 'upload_media') {
+    const p = finalAction.payload || {};
+    const status = await connectors.getConnectorStatus();
+    const connected = !!status[p.platform];
+    const name = publishing.PLATFORM_NAMES[p.platform] || p.platform;
+    const spokenText = connected
+      ? `Ready to post to ${name}. Check the details and press Publish.`
+      : `${name} isn't connected yet. Open Connectors and link your ${name} account first.`;
+    _sendTTS(_e.sender, spokenText);
+    return {
+      text: spokenText,
+      audio: null,
+      card: { type: 'publish', platform: p.platform, platformName: name, connected,
+              source: p.source || '', title: p.title || '', description: p.description || '', privacy: p.privacy || 'private' },
+      hasAction: false,
+    };
+  }
+
   // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
   if (finalAction?.type === 'place_phone_call') {
     // Don't dial with no purpose — "call Zakir Tikka" alone should ask what to do.
@@ -2229,6 +2250,36 @@ ipcMain.handle('model:retexture', async (_e, { taskId, prompt, jobKey }) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// ── Publishing to the customer's own social accounts ─────────────────────────
+// The renderer only calls this after the customer presses Publish on the confirm
+// card, so nothing is ever posted automatically.
+ipcMain.handle('publish:run', async (_e, job) => {
+  try {
+    const token = loadAuthToken();
+    if (!token) return { ok: false, error: 'Please sign in first.' };
+    const r = await publishing.publish({ ...(job || {}), authToken: token });
+    return { ok: true, ...r };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Which accounts are connected, so the confirm card can say so.
+ipcMain.handle('publish:targets', async () => {
+  const s = await connectors.getConnectorStatus();
+  return { youtube: !!s.youtube, instagram: !!s.instagram, tiktok: !!s.tiktok };
+});
+
+// Let the customer pick a file from their computer to post.
+ipcMain.handle('publish:pickFile', async (_e, kind) => {
+  const filters = kind === 'image'
+    ? [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
+    : [{ name: 'Videos', extensions: ['mp4', 'mov'] }];
+  const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openFile'], filters });
+  if (res.canceled || !res.filePaths?.length) return null;
+  return res.filePaths[0];
 });
 
 // Save a model (original or edited in the viewer) as .glb through a save dialog.

@@ -8646,3 +8646,41 @@ body.light-mode .msg-rich th, body.light-mode .msg-rich td { border-bottom-color
 }
 .vv-video[hidden] { display: none; }
 @media (max-width: 760px) { .vv-screen { inset: 76px 12px 16px; } }
+
+/* ── Publish confirmation card ─────────────────────────────────────────────── */
+.card-publish { display: flex; flex-direction: column; gap: 14px; font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
+.pub-head { display: flex; align-items: flex-start; gap: 12px; }
+.pub-badge {
+  flex: 0 0 auto; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px;
+  font-size: 17px; color: var(--pub); background: color-mix(in srgb, var(--pub) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pub) 45%, transparent);
+}
+.pub-title { font-size: 15px; font-weight: 700; color: rgba(240, 244, 255, 0.95); }
+.pub-sub { margin-top: 3px; font-size: 12px; color: rgba(190, 205, 235, 0.6); }
+.pub-rows { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.pub-row { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: center; }
+.pub-row dt { font-size: 11.5px; font-weight: 600; color: rgba(190, 205, 235, 0.55); }
+.pub-row dd { margin: 0; font-size: 13px; color: rgba(240, 244, 255, 0.92); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pub-input {
+  width: 100%; padding: 8px 10px; border-radius: 9px; resize: vertical;
+  background: rgba(10, 14, 26, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(240, 244, 255, 0.95); font: 400 13px/1.4 'Plus Jakarta Sans', 'Inter', sans-serif;
+  outline: none; -webkit-app-region: no-drag;
+}
+.pub-input:focus { border-color: var(--pub); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pub) 22%, transparent); }
+.pub-status { min-height: 16px; font-size: 12px; color: rgba(190, 205, 235, 0.6); }
+.pub-status.pub-ok { color: #34e39a; }
+.pub-status.pub-error { color: #ff7a8a; }
+.pub-status.pub-busy::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-radius: 50%; background: var(--pub); animation: mvPulse 1s ease-in-out infinite; }
+.pub-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pub-btn {
+  height: 34px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+  font: 600 12.5px 'Plus Jakarta Sans', 'Inter', sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); color: rgba(240, 244, 255, 0.9);
+  transition: background .15s, transform .12s, opacity .15s;
+}
+.pub-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.pub-btn:active { transform: scale(.97); }
+.pub-btn:disabled { opacity: .45; cursor: default; transform: none; }
+.pub-btn-go { color: #fff; background: var(--pub); border-color: transparent; }
+.pub-btn-go:hover { filter: brightness(1.08); background: var(--pub); }

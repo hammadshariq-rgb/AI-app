@@ -892,6 +892,7 @@ module.exports = {
   playOnSpotify, searchSpotifyTrack, getSpotifyToken, loadTokens,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
+  getYouTubeToken, getInstagramToken, getTikTokToken,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
   getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
   getAllAnalytics, formatAnalyticsForAI,

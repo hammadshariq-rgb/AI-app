@@ -810,7 +810,7 @@ app.get('/connect/youtube', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/youtube/callback`,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/youtube.readonly',
+    scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
     access_type: 'offline',
     prompt: 'consent',
   });
@@ -873,7 +873,7 @@ app.get('/connect/instagram', (req, res) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
-    scope: 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement',
+    scope: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement',
     response_type: 'code',
   });
   res.redirect(`https://www.facebook.com/v18.0/dialog/oauth?${params}`);
@@ -921,7 +921,7 @@ app.get('/connect/tiktok', (req, res) => {
   const params = new URLSearchParams({
     client_key: clientKey,
     redirect_uri: `${PUBLIC_URL}/connect/tiktok/callback`,
-    scope: 'user.info.basic,video.list',
+    scope: 'user.info.basic,video.list,video.upload,video.publish',
     response_type: 'code',
     state: 'jarvis',
   });
@@ -1641,6 +1641,7 @@ require('./shopping').mountShopping(app, { authMiddleware });
 // ── Text-to-3D ────────────────────────────────────────────────────────────────
 require('./modeling').mountModeling(app, { authMiddleware });
 require('./video').mountVideo(app, { authMiddleware, publicUrl: getPublicUrl });
+require('./media-host').mountMediaHost(app, { authMiddleware, publicUrl: getPublicUrl });
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));

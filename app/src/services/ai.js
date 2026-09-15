@@ -137,6 +137,29 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'upload_media',
+      description:
+        "Post a video or photo to the user's own connected social account — YouTube, Instagram or TikTok. Use when they say things like \"upload this to YouTube\", \"post that video on TikTok\", \"put this on Instagram\", \"upload my last video\". Callisto always shows a confirmation card before anything is posted, so it is safe to call. Never invent a title or caption the user didn't ask for — leave those empty.",
+      parameters: {
+        type: 'object',
+        properties: {
+          platform: { type: 'string', enum: ['youtube', 'instagram', 'tiktok'], description: 'Where to post it.' },
+          source: {
+            type: 'string',
+            enum: ['last_video', 'last_image', 'choose_file'],
+            description: 'last_video = the video Callisto just made, last_image = the image Callisto just made, choose_file = let the user pick a file from their computer. Default last_video for video platforms.',
+          },
+          title: { type: 'string', description: 'Title the user asked for (YouTube/TikTok). Empty if unsaid.' },
+          description: { type: 'string', description: 'Caption or description the user asked for. Empty if unsaid.' },
+          privacy: { type: 'string', enum: ['private', 'public'], description: 'Default private unless the user clearly said to post it publicly.' },
+        },
+        required: ['platform'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'generate_3d_model',
       description:
         'Generate a real, interactive 3D model the user can rotate and inspect. Use whenever they ask for a "3D model", "3D print", "mesh", or to "model" a physical object — e.g. "make me a 3D model of an Iron Man suit", "3D model a dragon". Do NOT use this for flat pictures; that is generate_image.',
@@ -858,6 +881,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
           else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
           else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
+          else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
           else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
           else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
           else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
@@ -915,6 +939,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
     else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
           else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
+          else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
     else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
     else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
     else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };

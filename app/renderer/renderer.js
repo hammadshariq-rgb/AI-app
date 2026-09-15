@@ -2215,6 +2215,7 @@ window._checkQuickLaunch = async function(text) {
       try {
         const result = await window.jarvis.generateImage(prompt, '1024x1024');
         if (result && result.url) {
+          window._lastImage = { url: result.url, title: String(prompt || 'image').slice(0, 60) };
           showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
           addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
           window.jarvis.speak(`Here's your image of ${prompt}.`);
@@ -3843,6 +3844,9 @@ function showCard(card) {
     _activeCallCard = card;
     cardContent.innerHTML = renderCallCard(card);
     wireCallCard();
+  } else if (card.type === 'publish') {
+    cardContent.innerHTML = renderPublishCard(card);
+    wirePublishCard(card);
   } else if (card.type === 'news') {
     const items = card.headlines.map(h => `<div class="news-item">${esc(h)}</div>`).join('');
     cardContent.innerHTML = `<div class="card-news"><div class="news-title">LATEST NEWS</div>${items}</div>`;
@@ -4581,6 +4585,10 @@ async function sendToJarvis(text) {
   // Show card if returned — but NOT when this request came via Ctrl+Shift+C
   // (HUD mode): in that case the card should appear only in the floating HUD
   // overlay on top of the user's other app, not here in the main Callisto window.
+  // Remember the newest image so "post that on Instagram" knows what to post
+  if (res.card?.type === 'image' && res.card.imageUrl) {
+    window._lastImage = { url: res.card.imageUrl, title: String(res.card.description || res.card.title || 'image').slice(0, 60) };
+  }
   if (res.card && !_wasHudRequest) showCard(res.card);
 
   // Sports fallback: open Google in the in-app browser panel
@@ -8607,3 +8615,111 @@ micBtn.addEventListener('click', () => {
     render();
   }));
 })();
+
+// ===================== PUBLISH TO SOCIAL ACCOUNTS =====================
+// Callisto never posts on its own: this card shows exactly what will go where,
+// and only the customer pressing Publish starts the upload.
+const PUB_META = {
+  youtube:   { emoji: '▶', colour: '#ff0033', kind: 'video' },
+  instagram: { emoji: '◎', colour: '#e1306c', kind: 'both' },
+  tiktok:    { emoji: '♪', colour: '#25f4ee', kind: 'video' },
+};
+
+function _publishSource(card) {
+  const wantsImage = card.source === 'last_image' || (card.platform === 'instagram' && card.source !== 'last_video' && !window._lastVideo);
+  if (card.source === 'choose_file') return { kind: wantsImage ? 'image' : 'video', pick: true };
+  if (wantsImage && window._lastImage) return { kind: 'image', url: window._lastImage.url, label: window._lastImage.title || 'your last image' };
+  if (!wantsImage && window._lastVideo) return { kind: 'video', url: window._lastVideo.url, label: window._lastVideo.title || 'your last video' };
+  return { kind: wantsImage ? 'image' : 'video', pick: true };
+}
+
+function renderPublishCard(card) {
+  const meta = PUB_META[card.platform] || { emoji: '↗', colour: '#8899ff', kind: 'both' };
+  const src = _publishSource(card);
+  const what = src.pick ? `A ${src.kind} you choose` : src.label;
+  const privacyLabel = card.privacy === 'public' ? 'Public' : (card.platform === 'youtube' ? 'Private (only you)' : 'Private');
+
+  if (!card.connected) {
+    return `
+      <div class="card-publish" style="--pub:${meta.colour}">
+        <div class="pub-head"><span class="pub-badge">${meta.emoji}</span><div>
+          <div class="pub-title">Connect ${esc(card.platformName)}</div>
+          <div class="pub-sub">Link your ${esc(card.platformName)} account once, then Callisto can post for you.</div>
+        </div></div>
+        <div class="pub-actions"><button class="pub-btn pub-btn-go" id="pubConnectBtn">Open Connectors</button></div>
+      </div>`;
+  }
+
+  return `
+    <div class="card-publish" style="--pub:${meta.colour}">
+      <div class="pub-head"><span class="pub-badge">${meta.emoji}</span><div>
+        <div class="pub-title">Post to ${esc(card.platformName)}</div>
+        <div class="pub-sub">Nothing is posted until you press Publish.</div>
+      </div></div>
+      <dl class="pub-rows">
+        <div class="pub-row"><dt>What</dt><dd id="pubWhat">${esc(what)}</dd></div>
+        ${card.platform !== 'instagram' ? `<div class="pub-row"><dt>Title</dt><dd><input id="pubTitle" class="pub-input" value="${esc(card.title || '')}" placeholder="Untitled"/></dd></div>` : ''}
+        <div class="pub-row"><dt>${card.platform === 'youtube' ? 'Description' : 'Caption'}</dt><dd><textarea id="pubDesc" class="pub-input" rows="2" placeholder="Optional">${esc(card.description || '')}</textarea></dd></div>
+        <div class="pub-row"><dt>Visibility</dt><dd>
+          <select id="pubPrivacy" class="pub-input">
+            <option value="private"${card.privacy !== 'public' ? ' selected' : ''}>${esc(privacyLabel)}</option>
+            <option value="public"${card.privacy === 'public' ? ' selected' : ''}>Public</option>
+          </select>
+        </dd></div>
+      </dl>
+      <div class="pub-status" id="pubStatus"></div>
+      <div class="pub-actions">
+        <button class="pub-btn pub-btn-ghost" id="pubFileBtn">${src.pick ? 'Choose file' : 'Use another file'}</button>
+        <button class="pub-btn pub-btn-go" id="pubGoBtn"${src.pick ? ' disabled' : ''}>Publish</button>
+      </div>
+    </div>`;
+}
+
+function wirePublishCard(card) {
+  const connect = document.getElementById('pubConnectBtn');
+  if (connect) {
+    connect.onclick = () => { if (typeof openLeftNavSection === 'function') openLeftNavSection('connectors'); };
+    return;
+  }
+  const src = _publishSource(card);
+  const state = { filePath: null, url: src.pick ? null : src.url };
+  const statusEl = document.getElementById('pubStatus');
+  const goBtn = document.getElementById('pubGoBtn');
+  const fileBtn = document.getElementById('pubFileBtn');
+  const whatEl = document.getElementById('pubWhat');
+  const say = (kind, text) => { statusEl.className = 'pub-status' + (kind ? ' pub-' + kind : ''); statusEl.textContent = text || ''; };
+
+  fileBtn.onclick = async () => {
+    const p = await window.jarvis.publishPickFile(src.kind);
+    if (!p) return;
+    state.filePath = p; state.url = null;
+    whatEl.textContent = p.split(/[\/]/).pop();
+    goBtn.disabled = false;
+    say('', '');
+  };
+
+  goBtn.onclick = async () => {
+    if (!state.filePath && !state.url) { say('error', 'Choose a file first.'); return; }
+    goBtn.disabled = true; fileBtn.disabled = true;
+    say('busy', `Uploading to ${card.platformName}…`);
+    const res = await window.jarvis.publishRun({
+      platform: card.platform,
+      filePath: state.filePath,
+      url: state.url,
+      title: (document.getElementById('pubTitle')?.value || '').trim(),
+      description: (document.getElementById('pubDesc')?.value || '').trim(),
+      privacy: document.getElementById('pubPrivacy')?.value || 'private',
+    });
+    fileBtn.disabled = false;
+    if (res?.ok) {
+      say('ok', res.note || `Posted to ${card.platformName}.`);
+      goBtn.textContent = 'Posted';
+      const link = res.url ? `\n\n[Open on ${card.platformName}](${res.url})` : '';
+      addMessage('assistant', `✅ Posted to ${card.platformName}.${res.note ? ` ${res.note}` : ''}${link}`);
+      window.jarvis.speak(`Posted to ${card.platformName}.`);
+    } else {
+      say('error', res?.error || 'The upload failed.');
+      goBtn.disabled = false;
+    }
+  };
+}
