@@ -1404,6 +1404,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         ...aiParams,
         skipToolFallback: isEmailSendRequest,
         onSentence: (sentence) => {
+          // Let the chat show the reply as it's spoken (card + bubble + voice together)
+          if (_e.sender && !_e.sender.isDestroyed()) {
+            _e.sender.send('jarvis:sentence-text', { text: sentence.replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '') });
+          }
           // Formatted answers: speak the prose, skip tables/code, and only read the
           // opening of long answers — the full version is on screen.
           if (/^\s*\|/.test(sentence) || /```/.test(sentence) || /^\s*[-:| ]{3,}$/.test(sentence)) return;

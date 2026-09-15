@@ -792,7 +792,7 @@ function addMessage(role, text) {
     copyBtn.title = 'Copy';
     copyBtn.innerHTML = COPY_SVG;
     copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(text).then(() => {
+      navigator.clipboard.writeText(div._fullText || text).then(() => {
         copyBtn.innerHTML = CHECK_SVG;
         setTimeout(() => { copyBtn.innerHTML = COPY_SVG; }, 1500);
       });
@@ -2427,7 +2427,7 @@ window._checkQuickLaunch = async function(text) {
             ? `https://maps.google.com/?q=${d2.coordinates.lat},${d2.coordinates.lon}`
             : `https://maps.google.com/?q=${encodeURIComponent(d2.title)}`;
           try {
-            showCard({
+            _showCardSynced({
               type: 'location',
               title: d2.title,
               description: d2.description || '',
@@ -2488,7 +2488,7 @@ window._checkQuickLaunch = async function(text) {
           subtitle: data.description ? data.description.toUpperCase() : 'VISUAL RESULT',
           sourceUrl: data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
         };
-        try { showCard(wikiCard); } catch (e) { console.error('[wiki card]', e); }
+        try { _showCardSynced(wikiCard); } catch (e) { console.error('[wiki card]', e); }
       } catch (_) { /* silent — AI is answering anyway */ }
     })();
     return false; // let the AI respond with full text + voice
@@ -4239,6 +4239,7 @@ async function sendToJarvis(text) {
   renderAttachPreview();
 
   addMessageWithAttachments('user', text, attachments);
+  _beginReplyGate();   // hold background cards until the reply appears
   history.push({ role: 'user', content: text });
   // While a 3D model is open, "make it black and silver" etc. edits the model
   // (typed, or spoken through Ctrl+Shift+C).
@@ -4338,8 +4339,9 @@ async function sendToJarvis(text) {
   document.getElementById('_thinkingRow')?.remove();
 
   history.push({ role: 'assistant', content: res.text });
-  // Don't render a blank bubble — if there's a card it'll display the data visually
-  const msgEl = (res.text && res.text.trim()) ? addMessage('assistant', res.text) : null;
+  // Don't render a blank bubble — if there's a card it'll display the data visually.
+  // If the reply was already streaming into a bubble, finalise that one instead.
+  const msgEl = _finishReplyGate(res.text);
   showStopBtn(false); setState('idle');
 
   // Document creation — show Save options
@@ -4534,8 +4536,82 @@ async function sendToJarvis(text) {
 
 // Sentence audio arrives from main process mid-stream — play immediately without waiting for full response
 window.jarvis.onSentenceAudio(({ audio }) => {
+  _openReplyGate();          // voice starting → show the bubble and any card with it
   playAudioChunks([audio]);
 });
+
+// ── Reply sync: card, chat bubble and voice appear together ──────────────────
+// Entity cards are fetched in the background and used to pop up before the
+// answer. While a reply is pending, cards wait here; the bubble streams in when
+// the first sentence of voice is ready (or after a short delay if there's no
+// voice), and the card is shown at that same moment.
+let _replyGate = null;
+
+function _beginReplyGate() {
+  if (_replyGate) clearTimeout(_replyGate.safety);
+  const g = { open: false, card: null, text: '', el: null, timer: null };
+  // If the message was handled without an AI reply (quick command, error), never
+  // hold a card back for more than a few seconds.
+  g.safety = setTimeout(() => {
+    if (_replyGate === g && !g.open && g.card) { showCard(g.card); g.card = null; }
+  }, 8000);
+  _replyGate = g;
+}
+
+function _openReplyGate() {
+  const g = _replyGate;
+  if (!g || g.open) return;
+  g.open = true;
+  clearTimeout(g.timer);
+  if (g.text.trim()) {
+    document.getElementById('_thinkingRow')?.remove();
+    g.el = addMessage('assistant', g.text);
+  }
+  if (g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } g.card = null; }
+}
+
+function _finishReplyGate(finalText) {
+  const g = _replyGate;
+  _replyGate = null;
+  if (g) { clearTimeout(g.safety); clearTimeout(g.timer); }
+  const hasText = !!(finalText && finalText.trim());
+  let el = g && g.el;
+  if (el && hasText) {
+    const span = el.querySelector('.msg-text');
+    if (span) {
+      if (_looksLikeMarkdown(finalText)) { span.classList.add('msg-rich'); span.innerHTML = _renderChatMarkdown(finalText); }
+      else { span.classList.remove('msg-rich'); span.textContent = finalText; }
+    }
+    el._fullText = finalText;
+  } else if (hasText) {
+    el = addMessage('assistant', finalText);
+  }
+  if (g && g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } }
+  if (typeof scrollToBottom === 'function') scrollToBottom();
+  return el || null;
+}
+
+// Background cards call this instead of showCard directly.
+function _showCardSynced(card) {
+  if (_replyGate && !_replyGate.open) { _replyGate.card = card; return; }
+  showCard(card);
+}
+
+if (window.jarvis.onSentenceText) {
+  window.jarvis.onSentenceText(({ text }) => {
+    const g = _replyGate;
+    if (!g || !text) return;
+    g.text += (g.text ? ' ' : '') + text;
+    if (g.open && g.el) {
+      const span = g.el.querySelector('.msg-text');
+      if (span) span.textContent = g.text;     // plain while streaming; formatted at the end
+      if (typeof scrollToBottom === 'function') scrollToBottom();
+    } else if (!g.timer) {
+      // No voice (muted / TTS failed)? Don't hold the reply back for long.
+      g.timer = setTimeout(_openReplyGate, 1200);
+    }
+  });
+}
 
 // ── HiggsField connector UI + detection ───────────────────────────────────────
 (function() {

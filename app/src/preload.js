@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onHudVoiceTrigger: (cb) => ipcRenderer.on('jarvis:hud-voice-trigger', () => cb()),
   onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
   onSentenceAudio: (cb) => ipcRenderer.on('jarvis:sentence-audio', (_e, d) => cb(d)),
+  onSentenceText: (cb) => ipcRenderer.on('jarvis:sentence-text', (_e, d) => cb(d)),
   driveSearch: (query) => ipcRenderer.invoke('drive:search', query),
   driveOpen: (fileId, mimeType, webViewLink) => ipcRenderer.invoke('drive:open', { fileId, mimeType, webViewLink }),
   analyticsGet: (platform) => ipcRenderer.invoke('analytics:get', platform || 'all'),
