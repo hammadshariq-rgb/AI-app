@@ -16,6 +16,7 @@ const tts = require('./services/tts');
 const commands = require('./services/commands');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
+const calling = require('./services/calling');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
@@ -1528,6 +1529,24 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
+  // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
+  if (finalAction?.type === 'place_phone_call') {
+    const started = await _startPhoneCall(finalAction.payload || {});
+    if (!started.ok) {
+      _sendTTS(_e.sender, started.error);
+      return { text: started.error, audio: null, card: null, hasAction: false };
+    }
+    const who = started.businessName || started.phone;
+    const spokenText = `Calling ${who} now. I'll check with you if anything needs your decision.`;
+    _sendTTS(_e.sender, spokenText);
+    return {
+      text: spokenText,
+      audio: null,
+      card: { type: 'call', callId: started.callId, businessName: started.businessName, phone: started.phone, goal: (finalAction.payload || {}).goal || '', status: 'dialing' },
+      hasAction: true,
+    };
+  }
+
   // Handle calendar actions
   if (finalAction?.type === 'get_events') {
     const days = parseInt(finalAction.arg) || 7;
@@ -1983,6 +2002,82 @@ ipcMain.handle('contacts:call', async (_e, { phone, platform }) => {
     await shell.openExternal(`whatsapp://call?phone=${phone.replace(/[^+\d]/g, '')}`);
   }
   return true;
+});
+
+// ── AI phone calling ──────────────────────────────────────────────────────────
+// The server places and runs the call; we relay its events to the renderer so the
+// chat can show live status and the mid-call approval prompt.
+function _sendCallEvent(ev) {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('call:event', ev);
+  }
+}
+
+// Resolve a spoken name against the user's saved contacts.
+function _findContact(name) {
+  const q = String(name || '').toLowerCase().trim();
+  if (!q) return null;
+  const contacts = store.get('contacts') || [];
+  return contacts.find(c => {
+    const n = String(c.name || '').toLowerCase();
+    return n === q || n.includes(q) || q.includes(n);
+  }) || null;
+}
+
+async function _startPhoneCall({ contactName, phone, goal, constraints }) {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Please sign in first.' };
+
+  let number = String(phone || '').trim();
+  let business = String(contactName || '').trim();
+
+  if (!number && business) {
+    const match = _findContact(business);
+    if (!match?.phone) {
+      return { ok: false, error: `I don't have a phone number saved for "${business}". Add it in the contacts panel and I'll call.` };
+    }
+    number = match.phone;
+    business = match.name || business;
+  }
+  if (!number) return { ok: false, error: 'I need a phone number to call. Add the contact in the sidebar first.' };
+
+  const profile = store.get('profile') || {};
+  try {
+    const r = await calling.startCall({
+      token,
+      phone: number,
+      goal,
+      constraints,
+      businessName: business,
+      userName: profile.name || store.get('userName') || '',
+      defaultCountry: store.get('defaultCountryCode') || '',
+    }, _sendCallEvent);
+    return { ok: true, callId: r.callId, businessName: business, phone: number };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+ipcMain.handle('call:start', (_e, payload) => _startPhoneCall(payload || {}));
+ipcMain.handle('call:respond', async (_e, { callId, approved, note }) => {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Not signed in.' };
+  try { return await calling.respond({ token, callId, approved, note }); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('call:hangup', async (_e, { callId }) => {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Not signed in.' };
+  try { return await calling.hangup({ token, callId }); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('call:enabled', async () => {
+  const token = loadAuthToken();
+  return token ? await calling.isEnabled(token) : false;
+});
+ipcMain.handle('call:history', async () => {
+  const token = loadAuthToken();
+  return token ? await calling.history(token) : [];
 });
 
 ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);

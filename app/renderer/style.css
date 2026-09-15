@@ -7880,3 +7880,140 @@ body.light-mode #voiceVolumeSlider::-webkit-slider-runnable-track {
   letter-spacing: 0.5px;
   font-family: 'Share Tech Mono', monospace;
 }
+
+/* ── AI phone call card ───────────────────────────────────────────────────── */
+.card-call {
+  font-family: 'Share Tech Mono', monospace;
+}
+.call-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.call-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(120, 140, 170, 0.5);
+  flex: 0 0 auto;
+}
+.call-dot.live {
+  background: rgba(0, 230, 160, 0.95);
+  animation: callPulse 1.4s ease-in-out infinite;
+}
+@keyframes callPulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 0 rgba(0, 230, 160, 0.45); }
+  50%      { opacity: 0.55; box-shadow: 0 0 0 5px rgba(0, 230, 160, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .call-dot.live { animation: none; }
+}
+.call-who {
+  font-size: 15px;
+  color: rgba(210, 235, 255, 0.95);
+  letter-spacing: 0.5px;
+}
+.call-status {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(0, 200, 255, 0.45);
+  margin-bottom: 12px;
+}
+.call-goal {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(190, 215, 240, 0.65);
+  padding: 9px 11px;
+  border-left: 2px solid rgba(0, 180, 255, 0.25);
+  margin-bottom: 12px;
+}
+.call-approval {
+  border: 1px solid rgba(255, 190, 60, 0.35);
+  background: rgba(255, 180, 40, 0.07);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.call-approval-title {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255, 190, 60, 0.8);
+  margin-bottom: 8px;
+}
+.call-approval-proposal {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(235, 245, 255, 0.95);
+  margin-bottom: 4px;
+}
+.call-approval-reason {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(190, 215, 240, 0.6);
+  margin-bottom: 10px;
+}
+.call-approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.call-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  min-height: 34px;
+}
+.call-btn:disabled { opacity: 0.4; cursor: default; }
+.call-btn:focus-visible { outline: 2px solid rgba(0, 200, 255, 0.8); outline-offset: 2px; }
+.call-btn-yes {
+  background: rgba(0, 210, 140, 0.16);
+  border-color: rgba(0, 230, 160, 0.5);
+  color: rgba(120, 255, 210, 0.95);
+}
+.call-btn-yes:hover:not(:disabled) { background: rgba(0, 210, 140, 0.28); }
+.call-btn-no {
+  background: rgba(255, 90, 90, 0.12);
+  border-color: rgba(255, 110, 110, 0.4);
+  color: rgba(255, 175, 175, 0.95);
+}
+.call-btn-no:hover:not(:disabled) { background: rgba(255, 90, 90, 0.22); }
+.call-btn-end {
+  background: rgba(255, 90, 90, 0.1);
+  border-color: rgba(255, 110, 110, 0.32);
+  color: rgba(255, 165, 165, 0.85);
+  width: 100%;
+  margin-top: 4px;
+}
+.call-btn-end:hover:not(:disabled) { background: rgba(255, 90, 90, 0.2); }
+.call-summary {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(200, 230, 255, 0.8);
+  padding: 10px 12px;
+  border-left: 2px solid rgba(0, 230, 160, 0.4);
+  margin-bottom: 10px;
+}
+.call-reason {
+  font-size: 12px;
+  color: rgba(190, 215, 240, 0.55);
+  margin-bottom: 10px;
+}
+
+body.light-mode .call-who      { color: rgba(15, 25, 60, 0.95); }
+body.light-mode .call-status   { color: rgba(30, 90, 150, 0.6); }
+body.light-mode .call-goal     { color: rgba(20, 30, 80, 0.7); border-left-color: rgba(0, 120, 200, 0.3); }
+body.light-mode .call-approval-proposal { color: rgba(15, 25, 60, 0.95); }
+body.light-mode .call-approval-reason   { color: rgba(20, 30, 80, 0.65); }
+body.light-mode .call-approval-title    { color: rgba(180, 120, 0, 0.95); }
+body.light-mode .call-summary  { color: rgba(20, 30, 80, 0.8); }
+body.light-mode .call-reason   { color: rgba(20, 30, 80, 0.6); }
+body.light-mode .call-btn-yes  { color: rgba(0, 110, 75, 0.95); background: rgba(0, 190, 130, 0.14); }
+body.light-mode .call-btn-no,
+body.light-mode .call-btn-end  { color: rgba(170, 40, 40, 0.95); background: rgba(255, 90, 90, 0.1); }

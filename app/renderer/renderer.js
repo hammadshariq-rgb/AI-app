@@ -2708,6 +2708,111 @@ function getTeamEmoji(name) {
   return '🏟️';
 }
 
+// ── AI phone call card ────────────────────────────────────────────────────────
+// Shows live call status and, when the other party proposes something the
+// assistant isn't authorised to accept, an approve/decline prompt. The assistant
+// stays on the line and stalls until this is answered.
+let _activeCallId = null;
+let _activeCallCard = null;
+
+const CALL_STATUS_TEXT = {
+  dialing:   'Dialling…',
+  ringing:   'Ringing…',
+  connected: 'On the call',
+  ended:     'Call ended',
+  failed:    'Call failed',
+};
+
+function renderCallCard(card) {
+  const status = card.status || 'dialing';
+  const live = status !== 'ended' && status !== 'failed';
+  const who = esc(card.businessName || card.phone || 'Unknown number');
+
+  const approvalHtml = card.approval ? `
+    <div class="call-approval">
+      <div class="call-approval-title">NEEDS YOUR OK</div>
+      <div class="call-approval-proposal">${esc(card.approval.proposal)}</div>
+      ${card.approval.reason ? `<div class="call-approval-reason">${esc(card.approval.reason)}</div>` : ''}
+      <div class="call-approval-actions">
+        <button id="callApproveBtn" class="call-btn call-btn-yes">Approve</button>
+        <button id="callDeclineBtn" class="call-btn call-btn-no">Decline</button>
+      </div>
+    </div>` : '';
+
+  const summaryHtml = card.summary
+    ? `<div class="call-summary">${esc(card.summary)}</div>` : '';
+
+  const endedHtml = (!live && !card.summary && card.reason)
+    ? `<div class="call-reason">${esc(card.reason)}</div>` : '';
+
+  return `<div class="card-call">
+    <div class="call-header">
+      <span class="call-dot ${live ? 'live' : ''}"></span>
+      <span class="call-who">${who}</span>
+    </div>
+    <div class="call-status">${esc(CALL_STATUS_TEXT[status] || status)}</div>
+    ${card.goal ? `<div class="call-goal">${esc(card.goal)}</div>` : ''}
+    ${approvalHtml}
+    ${summaryHtml}
+    ${endedHtml}
+    ${live ? `<button id="callHangupBtn" class="call-btn call-btn-end">End call</button>` : ''}
+  </div>`;
+}
+
+function wireCallCard() {
+  const approve = document.getElementById('callApproveBtn');
+  const decline = document.getElementById('callDeclineBtn');
+  const hangup  = document.getElementById('callHangupBtn');
+
+  const answer = async (ok) => {
+    if (!_activeCallId) return;
+    if (approve) approve.disabled = true;
+    if (decline) decline.disabled = true;
+    try { await window.jarvis.callRespond(_activeCallId, ok, ''); } catch (_) {}
+    if (_activeCallCard) {
+      _activeCallCard.approval = null;
+      _activeCallCard.status = 'connected';
+      cardContent.innerHTML = renderCallCard(_activeCallCard);
+      wireCallCard();
+    }
+  };
+
+  if (approve) approve.onclick = () => answer(true);
+  if (decline) decline.onclick = () => answer(false);
+  if (hangup)  hangup.onclick  = async () => {
+    if (!_activeCallId) return;
+    hangup.disabled = true;
+    try { await window.jarvis.callHangup(_activeCallId); } catch (_) {}
+  };
+}
+
+// Live updates pushed from the main process while a call is running.
+if (window.jarvis && window.jarvis.onCallEvent) {
+  window.jarvis.onCallEvent((ev) => {
+    if (!ev || !_activeCallCard || ev.callId !== _activeCallId) return;
+
+    if (ev.type === 'status') {
+      _activeCallCard.status = ev.status || _activeCallCard.status;
+    } else if (ev.type === 'approval_needed') {
+      _activeCallCard.approval = ev.approval || null;
+    } else if (ev.type === 'approval_resolved') {
+      _activeCallCard.approval = null;
+    } else if (ev.type === 'ended') {
+      _activeCallCard.status = ev.status === 'failed' ? 'failed' : 'ended';
+      _activeCallCard.approval = null;
+      _activeCallCard.summary = ev.summary || '';
+      _activeCallCard.reason = ev.reason || '';
+    } else if (ev.type === 'error') {
+      _activeCallCard.status = 'failed';
+      _activeCallCard.reason = ev.error || '';
+    }
+
+    cardPanel.classList.remove('hidden');
+    cardContent.innerHTML = renderCallCard(_activeCallCard);
+    wireCallCard();
+  });
+}
+
 function showCard(card) {
   if (!card) { cardPanel.classList.add('hidden'); return; }
   cardPanel.classList.remove('hidden');
@@ -3337,6 +3442,11 @@ function showCard(card) {
     if (ac) ac.scrollTop = 0;
     loadAnalyticsDashboard();
     return;
+  } else if (card.type === 'call') {
+    _activeCallId = card.callId;
+    _activeCallCard = card;
+    cardContent.innerHTML = renderCallCard(card);
+    wireCallCard();
   } else if (card.type === 'news') {
     const items = card.headlines.map(h => `<div class="news-item">${esc(h)}</div>`).join('');
     cardContent.innerHTML = `<div class="card-news"><div class="news-title">LATEST NEWS</div>${items}</div>`;

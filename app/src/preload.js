@@ -88,6 +88,13 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
+  // AI phone calling — the assistant dials a business and negotiates on the user's behalf
+  callStart:     (payload) => ipcRenderer.invoke('call:start', payload),
+  callRespond:   (callId, approved, note) => ipcRenderer.invoke('call:respond', { callId, approved, note }),
+  callHangup:    (callId) => ipcRenderer.invoke('call:hangup', { callId }),
+  callEnabled:   () => ipcRenderer.invoke('call:enabled'),
+  callHistory:   () => ipcRenderer.invoke('call:history'),
+  onCallEvent:   (cb) => ipcRenderer.on('call:event', (_e, d) => cb(d)),
   // Quit app (used by gesture — clap = clear + quit)
   quitApp:       () => ipcRenderer.invoke('app:quit'),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),

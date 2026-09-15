@@ -137,6 +137,36 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'place_phone_call',
+      description:
+        'Place a REAL outbound phone call where the AI speaks to a business on the user\'s behalf to accomplish a task — booking a table, making a reservation or appointment, asking about availability, opening hours, or prices. Use this ONLY when the user wants something ACCOMPLISHED by phone (e.g. "call Luigi\'s and book a table for two at 6pm tomorrow", "ring the dentist and get me an appointment next week"). Do NOT use it for simply dialling a friend on WhatsApp/FaceTime — that is make_call.',
+      parameters: {
+        type: 'object',
+        properties: {
+          contact_name: {
+            type: 'string',
+            description: 'The business or contact to call, exactly as the user said it (e.g. "Luigi\'s", "the dentist"). Looked up in the user\'s saved contacts.',
+          },
+          phone: {
+            type: 'string',
+            description: 'The phone number, only if the user said it out loud in this message. Leave empty to use the saved contact.',
+          },
+          goal: {
+            type: 'string',
+            description: 'What the call must accomplish, written as a clear instruction for the calling assistant. Include every specific the user gave: date, time, number of people, name for the booking. E.g. "Book a table for 2 people at 6:00 PM tomorrow, Tuesday 16 September, under the name Hammad."',
+          },
+          constraints: {
+            type: 'string',
+            description: 'What the assistant may agree to WITHOUT asking the user first, and what it must not. Derive from what the user said. If they gave no flexibility, say so. E.g. "Only the exact time requested. Any other time, date, or extra cost needs the user\'s approval."',
+          },
+        },
+        required: ['goal'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'generate_image',
       description: 'Generate or create an image using AI. Use whenever the user asks to create, generate, draw, make, or design an image, picture, photo, illustration, artwork, logo, or anything visual.',
       parameters: {
@@ -777,6 +807,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
           else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}` };
           else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
+          else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
           else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
           else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
           else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
@@ -832,6 +863,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
     else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}` };
     else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
+    else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
     else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
     else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
     else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };

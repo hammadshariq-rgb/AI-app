@@ -197,6 +197,9 @@ function getPublicUrl(req) {
 const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
+// AI phone calling (Vapi) — routes live in calling.js. Mounted after
+// authMiddleware is defined, near the bottom of this file.
+
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:4000').split(',').map(s => s.trim());
 
 const app = express();
@@ -1567,6 +1570,12 @@ If the instruction is unclear, make the most sensible improvement possible.`
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── AI phone calling ──────────────────────────────────────────────────────────
+require('./calling').mountCalling(app, {
+  authMiddleware,
+  resolvePublicUrl: getPublicUrl,
 });
 
 const PORT = process.env.PORT || 4000;
