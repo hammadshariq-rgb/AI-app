@@ -2670,6 +2670,7 @@
   </div>
 
   <script src="three.global.js"></script>
+  <script src="model-viewer.js?v=1"></script>
   <script src="renderer.js?v=56"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
@@ -2807,6 +2808,17 @@
       function cursorTick() {
         cursorRafId = requestAnimationFrame(cursorTick);
         if (!gestureEnabled || !lastLeftLm || !magicCursor) return;
+
+        // While the 3D viewer is open, a pinched hand grabs and spins the model
+        // instead of driving clicks. Fed from the smoothed cursor so it inherits
+        // the same easing as the on-screen pointer.
+        if (window.CallistoModelViewer && window.CallistoModelViewer.isOpen()) {
+          window.CallistoModelViewer.handInput({
+            x: smoothX / window.innerWidth,
+            y: smoothY / window.innerHeight,
+            pinching: isPinching,
+          });
+        }
 
         const lm = lastLeftLm;
         // Use midpoint of index tip (8) + middle tip (12) for a more stable centroid

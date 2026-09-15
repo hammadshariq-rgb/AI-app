@@ -18,6 +18,7 @@ const authService = require('./services/auth');
 const connectors = require('./services/connectors');
 const calling = require('./services/calling');
 const shopping = require('./services/shopping');
+const modeling = require('./services/modeling');
 const calendar = require('./services/calendar');
 
 // Register jarvis:// protocol for Google OAuth callback
@@ -1530,6 +1531,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     }
   }
 
+  // 3D model generation — the renderer opens the viewer and drives the job itself,
+  // because generation takes 40-90s and we don't want to hold the chat turn open.
+  if (finalAction?.type === 'generate_3d_model') {
+    const payload = finalAction.payload || {};
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('model:start', payload);
+    }
+    const spokenText = `Building a 3D model of ${payload.prompt ? payload.prompt.split(',')[0] : 'that'}. It'll take a minute.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
   // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
   if (finalAction?.type === 'place_phone_call') {
     const started = await _startPhoneCall(finalAction.payload || {});
@@ -2079,6 +2092,54 @@ ipcMain.handle('call:enabled', async () => {
 ipcMain.handle('call:history', async () => {
   const token = loadAuthToken();
   return token ? await calling.history(token) : [];
+});
+
+// ── Text-to-3D ────────────────────────────────────────────────────────────────
+ipcMain.handle('model:enabled', async () => {
+  const token = loadAuthToken();
+  return token ? await modeling.isEnabled(token) : false;
+});
+
+ipcMain.handle('model:generate', async (_e, { prompt, style }) => {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Please sign in first.' };
+  try {
+    return await modeling.generate({ token, prompt, style }, (p) => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('model:progress', p);
+      }
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Save a generated image to disk. An <a download> pointing at a remote URL is
+// unreliable in Electron's sandbox, so the main process fetches and writes it.
+ipcMain.handle('media:saveImage', async (_e, { url, suggestedName }) => {
+  try {
+    const { dialog } = require('electron');
+    const fs = require('fs');
+    const path = require('path');
+    const nodeFetch = require('node-fetch');
+
+    const safe = String(suggestedName || 'callisto-image')
+      .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-image';
+
+    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+      title: 'Save image',
+      defaultPath: path.join(app.getPath('pictures'), `${safe}.png`),
+      filters: [{ name: 'PNG image', extensions: ['png'] }],
+    });
+    if (canceled || !filePath) return { ok: false, cancelled: true };
+
+    const res = await nodeFetch(url);
+    if (!res.ok) throw new Error(`Download failed (${res.status})`);
+    fs.writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // Real product results (images + prices) for the shopping card.

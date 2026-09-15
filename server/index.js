@@ -1603,5 +1603,8 @@ require('./calling').mountCalling(app, {
 // ── Shopping search (real product results) ────────────────────────────────────
 require('./shopping').mountShopping(app, { authMiddleware });
 
+// ── Text-to-3D ────────────────────────────────────────────────────────────────
+require('./modeling').mountModeling(app, { authMiddleware });
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));

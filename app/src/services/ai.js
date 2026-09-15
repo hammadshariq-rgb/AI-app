@@ -137,6 +137,29 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'generate_3d_model',
+      description:
+        'Generate a real, interactive 3D model the user can rotate and inspect. Use whenever they ask for a "3D model", "3D print", "mesh", or to "model" a physical object — e.g. "make me a 3D model of an Iron Man suit", "3D model a dragon". Do NOT use this for flat pictures; that is generate_image.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'A clear description of the single object to model. Text-to-3D works best on one well-described object, so name the form, materials and notable details — e.g. "an ornate Iron Man style powered armour suit, red and gold segmented plating, arc reactor on the chest, standing upright". Avoid scenes with multiple characters.',
+          },
+          style: {
+            type: 'string',
+            enum: ['realistic', 'sculpture'],
+            description: 'realistic for lifelike objects, sculpture for stylised or artistic forms. Default sculpture.',
+          },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'place_phone_call',
       description:
         'Place a REAL outbound phone call where the AI speaks to a business on the user\'s behalf to accomplish a task — booking a table, making a reservation or appointment, asking about availability, opening hours, or prices. Use this ONLY when the user wants something ACCOMPLISHED by phone (e.g. "call Luigi\'s and book a table for two at 6pm tomorrow", "ring the dentist and get me an appointment next week"). Do NOT use it for simply dialling a friend on WhatsApp/FaceTime — that is make_call.',
@@ -812,6 +835,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
           else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
           else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+          else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
           else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
           else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
           else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
@@ -868,6 +892,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
     else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
     else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+          else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
     else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
     else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
     else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };

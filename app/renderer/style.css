@@ -8147,3 +8147,94 @@ body.light-mode .voice-preview-btn {
   color: rgba(20, 30, 80, 0.8);
 }
 body.light-mode .voice-preview-status { color: rgba(20, 30, 80, 0.55); }
+
+/* ── 3D model viewer overlay ───────────────────────────────────────────────── */
+.mv-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; }
+.mv-overlay.hidden { display: none !important; }
+.mv-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(4, 2, 8, 0.82);
+  backdrop-filter: blur(6px);
+  animation: mvFade 0.22s ease;
+}
+@keyframes mvFade { from { opacity: 0 } to { opacity: 1 } }
+
+.mv-stage {
+  position: relative;
+  width: min(1100px, 92vw);
+  height: min(760px, 86vh);
+  display: flex; flex-direction: column;
+  background: linear-gradient(165deg, rgba(26, 10, 18, 0.94), rgba(10, 5, 12, 0.96));
+  border: 1px solid rgba(255, 45, 92, 0.32);
+  border-radius: 16px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 150, 175, 0.14);
+  overflow: hidden;
+  animation: mvRise 0.26s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes mvRise { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) {
+  .mv-backdrop, .mv-stage { animation: none; }
+}
+
+.mv-head {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 45, 92, 0.16);
+  flex: 0 0 auto;
+}
+.mv-titles { flex: 1 1 auto; min-width: 0; }
+.mv-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 15px; letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(240, 225, 232, 0.96);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mv-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; color: rgba(190, 160, 172, 0.7); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mv-close {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255, 45, 92, 0.12);
+  border: 1px solid rgba(255, 45, 92, 0.38);
+  color: rgba(255, 175, 190, 0.95);
+  font-size: 14px; cursor: pointer;
+  transition: background 0.16s;
+}
+.mv-close:hover { background: rgba(255, 45, 92, 0.26); }
+.mv-close:focus-visible { outline: 2px solid rgba(77, 232, 255, 0.9); outline-offset: 2px; }
+
+.mv-canvas {
+  flex: 1 1 auto; width: 100%; min-height: 0; display: block;
+  cursor: grab; touch-action: none;
+}
+.mv-canvas:active { cursor: grabbing; }
+
+.mv-status {
+  position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%);
+  font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 1px;
+  color: rgba(200, 180, 190, 0.8); text-align: center;
+  padding: 10px 16px; border-radius: 8px;
+  background: rgba(10, 5, 12, 0.7);
+  pointer-events: none; max-width: 80%;
+}
+.mv-status.mv-loading::after {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px;
+  border-radius: 50%; background: rgba(255, 45, 92, 0.9);
+  animation: mvPulse 1s ease-in-out infinite;
+}
+@keyframes mvPulse { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
+.mv-status.mv-error { color: rgba(255, 170, 170, 0.95); border: 1px solid rgba(255, 90, 90, 0.35); }
+
+.mv-hint {
+  flex: 0 0 auto; padding: 9px 18px 13px;
+  font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1.4px;
+  color: rgba(180, 150, 165, 0.55); text-align: center;
+}
+
+@media (max-width: 640px) {
+  .mv-stage { width: 96vw; height: 82vh; }
+  .mv-hint { font-size: 9px; letter-spacing: 1px; }
+}

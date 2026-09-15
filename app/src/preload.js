@@ -88,6 +88,13 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
+  // 3D model generation
+  modelEnabled:  () => ipcRenderer.invoke('model:enabled'),
+  modelGenerate: (prompt, style) => ipcRenderer.invoke('model:generate', { prompt, style }),
+  onModelProgress: (cb) => ipcRenderer.on('model:progress', (_e, d) => cb(d)),
+  onModelStart:  (cb) => ipcRenderer.on('model:start', (_e, d) => cb(d)),
+  // Save a generated image or painting to disk
+  saveImage:     (url, suggestedName) => ipcRenderer.invoke('media:saveImage', { url, suggestedName }),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf

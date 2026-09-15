@@ -2716,6 +2716,46 @@ function getTeamEmoji(name) {
   return '🏟️';
 }
 
+// ── 3D model generation ───────────────────────────────────────────────────────
+// The chat turn returns immediately; generation runs here so the viewer can show
+// live progress over the 40-90s it takes.
+if (window.jarvis && window.jarvis.onModelStart) {
+  window.jarvis.onModelStart(async ({ prompt, style }) => {
+    const V = window.CallistoModelViewer;
+    if (!V) return;
+
+    const short = (prompt || 'your model').split(',')[0].slice(0, 60);
+    V.showLoading({ title: short, subtitle: 'Generating' });
+
+    let res;
+    try {
+      res = await window.jarvis.modelGenerate(prompt, style);
+    } catch (err) {
+      V.fail(err.message || "Couldn't build that model.");
+      return;
+    }
+
+    if (!res?.ok || !res.url) {
+      V.fail(res?.error || "Couldn't build that model.");
+      return;
+    }
+    const loaded = await V.open(res.url, { title: short, subtitle: 'Drag to rotate' });
+    if (loaded) window.jarvis.speak(`Your 3D model of ${short} is ready.`);
+  });
+}
+
+if (window.jarvis && window.jarvis.onModelProgress) {
+  window.jarvis.onModelProgress(({ status, progress }) => {
+    const el = document.getElementById('mvStatus');
+    if (!el || !window.CallistoModelViewer?.isOpen()) return;
+    const pct = Math.max(0, Math.min(100, Math.round(progress || 0)));
+    el.className = 'mv-status mv-loading';
+    el.textContent = status === 'IN_PROGRESS'
+      ? `Sculpting… ${pct}%`
+      : 'Queued — waiting for a slot…';
+  });
+}
+
 // ── Shopping ──────────────────────────────────────────────────────────────────
 const STORE_META = {
   ebay:       { name: 'eBay',       color: '#E43137', emoji: '🛍️' },
@@ -3415,11 +3455,25 @@ function showCard(card) {
         <div class="img-label">AI GENERATED</div>
         <img src="${esc(card.imageUrl)}" alt="${esc(card.title)}" style="width:100%;border-radius:10px;margin:10px 0;cursor:pointer;" id="generatedImgCard" />
         <div class="img-desc">${esc(card.description)}</div>
-        <a class="img-download" href="${esc(card.imageUrl)}" download="jarvis-image.png" target="_blank">⬇ DOWNLOAD IMAGE</a>
+        <button class="img-download" id="generatedImgSave">⬇ DOWNLOAD IMAGE</button>
       </div>`;
     setTimeout(() => {
       const img = document.getElementById('generatedImgCard');
       if (img && card.imageUrl) img.addEventListener('click', () => window.jarvis.openUrl(card.imageUrl));
+
+      // A plain <a download> pointing at a remote URL doesn't save inside Electron's
+      // sandbox, so the main process fetches the bytes and writes the file.
+      const save = document.getElementById('generatedImgSave');
+      if (save && card.imageUrl) {
+        save.addEventListener('click', async () => {
+          const original = save.textContent;
+          save.disabled = true; save.textContent = 'Saving…';
+          const r = await window.jarvis.saveImage(card.imageUrl, card.description || 'callisto-image');
+          save.textContent = r?.ok ? '✓ SAVED' : (r?.cancelled ? original : 'Save failed');
+          save.disabled = false;
+          if (r?.ok) setTimeout(() => { save.textContent = original; }, 2200);
+        });
+      }
     }, 50);
   } else if (card.type === 'wiki_card') {
     // Wikipedia image card — generic visual for any topic (person, animal, place, game, brand, etc.)
