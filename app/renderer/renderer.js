@@ -2719,43 +2719,170 @@ function getTeamEmoji(name) {
 // ── 3D model generation ───────────────────────────────────────────────────────
 // The chat turn returns immediately; generation runs here so the viewer can show
 // live progress over the 40-90s it takes.
+// Jobs keep running when the viewer is closed. When one finishes off-screen the
+// user gets a notification at the top with an Open button.
+const _modelJobs = new Map();   // jobKey → { kind, title, sourceTaskId }
+
+function _modelTell(title, text, action, onAction) {
+  const V = window.CallistoModelViewer;
+  if (V) V.notify({ title, text, action, onAction });
+  // Also a system notification if Callisto isn't in front
+  try {
+    if (!document.hasFocus() && 'Notification' in window && Notification.permission !== 'denied') {
+      const n = new Notification(title, { body: text, silent: false });
+      n.onclick = () => { try { window.jarvis.focusWindow && window.jarvis.focusWindow(); } catch (_) {} onAction && onAction(); };
+    }
+  } catch (_) {}
+}
+
+function _openFinishedModel(m) {
+  const V = window.CallistoModelViewer;
+  if (!V) return;
+  if (window.jarvis.focusWindow) window.jarvis.focusWindow();
+  V.open(m.url, { title: m.title, taskId: m.taskId, prompt: m.prompt });
+}
+
 if (window.jarvis && window.jarvis.onModelStart) {
   window._startModelGen = async ({ prompt, style }) => {
     const V = window.CallistoModelViewer;
     if (!V) return;
 
-    const short = (prompt || 'your model').split(',')[0].slice(0, 60);
-    V.showLoading({ title: short, subtitle: 'Generating' });
+    const title = (prompt || 'your model').split(',')[0].slice(0, 60);
+    const jobKey = `gen-${Date.now()}`;
+    _modelJobs.set(jobKey, { kind: 'generate', title });
+    V.showLoading({ title, jobKey, prompt });
 
     let res;
     try {
-      res = await window.jarvis.modelGenerate(prompt, style);
+      res = await window.jarvis.modelGenerate(prompt, style, jobKey);
     } catch (err) {
-      V.fail(err.message || "Couldn't build that model.");
+      res = { ok: false, error: err.message };
+    }
+    _modelJobs.delete(jobKey);
+    const onScreen = V.isOpen() && V.loadingJobKey() === jobKey;
+
+    if (!res?.ok || !res.url) {
+      const msg = res?.error || "Couldn't build that model.";
+      if (onScreen) V.fail(msg);
+      else _modelTell('Model failed', `${title}: ${msg}`);
       return;
     }
 
-    if (!res?.ok || !res.url) {
-      V.fail(res?.error || "Couldn't build that model.");
-      return;
+    const model = { url: res.url, title, taskId: res.taskId || null, prompt };
+    window._lastModel = model;
+    if (onScreen) {
+      const loaded = await V.open(model.url, model);
+      if (loaded) window.jarvis.speak(`Your 3D model of ${title} is ready.`);
+    } else {
+      _modelTell('Model ready', title, 'Open', () => _openFinishedModel(model));
+      window.jarvis.speak(`Your 3D model of ${title} is ready.`);
     }
-    const loaded = await V.open(res.url, { title: short, subtitle: 'Drag to rotate' });
-    if (loaded) window.jarvis.speak(`Your 3D model of ${short} is ready.`);
   };
   window.jarvis.onModelStart(window._startModelGen);
 }
 
 if (window.jarvis && window.jarvis.onModelProgress) {
-  window.jarvis.onModelProgress(({ status, progress }) => {
-    const el = document.getElementById('mvStatus');
-    if (!el || !window.CallistoModelViewer?.isOpen()) return;
+  window.jarvis.onModelProgress(({ status, progress, jobKey }) => {
+    const V = window.CallistoModelViewer;
+    const job = _modelJobs.get(jobKey);
+    if (!V || !job) return;
     const pct = Math.max(0, Math.min(100, Math.round(progress || 0)));
-    el.className = 'mv-status mv-loading';
-    el.textContent = status === 'IN_PROGRESS'
-      ? `Sculpting… ${pct}%`
-      : 'Queued — waiting for a slot…';
+    if (job.kind === 'generate') {
+      const label = status === 'PENDING' ? 'Queued'
+        : pct < 50 ? 'Sculpting the shape' : 'Painting the details';
+      V.setProgress(jobKey, pct, label);
+    } else if (V.isOpen() && V.info().taskId === job.sourceTaskId) {
+      V.setBusy(`Repainting ${job.title} — ${pct}%`);
+    }
   });
 }
+
+// ── Editing an open model by text or voice ────────────────────────────────────
+// With an area selected, simple changes (a colour, bigger/smaller, flatten/bulge)
+// apply instantly on that area. Without a selection, the whole model is repainted
+// by the generator from the description ("black and silver").
+const _MODEL_COLOURS = {
+  black: '#111114', silver: '#c9ced6', chrome: '#dfe3e8', grey: '#6b7078', gray: '#6b7078',
+  white: '#f2f2f2', gold: '#d4a537', golden: '#d4a537', bronze: '#a0703a', copper: '#b8733f',
+  red: '#c8102e', crimson: '#c8102e', maroon: '#6d0f1f', pink: '#ff6fa8', orange: '#f07b1f',
+  yellow: '#f2c230', green: '#1f9d55', lime: '#8fd14f', teal: '#138a8a', cyan: '#4de8ff',
+  blue: '#1f5fd6', navy: '#15306b', purple: '#7b3fe4', violet: '#7b3fe4', brown: '#6b4428',
+};
+const MODEL_EDIT_RE = /\b(colou?r|paint|repaint|texture|re-?skin|change|turn (it|him|her|this)|make (it|him|her|this|the)|bigger|smaller|larger|shrink|grow|flatten|bulge|metallic|matte|glossy|black|silver|gold|chrome)\b/i;
+
+function _parseLocalEdit(text) {
+  const t = text.toLowerCase();
+  const colours = Object.keys(_MODEL_COLOURS).filter((c) => new RegExp(`\\b${c}\\b`).test(t));
+  const change = {};
+  if (colours.length === 1) change.color = _MODEL_COLOURS[colours[0]];
+  const much = /\b(much|a lot|way|really|very)\b/.test(t);
+  if (/\b(bigger|larger|grow|enlarge|increase)\b/.test(t)) change.scale = much ? 1.6 : 1.3;
+  if (/\b(smaller|shrink|reduce|decrease)\b/.test(t)) change.scale = much ? 0.6 : 0.78;
+  if (/\b(flatten|flatter|flat)\b/.test(t)) change.inflate = much ? -0.9 : -0.5;
+  if (/\b(bulge|puff|rounder|thicker|inflate)\b/.test(t)) change.inflate = much ? 0.9 : 0.5;
+  return { change, colours };
+}
+
+async function _repaintOpenModel(text) {
+  const V = window.CallistoModelViewer;
+  const info = V.info();
+  if (!info.taskId) {
+    V.notify({ title: "Can't repaint this one", text: 'Only models made in this version of Callisto can be repainted.', timeout: 6000 });
+    return;
+  }
+  const jobKey = `paint-${Date.now()}`;
+  const title = info.title;
+  _modelJobs.set(jobKey, { kind: 'repaint', title, sourceTaskId: info.taskId });
+  V.setBusy(`Repainting ${title} — this takes about a minute`);
+  window.jarvis.speak('Repainting it now.');
+
+  const style = `${info.prompt || title}. ${text}`.slice(0, 600);
+  let res;
+  try { res = await window.jarvis.modelRetexture(info.taskId, style, jobKey); }
+  catch (err) { res = { ok: false, error: err.message }; }
+  _modelJobs.delete(jobKey);
+
+  const stillOpen = V.isOpen() && V.info().taskId === info.taskId;
+  if (stillOpen) V.setBusy(null);
+  if (!res?.ok || !res.url) {
+    V.notify({ title: 'Repaint failed', text: res?.error || 'Try describing it differently.', timeout: 8000 });
+    return;
+  }
+  const model = { url: res.url, title, taskId: res.taskId || info.taskId, prompt: info.prompt };
+  window._lastModel = model;
+  if (stillOpen) {
+    await V.open(model.url, model);
+    window.jarvis.speak('Done.');
+  } else {
+    _modelTell('Repaint ready', title, 'Open', () => _openFinishedModel(model));
+  }
+}
+
+window._handleModelCommand = function (text) {
+  const V = window.CallistoModelViewer;
+  if (!V || !V.isOpen() || !V.info().loaded) return false;
+  const { change, colours } = _parseLocalEdit(text);
+  const hasLocal = Object.keys(change).length > 0;
+
+  if (V.hasSelection() && hasLocal && colours.length <= 1) {
+    V.editSelection(change);
+    return true;
+  }
+  if (V.hasSelection() && !hasLocal) {
+    V.notify({ title: 'For a selected part', text: 'Try a colour, “bigger”, “smaller”, “flatten” or “bulge”. Deselect to repaint the whole model.', timeout: 7000 });
+    return true;
+  }
+  _repaintOpenModel(text);
+  return true;
+};
+
+window._checkModelCommand = function (text) {
+  const V = window.CallistoModelViewer;
+  if (!V || !V.isOpen() || !V.info().loaded || !MODEL_EDIT_RE.test(text)) return false;
+  return window._handleModelCommand(text);
+};
+
+if (window.CallistoModelViewer) window.CallistoModelViewer.onCommand((t) => window._handleModelCommand(t));
 
 // ── Shopping ──────────────────────────────────────────────────────────────────
 const STORE_META = {
@@ -4042,6 +4169,12 @@ async function sendToJarvis(text) {
 
   addMessageWithAttachments('user', text, attachments);
   history.push({ role: 'user', content: text });
+  // While a 3D model is open, "make it black and silver" etc. edits the model
+  // (typed, or spoken through Ctrl+Shift+C).
+  if (typeof window._checkModelCommand === 'function' && window._checkModelCommand(text)) {
+    if (window._hudVoiceActive && typeof _maybeForwardToHud === 'function') _maybeForwardToHud('Updating your 3D model…', null);
+    return;
+  }
   // Check Google Flow video creation (must run before HiggsField — takes "make me a video about X")
   if (typeof window._checkGoogleFlow === 'function') {
     const handled = await window._checkGoogleFlow(text);

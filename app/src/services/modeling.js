@@ -46,23 +46,36 @@ async function generate({ token, prompt, style }, onProgress) {
   });
   const jobId = started?.jobId;
   if (!jobId) return { ok: false, error: "The generator didn't accept that prompt." };
+  return poll(token, `/models/job/${encodeURIComponent(jobId)}`, onProgress, 'That took too long — try a simpler description.');
+}
 
+// Repaints an existing model (by its Meshy task id) from a description.
+async function retexture({ token, taskId, prompt }, onProgress) {
+  const started = await api('/models/retexture', {
+    token, method: 'POST', body: { taskId, prompt }, timeoutMs: 30000,
+  });
+  const jobId = started?.jobId;
+  if (!jobId) return { ok: false, error: "The repaint wasn't accepted." };
+  return poll(token, `/models/retexture/${encodeURIComponent(jobId)}`, onProgress, 'The repaint took too long.');
+}
+
+async function poll(token, path, onProgress, timeoutError) {
   const deadline = Date.now() + MAX_WAIT_MS;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
     let job;
     try {
-      job = await api(`/models/job/${encodeURIComponent(jobId)}`, { token, timeoutMs: 15000 });
+      job = await api(path, { token, timeoutMs: 15000 });
     } catch (_) {
       continue; // a dropped poll isn't fatal — keep waiting
     }
 
     try { onProgress && onProgress({ status: job.status, progress: job.progress || 0 }); } catch (_) {}
 
-    if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url };
+    if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url, taskId: job.taskId || null };
     if (job.status === 'FAILED') return { ok: false, error: job.error || 'Generation failed.' };
   }
-  return { ok: false, error: 'That took too long — try a simpler description.' };
+  return { ok: false, error: timeoutError };
 }
 
-module.exports = { isEnabled, generate };
+module.exports = { isEnabled, generate, retexture };

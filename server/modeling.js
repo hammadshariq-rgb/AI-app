@@ -8,6 +8,8 @@
 // reports that so the app can say so plainly instead of failing at generate time.
 
 const MESHY_BASE = 'https://api.meshy.ai/openapi/v2';
+const MESHY_BASE_V1 = 'https://api.meshy.ai/openapi/v1';   // retexture lives on v1
+const MAX_REPAINTS_PER_DAY = 3;
 const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
 const MAX_JOBS_PER_DAY = 3;    // each generation costs credits (5,500/month plan)
@@ -17,8 +19,9 @@ const refineJobs = new Map();  // preview task id -> refine (texture) task id
 function today() { return new Date().toISOString().slice(0, 10); }
 
 async function meshy(path, options = {}) {
-  const res = await fetch(`${MESHY_BASE}${path}`, {
-    ...options,
+  const { base = MESHY_BASE, ...rest } = options;
+  const res = await fetch(`${base}${path}`, {
+    ...rest,
     headers: {
       Authorization: `Bearer ${MESHY_API_KEY}`,
       'Content-Type': 'application/json',
@@ -114,7 +117,61 @@ function mountModeling(app, { authMiddleware }) {
         status: status === 'CANCELED' ? 'FAILED' : status,   // PENDING | IN_PROGRESS | SUCCEEDED | FAILED
         progress: 50 + Math.round((job?.progress ?? 0) / 2),
         url: status === 'SUCCEEDED' ? (job?.model_urls?.glb || null) : null,
+        taskId: status === 'SUCCEEDED' ? refineId : null,   // needed later to repaint it
         thumbnail: job?.thumbnail_url || null,
+        error: job?.task_error?.message || null,
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  // Repaint an existing model from a description ("black and silver"). Uses Meshy's
+  // retexture endpoint, which keeps the shape and regenerates the textures. It has
+  // its own daily allowance so repainting doesn't eat into new models.
+  app.post('/models/retexture', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) return res.status(503).json({ error: '3D generation is not configured on this server.' });
+      const taskId = String(req.body?.taskId || '').trim();
+      const prompt = String(req.body?.prompt || '').trim();
+      if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
+      if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
+
+      const key = `rt:${req.userId}:${today()}`;
+      const used = dailyCount.get(key) || 0;
+      if (used >= MAX_REPAINTS_PER_DAY) {
+        return res.status(429).json({ error: `You've hit the limit of ${MAX_REPAINTS_PER_DAY} repaints today.` });
+      }
+
+      const job = await meshy('/retexture', {
+        method: 'POST',
+        base: MESHY_BASE_V1,
+        body: JSON.stringify({
+          input_task_id: taskId,
+          text_style_prompt: prompt.slice(0, 600),
+          enable_original_uv: true,
+          enable_pbr: true,
+        }),
+      });
+      dailyCount.set(key, used + 1);
+      res.json({ ok: true, jobId: job?.result || job?.id || null });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  app.get('/models/retexture/:id', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) return res.status(503).json({ error: 'Not configured.' });
+      const id = req.params.id;
+      const job = await meshy(`/retexture/${encodeURIComponent(id)}`, { base: MESHY_BASE_V1 });
+      const status = String(job?.status || '').toUpperCase();
+      res.json({
+        ok: true,
+        status: status === 'CANCELED' ? 'FAILED' : status,
+        progress: job?.progress ?? 0,
+        url: status === 'SUCCEEDED' ? (job?.model_urls?.glb || null) : null,
+        taskId: status === 'SUCCEEDED' ? id : null,
         error: job?.task_error?.message || null,
       });
     } catch (err) {

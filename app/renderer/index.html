@@ -2670,8 +2670,9 @@
 
   <script src="three.global.js"></script>
   <script src="GLTFLoader.global.js"></script>
-  <script src="model-viewer.js?v=2"></script>
-  <script src="renderer.js?v=56"></script>
+  <script src="GLTFExporter.global.js"></script>
+  <script src="model-viewer.js?v=3"></script>
+  <script src="renderer.js?v=57"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
   <script src="panels.js?v=3"></script>
@@ -2813,10 +2814,13 @@
         // instead of driving clicks. Fed from the smoothed cursor so it inherits
         // the same easing as the on-screen pointer.
         if (window.CallistoModelViewer && window.CallistoModelViewer.isOpen()) {
+          const hl = lastLeftLm;
           window.CallistoModelViewer.handInput({
             x: smoothX / window.innerWidth,
             y: smoothY / window.innerHeight,
             pinching: isPinching,
+            // Apparent hand size: grows as the hand moves toward the camera → zoom
+            handSize: Math.hypot(hl[0].x - hl[9].x, hl[0].y - hl[9].y),
           });
         }
 

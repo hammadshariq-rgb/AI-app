@@ -2106,15 +2106,48 @@ ipcMain.handle('model:fetchFile', async (_e, url) => {
   }
 });
 
-ipcMain.handle('model:generate', async (_e, { prompt, style }) => {
+function sendModelProgress(jobKey, p) {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('model:progress', { ...p, jobKey });
+  }
+}
+
+ipcMain.handle('model:generate', async (_e, { prompt, style, jobKey }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
   try {
-    return await modeling.generate({ token, prompt, style }, (p) => {
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('model:progress', p);
-      }
+    return await modeling.generate({ token, prompt, style }, (p) => sendModelProgress(jobKey, p));
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('model:retexture', async (_e, { taskId, prompt, jobKey }) => {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Please sign in first.' };
+  try {
+    return await modeling.retexture({ token, taskId, prompt }, (p) => sendModelProgress(jobKey, p));
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Save a model (original or edited in the viewer) as .glb through a save dialog.
+ipcMain.handle('model:saveFile', async (_e, { bytes, suggestedName }) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    if (!bytes || !bytes.byteLength) return { ok: false, error: 'Nothing to save.' };
+    const safe = String(suggestedName || 'callisto-model')
+      .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-model';
+    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+      title: 'Save 3D model',
+      defaultPath: path.join(app.getPath('documents'), `${safe}.glb`),
+      filters: [{ name: '3D model (GLB)', extensions: ['glb'] }],
     });
+    if (canceled || !filePath) return { ok: false, cancelled: true };
+    fs.writeFileSync(filePath, Buffer.from(bytes));
+    return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: err.message };
   }
