@@ -2720,7 +2720,7 @@ function getTeamEmoji(name) {
 // The chat turn returns immediately; generation runs here so the viewer can show
 // live progress over the 40-90s it takes.
 if (window.jarvis && window.jarvis.onModelStart) {
-  window.jarvis.onModelStart(async ({ prompt, style }) => {
+  window._startModelGen = async ({ prompt, style }) => {
     const V = window.CallistoModelViewer;
     if (!V) return;
 
@@ -2741,7 +2741,8 @@ if (window.jarvis && window.jarvis.onModelStart) {
     }
     const loaded = await V.open(res.url, { title: short, subtitle: 'Drag to rotate' });
     if (loaded) window.jarvis.speak(`Your 3D model of ${short} is ready.`);
-  });
+  };
+  window.jarvis.onModelStart(window._startModelGen);
 }
 
 if (window.jarvis && window.jarvis.onModelProgress) {
@@ -4352,7 +4353,7 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   void higgsApiInput; void higgsSaveBtn;
 
   // ── Detection: "animate this / make a video / higgsfield" ───────────────────
-  const HIGGS_RE = /\b(animate|make a video|generate a video|create a video|higgsfield|make it move|bring to life|video of|turn.*into.*video|apply.*effect)\b/i;
+  const HIGGS_RE = /\b(animate|make a video|make me a video|make me video|create me a video|i want a video|generate a video|create a video|higgsfield|make it move|bring to life|video of|turn.*into.*video|apply.*effect)\b/i;
 
   window._checkHiggsfield = async function(text, attachments) {
     if (!HIGGS_RE.test(text)) return false;
@@ -4398,7 +4399,8 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   const FLOW_RE = /\b(make me a video|make me video|create me a video|make a video (about|of|on)|generate a video (about|of|on)|i want a video (about|of))\b/i;
 
   window._checkGoogleFlow = async function(text) {
-    if (!FLOW_RE.test(text)) return false;
+    // Videos are now generated in-app (Higgsfield); Flow only when asked for by name.
+    if (!/\bflow\b/i.test(text) || !FLOW_RE.test(text)) return false;
     // Extract the subject from the prompt
     const subject = text
       .replace(/\b(make me a video|make me video|create me a video|make a video|generate a video|i want a video)\s*(about|of|on)?\s*/i, '')
@@ -4420,7 +4422,7 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   // ── Keyword detection ────────────────────────────────────────────────────────
   // Matches any image/drawing request.  Group 1 = subject.  Group 2 = 3D paint / blender flag (may be undefined).
   const PAINT_RE = /\b(?:paint|draw|sketch|illustrate|(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:painting|picture|drawing|sketch|image|illustration)(?:\s+of)?)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+)?(.+?)(?:\s+(?:on|in|using|with|through|via|on|in)\s+(3d\s+paint|paint\s+3d|blender|dall.?e|ai|image\s+gen(?:eration)?))?$/i;
-  const MODEL3D_RE = /\b(make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
+  const MODEL3D_RE = /\b((?:make|create|generate|build)(?:\s+me)?\s+(?:an?\s+)?3d(?:\s*model)?|make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
   // Explicit 3D paint request (must mention 3d paint / paint 3d in the message)
   const PAINT3D_RE = /\b(3d\s*paint|paint\s*3d|paint\s+app)\b/i;
 
@@ -4443,7 +4445,16 @@ window.jarvis.onSentenceAudio(({ audio }) => {
   window._checkCreative = async function(text) {
     // 3D model follow-up
     if (MODEL3D_RE.test(text)) {
-      const subject = lastPaintSubject || text.replace(MODEL3D_RE, '').trim() || 'the object';
+      const asked = text.replace(MODEL3D_RE, '').replace(/^\s*(?:me\s+)?(?:(?:model|modle|modal)\s+)?(?:of\s+)?(?:(?:a|an|the)\s+)?/i, '').trim();
+      // Real generated models (Meshy, on Callisto's account) whenever the server has it
+      // switched on; Blender scripting stays as the fallback.
+      if (typeof window._startModelGen === 'function' && window.jarvis.modelEnabled && await window.jarvis.modelEnabled()) {
+        const subject = asked || lastPaintSubject || 'a detailed object';
+        addMessage('assistant', `🧊 Building a 3D model of "${subject}" — this takes about 2–3 minutes.`);
+        window._startModelGen({ prompt: subject, style: 'realistic' });
+        return true;
+      }
+      const subject = lastPaintSubject || asked || 'the object';
       addMessage('assistant', `🔧 Generating Blender 3D script for "${subject}" and opening Blender…`);
       const r = await window.jarvis.openBlender(subject);
       if (r.ok) {
