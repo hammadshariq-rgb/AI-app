@@ -698,13 +698,24 @@ const CHECK_SVG  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 // code, bullet and numbered lists, tables, code blocks and paragraphs. All text is
 // HTML-escaped before any tags are added, so model output can't inject markup.
 function _looksLikeMarkdown(t) {
-  return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```/.test(t);
+  return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(t);
 }
+
+// Links in formatted replies open in the browser, never inside the app window.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a.msg-link');
+  if (!a) return;
+  e.preventDefault();
+  const href = a.getAttribute('href') || '';
+  if (/^https?:\/\//i.test(href) && window.jarvis?.openUrl) window.jarvis.openUrl(href);
+});
 
 function _renderChatMarkdown(src) {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const inline = (s) => esc(s)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // [label](https://…) — only http(s); the URL is already HTML-escaped
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"]+)\)/g, '<a href="$2" class="msg-link">$1</a>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
 

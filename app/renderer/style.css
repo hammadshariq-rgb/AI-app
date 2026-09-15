@@ -8631,3 +8631,5 @@ body.light-mode .msg-rich code { background: rgba(0, 0, 0, 0.06); }
 body.light-mode .msg-rich pre { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.08); }
 body.light-mode .msg-table-wrap { border-color: rgba(0, 0, 0, 0.1); }
 body.light-mode .msg-rich th, body.light-mode .msg-rich td { border-bottom-color: rgba(0, 0, 0, 0.07); }
+.msg-rich a.msg-link { color: rgb(var(--mv-accent-rgb)); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.msg-rich a.msg-link:hover { text-decoration-thickness: 2px; }
