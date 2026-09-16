@@ -7985,6 +7985,14 @@ async function stopRecording() {
   const sampleRate = audioContext.sampleRate;
   const capturedChunks = pcmChunks.splice(0);
 
+  // Stopped because the computer slept/woke — throw the audio away, don't send it.
+  if (window._discardRecording) {
+    window._discardRecording = false;
+    setState('idle');
+    if (waveformCanvas) waveformCanvas.classList.remove('active');
+    return;
+  }
+
   setState('thinking');
   try {
     const totalLength = capturedChunks.reduce((s, c) => s + c.length, 0);
@@ -8477,6 +8485,32 @@ micBtn.addEventListener('click', () => {
       else document.getElementById('micBtn')?.click();
     }, 600);
   }
+
+  // Sleep/wake: the audio device pops when a laptop lid closes and opens, which
+  // looked like a double clap. Stop listening on sleep and ignore sound for a
+  // while after waking, so the mic is never switched on by opening the lid.
+  const WAKE_QUIET_MS = 10000;
+  function _quietFor(ms) {
+    cooldownUntil = Math.max(cooldownUntil, Date.now() + ms);
+    clapCount = 0;
+    clearTimeout(resetTimer);
+  }
+  window.jarvis?.onPowerSleep?.(() => {
+    _quietFor(24 * 60 * 60 * 1000);          // until we hear we're awake again
+    if (typeof isRecording !== 'undefined' && isRecording && typeof stopRecording === 'function') {
+      window._discardRecording = true;
+      try { stopRecording(); } catch (_) {}
+    }
+  });
+  window.jarvis?.onPowerWake?.(() => {
+    cooldownUntil = 0;
+    _quietFor(WAKE_QUIET_MS);
+    // Some systems resume a recording that was mid-flight — make sure it's off.
+    if (typeof isRecording !== 'undefined' && isRecording && typeof stopRecording === 'function') {
+      window._discardRecording = true;
+      try { stopRecording(); } catch (_) {}
+    }
+  });
 
   // Start after 5 s — give voice recording code time to acquire the mic first
   setTimeout(startClapWatcher, 5000);

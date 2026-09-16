@@ -492,6 +492,23 @@ async function _fireReminder(text) {
 app.whenReady().then(async () => {
   app.setName('Your Own Personal AI');
 
+  // ── Sleep / wake ──────────────────────────────────────────────────────────
+  // Closing and reopening a laptop makes the audio device "pop", which the
+  // double-clap wake listener heard as claps and switched the mic on. Tell the
+  // renderer so it stops listening before sleep and ignores sound just after.
+  try {
+    const { powerMonitor } = require('electron');
+    const tell = (channel) => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(channel);
+    };
+    powerMonitor.on('suspend', () => tell('power:sleep'));
+    powerMonitor.on('lock-screen', () => tell('power:sleep'));
+    powerMonitor.on('resume', () => tell('power:wake'));
+    powerMonitor.on('unlock-screen', () => tell('power:wake'));
+  } catch (err) {
+    console.error('[power] monitor unavailable:', err.message);
+  }
+
   // ── Mac: proactively request mic + camera access so the OS dialogs appear ──
   // Without this, macOS silently blocks them even though entitlements are set.
   if (process.platform === 'darwin') {
