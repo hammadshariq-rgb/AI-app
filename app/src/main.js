@@ -1220,6 +1220,15 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   }
   if (_openM) {
     const target = _openM[1].trim();
+    if (FAST_MESSAGING.test(target) || FAST_MUSIC.test(target) || (!target.includes('.com') && !target.includes('http'))) {
+      prepareForegroundOpen();
+    }
+    if (FAST_MESSAGING.test(target) && process.platform === 'darwin') {
+      // Mac: "open -a" brings the app forward even if it's already running or hidden
+      commands.run('open_app', target).catch(() => {});
+      _sendTTS(_e.sender, 'Right away.');
+      return { text: 'Right away.', audio: null, card: null, hasAction: true };
+    }
     if (FAST_MESSAGING.test(target)) {
       commands.run('open_chat', `${target}|`).catch(() => {});
       _sendTTS(_e.sender, 'Right away.');
@@ -2504,6 +2513,8 @@ ipcMain.handle('jarvis:openUrl', (_e, url) => {
 // Open a named app (Notes, Calculator, Chrome, etc.) via launchApp helper
 ipcMain.handle('jarvis:openApp', async (_e, appName) => {
   if (typeof appName !== 'string' || !appName) return { ok: false };
+  prepareForegroundOpen();
+  appName = appName.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
   try {
     const ok = await commands.run('open_app', appName.slice(0, 64)).then(r => r?.ok !== false);
     return { ok };
@@ -3286,9 +3297,20 @@ function unlockFocus() {
   exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
 }
 
+// When the user explicitly opens an app, it must come to the front and stay there:
+// stop the Spotify focus guard (which keeps pulling Callisto forward for a few
+// seconds after a song starts) and cancel any pending "hide Spotify" steps.
+let _userOpenedAppAt = 0;
+function prepareForegroundOpen() {
+  _userOpenedAppAt = Date.now();
+  stopSpotifyFocusLock();
+}
+
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  // The user just asked to open an app — don't hide it or steal focus back.
+  if (Date.now() - _userOpenedAppAt < 8000) return;
   const { exec } = require('child_process');
 
   if (process.platform === 'darwin') {

@@ -2080,7 +2080,9 @@ window._checkQuickLaunch = async function(text) {
   // Catches WhatsApp, Telegram, Discord, Spotify, Notes, Calculator, etc.
   // Flexible: "open whatsapp", "open up discord", "can you open telegram", etc.
   const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|calendar|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
-  const appOpenM = t.match(APP_OPEN_RE) || t.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i);
+  // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
+  const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
+  const appOpenM = tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i);
   if (appOpenM) {
     const appName = (appOpenM[1] || '').trim().toLowerCase();
     if (!appName || appName.length < 2) { /* too short, let AI handle */ }
@@ -2095,11 +2097,13 @@ window._checkQuickLaunch = async function(text) {
       const label = appName.charAt(0).toUpperCase() + appName.slice(1);
       addMessage('assistant', `📱 Opening **${label}**…`);
       window.jarvis.speak(`Opening ${label}.`);
-      if (uri) {
+      // Always go through the main process: it stops Spotify's focus guard so the
+      // app stays in front, and on Mac uses "open -a", which also brings forward an
+      // app that's already running or hidden (a URI only worked the first time).
+      if (uri && /^https?:/i.test(uri)) {
         window.jarvis.openUrl(uri);
       } else {
-        // For system apps (Notes, Calculator, etc.) delegate to main process launchApp
-        window.jarvis.openApp(label);
+        window.jarvis.openApp(appName);
       }
       return true;
     }
