@@ -8644,8 +8644,8 @@ const PUB_META = {
 };
 
 function _publishSource(card) {
-  const wantsImage = card.source === 'last_image' || (card.platform === 'instagram' && card.source !== 'last_video' && !window._lastVideo);
-  if (card.source === 'choose_file') return { kind: wantsImage ? 'image' : 'video', pick: true };
+  const wantsImage = card.mediaSource === 'last_image' || (card.platform === 'instagram' && card.mediaSource !== 'last_video' && !window._lastVideo);
+  if (card.mediaSource === 'choose_file') return { kind: wantsImage ? 'image' : 'video', pick: true };
   if (wantsImage && window._lastImage) return { kind: 'image', url: window._lastImage.url, label: window._lastImage.title || 'your last image' };
   if (!wantsImage && window._lastVideo) return { kind: 'video', url: window._lastVideo.url || null, filePath: window._lastVideo.filePath || null, label: window._lastVideo.title || 'your last video' };
   return { kind: wantsImage ? 'image' : 'video', pick: true };

@@ -1626,7 +1626,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
       text: spokenText,
       audio: null,
       card: { type: 'publish', platform: p.platform, platformName: name, connected,
-              source: p.source || '', title: p.title || '', description: p.description || '', privacy: p.privacy || 'private' },
+              mediaSource: p.source || '', title: p.title || '', description: p.description || '', privacy: p.privacy || 'private' },
       hasAction: false,
     };
   }
@@ -2529,7 +2529,8 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background
 const GOOGLE_OAUTH_SCOPES = {
   calendar:      'https://www.googleapis.com/auth/calendar.readonly',
   drive:         'https://www.googleapis.com/auth/drive.readonly',
-  youtube:       'https://www.googleapis.com/auth/youtube.readonly',
+  // upload is needed so customers can post their videos to their own channel
+  youtube:       'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
   analytics:     'https://www.googleapis.com/auth/analytics.readonly',
   googleAccount: 'openid email profile',  // minimal — just identifies which Google account to use
 };
@@ -2702,7 +2703,8 @@ async function startInstagramOAuthFlow() {
     console.error('[OAuth] FACEBOOK_APP_ID / FACEBOOK_APP_SECRET not set in .env');
     return false;
   }
-  const SCOPE = 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management';
+  // instagram_content_publish lets customers post their own photos/videos
+  const SCOPE = 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,business_management';
 
   return new Promise((resolve) => {
     const server = http.createServer();
@@ -2770,7 +2772,8 @@ async function startTikTokOAuthFlow() {
     console.error('[OAuth] TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET not set in .env');
     return false;
   }
-  const SCOPE = 'user.info.basic,video.list,user.info.stats';
+  // video.upload/publish let customers post their own videos
+  const SCOPE = 'user.info.basic,video.list,user.info.stats,video.upload,video.publish';
   const codeVerifier  = crypto.randomBytes(32).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
   const state = crypto.randomBytes(8).toString('hex');
