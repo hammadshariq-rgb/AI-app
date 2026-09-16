@@ -489,6 +489,49 @@ async function _fireReminder(text) {
   }
 }
 
+// ── Mac: permission to control other apps ────────────────────────────────────
+// Opening apps, playing Spotify and hiding windows all go through AppleScript.
+// macOS gates that behind two permissions, and without asking it just blocks
+// the commands silently:
+//   • Automation (Apple Events) — "Callisto wants to control Spotify / System Events"
+//   • Accessibility — needed to hide or switch app windows
+// Sending one harmless event to each app makes macOS show its prompt now,
+// alongside the mic and camera prompts, instead of failing later.
+function requestMacAppControlPermissions() {
+  const { exec } = require('child_process');
+  const ask = (appName) => new Promise((resolve) => {
+    exec(`osascript -e 'tell application "${appName}" to return name'`, { timeout: 60000 }, (err) => resolve(!err));
+  });
+  setTimeout(async () => {
+    try {
+      // Accessibility: passing true shows the system prompt if not yet trusted.
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        systemPreferences.isTrustedAccessibilityClient(true);
+      }
+      const systemEvents = await ask('System Events');
+      // Only ask about Spotify if it's installed — otherwise macOS would offer to find it.
+      exec(`mdfind "kMDItemCFBundleIdentifier == 'com.spotify.client'"`, async (_e, out) => {
+        const spotify = String(out || '').trim() ? await ask('Spotify') : null;
+        store.set('macAppControl', { systemEvents, spotify, checkedAt: Date.now() });
+        if (!systemEvents && overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.webContents.send('mac:needsAutomation');
+        }
+      });
+    } catch (err) {
+      console.error('[mac permissions]', err.message);
+    }
+  }, 4000);   // after the mic/camera prompts, so they don't stack on top of each other
+}
+
+ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
+  const panes = {
+    automation: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
+    accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+  };
+  if (process.platform === 'darwin' && panes[pane]) shell.openExternal(panes[pane]);
+  return true;
+});
+
 app.whenReady().then(async () => {
   app.setName('Your Own Personal AI');
 
@@ -514,6 +557,7 @@ app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
     systemPreferences.askForMediaAccess('microphone').catch(() => {});
     systemPreferences.askForMediaAccess('camera').catch(() => {});
+    requestMacAppControlPermissions();
   }
   tts.setSpeed(store.get('voiceSpeed') || 0.88);
 

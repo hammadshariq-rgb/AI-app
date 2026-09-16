@@ -8798,3 +8798,28 @@ if (window.jarvis.onConnectorWrongAccount) {
       `Connect again and choose ${expected}. To use a different account everywhere, change the Google account in Connectors first.`);
   });
 }
+
+// Mac: the customer declined (or macOS blocked) permission to control other apps.
+// Without it, "open Spotify" and "play …" silently do nothing — explain and link
+// straight to the right settings page.
+if (window.jarvis.onMacNeedsAutomation) {
+  window.jarvis.onMacNeedsAutomation(() => {
+    const el = addMessage('assistant',
+      'To open apps and play music for you, Callisto needs permission to control other apps on your Mac. ' +
+      'Open **System Settings → Privacy & Security → Automation** and turn on Callisto for System Events and Spotify, ' +
+      'then do the same under **Accessibility**.');
+    if (!el) return;
+    const row = document.createElement('div');
+    row.className = 'doc-action-row';
+    const mk = (label, pane) => {
+      const b = document.createElement('button');
+      b.className = 'doc-btn';
+      b.textContent = label;
+      b.onclick = () => window.jarvis.openMacPrivacySettings(pane);
+      return b;
+    };
+    row.appendChild(mk('Open Automation settings', 'automation'));
+    row.appendChild(mk('Open Accessibility settings', 'accessibility'));
+    el.appendChild(row);
+  });
+}

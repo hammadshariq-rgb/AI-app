@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),
   onConnectorConnected: (cb) => ipcRenderer.on('connector:connected', (_e, d) => cb(d)),
   onConnectorWrongAccount: (cb) => ipcRenderer.on('connector:wrongAccount', (_e, d) => cb(d)),
+  onMacNeedsAutomation: (cb) => ipcRenderer.on('mac:needsAutomation', () => cb()),
+  openMacPrivacySettings: (pane) => ipcRenderer.invoke('mac:openPrivacySettings', pane),
   onPowerSleep: (cb) => ipcRenderer.on('power:sleep', () => cb()),
   onPowerWake:  (cb) => ipcRenderer.on('power:wake', () => cb()),
   getMusicService: () => ipcRenderer.sendSync('music:getService'),

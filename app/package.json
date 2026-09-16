@@ -79,7 +79,8 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Callisto needs microphone access to hear your voice commands.",
-        "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control."
+        "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control.",
+        "NSAppleEventsUsageDescription": "Callisto needs permission to control other apps so it can open apps, play music in Spotify and switch windows when you ask."
       }
     },
     "linux": {
