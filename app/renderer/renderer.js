@@ -4173,6 +4173,20 @@ mainPanel.addEventListener('drop', (e) => {
 
 function processFiles(files) {
   files.forEach((file) => {
+    // Videos are attached for posting, not for reading: keep the file path and
+    // don't send them to the AI.
+    const isVideoFile = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name);
+    if (isVideoFile) {
+      const p = window.jarvis.filePath ? window.jarvis.filePath(file) : file.path;
+      if (!p) {
+        addMessage('assistant', 'I couldn\'t read that video from your computer. Ask me to upload it and press "Choose file" instead.');
+        return;
+      }
+      window._lastVideo = { filePath: p, title: file.name.replace(/\.[^.]+$/, '').slice(0, 60) };
+      pendingAttachments.push({ name: file.name, kind: 'video', filePath: p });
+      renderAttachPreview();
+      return;
+    }
     const reader = new FileReader();
     const isImage = file.type.startsWith('image/');
     const isText  = file.type.startsWith('text/') || /\.(txt|csv|md|json|js|py|html|css|xml|yaml|yml|log|sh|ts|jsx|tsx|cpp|c|h|java|rb|go|rs|swift|kt)$/i.test(file.name);
@@ -4371,7 +4385,7 @@ async function sendToJarvis(text) {
 
   let res;
   try {
-    res = await window.jarvis.chat(text, history.slice(-30), attachments);
+    res = await window.jarvis.chat(text, history.slice(-30), attachments.filter(a => a.kind !== 'video'));
   } catch (err) {
     // IPC-level throw (e.g. main process crashed) — classify and show
     const msg = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
@@ -8629,7 +8643,7 @@ function _publishSource(card) {
   const wantsImage = card.source === 'last_image' || (card.platform === 'instagram' && card.source !== 'last_video' && !window._lastVideo);
   if (card.source === 'choose_file') return { kind: wantsImage ? 'image' : 'video', pick: true };
   if (wantsImage && window._lastImage) return { kind: 'image', url: window._lastImage.url, label: window._lastImage.title || 'your last image' };
-  if (!wantsImage && window._lastVideo) return { kind: 'video', url: window._lastVideo.url, label: window._lastVideo.title || 'your last video' };
+  if (!wantsImage && window._lastVideo) return { kind: 'video', url: window._lastVideo.url || null, filePath: window._lastVideo.filePath || null, label: window._lastVideo.title || 'your last video' };
   return { kind: wantsImage ? 'image' : 'video', pick: true };
 }
 
@@ -8682,7 +8696,7 @@ function wirePublishCard(card) {
     return;
   }
   const src = _publishSource(card);
-  const state = { filePath: null, url: src.pick ? null : src.url };
+  const state = { filePath: src.pick ? null : (src.filePath || null), url: src.pick ? null : (src.url || null) };
   const statusEl = document.getElementById('pubStatus');
   const goBtn = document.getElementById('pubGoBtn');
   const fileBtn = document.getElementById('pubFileBtn');

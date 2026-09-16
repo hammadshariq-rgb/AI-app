@@ -1,4 +1,10 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+// Real path of a dragged/picked File — File.path was removed in Electron 32.
+function filePathOf(file) {
+  try { return (webUtils && webUtils.getPathForFile(file)) || file.path || null; }
+  catch (_) { return file.path || null; }
+}
 
 contextBridge.exposeInMainWorld('jarvis', {
   onActivated: (cb) => ipcRenderer.on('jarvis:activated', (_e, payload) => cb(payload)),
@@ -107,6 +113,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   publishRun:     (job)  => ipcRenderer.invoke('publish:run', job),
   publishTargets: ()     => ipcRenderer.invoke('publish:targets'),
   publishPickFile:(kind) => ipcRenderer.invoke('publish:pickFile', kind),
+  filePath:       (file) => filePathOf(file),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
