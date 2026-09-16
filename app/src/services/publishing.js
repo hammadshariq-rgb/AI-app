@@ -109,7 +109,11 @@ async function toYouTube({ buf, type }, { title, description, privacy }) {
   const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': type, 'Content-Length': String(buf.length) }, body: buf });
   const data = await put.json().catch(() => ({}));
   if (!put.ok || !data.id) throw new Error(data.error?.message || 'The upload didn’t finish.');
-  return { id: data.id, url: `https://youtu.be/${data.id}`, note: (privacy || 'private') === 'private' ? 'Uploaded as private — publish it when you’re ready.' : null };
+  const vis = privacy || 'private';
+  const note = vis === 'private' ? 'Uploaded as private — publish it when you’re ready.'
+    : vis === 'unlisted' ? 'Uploaded as unlisted — only people with the link can watch it.'
+    : null;
+  return { id: data.id, url: `https://youtu.be/${data.id}`, note };
 }
 
 // ── Instagram ─────────────────────────────────────────────────────────────────

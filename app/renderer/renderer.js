@@ -8680,7 +8680,8 @@ function renderPublishCard(card) {
         <div class="pub-row"><dt>${card.platform === 'youtube' ? 'Description' : 'Caption'}</dt><dd><textarea id="pubDesc" class="pub-input" rows="2" placeholder="Optional">${esc(card.description || '')}</textarea></dd></div>
         <div class="pub-row"><dt>Visibility</dt><dd>
           <select id="pubPrivacy" class="pub-input">
-            <option value="private"${card.privacy !== 'public' ? ' selected' : ''}>${esc(privacyLabel)}</option>
+            <option value="private"${!['public', 'unlisted'].includes(card.privacy) ? ' selected' : ''}>${esc(privacyLabel)}</option>
+            ${card.platform === 'youtube' ? `<option value="unlisted"${card.privacy === 'unlisted' ? ' selected' : ''}>Unlisted (anyone with the link)</option>` : ''}
             <option value="public"${card.privacy === 'public' ? ' selected' : ''}>Public</option>
           </select>
         </dd></div>
@@ -8751,3 +8752,15 @@ function wirePublishCard(card) {
     if (latest?.image && !window._lastImage) window._lastImage = latest.image;
   } catch (_) {}
 })();
+
+// A Google connector was approved on a different Google account than the one
+// linked in Connectors — it wasn't saved; tell the customer how to fix it.
+if (window.jarvis.onConnectorWrongAccount) {
+  window.jarvis.onConnectorWrongAccount(({ service, expected, got }) => {
+    const names = { youtube: 'YouTube', calendar: 'Google Calendar', drive: 'Google Drive', analytics: 'Google Analytics' };
+    const name = names[service] || 'That connector';
+    addMessage('assistant',
+      `${name} wasn't connected — it was approved on **${got}**, but your linked Google account is **${expected}**. ` +
+      `Connect again and choose ${expected}. To use a different account everywhere, change the Google account in Connectors first.`);
+  });
+}

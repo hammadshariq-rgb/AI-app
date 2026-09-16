@@ -2571,6 +2571,23 @@ async function startGoogleOAuthFlow(service) {
           if (!tokens.access_token) throw new Error(tokens.error || 'No access_token');
 
           const tokenData = { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in || 3600 };
+
+          // Every Google connector must use the Google account the customer linked.
+          // If they picked a different one in the browser, don't save it.
+          const linkedEmail = connectors.getGoogleAccountEmail();
+          if (service !== 'googleAccount' && linkedEmail) {
+            try {
+              const who = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+              }).then(r => r.json());
+              if (who.email && who.email.toLowerCase() !== linkedEmail.toLowerCase()) {
+                if (overlayWindow) overlayWindow.webContents.send('connector:wrongAccount', { service, expected: linkedEmail, got: who.email });
+                resolve(false);
+                return;
+              }
+            } catch (_) { /* can't verify — save as before */ }
+          }
+
           if (service === 'googleAccount') {
             // We only need the email — fetch from Google userinfo, store it, then done
             try {
@@ -2616,9 +2633,18 @@ async function startGoogleOAuthFlow(service) {
       authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
       authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('scope', scope);
+      // Connectors also ask for the email so we can confirm it's the linked account
+      authUrl.searchParams.set('scope', service === 'googleAccount' ? scope : `openid email ${scope}`);
       authUrl.searchParams.set('access_type', 'offline');
-      authUrl.searchParams.set('prompt', 'consent');
+      // Open straight on the Google account the customer linked in Connectors,
+      // instead of whichever account the browser used last.
+      const linked = connectors.getGoogleAccountEmail();
+      if (linked && service !== 'googleAccount') {
+        authUrl.searchParams.set('login_hint', linked);
+        authUrl.searchParams.set('prompt', 'consent');
+      } else {
+        authUrl.searchParams.set('prompt', 'select_account consent');
+      }
       commands.openInChrome(authUrl.toString());
     });
 

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),
   onConnectorConnected: (cb) => ipcRenderer.on('connector:connected', (_e, d) => cb(d)),
+  onConnectorWrongAccount: (cb) => ipcRenderer.on('connector:wrongAccount', (_e, d) => cb(d)),
   getMusicService: () => ipcRenderer.sendSync('music:getService'),
   setMusicService: (s) => ipcRenderer.sendSync('music:setService', s),
   getLanguage: () => ipcRenderer.sendSync('language:get'),

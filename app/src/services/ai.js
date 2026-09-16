@@ -151,7 +151,7 @@ const TOOLS = [
           },
           title: { type: 'string', description: 'Title the user asked for (YouTube/TikTok). Empty if unsaid.' },
           description: { type: 'string', description: 'Caption or description the user asked for. Empty if unsaid.' },
-          privacy: { type: 'string', enum: ['private', 'public'], description: 'Default private unless the user clearly said to post it publicly.' },
+          privacy: { type: 'string', enum: ['private', 'unlisted', 'public'], description: 'Default private. unlisted (YouTube only) when they say unlisted or "only people with the link"; public only when they clearly say to post publicly.' },
         },
         required: ['platform'],
       },
