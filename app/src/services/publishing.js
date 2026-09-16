@@ -92,8 +92,16 @@ async function toYouTube({ buf, type }, { title, description, privacy }) {
   });
   if (!start.ok) {
     const err = await start.text();
-    if (start.status === 403 && /quota/i.test(err)) throw new Error('YouTube’s daily upload quota for this app is used up. Try again tomorrow.');
-    throw new Error(`YouTube refused the upload (${start.status}). ${err.slice(0, 160)}`);
+    if (/insufficient (authentication scopes|permission)/i.test(err) || start.status === 401) {
+      throw new Error('Reconnect YouTube in Connectors — the current connection doesn’t include permission to upload.');
+    }
+    if (start.status === 403 && /quota|exceeded/i.test(err)) {
+      throw new Error('YouTube’s daily upload quota for this app is used up. Try again tomorrow.');
+    }
+    if (start.status === 403 && /youtubeSignupRequired|unauthorized/i.test(err)) {
+      throw new Error('That Google account has no YouTube channel. Create one, then reconnect.');
+    }
+    throw new Error(`YouTube refused the upload (${start.status}).`);
   }
   const uploadUrl = start.headers.get('location');
   if (!uploadUrl) throw new Error('YouTube didn’t return an upload address.');
