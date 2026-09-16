@@ -9,7 +9,10 @@ const path          = require('path');
 const fs            = require('fs');
 const https         = require('https');
 const { app }       = require('electron');
-const AdmZip        = require('adm-zip'); // bundled with electron-builder builds
+// Loaded only when platform-tools actually needs unzipping. A top-level require
+// here once crashed the whole main process at startup when the module was missing
+// from the build, silently breaking everything registered after tv-cast.
+function loadAdmZip() { return require('adm-zip'); }
 
 // ── Bundled adb location (auto-downloaded into userData) ─────────────────────
 function bundledAdbDir() {
@@ -73,6 +76,7 @@ async function downloadAdb(onProgress) {
   // Extract
   onProgress && onProgress('Extracting ADB tools…');
   try {
+    const AdmZip = loadAdmZip();
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(app.getPath('userData'), true);
     // zip extracts to platform-tools/ directory — that's exactly what we want
