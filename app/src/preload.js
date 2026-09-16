@@ -114,6 +114,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   publishTargets: ()     => ipcRenderer.invoke('publish:targets'),
   publishPickFile:(kind) => ipcRenderer.invoke('publish:pickFile', kind),
   filePath:       (file) => filePathOf(file),
+  setLatestMedia: (kind, item) => ipcRenderer.invoke('media:setLatest', { kind, item }),
+  getLatestMedia: ()           => ipcRenderer.invoke('media:getLatest'),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf

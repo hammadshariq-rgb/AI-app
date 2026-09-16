@@ -2216,6 +2216,7 @@ window._checkQuickLaunch = async function(text) {
         const result = await window.jarvis.generateImage(prompt, '1024x1024');
         if (result && result.url) {
           window._lastImage = { url: result.url, title: String(prompt || 'image').slice(0, 60) };
+          window.jarvis.setLatestMedia?.('image', window._lastImage);
           showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
           addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
           window.jarvis.speak(`Here's your image of ${prompt}.`);
@@ -4183,6 +4184,7 @@ function processFiles(files) {
         return;
       }
       window._lastVideo = { filePath: p, title: file.name.replace(/\.[^.]+$/, '').slice(0, 60) };
+      window.jarvis.setLatestMedia?.('video', window._lastVideo);
       pendingAttachments.push({ name: file.name, kind: 'video', filePath: p });
       renderAttachPreview();
       return;
@@ -4602,6 +4604,7 @@ async function sendToJarvis(text) {
   // Remember the newest image so "post that on Instagram" knows what to post
   if (res.card?.type === 'image' && res.card.imageUrl) {
     window._lastImage = { url: res.card.imageUrl, title: String(res.card.description || res.card.title || 'image').slice(0, 60) };
+    window.jarvis.setLatestMedia?.('image', window._lastImage);
   }
   if (res.card && !_wasHudRequest) showCard(res.card);
 
@@ -4746,6 +4749,7 @@ if (window.jarvis.onSentenceText) {
     if (res && res.videoUrl) {
       const video = { url: res.videoUrl, title };
       window._lastVideo = video;
+      window.jarvis.setLatestMedia?.('video', video);
       window.jarvis.speak('Your video is ready.');
       if (onScreen) {
         VV.open(video.url, { title });
@@ -8737,3 +8741,13 @@ function wirePublishCard(card) {
     }
   };
 }
+
+// Bring back the newest attached/generated video and image after a restart, so
+// "post that video on YouTube" still works in a later session.
+(async () => {
+  try {
+    const latest = await window.jarvis.getLatestMedia?.();
+    if (latest?.video && !window._lastVideo) window._lastVideo = latest.video;
+    if (latest?.image && !window._lastImage) window._lastImage = latest.image;
+  } catch (_) {}
+})();

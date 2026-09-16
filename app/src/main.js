@@ -828,6 +828,26 @@ ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
 
 // ── Artifacts (this week's creations) ────────────────────────────────────────
 ipcMain.handle('artifacts:list', () => ({ items: artifacts.list(), resetsAt: artifacts.nextReset() }));
+
+// The newest media the customer attached or generated, remembered across restarts
+// so "post that video" still works after reopening Callisto.
+ipcMain.handle('media:setLatest', (_e, { kind, item }) => {
+  if (!item || !['video', 'image'].includes(kind)) return { ok: false };
+  if (item.filePath && !require('fs').existsSync(item.filePath)) return { ok: false };
+  store.set(`latest.${kind}`, { ...item, at: Date.now() });
+  return { ok: true };
+});
+
+ipcMain.handle('media:getLatest', () => {
+  const fs = require('fs');
+  const pick = (kind) => {
+    const v = store.get(`latest.${kind}`);
+    if (!v) return null;
+    if (v.filePath && !fs.existsSync(v.filePath)) { store.delete(`latest.${kind}`); return null; }
+    return v;
+  };
+  return { video: pick('video'), image: pick('image') };
+});
 ipcMain.handle('artifacts:add', (_e, entry) => artifacts.add(entry || {}));
 ipcMain.handle('artifacts:remove', (_e, id) => artifacts.remove(id));
 ipcMain.handle('artifacts:save', async (_e, { id }) => {
