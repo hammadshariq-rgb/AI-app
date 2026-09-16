@@ -785,7 +785,7 @@ const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon 
 
 function tryLocalCommand(raw) {
   const msg = raw.trim();
-  const lo  = msg.toLowerCase().replace(/['']/g, "'");
+  const lo  = msg.toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
 
   const openMatch = lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
   if (openMatch) {

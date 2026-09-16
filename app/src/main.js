@@ -1088,7 +1088,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // ── Fast local path: execute instantly without touching the AI or server ──
   const { ACTION_KEYWORDS: _ak } = ai;
-  const _lo = message.trim().toLowerCase().replace(/['']/g, "'");
+  // Voice transcripts arrive as 'Open WhatsApp.' or '"Song" by Artist.' — drop the
+  // closing punctuation and quotes so the fast commands still match.
+  const _lo = message.trim().toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
   const _openM = _lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
   const _searchM = _lo.match(/^(?:search(?:\s+for)?|google)\s+(.+)$/);
   const _urlM = _lo.match(/^(?:go to|open|navigate to)\s+(https?:\/\/\S+|\S+\.(?:com|org|net|io|co)\S*)$/);
@@ -1171,7 +1173,9 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // ── Fast path: play commands — skip AI entirely, go straight to Spotify ──────
   // Catches: "play X", "play X on spotify", "play X by Y", "put on X", "i want to hear X", etc.
-  const _playM = _lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/);
+  const _playM = _lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/)
+    // "Nice for What by Drake on Spotify" — no verb, but clearly a song request
+    || _lo.match(/^(?!open\b|launch\b|start\b)(.+?\s+by\s+.+?)\s+on\s+spotify$/);
   if (_playM) {
     const songQuery = _playM[1].trim();
     const _spotifyConnected = !!(store.get('connector.spotify.access_token'));
