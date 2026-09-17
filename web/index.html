@@ -7,7 +7,7 @@
   <meta name="description" content="Callisto AI — Your JARVIS-style personal AI. Voice-powered, always on, built for you." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600&family=Rajdhani:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -991,6 +991,186 @@
     .sb-nav-item.gold-nav.active, .sb-nav-item.gold-nav:hover { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #f59e0b; }
     .sb-nav-icon { font-size: 14px; flex-shrink: 0; }
     .sb-section-label { font-family: var(--brand); font-size: 8.5px; letter-spacing: 3px; font-weight: 700; color: rgba(100,130,200,0.35); padding: 6px 10px 2px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       APP PARITY — the landing hero mirrors the desktop app: same top bar
+       order, cyan HUD palette, Orbitron / Share Tech Mono type, cyan orb with
+       rotating rings, and the purple / cyan / red control buttons.
+       Values are taken from app/renderer/style.css.
+       ═══════════════════════════════════════════════════════════════════════ */
+    @property --sb-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --sb-angle-offset { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --sb-percent { syntax: "<percentage>"; initial-value: 12%; inherits: false; }
+
+    #hero {
+      background: radial-gradient(ellipse 110% 75% at 50% 18%, #06222e 0%, #041118 45%, #02070b 100%);
+      padding-top: 86px;
+    }
+
+    /* ── Top bar ── */
+    #nav.app-topbar {
+      height: auto; padding: 18px 44px 12px; gap: 18px;
+      justify-content: flex-start;
+      background: linear-gradient(180deg, rgba(2,8,12,0.92), rgba(2,8,12,0.55) 70%, rgba(2,8,12,0));
+      border-bottom: none; backdrop-filter: blur(6px);
+    }
+    .app-shiny {
+      isolation: isolate; position: relative; overflow: hidden; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      border: 1px solid transparent;
+      --sb-bg: rgba(2, 8, 30, 0.88);
+      --sb-highlight: rgba(80, 200, 255, 1);
+      background:
+        linear-gradient(var(--sb-bg), var(--sb-bg)) padding-box,
+        conic-gradient(from calc(var(--sb-angle) - var(--sb-angle-offset)), transparent, var(--sb-highlight) var(--sb-percent), rgba(255,255,255,0.9) calc(var(--sb-percent) * 2), var(--sb-highlight) calc(var(--sb-percent) * 3), transparent calc(var(--sb-percent) * 4)) border-box;
+      box-shadow: inset 0 0 0 1px rgba(0,60,120,0.4);
+      transition: --sb-angle-offset 800ms cubic-bezier(0.25,1,0.5,1), --sb-percent 800ms cubic-bezier(0.25,1,0.5,1), color 0.2s;
+      animation: sb-spin 2.5s linear infinite;
+    }
+    .app-shiny svg { position: relative; z-index: 2; pointer-events: none; }
+    .app-shiny:hover, .app-shiny:focus-visible { --sb-percent: 28%; --sb-angle-offset: 95deg; color: #fff; }
+    .app-shiny:active { transform: scale(0.94); }
+    @keyframes sb-spin { to { --sb-angle: 360deg; } }
+    .app-round { width: 42px; height: 42px; border-radius: 50%; color: rgba(160, 220, 255, 0.95); padding: 0; }
+    .app-theme {
+      width: 34px; height: 34px; border-radius: 10px; margin-left: 30px; padding: 0;
+      color: rgba(255, 220, 100, 0.98); --sb-highlight: rgba(255, 210, 60, 1);
+      font-size: 0; /* the script fills it with an icon */
+    }
+    .app-title {
+      margin-left: 70px;
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 3px;
+      color: rgba(0, 200, 255, 0.65); text-shadow: 0 0 12px rgba(0, 200, 255, 0.5); white-space: nowrap;
+    }
+    .app-status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88;
+      margin-left: auto; animation: blink 2s ease-in-out infinite; flex-shrink: 0;
+    }
+    .app-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0 auto; }
+    .app-time { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: rgba(0, 200, 255, 0.7); letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 200, 255, 0.4); line-height: 1; }
+    .app-date { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(0, 200, 255, 0.35); letter-spacing: 1px; text-transform: uppercase; }
+    .app-weather { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; border-left: 1px solid rgba(0,200,255,0.15); }
+    .app-weather[hidden] { display: none; }
+    .app-temp { display: flex; align-items: center; gap: 6px; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: rgba(0, 200, 255, 0.7); letter-spacing: 1px; line-height: 1; }
+    .app-weather-icon { font-size: 12px; }
+    .app-location { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 500; color: rgba(0, 200, 255, 0.4); letter-spacing: 0.5px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .app-news { display: flex; align-items: center; gap: 6px; padding-left: 12px; border-left: 1px solid rgba(0,200,255,0.15); width: 260px; overflow: hidden; flex-shrink: 1; min-width: 0; }
+    .app-news-label { display: flex; align-items: center; gap: 3px; font-family: 'Share Tech Mono', monospace; font-size: 8px; font-weight: 700; letter-spacing: 1.5px; color: #ff4444; flex-shrink: 0; animation: blink 1.4s ease-in-out infinite; }
+    .app-news-track { overflow: hidden; width: 100%; -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%); mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%); }
+    .app-news-inner { display: inline-flex; gap: 40px; white-space: nowrap; animation: scroll-ticker 60s linear infinite; }
+    .app-news-track:hover .app-news-inner { animation-play-state: paused; }
+    .app-news .ticker-item { font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: rgba(210, 225, 240, 0.85); }
+    .app-news .ticker-item::before { content: ''; }
+    #nav.app-topbar .nav-right { flex-shrink: 0; gap: 8px; }
+    #nav.app-topbar .btn-nav { font-size: 11.5px; padding: 6px 13px; }
+    #nav.app-topbar .btn-nav.ghost { color: rgba(160,220,255,0.9); border-color: rgba(0,200,255,0.25); }
+    #nav.app-topbar .btn-nav.blue { background: linear-gradient(135deg, #00a8e0, #0070c0); box-shadow: 0 0 16px rgba(0,180,255,0.25); }
+
+    /* HUD corner brackets */
+    .app-corner { position: absolute; top: 14px; width: 18px; height: 18px; pointer-events: none; z-index: 210; }
+    .app-corner-l { left: 14px; border-top: 1px solid rgba(0,200,255,0.5); border-left: 1px solid rgba(0,200,255,0.5); }
+    .app-corner-r { right: 14px; border-top: 1px solid rgba(0,200,255,0.5); border-right: 1px solid rgba(0,200,255,0.5); }
+
+    /* ── Orb ── */
+    #mainOrb {
+      width: 200px; height: 200px;
+      background: radial-gradient(circle at 35% 30%, #66ecff 0%, #10c8f0 38%, #0a9cc8 62%, #04506e 100%);
+      box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25);
+      animation: appOrbIdle 4s ease-in-out infinite;
+    }
+    @keyframes appOrbIdle {
+      0%,100% { box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25); }
+      50%     { box-shadow: 0 0 44px 12px rgba(0,210,255,0.70), 0 0 95px 30px rgba(0,170,230,0.36), 0 0 160px 55px rgba(0,120,180,0.20), inset 0 0 55px rgba(140,240,255,0.30); }
+    }
+    .orb-ring { border: 1px solid rgba(0, 200, 255, 0.3); box-shadow: 0 0 8px rgba(0, 200, 255, 0.2); animation: appOrbRing 5s linear infinite; }
+    .orb-ring:nth-child(1) { width: 236px; height: 236px; }
+    .orb-ring:nth-child(2) { width: 268px; height: 268px; border-color: rgba(0, 160, 255, 0.15); box-shadow: none; animation-duration: 9s; animation-direction: reverse; }
+    @keyframes appOrbRing { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+
+    #orbName {
+      font-family: 'Orbitron', sans-serif; font-size: 38px; font-weight: 700; letter-spacing: 10px; margin-top: 30px;
+      color: #fff; text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4);
+      animation: appNameGlow 3s ease-in-out infinite;
+    }
+    @keyframes appNameGlow {
+      0%,100% { text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4); }
+      50%     { text-shadow: 0 0 14px rgba(0,220,255,1), 0 0 50px rgba(0,200,255,0.9), 0 0 90px rgba(0,150,255,0.5); }
+    }
+    #orbStatus { font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 6px; color: rgba(0, 200, 255, 0.55); text-shadow: 0 0 8px rgba(0, 200, 255, 0.5); margin-top: 14px; }
+
+    /* ── Controls ── */
+    #orbActions { gap: 14px; }
+    .app-glow-wrap { position: relative; flex-shrink: 0; border-radius: 11px; }
+    .app-glow-mic { border-radius: 50%; }
+    .app-glow-ring { position: absolute; inset: -3px; border-radius: inherit; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity .3s ease; z-index: 0; }
+    .app-glow-wrap:hover .app-glow-ring { opacity: 1; }
+    .app-glow-ring::after { content: ''; position: absolute; inset: -120%; animation: appGlowSpin 5s cubic-bezier(0.56,0.15,0.28,0.86) infinite; }
+    .app-glow-attach .app-glow-ring::after { background: conic-gradient(#a050ff 0deg, #5060ff 100deg, transparent 150deg 210deg, #c070ff 300deg, #a050ff 360deg); }
+    .app-glow-mic .app-glow-ring::after { background: conic-gradient(#00c8ff 0deg, #0050ff 90deg, transparent 140deg 220deg, #00c8ff 270deg, #0090ff 360deg); }
+    .app-glow-clear .app-glow-ring::after { background: conic-gradient(#ff4040 0deg, #ff8020 100deg, transparent 150deg 210deg, #ff3060 300deg, #ff4040 360deg); }
+    @keyframes appGlowSpin { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(0.78); } 100% { transform: rotate(360deg) scale(1); } }
+    .app-glow-wrap .orb-btn { position: relative; z-index: 1; border: none; display: flex; align-items: center; justify-content: center; transition: background .25s, color .25s, transform .15s, box-shadow .25s; }
+    .app-glow-wrap .orb-btn:active { transform: scale(0.94); }
+    #heroNewChat { width: 56px; height: 56px; border-radius: 11px; background: #0d0b16; color: rgba(180,130,255,0.85); box-shadow: 0 0 0 1px rgba(140,70,255,0.25), 0 2px 12px rgba(100,40,200,0.18), inset 0 1px 0 rgba(255,255,255,0.05); }
+    #heroNewChat:hover { background: #110d1e; color: #c8a0ff; box-shadow: 0 0 0 1px rgba(170,90,255,0.5), 0 4px 18px rgba(120,50,240,0.28); }
+    #heroMicBtn { width: 88px; height: 88px; border-radius: 50%; background: #0b0f1a; color: rgba(120, 210, 255, 0.9); box-shadow: 0 0 0 1px rgba(0,180,255,0.28), 0 2px 18px rgba(0,100,200,0.22), inset 0 1px 0 rgba(255,255,255,0.06); }
+    #heroMicBtn:hover { background: #0d1525; color: #7dd8ff; box-shadow: 0 0 0 1px rgba(0,200,255,0.5), 0 4px 24px rgba(0,140,255,0.3); }
+    #heroMicBtn.listening { background: #071a10; color: #3dffa0; box-shadow: 0 0 0 1px rgba(0,255,140,0.45), 0 0 30px rgba(0,255,140,0.5); }
+    #heroTrash { width: 56px; height: 56px; border-radius: 11px; background: #160b0b; color: rgba(255,110,90,0.75) !important; box-shadow: 0 0 0 1px rgba(220,60,60,0.2), 0 2px 12px rgba(180,30,30,0.15), inset 0 1px 0 rgba(255,255,255,0.04); }
+    #heroTrash:hover { background: #1e0c0c; color: #ff7060 !important; box-shadow: 0 0 0 1px rgba(255,70,60,0.5), 0 4px 18px rgba(220,40,40,0.28); }
+    #clickToSpeak { font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 4px; color: rgba(0, 200, 255, 0.45); margin-top: 10px; }
+
+    /* Pills under the mic */
+    .app-pill {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+      padding: 6px 16px; border-radius: 10px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; color: rgba(255,255,255,0.92);
+      background: linear-gradient(145deg, #1e2252 0%, #0d1135 100%); border: 1px solid rgba(90,110,255,0.25);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07);
+      transition: transform .15s, box-shadow .2s, border-color .2s;
+    }
+    .app-pill:hover { border-color: rgba(120,140,255,0.5); box-shadow: 0 6px 18px rgba(40,60,200,0.35); }
+    #shiftBtn.app-pill { margin-top: 8px; font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.8px; color: rgba(255,255,255,0.92); }
+    .app-pill-hand { color: rgba(61,255,180,0.9); border-color: rgba(61,255,180,0.35); margin-top: 18px; }
+    .app-pill-hand:hover { border-color: rgba(61,255,180,0.6); box-shadow: 0 6px 18px rgba(0,200,140,0.25); }
+
+    .app-hand-fab {
+      position: absolute; left: 30px; bottom: 26px; z-index: 20; width: 54px; height: 54px; border-radius: 50%;
+      font-size: 22px; cursor: pointer; background: rgba(4,14,22,0.85); border: 1px solid rgba(0,200,255,0.18);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4); transition: border-color .2s, transform .15s;
+    }
+    .app-hand-fab:hover { border-color: rgba(61,255,180,0.5); transform: translateY(-1px); }
+
+    .app-toast {
+      position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 900;
+      padding: 10px 16px; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; color: #e8f6ff;
+      background: rgba(4,16,26,0.96); border: 1px solid rgba(0,200,255,0.3); box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    /* Light mode keeps the same structure with the app's light palette */
+    body.light #hero { background: radial-gradient(ellipse 110% 75% at 50% 18%, #e9f6ff 0%, #f3f9ff 55%, #ffffff 100%); }
+    body.light #nav.app-topbar { background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 70%, rgba(255,255,255,0)); }
+    body.light .app-title, body.light .app-time, body.light .app-temp { color: rgba(0,110,170,0.85); text-shadow: none; }
+    body.light .app-date, body.light .app-location { color: rgba(0,110,170,0.55); }
+    body.light .app-news .ticker-item { color: rgba(20,40,70,0.85); }
+    body.light #orbName { color: #06283a; text-shadow: 0 0 24px rgba(0,180,240,0.35); animation: none; }
+
+    @media (max-width: 1100px) {
+      .app-news { display: none; }
+      .app-title { margin-left: 24px; }
+    }
+    @media (max-width: 760px) {
+      #nav.app-topbar { padding: 12px 16px; gap: 10px; }
+      .app-title, .app-status-dot, .app-weather, .app-theme { display: none; }
+      .app-clock { margin: 0 auto 0 8px; align-items: flex-start; }
+      #nav.app-topbar .btn-nav.ghost { display: none; }
+      #orbName { font-size: 26px; letter-spacing: 6px; }
+      .app-hand-fab { display: none; }
+      .app-corner { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .app-shiny, #mainOrb, .orb-ring, #orbName, .app-news-inner, .app-glow-ring::after { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -999,14 +1179,34 @@
 <!-- ══════════ LANDING ══════════ -->
 <div id="landing">
 
-  <!-- NAV -->
-  <nav id="nav">
-    <a class="nav-brand" href="#">
-      <div class="nav-orb-sm"></div>
-      <span class="nav-name">CALLISTO</span>
-    </a>
+  <!-- TOP BAR — same layout, colours and order as the desktop app -->
+  <nav id="nav" class="app-topbar" aria-label="Callisto">
+    <button id="heroNavBtn" class="app-shiny app-round" title="Menu" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <button id="themeToggle" class="app-shiny app-theme" title="Toggle light / dark mode" aria-label="Toggle light or dark mode"></button>
+    <div class="app-title">PERSONAL AI ASSISTANT</div>
+    <div class="app-status-dot" aria-hidden="true"></div>
+    <div class="app-clock">
+      <div class="app-time" id="clockEl">--:--:--</div>
+      <div class="app-date" id="hudDate">---</div>
+    </div>
+    <div class="app-weather" id="hudWeather" hidden>
+      <div class="app-temp"><span class="app-weather-icon" id="hudWeatherIcon">☀</span><span id="hudTemp">--°C</span></div>
+      <div class="app-location" id="hudLocation"></div>
+    </div>
+    <div class="app-news">
+      <div class="app-news-label"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/></svg>LIVE</div>
+      <div class="app-news-track">
+        <div class="app-news-inner" id="tickerInner">
+          <span class="ticker-item">Talk to Callisto — press the mic below</span>
+          <span class="ticker-item">Download the desktop app for 3D Studio, AI video and posting to your socials</span>
+          <span class="ticker-item">Talk to Callisto — press the mic below</span>
+          <span class="ticker-item">Download the desktop app for 3D Studio, AI video and posting to your socials</span>
+        </div>
+      </div>
+    </div>
     <div class="nav-right">
-      <button id="themeToggle" title="Toggle light/dark mode">🌙</button>
       <button class="btn-nav ghost" id="signinBtn">Sign In</button>
       <div class="dropdown-wrap">
         <button class="btn-nav gold" id="premBtn">⭐ Get Premium ▾</button>
@@ -1021,37 +1221,9 @@
 
   <!-- HERO — app-style -->
   <div id="hero">
-    <!-- ☰ hamburger — sits below the info bar, top-left of hero content -->
-    <button id="heroNavBtn" style="position:absolute;top:128px;left:14px;z-index:50;width:40px;height:40px;border-radius:11px;background:rgba(10,15,40,0.75);border:1px solid rgba(61,92,255,0.2);backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(150,180,255,0.85);font-size:17px;transition:all 0.18s" title="Menu">☰</button>
-    <!-- news ticker -->
-    <div id="ticker">
-      <div class="ticker-live">
-        <div class="ticker-dot"></div>
-        <span class="ticker-label">LIVE</span>
-      </div>
-      <div class="ticker-scroll">
-        <div class="ticker-inner" id="tickerInner">
-          <span class="ticker-item">Markets: TSX +0.4% · S&P 500 +0.6% · Nasdaq +0.8%</span>
-          <span class="ticker-item">Breaking: Central banks hold rates steady amid inflation concerns</span>
-          <span class="ticker-item">Tech: AI chip demand hits record high in Q2 2026</span>
-          <span class="ticker-item">Sports: Champions League final set for Paris this weekend</span>
-          <span class="ticker-item">Weather: Heat advisory issued for much of North America</span>
-          <span class="ticker-item">Economy: Canadian unemployment falls to 4.8%</span>
-          <span class="ticker-item">Markets: TSX +0.4% · S&P 500 +0.6% · Nasdaq +0.8%</span>
-          <span class="ticker-item">Breaking: Central banks hold rates steady amid inflation concerns</span>
-          <span class="ticker-item">Tech: AI chip demand hits record high in Q2 2026</span>
-          <span class="ticker-item">Sports: Champions League final set for Paris this weekend</span>
-          <span class="ticker-item">Weather: Heat advisory issued for much of North America</span>
-          <span class="ticker-item">Economy: Canadian unemployment falls to 4.8%</span>
-        </div>
-      </div>
-    </div>
-    <!-- info bar -->
-    <div id="infoBar">
-      <span class="info-time" id="clockEl">—</span>
-      <span class="info-center">PERSONAL AI ASSISTANT</span>
-      <span class="info-weather">🌤 19°C · Willow, CA</span>
-    </div>
+    <!-- corner brackets + hand button, as in the app -->
+    <span class="app-corner app-corner-l" aria-hidden="true"></span><span class="app-corner app-corner-r" aria-hidden="true"></span>
+    <button id="heroHandFab" class="app-hand-fab" title="Hand control is part of the desktop app" aria-label="Hand control">🤚</button>
     <!-- ORB -->
     <div id="orbWrap" style="position:relative;width:100%">
       <div style="position:relative;display:flex;align-items:center;justify-content:center">
@@ -1067,11 +1239,21 @@
       <div id="voiceChat"></div>
       <!-- actions -->
       <div id="orbActions">
-        <button class="orb-btn" title="Add File" id="heroNewChat">＋</button>
-        <button class="orb-btn main" title="Start Chatting" id="heroMicBtn">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(100,160,255,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        </button>
-        <button class="orb-btn" id="heroTrash" title="Clear" style="color:rgba(200,80,80,0.6)">🗑</button>
+        <div class="app-glow-wrap app-glow-attach"><div class="app-glow-ring"></div>
+          <button class="orb-btn" title="Attach image or file" id="heroNewChat" aria-label="Attach image or file">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="app-glow-wrap app-glow-mic"><div class="app-glow-ring"></div>
+          <button class="orb-btn main" title="Click to speak" id="heroMicBtn" aria-label="Click to speak">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+          </button>
+        </div>
+        <div class="app-glow-wrap app-glow-clear"><div class="app-glow-ring"></div>
+          <button class="orb-btn" id="heroTrash" title="Clear chat" aria-label="Clear chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
       </div>
       <div id="clickToSpeak">CLICK TO SPEAK</div>
       <div id="micWave">
@@ -1079,7 +1261,8 @@
         <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
         <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
       </div>
-      <button id="shiftBtn">⌨ SHIFT TO TYPING</button>
+      <button id="handBtn" class="app-pill app-pill-hand" title="Hand control is part of the desktop app">🤚 ENGAGE HAND MOVEMENT</button>
+      <button id="shiftBtn" class="app-pill">⌨ SHIFT TO TYPING</button>
       <!-- Wikipedia image card -->
       <div id="voiceCard">
         <img id="voiceCardImg" src="" alt="" style="display:none"/>
@@ -1732,7 +1915,12 @@
   (()=>{const c=document.getElementById('starfield');for(let i=0;i<90;i++){const s=document.createElement('div');s.className='star';const sz=Math.random()*1.8+0.4;s.style.cssText=`width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;animation-duration:${3+Math.random()*6}s;animation-delay:${Math.random()*6}s`;c.appendChild(s);}})();
 
   // Clock
-  function updateClock(){const n=new Date();document.getElementById('clockEl').textContent=n.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' · '+n.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});}
+  function updateClock(){
+    // Two lines like the app: 09:45:10 / THU 17 SEP
+    const n=new Date();
+    const t=document.getElementById('clockEl'); if(t) t.textContent=n.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const d=document.getElementById('hudDate'); if(d){ const D=['SUN','MON','TUE','WED','THU','FRI','SAT'], M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']; d.textContent=D[n.getDay()]+' '+String(n.getDate()).padStart(2,'0')+' '+M[n.getMonth()]; }
+  }
   setInterval(updateClock,1000); updateClock();
 
   // Wave canvas — glowing fiber-optic strands like the app
@@ -1967,20 +2155,20 @@
     function render(){ view==='weekly'?buildWeekly():buildMonthly(); }
     render();
 
-    document.getElementById('btnWeekly').addEventListener('click',()=>{
+    document.getElementById('btnWeekly')?.addEventListener('click',()=>{
       view='weekly';offset=0;
       document.getElementById('btnWeekly').classList.add('active');
       document.getElementById('btnMonthly').classList.remove('active');
       render();
     });
-    document.getElementById('btnMonthly').addEventListener('click',()=>{
+    document.getElementById('btnMonthly')?.addEventListener('click',()=>{
       view='monthly';offset=0;
       document.getElementById('btnMonthly').classList.add('active');
       document.getElementById('btnWeekly').classList.remove('active');
       render();
     });
-    document.getElementById('cpPrev').addEventListener('click',()=>{offset--;render();});
-    document.getElementById('cpNext').addEventListener('click',()=>{offset++;render();});
+    document.getElementById('cpPrev')?.addEventListener('click',()=>{offset--;render();});
+    document.getElementById('cpNext')?.addEventListener('click',()=>{offset++;render();});
   })();
 
   // Reminders
@@ -2002,7 +2190,7 @@
       : '<div class="ccp-rem-empty">No reminders yet</div>';
   }
   renderChatReminders();
-  document.getElementById('chatRemAddBtn').addEventListener('click',()=>{
+  document.getElementById('chatRemAddBtn')?.addEventListener('click',()=>{
     const txt=prompt('New reminder:');
     if(txt&&txt.trim()){reminders.unshift(txt.trim());if(reminders.length>5)reminders.pop();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();renderChatReminders();}
   });
@@ -2055,16 +2243,57 @@
     }
   }
   renderChatCal();
-  document.getElementById('chatCalWkBtn').addEventListener('click',()=>{chatCalView='week';chatCalOffset=0;renderChatCal();});
-  document.getElementById('chatCalMoBtn').addEventListener('click',()=>{chatCalView='month';chatCalOffset=0;renderChatCal();});
-  document.getElementById('chatCalPrev').addEventListener('click',()=>{chatCalOffset--;renderChatCal();});
-  document.getElementById('chatCalNext').addEventListener('click',()=>{chatCalOffset++;renderChatCal();});
+  document.getElementById('chatCalWkBtn')?.addEventListener('click',()=>{chatCalView='week';chatCalOffset=0;renderChatCal();});
+  document.getElementById('chatCalMoBtn')?.addEventListener('click',()=>{chatCalView='month';chatCalOffset=0;renderChatCal();});
+  document.getElementById('chatCalPrev')?.addEventListener('click',()=>{chatCalOffset--;renderChatCal();});
+  document.getElementById('chatCalNext')?.addEventListener('click',()=>{chatCalOffset++;renderChatCal();});
 
-  document.getElementById('remAddBtn').addEventListener('click',()=>{
+  document.getElementById('remAddBtn')?.addEventListener('click',()=>{
     const txt=prompt('New reminder:');
     if(txt&&txt.trim()){reminders.unshift(txt.trim());if(reminders.length>5)reminders.pop();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
   });
-  document.getElementById('heroTrash').addEventListener('click',()=>{
+
+  // ── Live weather for the visitor (approximate city from IP, then Open-Meteo) ──
+  (async function loadHeroWeather(){
+    try {
+      const geo = await fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.ok ? r.json() : null);
+      if (!geo || geo.latitude == null) return;
+      const w = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + geo.latitude + '&longitude=' + geo.longitude + '&current=temperature_2m,weather_code').then(r => r.ok ? r.json() : null);
+      const cur = w && w.current; if (!cur) return;
+      const code = cur.weather_code;
+      const icon = code === 0 ? '☀' : code <= 3 ? '⛅' : code <= 48 ? '🌫' : code <= 67 ? '🌧' : code <= 77 ? '❄' : code <= 82 ? '🌦' : '⛈';
+      document.getElementById('hudTemp').textContent = Math.round(cur.temperature_2m) + '°C';
+      document.getElementById('hudWeatherIcon').textContent = icon;
+      document.getElementById('hudLocation').textContent = [geo.city, geo.country_code].filter(Boolean).join(', ');
+      document.getElementById('hudWeather').hidden = false;
+    } catch (_) { /* leave the weather hidden */ }
+  })();
+
+  // ── Real headlines in the LIVE strip ──
+  (async function loadHeroNews(){
+    try {
+      const d = await fetch(SERVER + '/web/news').then(r => r.ok ? r.json() : null);
+      const items = (d && d.headlines || []).slice(0, 12);
+      if (!items.length) return;
+      const el = document.getElementById('tickerInner');
+      const html = items.map(h => '<span class="ticker-item">' + String(h).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</span>').join('');
+      el.innerHTML = html + html;   // doubled so the scroll loops seamlessly
+    } catch (_) {}
+  })();
+
+  // ── Hand control lives in the desktop app ──
+  function handInApp(){
+    let t = document.getElementById('appToast');
+    if (!t) { t = document.createElement('div'); t.id = 'appToast'; t.className = 'app-toast'; t.setAttribute('role','status'); document.body.appendChild(t); }
+    t.textContent = 'Hand control works in the Callisto desktop app — download it below.';
+    t.hidden = false;
+    clearTimeout(handInApp._t); handInApp._t = setTimeout(() => { t.hidden = true; }, 4000);
+    document.getElementById('downloadSec')?.scrollIntoView({ behavior: 'smooth' });
+  }
+  document.getElementById('handBtn')?.addEventListener('click', handInApp);
+  document.getElementById('heroHandFab')?.addEventListener('click', handInApp);
+
+  document.getElementById('heroTrash')?.addEventListener('click',()=>{
     if(reminders.length){reminders.shift();localStorage.setItem('cal_reminders',JSON.stringify(reminders));renderReminders();}
   });
 
@@ -2072,23 +2301,23 @@
   const goStripe = url => { window.location.href = url + (user ? '?client_reference_id='+user.id : ''); };
 
   // Premium dropdown
-  document.getElementById('premBtn').addEventListener('click',e=>{e.stopPropagation();document.getElementById('premiumDrop').classList.toggle('hidden');});
-  document.getElementById('dropMonthly').addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('dropYearly').addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('monthlyBtn').addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('yearlyLink').addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('yearlyBtn') && document.getElementById('yearlyBtn').addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('premBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('premiumDrop').classList.toggle('hidden');});
+  document.getElementById('dropMonthly')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('dropYearly')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('monthlyBtn')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('yearlyLink')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('yearlyBtn') && document.getElementById('yearlyBtn')?.addEventListener('click',()=>goStripe(STRIPE_YR));
 
   document.addEventListener('click',()=>{document.getElementById('premiumDrop').classList.add('hidden');document.getElementById('cnPremDrop').classList.add('hidden');});
 
-  document.getElementById('cnPremBtn').addEventListener('click',e=>{e.stopPropagation();document.getElementById('cnPremDrop').classList.toggle('hidden');});
-  document.getElementById('cnDropMo').addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('cnDropYr').addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('sbUpgrade').addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('limMo').addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('limYr').addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('limCl').addEventListener('click',()=>document.getElementById('limitModal').classList.add('hidden'));
-  document.getElementById('premCont').addEventListener('click',()=>{document.getElementById('premModal').classList.add('hidden');loadUsage();});
+  document.getElementById('cnPremBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('cnPremDrop').classList.toggle('hidden');});
+  document.getElementById('cnDropMo')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('cnDropYr')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('sbUpgrade')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('limMo')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('limYr')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('limCl')?.addEventListener('click',()=>document.getElementById('limitModal').classList.add('hidden'));
+  document.getElementById('premCont')?.addEventListener('click',()=>{document.getElementById('premModal').classList.add('hidden');loadUsage();});
 
   // Theme toggle
   const themeBtn=document.getElementById('themeToggle');
@@ -2097,11 +2326,11 @@
     const chatTog=document.getElementById('chatThemeToggle');
     if(isDark){
       document.body.classList.remove('light');
-      themeBtn.textContent='🌙';
+      themeBtn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:2"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.78" y2="4.22"/></svg>';
       if(chatTog) chatTog.textContent='🌙';
     }else{
       document.body.classList.add('light');
-      themeBtn.textContent='☀️';
+      themeBtn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
       if(chatTog) chatTog.textContent='☀️';
     }
   }
@@ -2128,7 +2357,7 @@
   };
   const showAuthForced = ()=>document.getElementById('authOverlay').classList.remove('hidden');
   const hideAuth = ()=>document.getElementById('authOverlay').classList.add('hidden');
-  document.getElementById('signinBtn').addEventListener('click', showAuthForced);
+  document.getElementById('signinBtn')?.addEventListener('click', showAuthForced);
 
   function orbPulse(){
     const orb=document.getElementById('mainOrb');
@@ -2381,7 +2610,7 @@
     setTimeout(()=>{ if(mediaRec && mediaRec.state==='recording') mediaRec.stop(); }, 15000);
   }
 
-  document.getElementById('heroTrash').addEventListener('click',()=>{
+  document.getElementById('heroTrash')?.addEventListener('click',()=>{
     if(currentAudio){ currentAudio.pause(); currentAudio=null; }
     if(mediaRec && mediaRec.state==='recording') mediaRec.stop();
     voiceChatEl.innerHTML = '';
@@ -2391,8 +2620,8 @@
   });
 
   function goChat(){ orbPulse(); setTimeout(openChat, 200); }
-  document.getElementById('heroMicBtn').addEventListener('click', startLandingVoice);
-  document.getElementById('shiftBtn').addEventListener('click', goChat);
+  document.getElementById('heroMicBtn')?.addEventListener('click', startLandingVoice);
+  document.getElementById('shiftBtn')?.addEventListener('click', goChat);
 
   // + button → file picker
   const fileInput = document.createElement('input');
@@ -2411,16 +2640,16 @@
     }, 300);
     fileInput.value = '';
   });
-  document.getElementById('heroNewChat').addEventListener('click', ()=> fileInput.click());
-  document.getElementById('freeBtn').addEventListener('click', goChat);
+  document.getElementById('heroNewChat')?.addEventListener('click', ()=> fileInput.click());
+  document.getElementById('freeBtn')?.addEventListener('click', goChat);
 
   // Hero nav panel open/close
-  document.getElementById('heroNavBtn').addEventListener('click',()=>{
+  document.getElementById('heroNavBtn')?.addEventListener('click',()=>{
     document.getElementById('heroNavPanel').style.left='0';
     document.getElementById('heroNavOverlay').style.display='block';
     if(user){document.getElementById('hnavName').textContent=user.name||'';document.getElementById('hnavEmail').textContent=user.email||'';document.getElementById('hnavPlan').textContent=isPrem?'⭐ Premium — Unlimited':'Free Plan — 15 messages/day';document.getElementById('hnavAcctContent').style.display='flex';document.getElementById('hnavSignInPrompt').style.display='none';}else{document.getElementById('hnavAcctContent').style.display='none';document.getElementById('hnavSignInPrompt').style.display='block';}
   });
-  document.getElementById('heroNavClose').addEventListener('click',()=>closeNavPanel());
+  document.getElementById('heroNavClose')?.addEventListener('click',()=>closeNavPanel());
   function closeNavPanel(){
     document.getElementById('heroNavPanel').style.left='-340px';
     document.getElementById('heroNavOverlay').style.display='none';
@@ -2454,18 +2683,18 @@
       const sv=activeN.querySelector('svg'); if(sv) sv.setAttribute('stroke','#c0d0ff');
     }
   }
-  document.getElementById('authClose').addEventListener('click',hideAuth);
-  document.getElementById('authOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('authOverlay'))hideAuth();});
+  document.getElementById('authClose')?.addEventListener('click',hideAuth);
+  document.getElementById('authOverlay')?.addEventListener('click',e=>{if(e.target===document.getElementById('authOverlay'))hideAuth();});
 
-  document.getElementById('tabIn').addEventListener('click',()=>{document.getElementById('tabIn').classList.add('on');document.getElementById('tabUp').classList.remove('on');document.getElementById('loginForm').classList.remove('hidden');document.getElementById('signupForm').classList.add('hidden');});
-  document.getElementById('tabUp').addEventListener('click',()=>{document.getElementById('tabUp').classList.add('on');document.getElementById('tabIn').classList.remove('on');document.getElementById('signupForm').classList.remove('hidden');document.getElementById('loginForm').classList.add('hidden');});
+  document.getElementById('tabIn')?.addEventListener('click',()=>{document.getElementById('tabIn').classList.add('on');document.getElementById('tabUp').classList.remove('on');document.getElementById('loginForm').classList.remove('hidden');document.getElementById('signupForm').classList.add('hidden');});
+  document.getElementById('tabUp')?.addEventListener('click',()=>{document.getElementById('tabUp').classList.add('on');document.getElementById('tabIn').classList.remove('on');document.getElementById('signupForm').classList.remove('hidden');document.getElementById('loginForm').classList.add('hidden');});
 
-  document.getElementById('loginForm').addEventListener('submit',async e=>{
+  document.getElementById('loginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('lErr'); err.textContent='';
     try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();openChat();}catch{err.textContent='Connection error.';}
   });
-  document.getElementById('signupForm').addEventListener('submit',async e=>{
+  document.getElementById('signupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('sErr'); err.textContent='';
     try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();openChat();}catch{err.textContent='Connection error.';}
@@ -2490,8 +2719,8 @@
     if(window.location.search.includes('premium=success')){setTimeout(()=>document.getElementById('premModal').classList.remove('hidden'),500);window.history.replaceState({},'','/');}
   }
 
-  document.getElementById('cnBrand').addEventListener('click',()=>{document.getElementById('chatApp').classList.add('hidden');document.getElementById('landing').classList.remove('hidden');});
-  document.getElementById('cnUser').addEventListener('click',()=>{if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}});
+  document.getElementById('cnBrand')?.addEventListener('click',()=>{document.getElementById('chatApp').classList.add('hidden');document.getElementById('landing').classList.remove('hidden');});
+  document.getElementById('cnUser')?.addEventListener('click',()=>{if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}});
 
   // Auto-login
   (async()=>{if(!token)return;try{const r=await fetch(`${SERVER}/auth/me`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok){token=null;localStorage.removeItem('cal_tok');return;}const d=await r.json();user=d.user;isPrem=d.active;}catch{}})();
@@ -2505,7 +2734,7 @@
   uIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
   sBt.addEventListener('click',send);
   document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{uIn.value=c.dataset.q;send();}));
-  document.getElementById('newChatBtn').addEventListener('click',()=>{sessId=null;msgs=[];msgsEl.innerHTML='';msgsEl.appendChild(welcomeEl);welcomeEl.classList.remove('hidden');renderSess();});
+  document.getElementById('newChatBtn')?.addEventListener('click',()=>{sessId=null;msgs=[];msgsEl.innerHTML='';msgsEl.appendChild(welcomeEl);welcomeEl.classList.remove('hidden');renderSess();});
 
   function addMsg(role,text){
     welcomeEl.classList.add('hidden');

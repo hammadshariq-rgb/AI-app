@@ -1124,6 +1124,32 @@ async function checkDailyLimit(req, res, next) {
 }
 
 // ── Guest voice endpoint — no auth, full Whisper STT → GPT → fable TTS ──────
+// ── Headlines for the website's LIVE strip (public, cached) ───────────────────
+let _webNewsCache = { at: 0, headlines: [] };
+app.get('/web/news', async (_req, res) => {
+  try {
+    if (Date.now() - _webNewsCache.at < 10 * 60 * 1000 && _webNewsCache.headlines.length) {
+      return res.json({ headlines: _webNewsCache.headlines });
+    }
+    const feeds = ['https://feeds.bbci.co.uk/news/rss.xml', 'https://feeds.bbci.co.uk/news/world/rss.xml'];
+    const titles = [];
+    for (const url of feeds) {
+      try {
+        const xml = await fetch(url, { headers: { 'User-Agent': 'CallistoAI/1.0 (+https://callistoai.net)' } }).then(r => r.text());
+        for (const m of xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g)) {
+          const t = m[1].replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').trim();
+          if (t && !titles.includes(t)) titles.push(t);
+        }
+      } catch (_) { /* try the next feed */ }
+    }
+    if (titles.length) _webNewsCache = { at: Date.now(), headlines: titles.slice(0, 15) };
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ headlines: _webNewsCache.headlines });
+  } catch (err) {
+    res.json({ headlines: _webNewsCache.headlines });
+  }
+});
+
 app.post('/web/voice', aiLimiter, async (req, res) => {
   try {
     const { audio_b64, text } = req.body;
