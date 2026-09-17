@@ -1180,7 +1180,7 @@
     #nav.app-topbar { z-index: 450; }
     #chatApp { background: radial-gradient(ellipse 110% 75% at 50% 18%, #06222e 0%, #041118 45%, #02070b 100%); padding-top: 86px; }
     #chatNav { display: none !important; }
-    #chatWave { top: 42%; height: 300px; opacity: 1; }
+    #chatWave { top: 330px; transform: none; height: 300px; opacity: 1; } /* same strands and place as the voice screen */
     #chatOrb {
       top: 100px; width: 200px; height: 200px;
       background: radial-gradient(circle at 35% 30%, #66ecff 0%, #10c8f0 38%, #0a9cc8 62%, #04506e 100%);
@@ -1206,7 +1206,7 @@
     #chatApp .mbub.ai { background: rgba(20,26,44,0.92); border: 1px solid rgba(255,255,255,0.07); color: rgba(235,240,255,0.95); }
     #chatApp .mbub.user { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none; color: #f0eeff; box-shadow: 0 8px 24px -4px rgba(99,102,241,0.35); }
 
-    #chatApp #inputArea { position: relative; width: min(975px, calc(100vw - 340px)); margin: 0 auto; padding: 8px 0 18px; }
+    #chatApp #inputArea { position: relative; width: min(975px, max(420px, calc(100vw - 2 * 420px))); margin: 0 auto; padding: 8px 0 18px; } /* clear of the right-hand panels, like the app */
     #chatApp #chatExtraBar { position: absolute; left: 14px; top: 32px; z-index: 3; margin: 0; }
     #chatApp #chatExtraBar > div { gap: 8px !important; }
     #chatApp #attachBtn, #chatApp #clearChatBtn {
@@ -1272,6 +1272,7 @@
       #chatApp #inputArea { width: calc(100vw - 32px); }
       #chatApp #chatCalPanel { display: none; }
     }
+    .web-action-link { color: #22c3f0; font-weight: 600; text-decoration: underline; margin-left: 4px; }
   </style>
   <link rel="stylesheet" href="/panels/panels.css?v=1" />
 </head>
@@ -2179,12 +2180,12 @@
   setInterval(updateClock,1000); updateClock();
 
   // Wave canvas — glowing fiber-optic strands like the app
-  (()=>{
-    const canvas=document.getElementById('waveCanvas');
+  function startAppWave(canvas){
+    /* canvas passed in — same strands on the voice and typing screens */
     if(!canvas)return;
     const ctx=canvas.getContext('2d');
     let w,h,t=0;
-    function resize(){w=canvas.width=canvas.offsetWidth;h=canvas.height=canvas.offsetHeight||160;}
+    function resize(){w=canvas.width=canvas.offsetWidth;h=canvas.height=canvas.offsetHeight||160;} canvas._calResize=resize;
     resize(); window.addEventListener('resize',resize);
     // Define strands: each has baseline y offset, amplitude, frequency, phase, speed
     const strands=[
@@ -2285,71 +2286,12 @@
       requestAnimationFrame(draw);
     }
     draw();
-  })();
+  }
+  startAppWave(document.getElementById('waveCanvas'));
 
-  // ── Chat page wave canvas (mirrors hero wave, always animating) ───────────
-  (()=>{
-    const cv=document.getElementById('chatWave');
-    if(!cv)return;
-    const cx=cv.getContext('2d');
-    let cw,ch,ct=0;
-    function cResize(){cw=cv.width=cv.offsetWidth||window.innerWidth;ch=cv.height=cv.offsetHeight||200;}
-    cv._calResize=cResize;
-    cResize();window.addEventListener('resize',cResize);
-    const cStrands=[
-      {y:0.3,amp:0.28,freq:1.4,phase:0,   speed:0.18,bright:true},
-      {y:0.5,amp:0.22,freq:1.2,phase:2.4, speed:0.22,bright:true},
-      {y:0.45,amp:0.16,freq:1.7,phase:1.2,speed:0.14,bright:false},
-      {y:0.65,amp:0.18,freq:1.5,phase:3.1,speed:0.16,bright:true},
-      {y:0.55,amp:0.14,freq:2.0,phase:0.7,speed:0.12,bright:false},
-    ];
-    const cLightBands=[
-      {y:0.55,amp:0.20,freq:1.1,phase:0,  speed:0.09,color:'rgba(140,165,230,0.15)'},
-      {y:0.65,amp:0.18,freq:1.3,phase:1.1,speed:0.07,color:'rgba(120,145,220,0.18)'},
-      {y:0.45,amp:0.22,freq:0.9,phase:2.2,speed:0.11,color:'rgba(100,130,210,0.13)'},
-      {y:0.70,amp:0.15,freq:1.7,phase:1.9,speed:0.06,color:'rgba(130,155,220,0.20)'},
-    ];
-    const cLines=[
-      {y:0.48,amp:0.10,freq:1.4,phase:0.5,speed:0.14,color:'rgba(80,180,240,0.65)',w:1.0},
-      {y:0.52,amp:0.12,freq:1.2,phase:1.6,speed:0.18,color:'rgba(100,200,255,0.50)',w:0.7},
-    ];
-    function cY(s,x){return ch*s.y+Math.sin((x/cw)*Math.PI*s.freq*2+s.phase+ct*s.speed)*ch*s.amp;}
-    function cDraw(){
-      cx.clearRect(0,0,cw,ch);
-      const isLight=document.body.classList.contains('light');
-      if(isLight){
-        cLightBands.slice().sort((a,b)=>a.y-b.y).forEach(b=>{
-          cx.beginPath();cx.moveTo(0,cY(b,0));
-          for(let x=1;x<=cw;x+=2)cx.lineTo(x,cY(b,x));
-          cx.lineTo(cw,ch+10);cx.lineTo(0,ch+10);cx.closePath();
-          cx.fillStyle=b.color;cx.fill();
-        });
-        cLines.forEach(l=>{
-          cx.beginPath();cx.moveTo(0,cY(l,0));
-          for(let x=1;x<=cw;x+=2)cx.lineTo(x,cY(l,x));
-          cx.shadowColor='rgba(80,190,255,0.2)';cx.shadowBlur=5;
-          cx.strokeStyle=l.color;cx.lineWidth=l.w;cx.stroke();cx.shadowBlur=0;
-        });
-      } else {
-        cStrands.forEach(s=>{
-          const by=ch*s.y,ay=ch*s.amp;
-          cx.beginPath();
-          for(let x=0;x<=cw;x+=1){const y=by+Math.sin((x/cw)*Math.PI*s.freq*2+s.phase+ct*s.speed)*ay;x===0?cx.moveTo(x,y):cx.lineTo(x,y);}
-          if(s.bright){
-            cx.shadowColor='rgba(0,200,255,0.55)';cx.shadowBlur=16;cx.strokeStyle='rgba(0,210,255,0.2)';cx.lineWidth=4;cx.stroke();
-            cx.beginPath();
-            for(let x=0;x<=cw;x+=1){const y=by+Math.sin((x/cw)*Math.PI*s.freq*2+s.phase+ct*s.speed)*ay;x===0?cx.moveTo(x,y):cx.lineTo(x,y);}
-            cx.shadowColor='rgba(0,220,255,0.85)';cx.shadowBlur=7;cx.strokeStyle='rgba(80,220,255,0.85)';cx.lineWidth=1.1;cx.stroke();
-          } else {
-            cx.shadowColor='rgba(40,100,255,0.4)';cx.shadowBlur=10;cx.strokeStyle='rgba(60,140,255,0.45)';cx.lineWidth=1;cx.stroke();
-          }
-          cx.shadowBlur=0;
-        });
-      }
-      ct+=0.012;requestAnimationFrame(cDraw);
-    }
-    cDraw();
-  })();
+
+  // Typing screen uses the very same wave as the voice screen
+  startAppWave(document.getElementById('chatWave'));
 
   // Calendar widget
   // ── Calendar + Reminders panel ───────────────────────────────────────────
@@ -2821,36 +2763,61 @@
       reader.onloadend = async ()=>{
         const b64 = reader.result.split(',')[1];
         try{
+          // Streamed: the reply text arrives first, then audio sentence by sentence,
+          // so the answer shows and starts speaking as soon as each part is ready.
           const r = await fetch(`${SERVER}/web/voice`,{
             method:'POST',
-            headers:{'Content-Type':'application/json'},
+            headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},
             body:JSON.stringify({audio_b64: b64})
           });
           if(!r.ok) throw new Error('server');
-          const d = await r.json();
-          const transcript = d.transcript || '';
-          const reply = d.reply || 'Sorry, no response.';
-          const audioB64 = d.audio;
-
-          // Show user bubble then AI bubble
-          if(transcript) addVoiceBubble('user', transcript);
-          addVoiceBubble('ai', reply);
-          setOrbState('speak');
-
-          // Fetch Wikipedia card for the topic
-          if(transcript && typeof window._appPanelIntents==='function') window._appPanelIntents(transcript);
-          if(transcript) fetchAndShowCard(transcript);
-
-          if(audioB64){
-            const bytes = Uint8Array.from(atob(audioB64), c=>c.charCodeAt(0));
-            const audioBlob = new Blob([bytes],{type:'audio/mpeg'});
-            const url = URL.createObjectURL(audioBlob);
+          const queue = []; let playing = false, finished = false;
+          const playNext = ()=>{
+            if(playing) return;
+            const next = queue.shift();
+            if(!next){ if(finished) setOrbState('standby'); return; }
+            playing = true;
+            const bytes = Uint8Array.from(atob(next), c=>c.charCodeAt(0));
+            const url = URL.createObjectURL(new Blob([bytes],{type:'audio/mpeg'}));
             currentAudio = new Audio(url);
-            currentAudio.onended = ()=>{ setOrbState('standby'); URL.revokeObjectURL(url); currentAudio=null; };
-            currentAudio.onerror  = ()=>{ setOrbState('standby'); URL.revokeObjectURL(url); currentAudio=null; };
-            currentAudio.play().catch(()=>setOrbState('standby'));
+            const after = ()=>{ URL.revokeObjectURL(url); currentAudio=null; playing=false; playNext(); };
+            currentAudio.onended = after; currentAudio.onerror = after;
+            currentAudio.play().catch(after);
+          };
+          const handle = (d)=>{
+            if(d.reply !== undefined){
+              const transcript = d.transcript || '';
+              if(transcript) addVoiceBubble('user', transcript);
+              addVoiceBubble('ai', d.reply || 'Sorry, no response.');
+              setOrbState('speak');
+              if(transcript && typeof window._webActions==='function') window._webActions(transcript, true);
+              if(transcript && typeof window._appPanelIntents==='function') window._appPanelIntents(transcript);
+              if(transcript) fetchAndShowCard(transcript);
+            }
+            if(d.audio){ queue.push(d.audio); playNext(); }
+            if(d.done){ finished = true; if(!playing && !queue.length) setOrbState('standby'); }
+            // Older server without streaming: one JSON object with everything
+            if(d.audio === undefined && d.reply === undefined && d.done === undefined && d.transcript){ /* ignore */ }
+          };
+          if((r.headers.get('content-type')||'').includes('ndjson') && r.body){
+            const rd = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+            for(;;){
+              const {value, done} = await rd.read();
+              if(done) break;
+              buf += dec.decode(value, {stream:true});
+              let nl;
+              while((nl = buf.indexOf('\n')) >= 0){
+                const line = buf.slice(0, nl).trim(); buf = buf.slice(nl+1);
+                if(line){ try{ handle(JSON.parse(line)); }catch(_){} }
+              }
+            }
+            if(buf.trim()){ try{ handle(JSON.parse(buf)); }catch(_){} }
+            finished = true; if(!playing && !queue.length) setOrbState('standby');
           } else {
-            setTimeout(()=>setOrbState('standby'), 3000);
+            const d = await r.json();
+            handle({ transcript: d.transcript, reply: d.reply || 'Sorry, no response.' });
+            if(d.audio){ queue.push(d.audio); }
+            finished = true; playNext();
           }
         } catch(err){
           setOrbState('standby');
@@ -3090,8 +3057,76 @@
     return null;
   };
 
+  // ── Website actions: "open Spotify", "search Google for …", "play … on YouTube"
+  // The web version of what the app does with installed apps — each opens in a
+  // new tab. Returns a short confirmation, or null if the message isn't an action.
+  const WEB_APPS = {
+    spotify:'https://open.spotify.com', youtube:'https://www.youtube.com', 'youtube music':'https://music.youtube.com',
+    whatsapp:'https://web.whatsapp.com', instagram:'https://www.instagram.com', facebook:'https://www.facebook.com',
+    messenger:'https://www.messenger.com', twitter:'https://x.com', x:'https://x.com', tiktok:'https://www.tiktok.com',
+    snapchat:'https://web.snapchat.com', linkedin:'https://www.linkedin.com', reddit:'https://www.reddit.com',
+    pinterest:'https://www.pinterest.com', discord:'https://discord.com/app', telegram:'https://web.telegram.org',
+    gmail:'https://mail.google.com', email:'https://mail.google.com', outlook:'https://outlook.live.com/mail',
+    'google calendar':'https://calendar.google.com', 'google drive':'https://drive.google.com', drive:'https://drive.google.com',
+    'google docs':'https://docs.google.com', docs:'https://docs.google.com', sheets:'https://sheets.google.com',
+    'google maps':'https://maps.google.com', maps:'https://maps.google.com', google:'https://www.google.com',
+    netflix:'https://www.netflix.com', 'prime video':'https://www.primevideo.com', 'disney plus':'https://www.disneyplus.com',
+    twitch:'https://www.twitch.tv', amazon:'https://www.amazon.com', ebay:'https://www.ebay.com',
+    chatgpt:'https://chatgpt.com', github:'https://github.com', notion:'https://www.notion.so', canva:'https://www.canva.com',
+    figma:'https://www.figma.com', zoom:'https://app.zoom.us', teams:'https://teams.microsoft.com', 'apple music':'https://music.apple.com',
+    soundcloud:'https://soundcloud.com', wikipedia:'https://www.wikipedia.org', 'stack overflow':'https://stackoverflow.com',
+  };
+  const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
+  function webActionFor(text){
+    const t = String(text||'').trim().replace(/["“”]/g,'').replace(/[\s.!?,;:]+$/,'');
+    const enc = encodeURIComponent;
+    let m;
+    if((m = t.match(/^(?:play|put on|listen to)\s+(.+?)\s+on\s+spotify$/i))) return { url:'https://open.spotify.com/search/'+enc(m[1]), say:`Playing ${m[1]} on Spotify.` };
+    if((m = t.match(/^(?:play|watch|put on)\s+(.+?)\s+on\s+youtube(?:\s+music)?$/i))) return { url:'https://www.youtube.com/results?search_query='+enc(m[1]), say:`Opening ${m[1]} on YouTube.` };
+    if((m = t.match(/^(?:search|look up|find)\s+(?:on\s+)?youtube\s+(?:for\s+)?(.+)$/i)) || (m = t.match(/^(?:search|look up|find)\s+(.+?)\s+on\s+youtube$/i))) return { url:'https://www.youtube.com/results?search_query='+enc(m[1]), say:`Searching YouTube for ${m[1]}.` };
+    if((m = t.match(/^(?:search|look up|find)\s+(?:on\s+)?amazon\s+(?:for\s+)?(.+)$/i)) || (m = t.match(/^(?:search|find|look up)\s+(.+?)\s+on\s+amazon$/i))) return { url:'https://www.amazon.com/s?k='+enc(m[1]), say:`Searching Amazon for ${m[1]}.` };
+    if((m = t.match(/^(?:search|find|look up)\s+(.+?)\s+on\s+ebay$/i))) return { url:'https://www.ebay.com/sch/i.html?_nkw='+enc(m[1]), say:`Searching eBay for ${m[1]}.` };
+    if((m = t.match(/^(?:directions to|navigate to|take me to|show me)\s+(.+?)(?:\s+on\s+(?:google\s+)?maps)?$/i)) && /maps|directions|navigate|take me/i.test(t)) return { url:'https://www.google.com/maps/search/'+enc(m[1]), say:`Opening ${m[1]} in Google Maps.` };
+    if((m = t.match(/^(?:search\s+(?:on\s+)?google\s+(?:for\s+)?|google\s+|search\s+(?:the\s+web\s+)?for\s+|look up\s+)(.+?)(?:\s+on\s+google)?$/i)) || (m = t.match(/^search\s+(.+?)\s+on\s+google$/i))) return { url:'https://www.google.com/search?q='+enc(m[1]), say:`Searching Google for ${m[1]}.` };
+    if((m = t.match(/^(?:open|launch|start|go to)\s+(?:up\s+)?(?:my\s+|the\s+)?(.+)$/i))){
+      const name = m[1].toLowerCase().trim();
+      if(WEB_APPS[name]) return { url: WEB_APPS[name], say:`Opening ${titleCase(name)} in a new tab.` };
+      if(/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(name)) return { url: 'https://' + name.replace(/^https?:\/\//,''), say:`Opening ${name}.` };
+    }
+    return null;
+  }
+  window._webActions = function(text, fromVoice){
+    const a = webActionFor(text);
+    if(!a) return null;
+    const win = window.open(a.url, '_blank', 'noopener');
+    // Browsers block tabs that aren't opened straight from a click or key press
+    // (e.g. after a voice reply) — offer a one-click link instead.
+    if(!win){
+      if(fromVoice && typeof addVoiceBubble==='function'){ addVoiceBubble('ai', a.say); appendOpenLink(a.url, true); }
+      else { addMsg('ai', a.say); appendOpenLink(a.url, false); }
+    }
+    return a;
+  };
+
+  // Append a real "Open ↗" link to the newest bubble (bubbles escape HTML).
+  function appendOpenLink(url, voice){
+    const bubs = document.querySelectorAll(voice ? '.vc-bubble.ai' : '.mbub.ai');
+    const b = bubs[bubs.length-1]; if(!b) return;
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'web-action-link'; a.textContent = ' Open ↗';
+    b.appendChild(a);
+  }
+
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
+    // Open/search/play actions run instantly in a new tab — no AI round trip.
+    const act = webActionFor(t);
+    if(act){
+      uIn.value='';addMsg('user',t);
+      const win = window.open(act.url,'_blank','noopener');
+      addMsg('ai', act.say); if(!win) appendOpenLink(act.url, false);
+      return;
+    }
     if(window._appPanelIntents(t)==='calendar'){
       uIn.value='';addMsg('user',t);addMsg('ai','📅 Here\'s your calendar.');return;
     }

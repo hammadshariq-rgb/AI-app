@@ -1241,7 +1241,7 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
       const file = await toFile(buffer, 'audio.webm', { type: 'audio/webm' });
       try {
         const result = await openai.audio.transcriptions.create({
-          file, model: 'gpt-4o-transcribe', language: 'en',
+          file, model: 'gpt-4o-mini-transcribe', language: 'en',
           prompt: WHISPER_PROMPT || 'Callisto AI assistant', response_format: 'text', temperature: 0,
         });
         transcript = typeof result === 'string' ? result.trim() : (result.text || '').trim();
@@ -1267,6 +1267,25 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
       }),
     ]);
     const reply = completion.choices[0]?.message?.content?.trim() || 'Sorry, I could not respond.';
+
+    // Fast path for the website: stream results as they're ready — the reply text
+    // first, then audio sentence by sentence (generated in parallel), so visitors
+    // see and hear the answer seconds sooner than waiting for one big response.
+    if (String(req.headers.accept || '').includes('application/x-ndjson')) {
+      res.setHeader('Content-Type', 'application/x-ndjson');
+      res.setHeader('Cache-Control', 'no-cache');
+      const emit = (obj) => res.write(JSON.stringify(obj) + '\n');
+      emit({ transcript, reply });
+      const sentences = (reply.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [reply]).map(s => s.trim()).filter(Boolean);
+      const jobs = sentences.map((input) => openai.audio.speech.create({ model: 'tts-1', voice: 'fable', speed: 0.92, input, response_format: 'mp3' })
+        .then(r => r.arrayBuffer()).then(b => Buffer.from(b).toString('base64')).catch(() => null));
+      for (let i = 0; i < jobs.length; i++) {
+        const audio = await jobs[i];            // keep order; later ones are already running
+        if (audio) emit({ audio, index: i, last: i === jobs.length - 1 });
+      }
+      emit({ done: true });
+      return res.end();
+    }
 
     // Generate fable TTS (same voice + speed as desktop app)
     const ttsResult = await openai.audio.speech.create({
