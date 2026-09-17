@@ -1096,6 +1096,7 @@
       0%,100% { text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4); }
       50%     { text-shadow: 0 0 14px rgba(0,220,255,1), 0 0 50px rgba(0,200,255,0.9), 0 0 90px rgba(0,150,255,0.5); }
     }
+    #orbName, #orbStatus { position: relative; z-index: 3; } /* above the orb glow */
     #orbStatus { font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 6px; color: rgba(0, 200, 255, 0.55); text-shadow: 0 0 8px rgba(0, 200, 255, 0.5); margin-top: 14px; }
 
     /* ── Controls ── */
@@ -1171,14 +1172,112 @@
     @media (prefers-reduced-motion: reduce) {
       .app-shiny, #mainOrb, .orb-ring, #orbName, .app-news-inner, .app-glow-ring::after { animation: none; }
     }
+
+    /* ═══ TYPING PAGE — same screen as the app's typing mode ═══════════════════
+       The shared top bar stays, the orb/name/status sit where they do on the
+       voice screen, messages float in the middle, and the input bar sits at the
+       bottom with + and clear inside it and a round send button. */
+    #nav.app-topbar { z-index: 450; }
+    #chatApp { background: radial-gradient(ellipse 110% 75% at 50% 18%, #06222e 0%, #041118 45%, #02070b 100%); padding-top: 86px; }
+    #chatNav { display: none !important; }
+    #chatWave { top: 42%; height: 300px; opacity: 1; }
+    #chatOrb {
+      top: 100px; width: 200px; height: 200px;
+      background: radial-gradient(circle at 35% 30%, #66ecff 0%, #10c8f0 38%, #0a9cc8 62%, #04506e 100%);
+      box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25);
+      animation: appOrbIdle 4s ease-in-out infinite;
+    }
+    #chatOrb::before, #chatOrb::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+    #chatOrb::before { inset: -18px; border: 1px solid rgba(0,200,255,0.3); box-shadow: 0 0 8px rgba(0,200,255,0.2); }
+    #chatOrb::after { inset: -34px; border: 1px solid rgba(0,160,255,0.15); }
+    #chatOrb.thinking { transform: translateX(-50%) scale(1); animation: appOrbIdle 1.2s ease-in-out infinite; }
+    #chatOrbName, #chatOrbStatus { position: absolute; left: 50%; transform: translateX(-50%); z-index: 1; pointer-events: none; white-space: nowrap; }
+    #chatOrbName {
+      top: 340px; font-family: 'Orbitron', sans-serif; font-size: 38px; font-weight: 700; letter-spacing: 10px; color: #fff;
+      text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4);
+      animation: appNameGlow 3s ease-in-out infinite;
+    }
+    #chatOrbStatus { top: 398px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 6px; color: rgba(0,200,255,0.55); text-shadow: 0 0 8px rgba(0,200,255,0.5); }
+    #chatApp #welcome { display: none !important; }
+    #chatApp #chatMain { position: relative; z-index: 2; }
+    #chatApp #msgs { padding: 430px 0 18px; mask-image: linear-gradient(to bottom, transparent 0, black 440px); -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 440px); }
+    #chatApp .mrow { max-width: 820px; }
+    #chatApp .mbub { font-size: 15px; padding: 12px 18px; border-radius: 16px; }
+    #chatApp .mbub.ai { background: rgba(20,26,44,0.92); border: 1px solid rgba(255,255,255,0.07); color: rgba(235,240,255,0.95); }
+    #chatApp .mbub.user { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none; color: #f0eeff; box-shadow: 0 8px 24px -4px rgba(99,102,241,0.35); }
+
+    #chatApp #inputArea { position: relative; width: min(975px, calc(100vw - 340px)); margin: 0 auto; padding: 8px 0 18px; }
+    #chatApp #chatExtraBar { position: absolute; left: 14px; top: 32px; z-index: 3; margin: 0; }
+    #chatApp #chatExtraBar > div { gap: 8px !important; }
+    #chatApp #attachBtn, #chatApp #clearChatBtn {
+      width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    #chatApp #attachBtn { background: rgba(0,160,220,0.08); border: 1px solid rgba(0,160,220,0.25); color: rgba(120,190,255,0.85); }
+    #chatApp #clearChatBtn { background: rgba(200,60,60,0.10); border: 1px solid rgba(220,60,60,0.22); color: rgba(255,120,110,0.85); }
+    #chatApp #attachBtn svg, #chatApp #clearChatBtn svg { width: 15px; height: 15px; }
+    #chatApp #inputBar {
+      min-height: 84px; align-items: center; padding: 14px 14px 14px 108px; border-radius: 16px;
+      background: rgba(10,15,40,0.72); border: 1px solid rgba(0,160,220,0.28);
+    }
+    #chatApp #inputBar:focus-within { border-color: rgba(0,200,255,0.5); box-shadow: 0 0 0 3px rgba(0,180,255,0.08); }
+    #chatApp #userInput { font-size: 16px; color: rgba(220,235,255,0.95); font-family: 'Inter', sans-serif; }
+    #chatApp #userInput::placeholder { color: rgba(170,190,220,0.45); }
+    #chatApp #micBtn { display: none; }
+    #chatApp #sendBtn { width: 46px; height: 46px; border-radius: 50%; background: #0891c9; box-shadow: 0 4px 16px rgba(0,150,220,0.35); }
+    #chatApp #sendBtn svg { width: 18px; height: 18px; }
+    #chatApp #shiftVoiceBtn {
+      margin-top: 8px; padding: 9px 16px; border-radius: 10px; color: rgba(255,255,255,0.92); font-family: 'Inter', sans-serif; font-weight: 700; letter-spacing: 1px;
+      background: linear-gradient(145deg, #1e2252 0%, #0d1135 100%); border: 1px solid rgba(90,110,255,0.22);
+    }
+    #chatApp .input-hint { display: none; }
+    #chatApp #chatCalPanel { bottom: 24px; right: 22px; width: 340px; }
+
+    /* ═══ LIGHT MODE — the app's light theme ═══════════════════════════════════ */
+    body.light #hero, body.light #chatApp { background: radial-gradient(ellipse 120% 80% at 50% 25%, #eaf8ff 0%, #f6fbff 50%, #ffffff 100%); }
+    body.light #nav.app-topbar { background: rgba(248,250,255,0.82); border-bottom: 1px solid rgba(0,0,0,0.07); backdrop-filter: blur(12px); }
+    body.light .app-shiny { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.18) !important; box-shadow: 0 1px 8px rgba(0,0,0,0.10) !important; animation: none !important; color: rgba(20,20,25,0.88) !important; }
+    body.light .app-title { color: #1a1d35; text-shadow: none; }
+    body.light .app-status-dot { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+    body.light .app-time, body.light .app-date { color: rgba(30,40,100,0.65); text-shadow: none; }
+    body.light .app-temp { color: rgba(30,40,100,0.65); text-shadow: none; }
+    body.light .app-location { color: rgba(30,40,100,0.45); }
+    body.light .app-weather, body.light .app-news { border-left-color: rgba(30,40,100,0.15); }
+    body.light .app-news .ticker-item { color: rgba(40,48,70,0.75); }
+    body.light .app-corner-l, body.light .app-corner-r { border-color: rgba(0,80,200,0.25); }
+    body.light #nav.app-topbar .btn-nav.ghost { color: rgba(20,40,80,0.8); border-color: rgba(0,0,0,0.15); }
+
+    body.light #mainOrb, body.light #chatOrb {
+      box-shadow: 0 0 40px 10px rgba(0,190,255,0.45), 0 0 90px 30px rgba(0,170,240,0.22), 0 0 160px 60px rgba(0,150,230,0.10), inset 0 0 45px rgba(140,240,255,0.30);
+    }
+    body.light .orb-ring { border-color: rgba(0,160,255,0.22); box-shadow: none; }
+    body.light .orb-ring:nth-child(2) { border-color: rgba(0,140,255,0.13); }
+    body.light #orbName, body.light #chatOrbName { color: rgba(30,35,55,0.88); text-shadow: none; animation: none; }
+    body.light #orbStatus, body.light #chatOrbStatus { color: rgba(90,100,130,0.55); text-shadow: none; }
+
+    body.light #heroNewChat { background: #140f2a; color: rgba(190,150,255,0.95); }
+    body.light #heroMicBtn { background: #0b0f1a; color: rgba(120,210,255,0.9); }
+    body.light #heroTrash { background: rgba(0,0,0,0.05); color: #cc2222 !important; box-shadow: 0 0 0 1px rgba(200,40,40,0.25), 0 2px 10px rgba(0,0,0,0.06); }
+    body.light #clickToSpeak { color: rgba(0,170,220,0.6); }
+    body.light .app-pill { background: #ffffff; color: rgba(30,35,55,0.85); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 2px 10px rgba(0,0,0,0.10); }
+    body.light #shiftBtn.app-pill { color: rgba(30,35,55,0.85); }
+
+    body.light #chatApp .mbub.ai { background: rgba(248,248,252,0.97); border: 1px solid rgba(0,0,0,0.09); color: #1a1d35; box-shadow: 0 4px 14px -2px rgba(0,0,0,0.10); }
+    body.light #chatApp #inputBar { background: #ffffff; border: 1.5px solid rgba(0,0,0,0.13); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    body.light #chatApp #userInput { color: #111; }
+    body.light #chatApp #userInput::placeholder { color: rgba(0,0,0,0.32); }
+    body.light #chatApp #shiftVoiceBtn { background: #ffffff; color: rgba(30,35,55,0.85); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+    body.light #chatApp #clearChatBtn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.10); color: #cc2222; }
+
+    @media (max-width: 900px) {
+      #chatApp #inputArea { width: calc(100vw - 32px); }
+      #chatApp #chatCalPanel { display: none; }
+    }
   </style>
 </head>
 <body>
 <div id="starfield"></div>
 
 <!-- ══════════ LANDING ══════════ -->
-<div id="landing">
-
   <!-- TOP BAR — same layout, colours and order as the desktop app -->
   <nav id="nav" class="app-topbar" aria-label="Callisto">
     <button id="heroNavBtn" class="app-shiny app-round" title="Menu" aria-label="Open menu">
@@ -1219,11 +1318,13 @@
     </div>
   </nav>
 
+<div id="landing">
+
+
   <!-- HERO — app-style -->
   <div id="hero">
     <!-- corner brackets + hand button, as in the app -->
     <span class="app-corner app-corner-l" aria-hidden="true"></span><span class="app-corner app-corner-r" aria-hidden="true"></span>
-    <button id="heroHandFab" class="app-hand-fab" title="Hand control is part of the desktop app" aria-label="Hand control">🤚</button>
     <!-- ORB -->
     <div id="orbWrap" style="position:relative;width:100%">
       <div style="position:relative;display:flex;align-items:center;justify-content:center">
@@ -1261,7 +1362,6 @@
         <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
         <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
       </div>
-      <button id="handBtn" class="app-pill app-pill-hand" title="Hand control is part of the desktop app">🤚 ENGAGE HAND MOVEMENT</button>
       <button id="shiftBtn" class="app-pill">⌨ SHIFT TO TYPING</button>
       <!-- Wikipedia image card -->
       <div id="voiceCard">
@@ -1703,6 +1803,9 @@
   <canvas id="chatWave"></canvas>
   <!-- Persistent orb — shrinks while AI thinks, restores on clear -->
   <div id="chatOrb"></div>
+  <div id="chatOrbName">CALLISTO</div>
+  <div id="chatOrbStatus">STANDBY</div>
+  <span class="app-corner app-corner-l" aria-hidden="true"></span><span class="app-corner app-corner-r" aria-hidden="true"></span>
   <nav id="chatNav">
     <div class="cn-left">
       <button id="chatNavHamburger" title="Menu" onclick="document.getElementById('heroNavPanel').style.left='0';document.getElementById('heroNavOverlay').style.display='block'">☰</button>
@@ -1943,21 +2046,18 @@
       {y:0.35,amp:0.22,freq:1.3,phase:2.8,speed:0.15,bright:true},
     ];
     // Light mode: filled layered cloth/fabric waves
+    // Light mode — the app's look: a soft cyan mist with a bundle of fine cyan
+    // strands that fan out from a single ribbon.
     const lightBands=[
-      {y:0.50,amp:0.16,freq:1.1,phase:0,   speed:0.09, color:'rgba(140,165,230,0.09)'},
-      {y:0.56,amp:0.18,freq:1.3,phase:1.1, speed:0.07, color:'rgba(120,145,220,0.11)'},
-      {y:0.44,amp:0.20,freq:0.9,phase:2.2, speed:0.11, color:'rgba(100,130,210,0.08)'},
-      {y:0.62,amp:0.15,freq:1.5,phase:0.8, speed:0.08, color:'rgba(150,170,235,0.10)'},
-      {y:0.40,amp:0.22,freq:1.0,phase:3.0, speed:0.10, color:'rgba(110,140,225,0.07)'},
-      {y:0.68,amp:0.13,freq:1.7,phase:1.9, speed:0.06, color:'rgba(130,155,220,0.12)'},
-      {y:0.36,amp:0.18,freq:1.2,phase:4.1, speed:0.12, color:'rgba(160,180,240,0.06)'},
+      {y:0.58,amp:0.14,freq:1.1,phase:0,   speed:0.09, color:'rgba(120,215,245,0.10)'},
+      {y:0.64,amp:0.16,freq:1.3,phase:1.1, speed:0.07, color:'rgba(100,205,240,0.09)'},
+      {y:0.52,amp:0.18,freq:0.9,phase:2.2, speed:0.11, color:'rgba(150,225,250,0.07)'},
+      {y:0.70,amp:0.12,freq:1.5,phase:0.8, speed:0.08, color:'rgba(130,215,245,0.08)'},
     ];
-    // Light mode: thin bright cyan lines (like app)
-    const lightLines=[
-      {y:0.48,amp:0.10,freq:1.4,phase:0.5, speed:0.14, color:'rgba(80,180,240,0.65)',width:1.0},
-      {y:0.52,amp:0.12,freq:1.2,phase:1.6, speed:0.18, color:'rgba(100,200,255,0.50)',width:0.7},
-      {y:0.44,amp:0.08,freq:1.6,phase:2.7, speed:0.22, color:'rgba(60,160,230,0.45)',width:0.6},
-    ];
+    const lightLines=Array.from({length:14},(_,i)=>({
+      y:0.50+i*0.006, amp:0.16+i*0.012, freq:1.05, phase:0.4+i*0.09, speed:0.14,
+      color:'rgba(0,190,235,'+(0.55-i*0.03).toFixed(2)+')', width:i===0?1.2:0.8,
+    }));
 
     function waveY(band,x){
       const progress=x/w;
@@ -2815,12 +2915,12 @@
     msgs=[];sessId=null;busy=false;sBt.disabled=false;
     msgsEl.innerHTML='';
     document.getElementById('welcome').classList.remove('hidden');
-    document.getElementById('chatOrb').classList.remove('thinking');
+    document.getElementById('chatOrb').classList.remove('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='STANDBY';}
   }
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
-    document.getElementById('chatOrb').classList.add('thinking');
+    document.getElementById('chatOrb').classList.add('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='THINKING';}
     const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
     try{
@@ -2867,7 +2967,7 @@
       }
     }catch{document.getElementById('tRow')?.remove();addMsg('assistant','Connection error.');}
     busy=false;sBt.disabled=false;uIn.focus();
-    document.getElementById('chatOrb').classList.remove('thinking');
+    document.getElementById('chatOrb').classList.remove('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='STANDBY';}
   }
 
   function saveSess(prev){if(!sessId){sessId=Date.now();sessions.unshift({id:sessId,preview:prev.slice(0,55),msgs:msgs.slice()});}else{const i=sessions.findIndex(s=>s.id===sessId);if(i!==-1)sessions[i].msgs=msgs.slice();}sessions=sessions.slice(0,30);localStorage.setItem('cal_sess',JSON.stringify(sessions));renderSess();}
