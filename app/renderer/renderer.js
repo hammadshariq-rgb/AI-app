@@ -2274,6 +2274,13 @@ window._checkQuickLaunch = async function(text) {
         const stockText = `📈 **${sym}** — $${stockData.price ?? ''} ${stockData.change ?? ''}`;
         _maybeForwardToHud(stockText, stockCard);
         showCard(stockCard);
+        // Say the price, not just "looking up…"
+        const cur = stockData.currency === 'USD' ? '$' : `${stockData.currency || ''} `;
+        const dir = stockData.positive ? 'up' : 'down';
+        const pct = String(stockData.changePct || '').replace('-', '');
+        addMessage('assistant', `📈 **${stockData.name || sym} (${stockData.symbol || sym})** is at **${cur}${stockData.price}**, ${dir} ${pct}% today.`);
+        window.jarvis.speak(`${stockData.name || rawQuery} is at ${cur === '$' ? '' : cur}${stockData.price}${cur === '$' ? ' dollars' : ''}, ${dir} ${pct} percent today.`).catch(() => {});
+        if (typeof window.finAddStock === 'function') window.finAddStock(stockCard).catch?.(() => {});
         document.getElementById('finPanel')?.classList.remove('fp-hidden');
       } catch (e) { console.error('[stock intercept]', e); }
     })();
@@ -4694,9 +4701,14 @@ if (window.jarvis.onSentenceText) {
       const span = g.el.querySelector('.msg-text');
       if (span) span.textContent = g.text;     // plain while streaming; formatted at the end
       if (typeof scrollToBottom === 'function') scrollToBottom();
-    } else if (!g.timer) {
-      // No voice (muted / TTS failed)? Don't hold the reply back for long.
-      g.timer = setTimeout(_openReplyGate, 1200);
+    } else if (g.open && !g.el) {
+      // Gate opened by voice before any text arrived — show the bubble now
+      document.getElementById('_thinkingRow')?.remove();
+      g.el = addMessage('assistant', g.text);
+    } else {
+      // Show the reply (and any card) as soon as the first sentence exists.
+      // Waiting for its voice added ~1s; the voice follows a moment later.
+      _openReplyGate();
     }
   });
 }

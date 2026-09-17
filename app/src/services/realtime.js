@@ -471,8 +471,30 @@ async function _fetchRealtimeContextInner(query) {
 
 // (duplicate _timedFetch removed — defined at top of file)
 
-// Look up ticker symbol by company name using Yahoo Finance search
+// Stock lookups go through the Callisto server first: it caches quotes and
+// reaches Yahoo reliably, while direct requests from some networks are slow
+// enough to hit the timeout ("Couldn't find stock data for Amazon").
+const STOCK_SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+async function _serverStock(params) {
+  try {
+    const res = await _timedFetch(`${STOCK_SERVER}/web/stock?${params}`, {}, 4000);
+    if (!res.ok) return null;
+    const card = await res.json();
+    return card && card.symbol ? { ...card, isCrypto: /-USD$/.test(card.symbol) } : null;
+  } catch (_) { return null; }
+}
+
 async function resolveTickerSymbol(query) {
+  const viaServer = await _serverStock('q=' + encodeURIComponent(query));
+  return viaServer ? viaServer.symbol : _resolveTickerDirect(query);
+}
+
+async function getStockCard(symbol) {
+  return (await _serverStock('symbol=' + encodeURIComponent(symbol))) || _getStockCardDirect(symbol);
+}
+
+// Look up ticker symbol by company name using Yahoo Finance search (direct fallback)
+async function _resolveTickerDirect(query) {
   try {
     const res = await _timedFetch(
       `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0`,
@@ -485,8 +507,8 @@ async function resolveTickerSymbol(query) {
   return null;
 }
 
-// Stock / crypto data via Yahoo Finance (no API key needed)
-async function getStockCard(symbol) {
+// Stock / crypto data via Yahoo Finance directly (fallback)
+async function _getStockCardDirect(symbol) {
   try {
     const res = await _timedFetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=30d`,
