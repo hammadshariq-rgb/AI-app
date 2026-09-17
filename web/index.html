@@ -1273,6 +1273,7 @@
       #chatApp #chatCalPanel { display: none; }
     }
   </style>
+  <link rel="stylesheet" href="/panels/panels.css?v=1" />
 </head>
 <body>
 <div id="starfield"></div>
@@ -1376,40 +1377,6 @@
         </div>
       </div>
       <!-- Combined Calendar + Reminders panel (matches desktop app) -->
-      <div id="calPanel">
-        <!-- Reminders -->
-        <div class="cp-reminders">
-          <div class="cp-rem-header">
-            <span class="cp-rem-label">REMINDERS</span>
-            <button class="cp-rem-add" id="remAddBtn">+ ADD</button>
-          </div>
-          <div id="remList"><div class="cp-rem-empty">No reminders yet</div></div>
-        </div>
-        <!-- Calendar -->
-        <div class="cp-calendar">
-          <div class="cp-view-toggle">
-            <button class="cp-view-btn active" id="btnWeekly">Weekly</button>
-            <button class="cp-view-btn" id="btnMonthly">Monthly</button>
-            <span class="cp-settings">⚙</span>
-          </div>
-          <div class="cp-month-row">
-            <div class="cp-month-name" id="cpMonthName">September</div>
-            <div class="cp-nav">
-              <button id="cpPrev">&#8249;</button>
-              <button id="cpNext">&#8250;</button>
-            </div>
-          </div>
-          <div class="cp-day-labels">
-            <div class="cp-dl">M</div><div class="cp-dl">T</div><div class="cp-dl">W</div>
-            <div class="cp-dl">T</div><div class="cp-dl">F</div><div class="cp-dl">S</div><div class="cp-dl">S</div>
-          </div>
-          <div class="cp-day-row" id="cpDayRow"></div>
-          <div class="cp-bottom">
-            <span class="cp-note">Add a note...</span>
-            <button class="cp-new-event" onclick="if(token&&user){openChat();setTimeout(()=>{document.getElementById('userInput').value='Add a new calendar event';send();},300);}else showAuth();">+ New Event</button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -1828,48 +1795,6 @@
     </div>
   </nav>
   <!-- ── Calendar + Reminders floating panel (chat mode) ── -->
-    <div id="chatCalPanel">
-      <!-- Reminders -->
-      <div class="ccp-reminders">
-        <div class="ccp-rem-header">
-          <span class="ccp-rem-label">REMINDERS</span>
-          <button class="ccp-rem-add" id="chatRemAddBtn">+ ADD</button>
-        </div>
-        <div id="chatRemList"><div class="ccp-rem-empty">No reminders yet</div></div>
-      </div>
-      <!-- Calendar card -->
-      <div class="ccp-cal-card">
-        <div class="ccp-cal-header">
-          <button class="ccp-nav-arrow" id="chatCalPrev">&#8249;</button>
-          <span class="ccp-month-label" id="chatCalMonth">September</span>
-          <button class="ccp-nav-arrow" id="chatCalNext">&#8250;</button>
-        </div>
-        <div class="ccp-view-row">
-          <button class="ccp-view-btn active" id="chatCalWkBtn">Weekly</button>
-          <button class="ccp-view-btn" id="chatCalMoBtn">Monthly</button>
-          <button class="ccp-gcal-btn" title="Open Google Calendar" onclick="window.open('https://calendar.google.com')">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          </button>
-        </div>
-        <div id="chatCalGrid" class="ccp-grid"></div>
-        <div class="ccp-note-row">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          <span class="ccp-note-placeholder">Add a note...</span>
-        </div>
-        <button class="ccp-new-event" onclick="if(token&&user){document.getElementById('userInput').value='Add a new calendar event';send();}else showAuth();">+ New Event</button>
-      </div>
-      <!-- Portfolio stub -->
-      <div class="ccp-portfolio-card">
-        <div class="ccp-portfolio-header">
-          <span class="ccp-rem-label">PORTFOLIO</span>
-          <div style="display:flex;gap:4px">
-            <button class="ccp-nav-arrow" id="chatPortPrev">&#8249;</button>
-            <button class="ccp-nav-arrow" id="chatPortNext">&#8250;</button>
-          </div>
-        </div>
-        <div class="ccp-portfolio-body">Connect accounts to see portfolio</div>
-      </div>
-    </div>
   <div id="chatBody">
     <div id="chatSidebar">
       <!-- App-style nav tabs -->
@@ -1969,6 +1894,233 @@
     <!-- ── Calendar + Reminders panel (chat mode) ── -->
     </div>
 </div>
+
+<!-- ══════════ APP PANELS (same as the desktop app) ══════════ -->
+  <div id="remindersPanel">
+    <div class="rp-header">
+      <span class="rp-title">REMINDERS</span>
+      <button class="rp-add-btn" id="rpAddBtn">+ ADD</button>
+    </div>
+    <div class="rp-list" id="rpList">
+      <div class="rp-empty" id="rpEmpty">No reminders yet</div>
+    </div>
+    <div class="rp-add-form" id="rpAddForm">
+      <input class="rp-input" id="rpTextInput" type="text" placeholder="Reminder text…" maxlength="60" />
+      <input class="rp-input" id="rpTimeInput" type="datetime-local" />
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="rpSaveBtn">SAVE</button>
+        <button class="rp-cancel-btn" id="rpCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Glass Calendar ── -->
+  <div id="glassCalendar">
+    <div class="gc-header">
+      <div class="gc-tabs">
+        <button class="gc-tab active" id="gcTabWeekly">Weekly</button>
+        <button class="gc-tab" id="gcTabMonthly">Monthly</button>
+      </div>
+      <button class="gc-settings-btn" id="gcSettingsBtn" title="Settings">⚙</button>
+    </div>
+    <div class="gc-month-row">
+      <span class="gc-month-name" id="gcMonthName"></span>
+      <div class="gc-nav-btns">
+        <button class="gc-nav-btn" id="gcPrev">‹</button>
+        <button class="gc-nav-btn" id="gcNext">›</button>
+      </div>
+    </div>
+    <div class="gc-days-scroll">
+      <div class="gc-days-track" id="gcDaysTrack"></div>
+    </div>
+    <div class="gc-divider"></div>
+    <div class="gc-footer">
+      <button class="gc-note-btn">✏ Add a note…</button>
+      <button class="gc-new-event-btn" id="gcNewEventBtn">＋ New Event</button>
+    </div>
+    <!-- New Event Form -->
+    <div class="gc-event-form" id="gcEventForm">
+      <div class="gc-form-title">New Event</div>
+      <input class="rp-input" id="gcEventTitle" type="text" placeholder="Event title…" maxlength="80" />
+      <div class="rp-form-row">
+        <input class="rp-input" id="gcEventDate" type="date" style="flex:1" />
+        <input class="rp-input" id="gcEventTime" type="time" style="flex:1" />
+      </div>
+      <input class="rp-input" id="gcEventDesc" type="text" placeholder="Description (optional)…" maxlength="120" />
+      <label class="gc-gcal-row">
+        <input type="checkbox" id="gcEventGcal" checked /> Also add to Google Calendar
+      </label>
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="gcEventSave">SAVE</button>
+        <button class="rp-cancel-btn" id="gcEventCancel">Cancel</button>
+      </div>
+    </div>
+    <!-- Settings Panel -->
+    <div class="gc-settings-panel" id="gcSettingsPanel">
+      <div class="gc-settings-header">
+        <span class="gc-form-title">Calendar Settings</span>
+        <button class="rp-cancel-btn" id="gcSettingsClose" style="padding:2px 8px">✕</button>
+      </div>
+      <div class="gc-settings-row">
+        <span>Sync with Google Calendar</span>
+        <button class="gc-sync-btn" id="gcSyncBtn">SYNC NOW</button>
+      </div>
+      <div class="gc-settings-row">
+        <span>Clear local events</span>
+        <button class="gc-sync-btn" id="gcClearBtn" style="color:#ff5050">CLEAR</button>
+      </div>
+      <p class="gc-settings-hint">Say <em>"Add an event for [title] on [date] at [time]"</em> to add via voice.</p>
+    </div>
+  </div>
+
+  <!-- ── Financial Panel (bottom-right) ── -->
+  <div id="finPanel">
+    <div id="finPanelHeader">
+      <span id="finPanelLabel">PORTFOLIO</span>
+      <div id="finPanelNav">
+        <button id="finPrev" title="Previous">‹</button>
+        <div id="finDots"></div>
+        <button id="finNext" title="Next">›</button>
+      </div>
+      <button id="finExpandBtn" title="Expand portfolio" onclick="showMarketsOverlay()">⤢</button>
+      <button id="finPanelClose" title="Close">✕</button>
+    </div>
+    <div id="finSliderWrap">
+      <div id="finSlider"></div>
+    </div>
+  </div>
+
+  <!-- ── Markets Overlay (coverflow + P&L calculator) ── -->
+  <div id="marketsOverlay">
+    <div class="mo-overlay-inner">
+
+      <!-- Header row -->
+      <div class="mo-header">
+        <div class="mo-header-left">
+          <span class="mo-header-title">MARKETS</span>
+          <span class="mo-header-sub" id="moHeaderSub">YOUR PORTFOLIO</span>
+        </div>
+        <button class="mo-close-btn" id="moCloseBtn">✕ Close</button>
+      </div>
+
+      <!-- Coverflow carousel -->
+      <div class="mo-coverflow-wrap" id="moCoverflowWrap">
+        <button class="mo-cf-arrow left" id="moCfLeft">&#8249;</button>
+        <div class="mo-cf-frame" id="moCfFrame">
+          <!-- cards injected by JS -->
+        </div>
+        <button class="mo-cf-arrow right" id="moCfRight">&#8250;</button>
+      </div>
+
+      <!-- Active card details (below carousel) -->
+      <div class="mo-detail-band" id="moDetailBand">
+        <div class="mo-detail-symbol" id="moDetailSymbol"></div>
+        <div class="mo-detail-name" id="moDetailName"></div>
+        <div class="mo-detail-price-row">
+          <span class="mo-detail-price" id="moDetailPrice"></span>
+          <span class="mo-detail-badge" id="moDetailBadge"></span>
+        </div>
+        <div class="mo-detail-chart" id="moDetailChart"></div>
+      </div>
+
+      <!-- Dots navigation -->
+      <div class="mo-dots-row">
+        <div id="moDots" class="mo-dots"></div>
+        <div class="mo-nav-hint" id="moNavHint"></div>
+      </div>
+
+      <!-- P&L Calculator -->
+      <section class="mo-pnl-section" id="moPnlSection" aria-labelledby="moPnlTitle">
+        <span class="mo-pnl-spot" aria-hidden="true"></span>
+        <header class="mo-pnl-head">
+          <div>
+            <h3 class="mo-pnl-title" id="moPnlTitle">Profit &amp; loss</h3>
+            <p class="mo-pnl-sub">Enter your position to see how it's doing at today's price.</p>
+          </div>
+          <button type="button" class="mo-pnl-reset" id="moPnlReset">
+            <span class="mo-pnl-reset-glow" aria-hidden="true"></span>
+            <span class="mo-pnl-reset-label">Clear</span>
+          </button>
+        </header>
+
+        <div class="mo-pnl-inputs">
+          <label class="mo-pnl-field">
+            <span class="mo-pnl-label">Buy price</span>
+            <span class="mo-pnl-input-wrap">
+              <span class="mo-pnl-curr" id="moPnlCurr">$</span>
+              <input class="mo-pnl-input" id="moPnlBuyPrice" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal"/>
+            </span>
+          </label>
+          <label class="mo-pnl-field">
+            <span class="mo-pnl-label">Shares / units</span>
+            <span class="mo-pnl-input-wrap">
+              <input class="mo-pnl-input" id="moPnlShares" type="number" min="0" step="0.0001" placeholder="0" inputmode="decimal"/>
+            </span>
+          </label>
+        </div>
+
+        <div class="mo-pnl-result" id="moPnlResult" aria-live="polite">
+          <div class="mo-pnl-hero">
+            <span class="mo-pnl-row-label">Profit / loss</span>
+            <div class="mo-pnl-hero-line">
+              <span class="mo-pnl-row-val" id="moPnlPL">—</span>
+              <span class="mo-pnl-row-val mo-pnl-pill" id="moPnlReturn">—</span>
+            </div>
+          </div>
+          <dl class="mo-pnl-stats">
+            <div class="mo-pnl-stat">
+              <dt class="mo-pnl-row-label">Invested</dt>
+              <dd class="mo-pnl-row-val" id="moPnlInvested">—</dd>
+            </div>
+            <div class="mo-pnl-stat">
+              <dt class="mo-pnl-row-label">Current value</dt>
+              <dd class="mo-pnl-row-val" id="moPnlCurVal">—</dd>
+            </div>
+          </dl>
+        </div>
+        <p class="mo-pnl-ai-tip" id="moPnlAiTip"></p>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="calendarOverlay">
+    <div class="calo-inner">
+
+      <!-- Header -->
+      <div class="calo-header">
+        <div class="calo-header-left">
+          <div class="calo-label">CALENDAR</div>
+          <div class="calo-month" id="caloMonthLabel"></div>
+        </div>
+        <div class="calo-header-right">
+          <button class="calo-nav" id="caloPrev">‹</button>
+          <button class="calo-nav" id="caloNext">›</button>
+          <button class="calo-close" id="caloClose">✕</button>
+        </div>
+      </div>
+
+      <!-- Week-day row -->
+      <div class="calo-weekdays">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span>
+        <span>Th</span><span>Fr</span><span>Sa</span>
+      </div>
+
+      <!-- Day grid -->
+      <div class="calo-grid" id="caloGrid"></div>
+
+      <!-- Divider -->
+      <div class="calo-divider"></div>
+
+      <!-- Events list for selected day -->
+      <div class="calo-events-title" id="caloEventsTitle">EVENTS</div>
+      <div class="calo-events" id="caloEvents">
+        <div class="calo-event-empty">Select a day to see events</div>
+      </div>
+
+    </div>
+  </div>
+
 
 <!-- LIMIT MODAL -->
 <div id="limitModal" class="hidden">
@@ -2202,6 +2354,7 @@
   // Calendar widget
   // ── Calendar + Reminders panel ───────────────────────────────────────────
   (()=>{
+    if(!document.getElementById('cpDayRow')) return; // replaced by the app's Glass Calendar (panels/)
     const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
     let view='weekly'; // 'weekly' | 'monthly'
     let offset=0; // week/month offset from today
@@ -2275,6 +2428,7 @@
   const reminders=JSON.parse(localStorage.getItem('cal_reminders')||'[]');
   function renderReminders(){
     const list=document.getElementById('remList');
+    if(!list) return; // replaced by the app's Reminders panel
     list.innerHTML=reminders.length
       ? reminders.map(r=>`<div class="cp-rem-item"><div class="cp-rem-dot"></div><span>${r}</span></div>`).join('')
       : '<div class="cp-rem-empty">No reminders yet</div>';
@@ -2684,6 +2838,7 @@
           setOrbState('speak');
 
           // Fetch Wikipedia card for the topic
+          if(transcript && typeof window._appPanelIntents==='function') window._appPanelIntents(transcript);
           if(transcript) fetchAndShowCard(transcript);
 
           if(audioB64){
@@ -2917,8 +3072,29 @@
     document.getElementById('welcome').classList.remove('hidden');
     document.getElementById('chatOrb').classList.remove('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='STANDBY';}
   }
+  // Same quick actions as the desktop app: open the full calendar, and put any
+  // stock the user asks about into the portfolio panel with a live chart.
+  window._appPanelIntents = function(text){
+    const t=String(text||'').trim();
+    if(/show\s+(?:me\s+)?(?:my\s+)?(?:calendar|schedule)|open\s+(?:my\s+)?calendar|^my\s+calendar|calendar\s+view/i.test(t)){
+      if(typeof window.showCalendarOverlay==='function'){ window.showCalendarOverlay(); return 'calendar'; }
+    }
+    const stockAsk=/\b(stock|stocks|share price|shares|ticker|crypto|bitcoin|ethereum|price of)\b/i.test(t)
+      || /add\s+(.+?)\s+to\s+(?:my\s+)?portfolio/i.test(t);
+    if(stockAsk && window.jarvis && window.jarvis.financeFind){
+      const m=t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?portfolio/i);
+      const q=(m?m[1]:t).replace(/\b(what(?:'s| is)?|the|current|today'?s?|stock|stocks|share|shares|price|prices|of|for|how (?:is|are)|doing|ticker|crypto|please|show me|tell me)\b/gi,' ').replace(/[?.!]/g,' ').replace(/\s+/g,' ').trim();
+      if(q) window.jarvis.financeFind(q).then(card=>{ if(card && typeof window.finAddStock==='function') window.finAddStock(card); });
+      return 'stock';
+    }
+    return null;
+  };
+
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
+    if(window._appPanelIntents(t)==='calendar'){
+      uIn.value='';addMsg('user',t);addMsg('ai','📅 Here\'s your calendar.');return;
+    }
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
     document.getElementById('chatOrb').classList.add('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='THINKING';}
     const pendingAction=detectAction(t);
@@ -3202,5 +3378,9 @@
     .catch(function () {});
 })();
 </script>
+<script src="/panels/bridge.js?v=1"></script>
+<script src="/panels/panels.js?v=1"></script>
+<script src="/panels/portfolio.js?v=1"></script>
+<script src="/panels/calendar-overlay.js?v=1"></script>
 </body>
 </html>

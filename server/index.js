@@ -1124,6 +1124,85 @@ async function checkDailyLimit(req, res, next) {
 }
 
 // ── Guest voice endpoint — no auth, full Whisper STT → GPT → fable TTS ──────
+// ── Live stock / crypto quotes for the website (same data as the desktop app) ──
+const _stockCache = new Map();   // symbol -> { at, card }
+const STOCK_Q_RE = /\b(stock|stocks|share price|shares|ticker|market cap|trading at|crypto|bitcoin|ethereum|price of)\b/i;
+
+async function yahooResolveSymbol(query) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=0`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const d = await r.json();
+    return d?.quotes?.[0]?.symbol || null;
+  } catch (_) { return null; }
+}
+
+async function yahooStockCard(symbol) {
+  const key = String(symbol).toUpperCase();
+  const hit = _stockCache.get(key);
+  if (hit && Date.now() - hit.at < 30000) return hit.card;
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(key)}?interval=1d&range=30d`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const d = await r.json();
+    const result = d?.chart?.result?.[0];
+    const meta = result?.meta;
+    if (!meta?.regularMarketPrice) return null;
+    const price = meta.regularMarketPrice;
+    const prev = meta.previousClose || meta.chartPreviousClose || price;
+    const change = price - prev;
+    const fmtBig = (n) => n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T` : n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${n.toLocaleString()}`;
+    const card = {
+      type: 'stock',
+      symbol: meta.symbol,
+      name: meta.longName || meta.shortName || meta.symbol,
+      price: price < 1 ? price.toFixed(6) : price.toFixed(2),
+      change: Math.abs(change) < 1 ? change.toFixed(6) : change.toFixed(2),
+      changePct: prev ? ((change / prev) * 100).toFixed(2) : '0.00',
+      positive: change >= 0,
+      currency: meta.currency || 'USD',
+      sparkline: (result?.indicators?.quote?.[0]?.close || []).filter(Boolean).slice(-30),
+      high52: meta.fiftyTwoWeekHigh ? meta.fiftyTwoWeekHigh.toFixed(2) : null,
+      low52: meta.fiftyTwoWeekLow ? meta.fiftyTwoWeekLow.toFixed(2) : null,
+      marketCap: meta.marketCap ? fmtBig(meta.marketCap) : null,
+      source: 'Yahoo Finance',
+      sourceUrl: `https://finance.yahoo.com/quote/${meta.symbol}`,
+    };
+    _stockCache.set(key, { at: Date.now(), card });
+    return card;
+  } catch (_) { return null; }
+}
+
+// Pulls the company/ticker out of "Amazon stock price" and returns a live quote.
+async function stockFromQuestion(text) {
+  if (!STOCK_Q_RE.test(text || '')) return null;
+  const q = String(text).replace(/\b(what(?:'s| is)?|the|current|today'?s?|stock|stocks|share|shares|price|prices|of|for|how (?:is|are)|doing|trading at|ticker|market cap|crypto|please|show me|tell me|\?|\.)\b/gi, ' ').replace(/[?.!]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!q) return null;
+  const symbol = /^[A-Z.\-]{1,6}$/.test(q) ? q : await yahooResolveSymbol(q);
+  return symbol ? yahooStockCard(symbol) : null;
+}
+
+function stockContextMessage(card) {
+  if (!card) return null;
+  return {
+    role: 'system',
+    content: `Live market data (Yahoo Finance, just fetched): ${card.name} (${card.symbol}) is ${card.currency} ${card.price}, ${card.positive ? 'up' : 'down'} ${Math.abs(Number(card.change))} (${card.changePct}%) today.${card.high52 ? ` 52-week range ${card.low52}–${card.high52}.` : ''}${card.marketCap ? ` Market cap ${card.marketCap}.` : ''} Use these figures in your answer; do not say you lack real-time data.`,
+  };
+}
+
+app.get('/web/stock', async (req, res) => {
+  try {
+    const symbol = String(req.query.symbol || '').trim();
+    const q = String(req.query.q || '').trim();
+    const sym = symbol || (q ? await yahooResolveSymbol(q) : null);
+    if (!sym) return res.status(404).json({ error: 'Stock not found.' });
+    const card = await yahooStockCard(sym);
+    if (!card) return res.status(404).json({ error: 'Stock not found.' });
+    res.set('Cache-Control', 'public, max-age=20');
+    res.json(card);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Headlines for the website's LIVE strip (public, cached) ───────────────────
 let _webNewsCache = { at: 0, headlines: [] };
 app.get('/web/news', async (_req, res) => {
@@ -1183,7 +1262,7 @@ app.post('/web/voice', aiLimiter, async (req, res) => {
     const [completion, ] = await Promise.all([
       openai.chat.completions.create({
         model: 'gpt-4.1-mini',
-        messages: [{ role: 'system', content: sys }, { role: 'user', content: transcript }],
+        messages: [{ role: 'system', content: sys }, ...[stockContextMessage(await stockFromQuestion(transcript))].filter(Boolean), { role: 'user', content: transcript }],
         max_tokens: 180,
       }),
     ]);
@@ -1220,9 +1299,14 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
+    // Live price for stock questions, so the website answers like the app does
+    const lastUser = [...messages].reverse().find(m => m && m.role === 'user');
+    const stockMsg = stockContextMessage(await stockFromQuestion(typeof lastUser?.content === 'string' ? lastUser.content : ''));
+    const withContext = stockMsg ? [...messages.slice(0, -1), stockMsg, messages[messages.length - 1]] : messages;
+
     const stream = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
-      messages,
+      messages: withContext,
       max_tokens: 1024,
       temperature: 0.2,
       top_p: 0.9,
