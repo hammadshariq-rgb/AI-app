@@ -81,7 +81,9 @@
         "NSMicrophoneUsageDescription": "Callisto needs microphone access to hear your voice commands.",
         "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control.",
         "NSAppleEventsUsageDescription": "Callisto needs permission to control other apps so it can open apps, play music in Spotify and switch windows when you ask."
-      }
+      },
+      "identity": null,
+      "minimumSystemVersion": "10.15"
     },
     "linux": {
       "target": [
@@ -115,7 +117,8 @@
           "path": "/Applications"
         }
       ]
-    }
+    },
+    "afterPack": "build/adhoc-sign.js"
   },
   "dependencies": {
     "@devicefarmer/adbkit": "^3.3.9",

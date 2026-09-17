@@ -1653,7 +1653,7 @@
     <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.2.0/Your.Own.Personal.AI.Setup.1.2.0.exe" data-dl="win">⬇ Download for Windows — Free</a>
     <p class="dl-hint">Windows 10/11 · <span data-dl-version>v1.2.0</span> · Free to download</p>
     <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.2.0/Your.Own.Personal.AI-1.2.0-arm64.dmg" data-dl="mac" style="margin-top:14px;"> Download for macOS — Free</a>
-    <p class="dl-hint">macOS · Apple silicon &amp; Intel · <span data-dl-version>v1.2.0</span> · Right-click → Open on first launch</p>
+    <p class="dl-hint">macOS 10.15+ · Apple silicon &amp; Intel · <span data-dl-version>v1.2.0</span> · Right-click → Open on first launch</p>
     <p class="dl-hint" style="margin-top:6px"><a href="https://github.com/hammadshariq-rgb/AI-app/releases/latest" style="color:inherit;text-decoration:underline" data-dl-intel>Intel Mac? Choose your download here</a></p>
   </div>
 
@@ -3405,7 +3405,18 @@
       if (!rel || !rel.assets) return;
       var find = function (re) { var a = rel.assets.filter(function (x) { return re.test(x.name); })[0]; return a && a.browser_download_url; };
       var win = find(/setup.*.exe$/i) || find(/.exe$/i);
-      var mac = find(/arm64.dmg$/i) || find(/.dmg$/i);
+      // Apple silicon Macs report an Apple GPU — give them the arm64 build,
+      // Intel Macs the x64 one. (Rosetta ends in macOS 28, so arm64 matters.)
+      var appleSilicon = false;
+      try {
+        var gl = document.createElement('canvas').getContext('webgl');
+        var dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+        var renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+        appleSilicon = /Apple (Md|GPU)/i.test(renderer) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+      } catch (_) {}
+      var macArm = find(/arm64.dmg$/i), macIntel = find(/^(?!.*arm64).*.dmg$/i) || find(/.dmg$/i);
+      var mac = (appleSilicon ? macArm : macIntel) || macArm || macIntel;
+      document.querySelectorAll('[data-dl-intel]').forEach(function (a) { if (appleSilicon ? macIntel : macArm) a.href = appleSilicon ? macIntel : macArm; a.textContent = appleSilicon ? 'Intel Mac? Download that version' : 'Apple silicon Mac? Download that version'; });
       document.querySelectorAll('[data-dl="win"]').forEach(function (a) { if (win) a.href = win; });
       document.querySelectorAll('[data-dl="mac"]').forEach(function (a) { if (mac) a.href = mac; });
       document.querySelectorAll('[data-dl-version]').forEach(function (el) { if (rel.tag_name) el.textContent = rel.tag_name; });
