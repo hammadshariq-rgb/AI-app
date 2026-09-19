@@ -1624,10 +1624,52 @@ document.getElementById('finPanelLabel')?.addEventListener('click', () => showMa
 document.getElementById('finSliderWrap')?.addEventListener('click', () => showMarketsOverlay());
 document.getElementById('finExpandBtn')?.addEventListener('click', () => showMarketsOverlay());
 
+// ── Spoken portfolio summary ─────────────────────────────────────────────────
+// Reads the movers and the overall direction, so the user hears the numbers
+// while the cards are on screen.
+function marketsSummaryText() {
+  if (!finPortfolio.length) return 'There\'s nothing in your portfolio yet. Say "show me Apple stock", then add it.';
+  const fmt = (s) => {
+    const cur = s.currency === 'GBP' ? '£' : s.currency === 'EUR' ? '€' : '$';
+    return `${s.name || s.symbol} at ${cur}${parseFloat(s.price || 0).toFixed(2)}`;
+  };
+  const move = (s) => `${s.positive ? 'up' : 'down'} ${Math.abs(parseFloat(s.changePct || 0)).toFixed(2)} percent`;
+  const up = finPortfolio.filter((s) => s.positive);
+  const down = finPortfolio.filter((s) => !s.positive);
+  const avg = finPortfolio.reduce((t, s) => t + parseFloat(s.changePct || 0), 0) / finPortfolio.length;
+
+  if (finPortfolio.length === 1) {
+    const s = finPortfolio[0];
+    return `${fmt(s)}, ${move(s)} today.`;
+  }
+
+  const sorted = finPortfolio.slice().sort((a, b) => parseFloat(b.changePct || 0) - parseFloat(a.changePct || 0));
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  const shape = up.length && down.length
+    ? `${up.length} up and ${down.length} down`
+    : up.length ? 'all of them up' : 'all of them down';
+  const overall = `Your portfolio is ${avg >= 0 ? 'up' : 'down'} ${Math.abs(avg).toFixed(2)} percent on average`;
+  const leaders = up.length && down.length
+    ? ` ${fmt(best)} leads, ${move(best)}, while ${fmt(worst)} is ${move(worst)}.`
+    : ` ${fmt(best)} is ${move(best)}, and ${fmt(worst)} is ${move(worst)}.`;
+  return `${finPortfolio.length} holdings, ${shape}. ${overall}.${leaders}`;
+}
+
 // Command interception — "show my markets", "open portfolio", etc.
 window._checkMarketsOverlay = async function(text) {
-  if (!/show.*my\s+markets|open.*portfolio|portfolio.*overview|my\s+stocks|show.*portfolio|my\s+markets/i.test(text)) return false;
-  showMarketsOverlay();
+  if (!/show.*my\s+markets|open.*portfolio|portfolio.*overview|my\s+stocks|show.*portfolio|my\s+markets|how.*(my )?(markets|portfolio|stocks).*(doing|looking)|(overview|summary|rundown|breakdown).*(my )?(markets|portfolio|stocks)/i.test(text)) return false;
+  await showMarketsOverlay();
+  // Asking for an overview is a question, and questions get an answer in the
+  // chat. Asking to see the markets just opens them — then Callisto reads the
+  // numbers aloud while they're on screen, without cluttering the chat.
+  const wantsWritten = /(overview|summary|rundown|breakdown|how.*(doing|looking)|what.*(up|down)|tell me about)/i.test(text);
+  const summary = marketsSummaryText();
+  if (wantsWritten) addMessage('assistant', summary);
+  try {
+    const audio = await window.jarvis.speak(summary);
+    if (audio) playAudioChunks([audio]);
+  } catch (_) {}
   return true;
 };
 

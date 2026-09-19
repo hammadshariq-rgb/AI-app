@@ -3498,15 +3498,25 @@
           if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
           cursorRafId = requestAnimationFrame(cursorTick); // start 60fps cursor loop
           startGesture();
-          // Quick greeting when camera turns on — no vision call, just use profile
+          // Greeting the first time the camera turns on in a session — no vision
+          // call, just the title the user chose when they signed up.
           (async () => {
             try {
-              if (!window.jarvis || !window.jarvis.speak) return;
+              if (window._camGreeted || !window.jarvis || !window.jarvis.speak) return;
+              window._camGreeted = true;
               const prof = await window.jarvis.getProfile().catch(() => null);
               const title = prof?.title && prof.title !== 'none' ? prof.title : null;
               const name  = prof?.displayName || prof?.name || null;
               const address = title || name || 'boss';
-              window.jarvis.speak(`Looking good, ${address}.`);
+              const lines = [
+                `You look stunning, ${address}.`,
+                `Looking sharp today, ${address}.`,
+                `Looking good, ${address}.`,
+              ];
+              const line = lines[Math.floor(Math.random() * lines.length)];
+              const audio = await window.jarvis.speak(line);
+              // speak() hands back the audio — without this it was never played.
+              if (audio && typeof window.playAudioChunks === 'function') window.playAudioChunks([audio]);
             } catch(e) {}
           })();
         } else {
