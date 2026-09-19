@@ -35,6 +35,8 @@ if (process.defaultApp) {
 
 const store = new Store();
 const artifacts = require('./services/artifacts').createStore(store);
+const tasks = require('./services/tasks');
+tasks.init(store);
 
 // ── Cloud prefs sync — saves user settings to MongoDB so they follow across devices ──
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
@@ -1853,6 +1855,28 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
+  if (finalAction?.type === 'add_task') {
+    const [rawText, rawDate] = finalAction.arg.split('|');
+    const taskText = (rawText || '').trim();
+    if (!taskText) {
+      const spokenText = 'What would you like me to add to your list?';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const task = tasks.add(taskText, (rawDate || '').trim() || null);
+    _e.sender.send('jarvis:tasks-changed');
+    const when = tasks.dayLabel(task.due);
+    const spokenText = finalText || `Added to your list for ${when}: ${taskText}.`;
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
+  if (finalAction?.type === 'list_tasks') {
+    const spokenText = tasks.spokenList(finalAction.arg || 'today');
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: true };
+  }
+
   if (finalAction?.type === 'clear_schedule') {
     if (!calendar.isConnected()) {
       const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
@@ -3044,6 +3068,13 @@ ipcMain.handle('finance:remove', (_e, symbol) => {
 });
 
 // ── Reminder IPC ──────────────────────────────────────────────────────────────
+// ── Tasks (to-do list) ──
+ipcMain.handle('task:list', () => tasks.all());
+ipcMain.handle('task:add', (_e, { text, date } = {}) => { tasks.add(text, date); return tasks.all(); });
+ipcMain.handle('task:setDone', (_e, { id, done } = {}) => tasks.setDone(id, done));
+ipcMain.handle('task:delete', (_e, id) => tasks.remove(id));
+ipcMain.handle('task:briefing', () => ({ spoken: tasks.spokenList('today'), items: tasks.dueToday() }));
+
 ipcMain.handle('reminder:list', () => store.get('reminders') || []);
 ipcMain.handle('reminder:add', (_e, reminder) => {
   const reminders = store.get('reminders') || [];

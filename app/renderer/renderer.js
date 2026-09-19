@@ -5875,9 +5875,27 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const greeting = `Welcome back, ${addressAs}.`;
         const audio = await window.jarvis.speak(greeting);
         if (audio) playAudioChunks([audio]);
+        await speakTaskBriefing();
       } catch (e) { console.error('[GREET]', e); }
     }
   }
+}
+
+// Read the day's tasks back after the greeting — once per day, and only when
+// there is something to say.
+async function speakTaskBriefing() {
+  try {
+    if (!window.jarvis?.taskBriefing) return;
+    const todayKey = new Date().toDateString();
+    if (localStorage.getItem('callisto_task_briefing') === todayKey) return;
+    const { spoken, items } = await window.jarvis.taskBriefing();
+    localStorage.setItem('callisto_task_briefing', todayKey);
+    if (!items || !items.length) return;
+    addMessage('assistant', spoken);
+    const audio = await window.jarvis.speak(spoken);
+    if (audio) playAudioChunks([audio]);
+    window.tkRefresh?.();
+  } catch (e) { console.error('[TASKS]', e); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

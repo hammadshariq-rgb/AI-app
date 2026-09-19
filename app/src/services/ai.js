@@ -353,6 +353,35 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'add_task',
+      description: 'Add a task to the user\'s to-do list for a day. Use when the user says "add a task", "add to my to-do list", "I need to do X today/tomorrow", "put X on my list", "remind me to do X today" (no specific clock time). Unlike set_reminder, a task has no alarm time — it is read back to the user in their briefing on the day it is due. If the user gives a specific time of day ("remind me at 3pm"), use set_reminder instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'The task itself, short and in the user\'s own words, e.g. "Finish the chemistry homework" or "Call the supplier about the invoice".' },
+          date: { type: 'string', description: 'The day the task is due, as YYYY-MM-DD. Use the current date context in the system prompt to resolve "today", "tomorrow", "Friday". Omit for today.' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_tasks',
+      description: 'Read back the user\'s tasks. Use when they ask "what are my tasks", "what do I have to do today", "what\'s on my list", "what\'s left to do".',
+      parameters: {
+        type: 'object',
+        properties: {
+          when: { type: 'string', enum: ['today', 'tomorrow', 'all'], description: 'Which tasks to read back. Default today.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_volume',
       description: 'Set the system volume or mute/unmute. Use when the user says "set volume to X", "volume up/down", "mute", "unmute", "turn it up/down".',
       parameters: {
@@ -888,6 +917,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename || '', open: args.open !== false };
           else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
           else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
+          else if (fnName === 'add_task')    action = { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
+          else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
           else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
           else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
           else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
@@ -946,6 +977,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
     else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
     else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
+    else if (fnName === 'add_task')    action = { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
+    else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
     else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
     else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
     else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
@@ -970,8 +1003,9 @@ async function respondStreaming({ message, history = [], assistantName, memories
   const local = tryLocalCommand(message);
   if (local) { if (onSentence) onSentence(local.text); return { ...local, memory: null }; }
 
-  // Hard 15-second cap on the entire streaming operation
-  const STREAM_TIMEOUT_MS = 25000;
+  // Cap on the whole streaming operation. Long answers (biographies, explanations)
+  // genuinely take longer, so they get more room before we stop waiting.
+  const STREAM_TIMEOUT_MS = 45000;
 
   const hasImages = attachments.some(a => a.kind === 'image');
 
@@ -988,12 +1022,24 @@ async function respondStreaming({ message, history = [], assistantName, memories
   ];
 
   let streamCtrl;
+  // What has arrived so far. If the stream stalls or times out we return this
+  // instead of throwing — a shortened answer beats a sentence that stops dead.
+  let partialText = '';
+  const finishPartial = () => {
+    const clean = partialText.replace(/\[\[REMEMBER:[^\]]+\]\]/gi, '').trim();
+    if (!clean) return null;
+    // Drop a trailing half-sentence so the answer ends somewhere sensible.
+    const lastEnd = Math.max(clean.lastIndexOf('.'), clean.lastIndexOf('!'), clean.lastIndexOf('?'));
+    const trimmed = lastEnd > clean.length * 0.5 ? clean.slice(0, lastEnd + 1) : clean;
+    return { text: trimmed, memory: null, action: null, truncated: true };
+  };
+
   const streamResult = await Promise.race([
     (async () => {
       // Educational/study/homework queries need full budget; all other replies are 1-3 sentences
       const EDUCATIONAL_REGEX = /\b(explain|how does|how do|why does|why is|what is|what are|teach me|study|quiz|flashcard|revise|revision|step by step|in detail|describe|define|history of|science|math|chemistry|physics|biology|formula|equation|calculate|solve|homework|assignment|essay|question|answer|problem|working|workings?|proof|derive|derivation|simplify|factorise|factorize|integrate|differentiate|expand|balance|reaction|compound|element|periodic)\b/i;
       const BUSINESS_REGEX = /\b(accounting|finance|financial|tax|taxes|vat|gst|invoice|ledger|balance sheet|cash ?flow|income statement|profit|loss|revenue|margin|ebitda|depreciation|amorti[sz]ation|audit|payroll|budget|forecast|valuation|equity|debt|loan|interest|investment|portfolio|dividend|inflation|economics?|marketing|strategy|business|startup|company|management|operations|supply chain|pricing|sales|contract|law|legal|compliance|hr|negotiat\w*|leadership|entrepreneur\w*)\b/i;
-      const streamTokens = (EDUCATIONAL_REGEX.test(message) || BUSINESS_REGEX.test(message) || isKnowledgeQuestion(message)) ? 2000 : 500;
+      const streamTokens = (EDUCATIONAL_REGEX.test(message) || BUSINESS_REGEX.test(message) || isKnowledgeQuestion(message)) ? 2000 : 900;
       const res = await serverFetch('chat/stream', {
         model: 'gpt-4o-mini', max_tokens: streamTokens, temperature: 0.3, messages,
       }, { timeout: 25000, retries: 1 });
@@ -1006,6 +1052,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
       let lineBuffer = '';
       const SENTENCE_END = /[.!?]+(\s|$)/;
 
+      try {
       for await (const rawChunk of res.body) {
         if (streamCtrl.signal.aborted) break;
         lineBuffer += rawChunk.toString();
@@ -1023,6 +1070,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
             const delta = parsed.delta;
             if (!delta) continue;
             fullText += delta;
+            partialText = fullText;
             buffer += delta;
 
             let match;
@@ -1036,6 +1084,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
         }
       }
 
+      } catch (err) {
+        // Connection dropped part-way — keep what arrived rather than losing the answer.
+        if (!fullText.trim()) throw err;
+      }
+
       const remaining = buffer.trim();
       if (remaining && onSentence) onSentence(remaining);
 
@@ -1044,9 +1097,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
       const cleanText = fullText.replace(/\[\[REMEMBER:[^\]]+\]\]/gi, '').trim();
       return { text: cleanText, memory, action: null };
     })(),
-    new Promise((_, reject) => setTimeout(() => {
+    new Promise((resolve, reject) => setTimeout(() => {
       if (streamCtrl) streamCtrl.abort();
-      reject(new Error('Stream timed out'));
+      const partial = finishPartial();
+      if (partial) resolve(partial);
+      else reject(new Error('Stream timed out'));
     }, STREAM_TIMEOUT_MS)),
   ]);
 

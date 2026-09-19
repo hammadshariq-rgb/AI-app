@@ -494,6 +494,124 @@ function escCal(str) {
   loadAndRender();
 })();
 
+// ===================== TASKS (inside the reminders panel) =====================
+(function initTasksPanel() {
+  var list = document.getElementById('tkList');
+  var emptyEl = document.getElementById('tkEmpty');
+  var addBtn = document.getElementById('tkAddBtn');
+  var addForm = document.getElementById('tkAddForm');
+  var textInput = document.getElementById('tkTextInput');
+  var dateInput = document.getElementById('tkDateInput');
+  var saveBtn = document.getElementById('tkSaveBtn');
+  var cancelBtn = document.getElementById('tkCancelBtn');
+  if (!list || !addBtn) return;
+
+  function escT(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function startOfDay(ts) { var d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+  function todayStart() { return startOfDay(Date.now()); }
+  function isoToday() {
+    var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+
+  function dayLabel(due) {
+    var diff = Math.round((startOfDay(due) - todayStart()) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Tomorrow';
+    if (diff === -1) return 'Yesterday';
+    if (diff < -1) return Math.abs(diff) + ' days ago';
+    if (diff < 7) return new Date(due).toLocaleDateString('en-US', { weekday: 'long' });
+    return new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function loadAndRender() {
+    if (window.jarvis && window.jarvis.taskList) {
+      window.jarvis.taskList().then(renderList).catch(function() { renderList([]); });
+    } else {
+      renderList([]);
+    }
+  }
+
+  function renderList(tasks) {
+    list.querySelectorAll('.rp-item').forEach(function(el) { el.remove(); });
+    tasks = tasks || [];
+    // Open tasks first, oldest due date at the top; finished ones drop to the bottom.
+    var sorted = tasks.slice().sort(function(a, b) {
+      if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+      return (a.due || 0) - (b.due || 0);
+    });
+    // Hide tasks already ticked off on an earlier day — the list is about what's left.
+    sorted = sorted.filter(function(t) { return !t.done || startOfDay(t.completedAt || 0) === todayStart(); });
+
+    if (!sorted.length) {
+      emptyEl.style.display = '';
+    } else {
+      emptyEl.style.display = 'none';
+      sorted.forEach(function(t) {
+        var overdue = !t.done && (t.due || 0) < todayStart();
+        var item = document.createElement('div');
+        item.className = 'rp-item' + (t.done ? ' rp-done' : '') + (overdue ? ' rp-overdue' : '');
+        item.innerHTML =
+          '<div class="rp-icon">' + (t.done ? '✅' : (overdue ? '⚠️' : '📝')) + '</div>' +
+          '<div class="rp-content">' +
+            '<div class="rp-text">' + escT(t.text) + '</div>' +
+            '<div class="rp-time">' + dayLabel(t.due) + '</div>' +
+          '</div>' +
+          '<div class="rp-actions">' +
+            '<button class="rp-done-btn" title="Mark done">✓</button>' +
+            '<button class="rp-del-btn" title="Delete">✕</button>' +
+          '</div>';
+
+        item.querySelector('.rp-done-btn').addEventListener('click', function() {
+          if (!window.jarvis || !window.jarvis.taskSetDone) return;
+          window.jarvis.taskSetDone(t.id, !t.done).then(renderList).then(positionRightPanels);
+        });
+        item.querySelector('.rp-del-btn').addEventListener('click', function() {
+          if (!window.jarvis || !window.jarvis.taskDelete) return;
+          window.jarvis.taskDelete(t.id).then(renderList).then(positionRightPanels);
+        });
+
+        list.appendChild(item);
+      });
+    }
+    positionRightPanels();
+  }
+
+  addBtn.addEventListener('click', function() {
+    dateInput.value = isoToday();
+    addForm.classList.add('visible');
+    textInput.focus();
+    positionRightPanels();
+  });
+
+  cancelBtn.addEventListener('click', function() {
+    addForm.classList.remove('visible');
+    textInput.value = '';
+    positionRightPanels();
+  });
+
+  saveBtn.addEventListener('click', function() {
+    var text = textInput.value.trim();
+    if (!text || !window.jarvis || !window.jarvis.taskAdd) return;
+    window.jarvis.taskAdd(text, dateInput.value || null).then(function(all) {
+      addForm.classList.remove('visible');
+      textInput.value = '';
+      renderList(all);
+    });
+  });
+
+  textInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') saveBtn.click(); });
+
+  // Tasks added by voice ("add a task to finish my homework") refresh the list too.
+  if (window.jarvis && window.jarvis.onTasksChanged) window.jarvis.onTasksChanged(loadAndRender);
+
+  window.tkRefresh = loadAndRender;
+  loadAndRender();
+})();
+
 // ===================== RENDERER.JS HOOK: AI calendar event =====================
 // Patch into res handling so when AI adds a Google Calendar event, it also shows in-app
 (function patchAIResponse() {

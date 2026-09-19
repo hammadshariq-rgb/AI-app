@@ -633,6 +633,8 @@
       transition: background 0.15s !important;
     }
     .rp-item:last-child { border-bottom: none !important; }
+    .rp-header-tasks { border-top: 1px solid rgba(255,255,255,0.07) !important; }
+    .rp-item.rp-overdue .rp-time { color: rgba(255,150,150,0.8) !important; }
     .rp-item:hover { background: rgba(255,255,255,0.03) !important; }
     .rp-item.rp-done .rp-text { text-decoration: line-through !important; opacity: 0.4 !important; }
     .rp-icon {
@@ -2571,6 +2573,23 @@
       <div class="rp-form-row">
         <button class="rp-save-btn" id="rpSaveBtn">SAVE</button>
         <button class="rp-cancel-btn" id="rpCancelBtn">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Tasks — a day's to-do list, read back in the next day's briefing -->
+    <div class="rp-header rp-header-tasks">
+      <span class="rp-title">TASKS</span>
+      <button class="rp-add-btn" id="tkAddBtn">+ ADD</button>
+    </div>
+    <div class="rp-list" id="tkList">
+      <div class="rp-empty" id="tkEmpty">No tasks yet</div>
+    </div>
+    <div class="rp-add-form" id="tkAddForm">
+      <input class="rp-input" id="tkTextInput" type="text" placeholder="Task…" maxlength="80" />
+      <input class="rp-input" id="tkDateInput" type="date" />
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="tkSaveBtn">SAVE</button>
+        <button class="rp-cancel-btn" id="tkCancelBtn">Cancel</button>
       </div>
     </div>
   </div>
