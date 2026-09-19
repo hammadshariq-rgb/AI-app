@@ -95,11 +95,30 @@ jobs:
           echo "ASSISTANT_NAME=Jarvis" >> .env
           echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
 
+      # Signs and notarises with a Developer ID when the secrets are present,
+      # otherwise falls back to the ad-hoc signature (build/adhoc-sign.js), which
+      # lets the app launch on Apple silicon but still shows Gatekeeper's
+      # "unidentified developer" prompt on first open.
       - name: Build Mac DMG
         working-directory: app
+        shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --mac --publish never
+          CSC_LINK: ${{ secrets.APPLE_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ]; then
+            echo "Signing with Developer ID and notarising."
+            export CSC_IDENTITY_AUTO_DISCOVERY=true
+            npx electron-builder --mac --publish never \
+              --config.mac.notarize.teamId="$APPLE_TEAM_ID"
+          else
+            echo "No Apple credentials set — building with the ad-hoc signature."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npx electron-builder --mac --publish never
+          fi
 
       - name: Upload DMG to v1.1.3 release
         uses: softprops/action-gh-release@v2

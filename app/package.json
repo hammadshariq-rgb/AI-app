@@ -82,7 +82,6 @@
         "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control.",
         "NSAppleEventsUsageDescription": "Callisto needs permission to control other apps so it can open apps, play music in Spotify and switch windows when you ask."
       },
-      "identity": null,
       "minimumSystemVersion": "10.15"
     },
     "linux": {
