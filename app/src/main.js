@@ -1072,17 +1072,25 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
     clipboard.writeText(editedText);
     // Hide our window first so the document the user was editing gets focus back —
     // otherwise the paste lands in Callisto instead of their document.
-    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) overlayWindow.hide();
+    const wasVisible = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible();
+    if (wasVisible) overlayWindow.hide();
     setTimeout(async () => {
       const { execFile } = require('child_process');
+      // Bring Callisto back once the paste has landed, but without taking focus —
+      // the user carries on typing in their document.
+      const restore = () => setTimeout(() => {
+        if (wasVisible && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
+          overlayWindow.showInactive();
+        }
+      }, 500);
       if (process.platform === 'darwin') {
-        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 1500 }, () => {});
+        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 1500 }, restore);
         return;
       }
       execFile('powershell.exe', [
         '-NonInteractive', '-NoProfile', '-Command',
         `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
-      ], { timeout: 600 }, () => {});
+      ], { timeout: 600 }, restore);
     }, 600);
     return { editedText, summary: data.summary || null };
   } catch (err) {
