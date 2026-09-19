@@ -3960,6 +3960,25 @@ document.querySelectorAll('#lnavTabs .lnav-tab').forEach(tab => {
   tab.addEventListener('click', () => openLeftNavSection(tab.dataset.section));
 });
 
+// Help pane — support email and useful links
+(function wireHelpPane() {
+  const SUPPORT_EMAIL = 'support@callistoai.net';
+  const open = (url) => window.jarvis?.openUrl?.(url);
+  document.getElementById('helpEmailBtn')?.addEventListener('click', () => {
+    open(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Callisto AI support')}`);
+  });
+  const copyBtn = document.getElementById('helpCopyBtn');
+  copyBtn?.addEventListener('click', () => {
+    navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => { copyBtn.textContent = 'Copy address'; }, 1600);
+    }).catch(() => {});
+  });
+  document.querySelectorAll('#lnavPaneHelp .help-link').forEach((b) => {
+    b.addEventListener('click', () => open(b.dataset.url));
+  });
+})();
+
 // ===================== CHAT HISTORY =====================
 // historyBtn (hamburger in topBar) toggles the sidebar open/closed
 historyBtn?.addEventListener('click', async () => {

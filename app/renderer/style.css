@@ -8490,6 +8490,39 @@ body.light-mode .voice-preview-status { color: rgba(20, 30, 80, 0.55); }
   .mv-btn-primary span { display: none; }
 }
 
+/* ── Help pane ──────────────────────────────────────────────────────────────── */
+#lnavPaneHelp { display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 16px; }
+#lnavPaneHelp.hidden { display: none; }
+.help-title { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 14px; font-weight: 700; color: rgba(244, 236, 240, 0.95); }
+.help-sub { margin-top: 4px; font-family: 'Inter', sans-serif; font-size: 11.5px; line-height: 1.55; color: rgba(200, 170, 182, 0.65); }
+.help-label { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(200, 170, 182, 0.55); }
+.help-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 14px;
+  border-radius: 12px; background: rgba(var(--mv-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--mv-accent-rgb), 0.28);
+}
+.help-email { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: #fff; word-break: break-all; user-select: text; }
+.help-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.help-btn {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+  color: rgba(244, 236, 240, 0.85); background: transparent; border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.help-btn:hover { color: #fff; border-color: rgba(var(--mv-accent-rgb), 0.5); }
+.help-btn-primary { color: #fff; background: rgba(var(--mv-accent-rgb), 0.55); border-color: rgba(var(--mv-accent-rgb), 0.7); }
+.help-btn-primary:hover { background: rgba(var(--mv-accent-rgb), 0.75); }
+.help-tips ul { margin: 8px 0 0; padding-left: 18px; font-family: 'Inter', sans-serif; font-size: 11.5px; line-height: 1.7; color: rgba(220, 200, 208, 0.75); }
+.help-links { display: flex; gap: 6px 14px; flex-wrap: wrap; padding: 0 2px; }
+.help-link { background: none; border: none; padding: 0; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11.5px; color: rgba(var(--mv-accent-rgb), 0.95); text-decoration: underline; text-underline-offset: 2px; }
+.help-btn:focus-visible, .help-link:focus-visible { outline: 2px solid #4de8ff; outline-offset: 2px; }
+
+body.light-mode .help-title { color: #14182b; }
+body.light-mode .help-sub, body.light-mode .help-tips ul { color: #4a5068; }
+body.light-mode .help-label { color: #6b7088; }
+body.light-mode .help-email { color: #14182b; }
+body.light-mode .help-btn { color: #2a2f45; border-color: rgba(20, 24, 43, 0.18); }
+body.light-mode .help-btn-primary { color: #fff; }
+
 /* ── Artifacts pane ─────────────────────────────────────────────────────────── */
 #lnavPaneArtifacts { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 16px; }
 #lnavPaneArtifacts.hidden { display: none; }

@@ -1722,6 +1722,14 @@
               </svg>
               <span>Artifacts</span>
             </button>
+            <button class="lnav-tab" data-section="help">
+              <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.35"/>
+                <path d="M7.75 7.9a2.3 2.3 0 0 1 4.45.75c0 1.5-2.2 1.9-2.2 3.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="10" cy="14.4" r="0.85" fill="currentColor"/>
+              </svg>
+              <span>Help</span>
+            </button>
             <button class="lnav-tab" data-section="settings">
               <svg class="lnav-tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.35"/>
@@ -1945,6 +1953,36 @@
               <div class="art-empty-mark" aria-hidden="true"></div>
               <div class="art-empty-title">Nothing yet this week</div>
               <div class="art-empty-text">Ask Callisto to “paint a dragon”, “make a 3D model of a helmet” or “make a video of a cat surfing” — they'll collect here.</div>
+            </div>
+          </div>
+
+          <!-- ── HELP PANE ── -->
+          <div class="lnav-pane hidden" id="lnavPaneHelp">
+            <div class="help-head">
+              <div class="help-title">Need a hand?</div>
+              <div class="help-sub">Questions, bugs, billing or feedback — email us and a real person replies, usually within one business day.</div>
+            </div>
+            <div class="help-card">
+              <div class="help-label">Contact support</div>
+              <div class="help-email" id="helpEmail">support@callistoai.net</div>
+              <div class="help-actions">
+                <button class="help-btn help-btn-primary" id="helpEmailBtn" type="button">Email support</button>
+                <button class="help-btn" id="helpCopyBtn" type="button">Copy address</button>
+              </div>
+            </div>
+            <div class="help-tips">
+              <div class="help-label">Helps us fix it faster</div>
+              <ul>
+                <li>What you asked Callisto, word for word</li>
+                <li>What happened, and what you expected</li>
+                <li>Your computer — Windows or Mac</li>
+                <li>A screenshot, if something looks wrong</li>
+              </ul>
+            </div>
+            <div class="help-links">
+              <button class="help-link" type="button" data-url="https://callistoai.net">callistoai.net</button>
+              <button class="help-link" type="button" data-url="https://callistoai.net/privacy.html">Privacy policy</button>
+              <button class="help-link" type="button" data-url="https://callistoai.net/terms.html">Terms</button>
             </div>
           </div>
 
