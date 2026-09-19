@@ -1658,7 +1658,12 @@ function marketsSummaryText() {
 
 // Command interception — "show my markets", "open portfolio", etc.
 window._checkMarketsOverlay = async function(text) {
-  if (!/show.*my\s+markets|open.*portfolio|portfolio.*overview|my\s+stocks|show.*portfolio|my\s+markets|how.*(my )?(markets|portfolio|stocks).*(doing|looking)|(overview|summary|rundown|breakdown).*(my )?(markets|portfolio|stocks)/i.test(text)) return false;
+  // Any mention of the user's own markets opens the cards — "show me my markets",
+  // "how's my portfolio", "what are my stocks at", "check my holdings".
+  // "Show me Apple stock" names a company and belongs to the single-stock card,
+  // so it deliberately doesn't match: this needs my/our, or "the markets".
+  const MARKETS_RE = /\b(?:my|our)\s+(?:markets?|portfolio|stocks?|shares|holdings|investments?)\b|\bportfolio\s+(?:overview|summary|page)\b|\bopen\s+(?:the\s+)?portfolio\b|\bhow\s+(?:are|is|'s)\s+the\s+markets?\b/i;
+  if (!MARKETS_RE.test(text)) return false;
   await showMarketsOverlay();
   // Asking for an overview is a question, and questions get an answer in the
   // chat. Asking to see the markets just opens them — then Callisto reads the
