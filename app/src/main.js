@@ -148,6 +148,7 @@ let captureWindow = null;   // Ctrl+Shift+Y screen capture overlay
 let tray = null;
 let hudVoiceMode  = false;   // true while waiting for a Ctrl+Shift+C response
 let hudListening  = false;   // tracks whether HUD mic is currently active
+let magicEditActive = false; // true while the Magic Editor is listening (Ctrl+Shift+E)
 let isQuitting    = false;   // true only during a real quit, so 'close' can hide instead
 
 // Bring the app back up from the tray/dock. Recreates the window if it is gone.
@@ -687,6 +688,13 @@ app.whenReady().then(async () => {
 
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
   const magicEditRegistered = globalShortcut.register('Control+Shift+E', async () => {
+    // Second press while the editor is open: stop the mic and apply the edit,
+    // rather than starting over (which used to wipe what the user just said).
+    if (magicEditActive) {
+      magicEditActive = false;
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('jarvis:magic-edit-stop');
+      return;
+    }
     const { clipboard } = require('electron');
     const { execFile } = require('child_process');
     // Step 1: Send Ctrl+C to whatever app currently has focus (copies the selection)
@@ -747,6 +755,7 @@ app.whenReady().then(async () => {
     } else {
       overlayWindow.focus();
     }
+    magicEditActive = true;
     overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
   });
   // Another app holding this combination would silently swallow the shortcut.
@@ -1049,7 +1058,10 @@ Return ONLY the Python code — no markdown fences, no explanation.`
 });
 
 // ── Magic Editor ─────────────────────────────────────────────────────────────
+ipcMain.on('magic:ended', () => { magicEditActive = false; });
+
 ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
+  magicEditActive = false;
   try {
     const res = await ai.serverFetch('magic-edit', { selectedText, instruction }, { timeout: 30000, retries: 1 });
     const data = await res.json();
@@ -1058,16 +1070,21 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
     // Put edited text in clipboard
     const { clipboard } = require('electron');
     clipboard.writeText(editedText);
-    // Try to auto-paste back: wait 400ms so user's window can regain focus, then send Ctrl+V
-    // The overlay window should have been re-hidden by the renderer before calling this
+    // Hide our window first so the document the user was editing gets focus back —
+    // otherwise the paste lands in Callisto instead of their document.
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) overlayWindow.hide();
     setTimeout(async () => {
       const { execFile } = require('child_process');
+      if (process.platform === 'darwin') {
+        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 1500 }, () => {});
+        return;
+      }
       execFile('powershell.exe', [
         '-NonInteractive', '-NoProfile', '-Command',
         `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
       ], { timeout: 600 }, () => {});
     }, 600);
-    return { editedText };
+    return { editedText, summary: data.summary || null };
   } catch (err) {
     return { error: err.message };
   }

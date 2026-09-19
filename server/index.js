@@ -1740,10 +1740,14 @@ app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
         {
           role: 'system',
           content: `You are a precise text editor. The user will give you a piece of text and a voice instruction for how to edit it.
-Return ONLY the edited text — no preamble, no explanation, no quotes around it, no markdown fences.
 Preserve the original formatting (line breaks, paragraphs) unless the instruction asks to change it.
 If the instruction asks you to ADD something, integrate it naturally.
-If the instruction is unclear, make the most sensible improvement possible.`
+If the instruction is unclear, make the most sensible improvement possible.
+
+Reply with the edited text, then on the very last line a summary of what you
+changed, prefixed with [SUMMARY]. The summary is one short spoken sentence, e.g.
+"[SUMMARY] Rewrote it in plainer language and split the long sentence in two."
+No preamble, no quotes around the text, no markdown fences.`
         },
         {
           role: 'user',
@@ -1751,8 +1755,11 @@ If the instruction is unclear, make the most sensible improvement possible.`
         }
       ]
     });
-    const editedText = result.choices[0]?.message?.content?.trim() || selectedText;
-    res.json({ editedText });
+    const raw = result.choices[0]?.message?.content?.trim() || selectedText;
+    const summaryMatch = raw.match(/\[SUMMARY\]\s*(.+)\s*$/i);
+    const summary = summaryMatch ? summaryMatch[1].trim() : null;
+    const editedText = raw.replace(/\s*\[SUMMARY\][\s\S]*$/i, '').trim() || selectedText;
+    res.json({ editedText, summary });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

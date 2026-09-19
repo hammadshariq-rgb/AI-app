@@ -106,6 +106,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
+  onMagicEditStop: (cb) => ipcRenderer.on('jarvis:magic-edit-stop', () => cb()),
+  magicEditEnded: () => ipcRenderer.send('magic:ended'),
   // 3D model generation
   modelEnabled:  () => ipcRenderer.invoke('model:enabled'),
   modelGenerate: (prompt, style, jobKey) => ipcRenderer.invoke('model:generate', { prompt, style, jobKey }),

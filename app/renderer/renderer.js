@@ -4956,8 +4956,9 @@ if (window.jarvis.onSentenceText) {
   function openMagicEdit(selectedText) {
     _meText   = selectedText;
     _meActive = true;
+    _meRetries = 0;
     if (mePreview) mePreview.textContent = selectedText.length > 120 ? selectedText.slice(0, 120) + '…' : selectedText;
-    setMeState('listening', 'Listening for your instruction…');
+    setMeState('listening', 'Listening — press Ctrl+Shift+E again when you\'re done…');
     bar.classList.remove('hidden');
     // Auto-start voice recording
     if (typeof startRecording === 'function') startRecording('magic-edit');
@@ -4967,7 +4968,29 @@ if (window.jarvis.onSentenceText) {
     bar.classList.add('hidden');
     _meActive = false;
     _meText   = '';
-    if (typeof stopRecording === 'function') stopRecording();
+    window.jarvis.magicEditEnded?.();
+    if (typeof stopRecording === 'function' && isRecording) stopRecording();
+  }
+
+  // Nothing usable was heard. Stay open and listen again rather than closing.
+  let _meRetries = 0;
+  window._magicEditRetry = function () {
+    if (!_meActive) return false;
+    if (_meRetries++ >= 2) {
+      setMeState('error', 'Didn\'t catch that — closing.');
+      setTimeout(closeMagicEdit, 1800);
+      return true;
+    }
+    setMeState('listening', 'Didn\'t catch that — say it again…');
+    if (typeof startRecording === 'function') startRecording();
+    return true;
+  };
+
+  // Ctrl+Shift+E pressed again — stop listening and send what was said.
+  function finishListening() {
+    if (!_meActive) return;
+    setMeState('thinking', 'Editing with AI…');
+    if (typeof stopRecording === 'function' && isRecording) stopRecording();
   }
 
   meClose?.addEventListener('click', closeMagicEdit);
@@ -4982,10 +5005,12 @@ if (window.jarvis.onSentenceText) {
         setMeState('error', 'Edit failed — ' + res.error);
         setTimeout(closeMagicEdit, 3000);
       } else {
-        // TTS: speak brief confirmation
-        window.jarvis.speak('Done, pasted.');
-        setMeState('done', '✓ Edited — pasting back…');
-        setTimeout(closeMagicEdit, 1800);
+        // Say what actually changed, not just that something did.
+        const said = res.summary ? `Done. ${res.summary}` : 'Done — pasted the edit back.';
+        const audio = await window.jarvis.speak(said);
+        if (audio) playAudioChunks([audio]);
+        setMeState('done', '✓ ' + (res.summary || 'Edited — pasting back…'));
+        setTimeout(closeMagicEdit, res.summary ? 3200 : 1800);
       }
     } catch(e) {
       setMeState('error', 'Something went wrong.');
@@ -4994,10 +5019,16 @@ if (window.jarvis.onSentenceText) {
     return true; // signal: we handled this transcript, skip normal chat
   };
 
-  // Listen for trigger from main process
-  window.jarvis.onMagicEditStart(({ selectedText }) => {
+  // A second Ctrl+Shift+E while listening means "I'm done talking", never "start over".
+  function handleTrigger(selectedText) {
+    if (_meActive) { finishListening(); return; }
     openMagicEdit(selectedText);
-  });
+  }
+  window._magicEditOpen = handleTrigger; // also lets the flow be driven from devtools
+
+  // Listen for trigger from main process
+  window.jarvis.onMagicEditStart(({ selectedText }) => handleTrigger(selectedText));
+  window.jarvis.onMagicEditStop?.(finishListening);
 })();
 
 // ── Browser sidebar panel (shopping + places) ─────────────────────────────────
@@ -8056,6 +8087,8 @@ async function stopRecording() {
     console.log('[MIC] chunks:', capturedChunks.length, 'samples:', totalLength, 'peak:', peak, 'sampleRate:', sampleRate);
 
     if (peak < 0.0001) {
+      // Mid-edit, keep the editor open and listen again instead of dumping the user out.
+      if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) { setState('idle'); return; }
       addMessage('assistant', 'I didn\'t catch that — please check your microphone and try again.');
       setState('idle');
       return;
@@ -8086,6 +8119,8 @@ async function stopRecording() {
         : false;
       if (!handled) await sendToJarvis(trimmed);
       else setState('idle');
+    } else if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) {
+      setState('idle');
     } else {
       // Silence / noise — speak a short "didn't hear" response, no chat bubble
       if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
