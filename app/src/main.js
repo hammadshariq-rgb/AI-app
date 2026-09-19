@@ -686,18 +686,40 @@ app.whenReady().then(async () => {
   });
 
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
-  globalShortcut.register('Control+Shift+E', async () => {
+  const magicEditRegistered = globalShortcut.register('Control+Shift+E', async () => {
     const { clipboard } = require('electron');
     const { execFile } = require('child_process');
     // Step 1: Send Ctrl+C to whatever app currently has focus (copies the selection)
     // We use PowerShell SendKeys — fires before Electron steals focus since we haven't shown any window yet
     // Save current clipboard so we can detect if the copy actually changed it
     const clipBefore = clipboard.readText();
+    // The user is still holding Ctrl+Shift when this fires. Sending Ctrl+C now
+    // arrives as Ctrl+Shift+C — which in Chrome opens DevTools instead of
+    // copying — so wait for the keys to come up first, then send the copy.
     await new Promise(resolve => {
+      if (process.platform === 'darwin') {
+        execFile('osascript', ['-e',
+          'repeat 20 times\n' +
+          '  if not ((key down control) or (key down shift)) then exit repeat\n' +
+          '  delay 0.05\n' +
+          'end repeat\n' +
+          'tell application "System Events" to keystroke "c" using command down',
+        ], { timeout: 2000 }, resolve);
+        return;
+      }
       execFile('powershell.exe', [
         '-NonInteractive', '-NoProfile', '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')`
-      ], { timeout: 800 }, resolve);
+        `Add-Type -AssemblyName System.Windows.Forms;
+         Add-Type -Namespace Cal -Name Keys -MemberDefinition '[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int k);';
+         $ctrl = 0x11; $shift = 0x10;
+         for ($i = 0; $i -lt 30; $i++) {
+           $held = ([Cal.Keys]::GetAsyncKeyState($ctrl) -band 0x8000) -or ([Cal.Keys]::GetAsyncKeyState($shift) -band 0x8000);
+           if (-not $held) { break }
+           Start-Sleep -Milliseconds 40
+         }
+         Start-Sleep -Milliseconds 40;
+         [System.Windows.Forms.SendKeys]::SendWait('^c')`
+      ], { timeout: 3000 }, resolve);
     });
     // Step 2: Give clipboard time to update — wait longer for browser/web apps (Google Docs etc.)
     // Retry up to 3× in 200ms increments so slow apps (Google Docs, Word) have time to write the clipboard
@@ -727,6 +749,8 @@ app.whenReady().then(async () => {
     }
     overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
   });
+  // Another app holding this combination would silently swallow the shortcut.
+  if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app — Magic Editor won\'t open.');
 
   // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
   globalShortcut.register('Control+S', () => {
