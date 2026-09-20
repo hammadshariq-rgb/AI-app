@@ -15,13 +15,24 @@ function positionRightPanels() {
   rem.style.bottom = (calBottom + calH + GAP) + 'px';
 }
 
-// Watch finPanel class/style mutations
+// Keep the stack honest. The portfolio grows as stocks load and the calendar
+// grows when a month has six rows — neither changes an attribute, so watching
+// class/style alone left the panels overlapping until the next resize.
 (function watchPanels() {
   var finPanel = document.getElementById('finPanel');
+  var cal = document.getElementById('glassCalendar');
+  var rem = document.getElementById('remindersPanel');
   if (!finPanel) return;
+
   new MutationObserver(function() {
     requestAnimationFrame(positionRightPanels);
   }).observe(finPanel, { attributes: true, attributeFilter: ['class', 'style'] });
+
+  if (typeof ResizeObserver === 'function') {
+    var ro = new ResizeObserver(function() { requestAnimationFrame(positionRightPanels); });
+    [finPanel, cal, rem].forEach(function (el) { if (el) ro.observe(el); });
+  }
+
   window.addEventListener('resize', positionRightPanels);
 })();
 
