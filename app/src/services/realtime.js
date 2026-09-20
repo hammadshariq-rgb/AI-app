@@ -55,6 +55,27 @@ async function getWeather(location) {
   }
 }
 
+// One short spoken line for the greeting — "It's 18 degrees and cloudy in
+// Winnipeg, feels like 15." Deliberately briefer than the full weather card.
+async function getWeatherGreeting(location, displayCity = null) {
+  try {
+    const res = await _timedFetch(`https://wttr.in/${encodeURIComponent(location)}?format=j1`, {}, 3500);
+    const data = await res.json();
+    const current = data.current_condition[0];
+    // wttr.in names the nearest weather station's suburb ("Rehmanpura"), which
+    // reads as wrong to someone who lives in Lahore. Prefer the city we know.
+    const city = displayCity || data.nearest_area?.[0]?.areaName?.[0]?.value || null;
+    const desc = String(current.weatherDesc[0].value || '').trim().toLowerCase();
+    const tempC = parseInt(current.temp_C, 10);
+    const feelsC = parseInt(current.FeelsLikeC, 10);
+    const where = city ? ` in ${city}` : '';
+    const feels = Math.abs(feelsC - tempC) >= 3 ? `, feels like ${feelsC}` : '';
+    return `It's ${tempC} degrees and ${desc}${where}${feels}.`;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── Periodic table element data ───────────────────────────────────────────────
 const ELEMENTS = {
   H:{n:1,name:'Hydrogen',mass:'1.008',cat:'Nonmetal',group:1,period:1,config:'1s¹',desc:'Lightest element; makes up ~75% of the universe.'},
@@ -1848,4 +1869,4 @@ async function searchImages(query) {
   } catch { return null; }
 }
 
-module.exports = { fetchRealtimeContext, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
+module.exports = { fetchRealtimeContext, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };

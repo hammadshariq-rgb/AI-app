@@ -2725,8 +2725,7 @@ const WeatherWidget = (function() {
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10&addressdetails=1`,
         { headers: { 'Accept-Language': 'en' } }
       ).then(r => r.json());
-      const a = nom.address || {};
-      return a.city || a.municipality || a.town || a.suburb || a.county || nom.name || null;
+      return window._cityFromAddress(nom);
     } catch { return null; }
   }
 
@@ -2762,6 +2761,29 @@ const WeatherWidget = (function() {
     throw new Error('All IP APIs failed');
   }
 
+  // Pick the name a person would actually use for where they are.
+  //
+  // OpenStreetMap answers with administrative units, which in some countries are
+  // not the city: a house in DHA, Lahore comes back as "Model Town Tehsil" or
+  // "Lahore Cantonment Tehsil". Those read as plain wrong. Prefer a real city or
+  // town, fall back to the district, and strip the administrative suffix so
+  // "Lahore District" becomes "Lahore".
+  window._cityFromAddress = function (nom) {
+    const a = (nom && nom.address) || {};
+    const strip = (s) => String(s || '')
+      .replace(/\s+(District|Tehsil|Division|County|Municipality|Metropolitan Area|Urban Agglomeration)$/i, '')
+      .replace(/^(Greater|City of)\s+/i, '')
+      .trim();
+    // county before municipality: in Lahore the municipality is the sub-district
+    // ("Model Town Tehsil") while the county is the city ("Lahore District").
+    const candidates = [a.city, a.town, a.county, a.municipality, a.state_district, a.village, a.suburb, nom && nom.name];
+    for (const raw of candidates) {
+      const name = strip(raw);
+      if (name && !/^\d+$/.test(name)) return name;
+    }
+    return null;
+  };
+
   async function getLocationFromGPS() {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
@@ -2774,8 +2796,7 @@ const WeatherWidget = (function() {
               { headers: { 'Accept-Language': 'en' } }
             ).then(r => r.json());
             const a = nom.address || {};
-            // city > municipality > town > suburb > county — skip hamlet/village which are too granular
-            const city    = a.city || a.municipality || a.town || a.suburb || a.county || nom.name || '—';
+            const city    = window._cityFromAddress(nom) || '—';
             const country = (a.country_code || '').toUpperCase();
             resolve({ lat, lon, city, country });
           } catch { reject(); }
@@ -2863,7 +2884,24 @@ const NewsFlash = (() => {
     render(headlines);
   });
 
-  return { render };
+  function headlines() { return _headlines; }
+
+  // Wait for the first batch of headlines — they arrive from the main process a
+  // moment after launch, usually after the greeting has already been spoken.
+  function ready(timeoutMs = 6000) {
+    if (_headlines.length) return Promise.resolve(_headlines);
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const tick = setInterval(() => {
+        if (_headlines.length || Date.now() - started > timeoutMs) {
+          clearInterval(tick);
+          resolve(_headlines);
+        }
+      }, 300);
+    });
+  }
+
+  return { render, headlines, ready };
 })();
 
 // ===================== CARD PANEL =====================
@@ -5950,13 +5988,40 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       try {
         const title = profile.title && profile.title !== 'none' ? profile.title : 'sir';
         const addressAs = profile.displayName || title;
-        const greeting = `Welcome back, ${addressAs}.`;
+        // Greeting, then the weather, then today's tasks — in that order.
+        const weather = await window.jarvis.weatherGreeting?.().catch(() => null);
+        const greeting = weather ? `Welcome back, ${addressAs}. ${weather}` : `Welcome back, ${addressAs}.`;
         const audio = await window.jarvis.speak(greeting);
         if (audio) playAudioChunks([audio]);
         await speakTaskBriefing();
+        await speakNewsBriefing();
       } catch (e) { console.error('[GREET]', e); }
     }
   }
+}
+
+// Read the top headlines aloud after the greeting. Spoken only — they're
+// already scrolling across the top, so nothing goes in the chat.
+async function speakNewsBriefing() {
+  try {
+    if (!window.jarvis?.speak) return;
+    const todayKey = new Date().toDateString();
+    if (localStorage.getItem('callisto_news_briefing') === todayKey) return;
+    const headlines = await NewsFlash.ready();
+    if (!headlines || !headlines.length) return;
+    localStorage.setItem('callisto_news_briefing', todayKey);
+    // The ticker tags each line "[WORLD] …" for display; strip that before speaking.
+    const clean = (h) => String(h).replace(/^\[[A-Z ]+\]\s*/, '').replace(/\s+/g, ' ').trim().replace(/[.。]$/, '');
+    // World news first, then whatever else is in the ticker. Three is enough to
+    // be useful without turning into a bulletin.
+    const world = headlines.filter((h) => /^\[(WORLD|REUTERS WORLD|POLITICS)\]/.test(h));
+    const rest = headlines.filter((h) => !world.includes(h));
+    const top = [...world, ...rest].slice(0, 3).map(clean).filter(Boolean);
+    if (!top.length) return;
+    const spoken = `Here's what's happening in the world. ${top.join('. ')}.`;
+    const audio = await window.jarvis.speak(spoken);
+    if (audio) playAudioChunks([audio]);
+  } catch (e) { console.error('[NEWS]', e); }
 }
 
 // Read the day's tasks back after the greeting — once per day, and only when

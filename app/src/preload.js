@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   taskSetDone: (id, done) => ipcRenderer.invoke('task:setDone', { id, done }),
   taskDelete: (id) => ipcRenderer.invoke('task:delete', id),
   taskBriefing: () => ipcRenderer.invoke('task:briefing'),
+  weatherGreeting: () => ipcRenderer.invoke('weather:greeting'),
   onTasksChanged: (cb) => ipcRenderer.on('jarvis:tasks-changed', () => cb()),
   onReminder: (cb) => ipcRenderer.on('jarvis:reminder', (_e, d) => cb(d)),
   calendarList: () => ipcRenderer.invoke('calendar:list'),

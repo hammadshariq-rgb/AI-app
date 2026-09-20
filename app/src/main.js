@@ -3117,6 +3117,14 @@ ipcMain.handle('finance:remove', (_e, symbol) => {
 });
 
 // ── Reminder IPC ──────────────────────────────────────────────────────────────
+// One-line weather for the welcome-back greeting.
+ipcMain.handle('weather:greeting', async () => {
+  const loc = store.get('userLocation') || {};
+  const place = loc.city || (loc.lat && (loc.lon ?? loc.lng) ? `${loc.lat},${loc.lon ?? loc.lng}` : null);
+  if (!place) return null;
+  try { return await realtime.getWeatherGreeting(place, loc.city || null); } catch (_) { return null; }
+});
+
 // ── Tasks (to-do list) ──
 ipcMain.handle('task:list', () => tasks.all());
 ipcMain.handle('task:add', (_e, { text, date } = {}) => { tasks.add(text, date); return tasks.all(); });
