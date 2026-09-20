@@ -111,21 +111,30 @@ jobs:
       - name: Build and publish Mac DMG
         working-directory: app
         shell: bash
+        # The secrets are read under their own names, never as CSC_LINK directly:
+        # an empty CSC_LINK still looks configured to electron-builder, which then
+        # tries to read a certificate from an empty path and fails.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.APPLE_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ]; then
+          if [ -n "$APPLE_CERT_P12" ] && [ -n "$APPLE_ID_SECRET" ]; then
             echo "Signing with Developer ID and notarising."
+            export CSC_LINK="$APPLE_CERT_P12"
+            export CSC_KEY_PASSWORD="$APPLE_CERT_PASSWORD"
+            export APPLE_ID="$APPLE_ID_SECRET"
+            export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_PASSWORD"
+            export APPLE_TEAM_ID="$APPLE_TEAM"
             export CSC_IDENTITY_AUTO_DISCOVERY=true
             npx electron-builder --mac --publish always \
-              --config.mac.notarize.teamId="$APPLE_TEAM_ID"
+              --config.mac.notarize.teamId="$APPLE_TEAM"
           else
             echo "No Apple credentials set — building with the ad-hoc signature."
+            unset CSC_LINK CSC_KEY_PASSWORD
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             npx electron-builder --mac --publish always
           fi
