@@ -5971,8 +5971,14 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         setState('idle');
       }, 800);
       try {
-        const addressAs = profile.displayName || (profile.title && profile.title !== 'none' ? profile.title : null) || 'sir';
-        const greeting = `Welcome, ${addressAs}. All systems are online. How may I assist you?`;
+        const addressAs = profile.displayName || (profile.title && profile.title !== 'none' ? spokenTitle(profile.title) : null) || 'sir';
+        // First time in: introduce the assistant by the name they just gave it.
+        const aiName = profile.name || 'Callisto';
+        const named = profile.name && profile.name.toLowerCase() !== 'callisto'
+          ? `You named me ${aiName}.`
+          : `I'm ${aiName}.`;
+        const greeting = `Welcome to Callisto AI, ${addressAs}. ${named} I'm your personal AI assistant. How may I help you?`;
+        addMessage('assistant', greeting);
         const audio = await window.jarvis.speak(greeting);
         if (audio) playAudioChunks([audio]);
       } catch (_) {}
@@ -5985,7 +5991,7 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     setState('idle');
     if (returningUser) {
       try {
-        const title = profile.title && profile.title !== 'none' ? profile.title : 'sir';
+        const title = profile.title && profile.title !== 'none' ? spokenTitle(profile.title) : 'sir';
         const addressAs = profile.displayName || title;
         // Greeting, then the weather, then today's tasks — in that order.
         const weather = await window.jarvis.weatherGreeting?.().catch(() => null);
@@ -5998,6 +6004,9 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     }
   }
 }
+
+// 'maam' is how the old sign-up stored it; say it the way a person would.
+function spokenTitle(t) { return String(t || '').toLowerCase() === 'maam' ? "ma'am" : t; }
 
 // Read the top headlines aloud after the greeting. Spoken only — they're
 // already scrolling across the top, so nothing goes in the chat.
@@ -7664,7 +7673,7 @@ async function loadSettingsPane() {
 
   const subEl = document.getElementById('profileSub');
   if (isActive) {
-    subEl.textContent = '✓ ACTIVE — $20/month';
+    subEl.textContent = '✓ ACTIVE — CA$20/month';
     subEl.className = 'profile-value profile-sub-active';
   } else {
     subEl.textContent = '✗ NOT SUBSCRIBED';
