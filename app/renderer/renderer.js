@@ -5345,7 +5345,7 @@ function setAuthMode(mode) {
     authFooter.innerHTML = 'Already have an account? <a href="#" id="switchToLogin">Log in →</a>';
     signupEmailField.style.display = '';
     signupNameField.style.display = '';
-    signupGenderField.style.display = '';
+    signupGenderField?.style && (signupGenderField.style.display = '');
     const signupVoiceFieldEl = document.getElementById('signupVoiceField');
     if (signupVoiceFieldEl) signupVoiceFieldEl.style.display = '';
     const cField = document.getElementById('signupCountryField');
@@ -5358,7 +5358,7 @@ function setAuthMode(mode) {
     authFooter.innerHTML = 'No account? <a href="#" id="switchToSignup">Sign up →</a>';
     signupEmailField.style.display = '';
     signupNameField.style.display = 'none';
-    signupGenderField.style.display = 'none';
+    signupGenderField?.style && (signupGenderField.style.display = 'none');
     const signupVoiceFieldElL = document.getElementById('signupVoiceField');
     if (signupVoiceFieldElL) signupVoiceFieldElL.style.display = 'none';
     const cFieldL = document.getElementById('signupCountryField');
@@ -5407,15 +5407,9 @@ tabLogin.addEventListener('click', () => setAuthMode('login'));
   wire('reloginPwToggle', 'reloginPassword', 'reloginEyeIcon');
 })();
 
-// Title selection toggle (SIR / MA'AM / NO TITLE)
+// How the AI addresses you is asked during onboarding now, not on sign-up.
+// "sir" is the starting point until they change it there.
 let selectedTitle = 'sir';
-document.querySelectorAll('#signupGenderField .gender-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#signupGenderField .gender-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedTitle = btn.dataset.value;
-  });
-});
 
 // Voice selection toggle on signup page (MALE / FEMALE)
 let selectedVoice = 'male';
@@ -5758,9 +5752,14 @@ function initWelcomeScroll() {
     { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           kbd: null,           colorA: '#4ade80', colorB: '#052e16' },
     { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                kbd: null,           colorA: '#fb923c', colorB: '#431407' },
     { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           kbd: 'Ctrl+Shift+E', colorA: '#e879f9', colorB: '#4a044e' },
+    { emoji: '⬢', title: '3D MODELS',          sub: 'Say it, and watch it built in 3D',           kbd: null,           colorA: '#22d3ee', colorB: '#083344' },
+    { emoji: '▣', title: 'CAST TO TV',         sub: 'Send anything to your television',           kbd: null,           colorA: '#f87171', colorB: '#450a0a' },
+    { emoji: '❖', title: 'GOOGLE FLOW',        sub: 'Cinematic video, made from a sentence',      kbd: null,           colorA: '#818cf8', colorB: '#1e1b4b' },
+    { emoji: '◐', title: 'HIGGSFIELD VIDEO',   sub: 'Generate video clips on command',            kbd: null,           colorA: '#facc15', colorB: '#422006' },
+    { emoji: '☑', title: 'TASKS & REMINDERS',  sub: 'Your day, read back to you each morning',    kbd: null,           colorA: '#2dd4bf', colorB: '#042f2e' },
   ];
 
-  const ROW_H = 96;
+  const ROW_H = 116;  // matches .cap-row height — bigger icons need a taller row
   const N = CAPS.length;
   const UNLOCK_THRESHOLD = N; // must scroll through all items at least once
 
@@ -5844,7 +5843,7 @@ function initWelcomeScroll() {
       if (Math.abs(snapTarget - offset) < 0.35) { offset = snapTarget; snapTarget = null; }
     } else if (!isDragging) {
       offset += velocity;
-      velocity *= 0.93;
+      velocity *= 0.90; // settles sooner, so each capability gets a beat
       if (Math.abs(velocity) < 0.02) velocity = 0;
     }
 
@@ -5894,7 +5893,7 @@ function initWelcomeScroll() {
     e.preventDefault();
     e.stopPropagation();
     snapTarget = null;
-    velocity += e.deltaY * 0.05;
+    velocity += e.deltaY * 0.028; // gentler wheel — the drum was outrunning the reader
     velocity = clamp(velocity, -14, 14);
   }, { passive: false });
 
@@ -6145,9 +6144,24 @@ const ONBOARD_STEPS = [
     sub: 'Optional — connect now or later from the Connectors panel.',
     render: () => `
       <div class="ob-connectors">
+        <div class="ob-connector" id="obGoogleBtn">
+          <span class="ob-connector-icon">🔵</span>
+          <span class="ob-connector-name">Google</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
         <div class="ob-connector" id="obCalBtn">
           <span class="ob-connector-icon">📅</span>
           <span class="ob-connector-name">Google Calendar</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obYtBtn">
+          <span class="ob-connector-icon">▶️</span>
+          <span class="ob-connector-name">YouTube</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obTikBtn">
+          <span class="ob-connector-icon">🎬</span>
+          <span class="ob-connector-name">TikTok</span>
           <span class="ob-connector-status">Connect</span>
         </div>
         <div class="ob-connector" id="obSpotBtn">
@@ -6155,18 +6169,33 @@ const ONBOARD_STEPS = [
           <span class="ob-connector-name">Spotify</span>
           <span class="ob-connector-status">Connect</span>
         </div>
-        <div class="ob-connector" id="obGmailBtn">
-          <span class="ob-connector-icon">📧</span>
-          <span class="ob-connector-name">Gmail</span>
+        <div class="ob-connector" id="obShopBtn">
+          <span class="ob-connector-icon">🛍️</span>
+          <span class="ob-connector-name">Shopify</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obSquareBtn">
+          <span class="ob-connector-icon">🟦</span>
+          <span class="ob-connector-name">Squarespace</span>
+          <span class="ob-connector-status">Connect</span>
+        </div>
+        <div class="ob-connector" id="obAnalyticsBtn">
+          <span class="ob-connector-icon">📈</span>
+          <span class="ob-connector-name">Google Analytics</span>
           <span class="ob-connector-status">Connect</span>
         </div>
       </div>`,
     onRender: () => {
       // Wire connector buttons
       const pairs = [
-        ['obCalBtn',   'calendar'],
-        ['obSpotBtn',  'spotify'],
-        ['obGmailBtn', 'gmail'],
+        ['obGoogleBtn',    'google'],
+        ['obCalBtn',       'calendar'],
+        ['obYtBtn',        'youtube'],
+        ['obTikBtn',       'tiktok'],
+        ['obSpotBtn',      'spotify'],
+        ['obShopBtn',      'shopify'],
+        ['obSquareBtn',    'squarespace'],
+        ['obAnalyticsBtn', 'analytics'],
       ];
       pairs.forEach(([btnId, service]) => {
         const btn = document.getElementById(btnId);

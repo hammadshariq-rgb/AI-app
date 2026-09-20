@@ -111,7 +111,7 @@ async function cloudPushPrefs(patch = null) {
         contacts:     store.get('contacts') || [],
         language:     store.get('language') || 'English',
         voiceSpeed:   store.get('voiceSpeed') || 0.88,
-        aiName:       store.get('profile.name') || 'Jarvis',
+        aiName:       store.get('profile.name') || 'Callisto',
         reminders:    store.get('reminders') || [],
         userLocation: store.get('userLocation') || null,
         musicService: store.get('music.service') || '',
@@ -139,7 +139,7 @@ function loadAuthToken() {
 }
 
 function getAssistantName() {
-  return store.get('profile.name') || 'Jarvis';
+  return store.get('profile.name') || 'Callisto';
 }
 
 let overlayWindow = null;
