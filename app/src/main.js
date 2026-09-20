@@ -398,6 +398,14 @@ ipcMain.handle('capture:identify', async (_e, bounds) => {
 
 function toggleOverlay() {
   if (!overlayWindow || overlayWindow.isDestroyed()) { createOverlayWindow(); return; }
+  // Visible but behind another window — the user wants it in front, not hidden.
+  // Otherwise the first press hid a window they couldn't see and they had to
+  // press the shortcut twice.
+  if (overlayWindow.isVisible() && !overlayWindow.isFocused()) {
+    overlayWindow.show();
+    overlayWindow.focus();
+    return;
+  }
   if (overlayWindow.isVisible()) {
     overlayWindow.hide();
   } else {
