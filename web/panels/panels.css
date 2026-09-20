@@ -236,6 +236,14 @@ body.light .mo-detail-name { color: #1a2040; }
 .calo-event-time { font-size: 11px; color: rgba(0, 200, 255, 0.55); letter-spacing: 0.5px; font-family: 'Share Tech Mono', monospace; }
 
 /* Web: sit above the site's typing page and below its menus */
-#remindersPanel, #glassCalendar, #finPanel { z-index: 420 !important; }
+/* Above the site's typing page, below its menus. Layered so the portfolio,
+   which grows as stocks load, can never paint over the calendar. */
+#finPanel { z-index: 418 !important; }
+#glassCalendar { z-index: 419 !important; }
+#remindersPanel { z-index: 420 !important; }
 #marketsOverlay, #calendarOverlay { z-index: 700 !important; }
 @media (max-width: 900px) { #remindersPanel, #glassCalendar { display: none !important; } }
+
+/* Tasks share the reminder rows, with a divider above and a warning tint for anything carried over. */
+#remindersPanel .rp-header-tasks { border-top: 1px solid rgba(255,255,255,0.07) !important; }
+#remindersPanel .rp-item.rp-overdue .rp-time { color: rgba(255,150,150,0.8) !important; }

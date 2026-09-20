@@ -12,7 +12,7 @@
   if (window.jarvis) return;   // running inside the desktop app — nothing to do
 
   var SERVER = 'https://ai-app-production-9224.up.railway.app';
-  var KEYS = { reminders: 'callisto_web_reminders', portfolio: 'callisto_web_portfolio', events: 'jarvis_cal_events' };
+  var KEYS = { reminders: 'callisto_web_reminders', tasks: 'callisto_web_tasks', portfolio: 'callisto_web_portfolio', events: 'jarvis_cal_events' };
 
   function read(key, fallback) {
     try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (_) { return fallback; }
@@ -52,6 +52,44 @@
     });
     if (fired) { write(KEYS.reminders, list); reminderListeners.forEach(function (cb) { try { cb(); } catch (_) {} }); }
   }, 30000);
+
+  // ── Tasks ──────────────────────────────────────────────────────────────────
+  // A task belongs to a day rather than a clock time. The desktop app reads
+  // them back in the morning briefing; on the web they live in this browser.
+  function startOfDay(ts) { var d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function dueFrom(date) {
+    if (!date) return startOfDay(Date.now());
+    var m = String(date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return startOfDay(new Date(+m[1], +m[2] - 1, +m[3]));
+    var p = new Date(date);
+    return isNaN(p.getTime()) ? startOfDay(Date.now()) : startOfDay(p);
+  }
+  function taskList() { return Promise.resolve(read(KEYS.tasks, [])); }
+  function taskAdd(text, date) {
+    var list = read(KEYS.tasks, []);
+    list.push({
+      id: 't' + Date.now() + Math.floor(Math.random() * 1000),
+      text: String(text || '').trim(),
+      due: dueFrom(date),
+      done: false,
+      createdAt: Date.now(),
+      completedAt: null,
+    });
+    write(KEYS.tasks, list);
+    return Promise.resolve(list);
+  }
+  function taskSetDone(id, done) {
+    var list = read(KEYS.tasks, []);
+    var t = list.find(function (x) { return x.id === id; });
+    if (t) { t.done = !!done; t.completedAt = done ? Date.now() : null; }
+    write(KEYS.tasks, list);
+    return Promise.resolve(list);
+  }
+  function taskDelete(id) {
+    var list = read(KEYS.tasks, []).filter(function (t) { return t.id !== id; });
+    write(KEYS.tasks, list);
+    return Promise.resolve(list);
+  }
 
   // ── Calendar ───────────────────────────────────────────────────────────────
   // Events added in the calendar panel are stored under jarvis_cal_events by
@@ -102,6 +140,7 @@
     isWeb: true,
     reminderList: reminderList, reminderAdd: reminderAdd, reminderDelete: reminderDelete,
     onReminder: function (cb) { reminderListeners.push(cb); },
+    taskList: taskList, taskAdd: taskAdd, taskSetDone: taskSetDone, taskDelete: taskDelete,
     calendarList: calendarList, calendarAdd: calendarAdd, calendarDeleteEvent: calendarDeleteEvent,
     financePortfolio: financePortfolio, financeAdd: financeAdd, financeRemove: financeRemove,
     financeGetStock: financeGetStock, financeFind: financeFind,

@@ -1484,6 +1484,20 @@
       </div>
 
       <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📝</span></div>
+        <div class="feat-name">TASKS &amp; MORNING BRIEFING</div>
+        <div class="feat-desc">Tasks belong to a day rather than a clock time. Say <em>"Add a task to finish my chemistry homework"</em> or <em>"Put the supplier invoices on my list for tomorrow."</em> The next time you open Callisto that day it greets you, tells you the weather, reads your tasks back — <em>"You have 2 tasks today: finish the chemistry homework and call the supplier"</em> — then the day's headlines. Tick tasks off in the panel; anything you don't finish carries over.</div>
+        <span class="feat-badge badge-both">WEB + APP</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon-wrap"><span class="feat-icon">📺</span></div>
+        <div class="feat-name">CAST TO TV</div>
+        <div class="feat-desc">Send what you're watching to the television. Say <em>"Play this on the TV"</em> and Callisto finds your Chromecast on the network and casts to it — no phone, no remote, no hunting for the right input.</div>
+        <span class="feat-badge badge-app">APP ONLY</span>
+      </div>
+
+      <div class="feat-card">
         <div class="feat-icon-wrap"><span class="feat-icon">📞</span></div>
         <div class="feat-name">CONTACTS & CALLS</div>
         <div class="feat-desc">Save people to Callisto's contact list by saying <em>"Save John's number as 647-555-0192."</em> Then call or message them anytime: <em>"Call John on WhatsApp"</em> or <em>"Send a WhatsApp message to Sarah saying I'm on my way."</em> Works through your default apps on the desktop version.</div>
@@ -1916,6 +1930,23 @@
         <button class="rp-cancel-btn" id="rpCancelBtn">Cancel</button>
       </div>
     </div>
+  <!-- Tasks — a day's to-do list, read back in the next day's briefing -->
+    <div class="rp-header rp-header-tasks">
+      <span class="rp-title">TASKS</span>
+      <button class="rp-add-btn" id="tkAddBtn">+ ADD</button>
+    </div>
+    <div class="rp-list" id="tkList">
+      <div class="rp-empty" id="tkEmpty">No tasks yet</div>
+    </div>
+    <div class="rp-add-form" id="tkAddForm">
+      <input class="rp-input" id="tkTextInput" type="text" placeholder="Task…" maxlength="80" />
+      <input class="rp-input" id="tkDateInput" type="date" />
+      <div class="rp-form-row">
+        <button class="rp-save-btn" id="tkSaveBtn">SAVE</button>
+        <button class="rp-cancel-btn" id="tkCancelBtn">Cancel</button>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── Glass Calendar ── -->
