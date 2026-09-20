@@ -736,9 +736,16 @@ app.post('/auth/activity', authMiddleware, async (req, res) => {
 app.get('/checkout', async (req, res) => {
   const { token, plan } = req.query;
   // Pick price ID based on plan param: 'annual' uses yearly price, default = monthly
-  const priceId = (plan === 'annual' && process.env.STRIPE_PRICE_ID_ANNUAL)
-    ? process.env.STRIPE_PRICE_ID_ANNUAL
-    : process.env.STRIPE_PRICE_ID;
+  // Picking annual must never quietly fall back to the monthly price — the
+  // customer would be charged CA$20 a month after asking to pay CA$200 a year.
+  let priceId = process.env.STRIPE_PRICE_ID;
+  if (plan === 'annual') {
+    if (!process.env.STRIPE_PRICE_ID_ANNUAL) {
+      console.error('Annual checkout requested but STRIPE_PRICE_ID_ANNUAL is not set');
+      return res.status(500).send('Annual billing is not configured yet. Please choose monthly, or contact support@callistoai.net.');
+    }
+    priceId = process.env.STRIPE_PRICE_ID_ANNUAL;
+  }
 
   let customerEmail;
   let stripeCustomerId;
@@ -779,8 +786,8 @@ app.get('/success', async (req, res) => {
     </head>
     <body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
       <h2 style="color:#00c8ff;">You're subscribed!</h2>
-      <p>Your account is now active. Opening Jarvis...</p>
-      <p style="color:#666;font-size:13px;">If the app doesn't open automatically, <a href="jarvis://subscribed" style="color:#00c8ff;">click here</a>.</p>
+      <p>Your account is now active. Opening Callisto…</p>
+      <p style="color:#666;font-size:13px;">If Callisto doesn't open automatically, <a href="jarvis://subscribed" style="color:#00c8ff;">click here</a>.</p>
     </body></html>
   `);
 });
@@ -788,7 +795,7 @@ app.get('/success', async (req, res) => {
 app.get('/account', (req, res) => {
   res.send(`
     <html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Jarvis Desktop — $20/month</h2>
+      <h2 style="color:#00c8ff;">Callisto AI — CA$20/month</h2>
       <p>Your own AI assistant, named by you, living on your desktop.</p>
       <a href="/checkout" style="display:inline-block;padding:12px 24px;background:#0a84ff;color:white;border-radius:8px;text-decoration:none;margin-top:12px;">Subscribe</a>
     </body></html>
