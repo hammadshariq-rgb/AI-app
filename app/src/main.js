@@ -623,7 +623,12 @@ app.whenReady().then(async () => {
       }
     });
 
-    autoUpdater.on('error', () => {}); // silent — don't crash on update errors
+    // Don't crash on update errors, but do say why — a silent catch is what made
+    // the last broken updater so hard to diagnose.
+    autoUpdater.on('error', (err) => console.warn('[UPDATE]', err && err.message ? err.message : err));
+    autoUpdater.on('checking-for-update', () => console.log('[UPDATE] checking…'));
+    autoUpdater.on('update-not-available', () => console.log('[UPDATE] already on the latest version'));
+    autoUpdater.on('download-progress', (p) => console.log(`[UPDATE] ${Math.round(p.percent)}%`));
 
     // Check on startup, then every 4 hours
     autoUpdater.checkForUpdates().catch(() => {});
