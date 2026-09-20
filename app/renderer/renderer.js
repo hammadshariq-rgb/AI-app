@@ -5553,7 +5553,7 @@ async function checkPaymentStatus() {
     clearInterval(payPollInterval);
     payPollInterval = null;
     setupView.classList.add('hidden');
-    await showSplash(profile?.name || 'Your AI');
+    await showSplash(profile?.name || 'Callisto');
     await enterMain();
   } else {
     payError.textContent = 'Payment not confirmed yet. Try again in a moment.';
@@ -7920,7 +7920,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   historySidebar.classList.add('hidden');
 
   // Show splash IMMEDIATELY — user sees animation while auth check runs in background
-  const splashName = storedProfile?.name || name || 'Your AI';
+  const splashName = storedProfile?.name || name || 'Callisto';
   const splashPromise = showSplash(splashName);
 
   // Auth check runs in parallel with splash animation (max 5s before treating as offline)
@@ -7954,7 +7954,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   }
 
   // Token valid — check subscription before entering
-  const displayName = storedProfile?.name || authResult.user?.name || 'Your AI';
+  const displayName = storedProfile?.name || authResult.user?.name || 'Callisto';
   profile = {
     name:        displayName,
     email:       authResult.user?.email || storedProfile?.email,
