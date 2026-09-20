@@ -58,8 +58,8 @@ async function release(feature, userId, period = 'day') {
   }
 }
 
-// Paid (active subscription or free-access) customers get the daily allowance;
-// everyone else — free trial — gets a much smaller weekly one.
+// Paid (active subscription or free-access) customers get the full daily
+// allowance; everyone else — free trial — gets a smaller daily one.
 async function planFor(userId) {
   try {
     const users = require('./users');
@@ -71,11 +71,9 @@ async function planFor(userId) {
 }
 
 // Resolve the allowance for a feature: { limit, period, plan }.
-async function allowance(userId, { paidPerDay, trialPerWeek }) {
+async function allowance(userId, { paidPerDay, trialPerDay }) {
   const plan = await planFor(userId);
-  return plan === 'paid'
-    ? { plan, limit: paidPerDay, period: 'day' }
-    : { plan, limit: trialPerWeek, period: 'week' };
+  return { plan, limit: plan === 'paid' ? paidPerDay : trialPerDay, period: 'day' };
 }
 
 module.exports = { reserve, release, allowance };

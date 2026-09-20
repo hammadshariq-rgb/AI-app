@@ -17,8 +17,8 @@ const HF_KEY_SECRET = process.env.HF_API_KEY_SECRET || '';
 // Every Higgsfield action shares one daily allowance per customer.
 const envInt = (x, d) => (x === undefined || x === '' || isNaN(Number(x)) ? d : Math.max(0, Math.floor(Number(x))));
 const PER_USER_PER_DAY = envInt(process.env.HIGGSFIELD_USES_PER_DAY, 5);
-// Free-trial customers get a small weekly allowance instead
-const TRIAL_PER_WEEK = envInt(process.env.TRIAL_HIGGSFIELD_USES_PER_WEEK, 1);
+// Free-trial customers get a smaller daily allowance instead
+const TRIAL_PER_DAY = envInt(process.env.TRIAL_HIGGSFIELD_USES_PER_DAY, 1);
 // Optional server-wide cap to protect a small credit balance; 0 / unset = off.
 const ALL_USERS_PER_DAY = Number(process.env.VIDEO_ALL_USERS_PER_DAY) || 0;
 const usage = require('./usage');
@@ -143,13 +143,13 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       let prompt = String(req.body?.prompt || '').trim().slice(0, 1000);
       if (!prompt) return res.status(400).json({ error: 'Describe the video you want.' });
 
-      const allow = await usage.allowance(req.userId, { paidPerDay: PER_USER_PER_DAY, trialPerWeek: TRIAL_PER_WEEK });
+      const allow = await usage.allowance(req.userId, { paidPerDay: PER_USER_PER_DAY, trialPerDay: TRIAL_PER_DAY });
       const slot = await usage.reserve('higgsfield', req.userId, allow.limit, allow.period);
       if (!slot.ok) {
         const msg = allow.plan === 'trial'
           ? (allow.limit === 0
               ? 'Video creation is available on the paid plan. Upgrade to start making videos.'
-              : `The free trial includes ${allow.limit} video${allow.limit === 1 ? '' : 's'} a week, and you've used it. Upgrade for ${PER_USER_PER_DAY} a day.`)
+              : `The free trial includes ${allow.limit} video${allow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${PER_USER_PER_DAY} a day.`)
           : `You've used all ${allow.limit} of today's videos. Try again tomorrow.`;
         return res.status(429).json({ error: msg, upgrade: allow.plan === 'trial' });
       }

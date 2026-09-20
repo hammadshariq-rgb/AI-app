@@ -13,10 +13,10 @@ const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 
 // Every Meshy action (new model or repaint) shares one allowance per customer:
 // paying customers (monthly or yearly) get a daily allowance, free-trial
-// customers a small weekly one.
+// customers a smaller daily one.
 const envInt = (v, d) => (v === undefined || v === '' || isNaN(Number(v)) ? d : Math.max(0, Math.floor(Number(v))));
 const MESHY_USES_PER_DAY = envInt(process.env.MESHY_USES_PER_DAY, 4);
-const TRIAL_MESHY_USES_PER_WEEK = envInt(process.env.TRIAL_MESHY_USES_PER_WEEK, 1);
+const TRIAL_MESHY_USES_PER_DAY = envInt(process.env.TRIAL_MESHY_USES_PER_DAY, 1);
 const usage = require('./usage');
 const refineJobs = new Map();  // preview task id -> refine (texture) task id
 
@@ -24,7 +24,7 @@ function limitMessage(a) {
   if (a.plan === 'trial') {
     return a.limit === 0
       ? '3D creation is available on the paid plan. Upgrade to start making models.'
-      : `The free trial includes ${a.limit} 3D creation${a.limit === 1 ? '' : 's'} a week, and you've used it. Upgrade for ${MESHY_USES_PER_DAY} a day.`;
+      : `The free trial includes ${a.limit} 3D creation${a.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${MESHY_USES_PER_DAY} a day.`;
   }
   return `You've used all ${a.limit} of today's 3D creations (new models and repaints). Try again tomorrow.`;
 }
@@ -64,7 +64,7 @@ function mountModeling(app, { authMiddleware }) {
       const prompt = String(req.body?.prompt || '').trim();
       if (!prompt) return res.status(400).json({ error: 'Describe the model you want.' });
 
-      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerWeek: TRIAL_MESHY_USES_PER_WEEK });
+      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
       const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
       if (!slot.ok) return res.status(429).json({ error: limitMessage(allow), upgrade: allow.plan === 'trial' });
 
@@ -151,7 +151,7 @@ function mountModeling(app, { authMiddleware }) {
       if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
       if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
 
-      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerWeek: TRIAL_MESHY_USES_PER_WEEK });
+      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
       const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
       if (!slot.ok) return res.status(429).json({ error: limitMessage(allow), upgrade: allow.plan === 'trial' });
 
