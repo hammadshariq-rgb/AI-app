@@ -5982,6 +5982,12 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const audio = await window.jarvis.speak(greeting);
         if (audio) playAudioChunks([audio]);
       } catch (_) {}
+      // First time ever: once the greeting has started, walk them through the
+      // interface. The panels need a moment to settle into place first.
+      setTimeout(() => {
+        if (typeof positionRightPanels === 'function') positionRightPanels();
+        window.CallistoTour?.start();
+      }, 2600);
     }, { once: true });
   } else {
     // Returning user — go straight to main view

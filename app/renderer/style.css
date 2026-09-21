@@ -8717,3 +8717,111 @@ body.light-mode .msg-rich th, body.light-mode .msg-rich td { border-bottom-color
 .pub-btn:disabled { opacity: .45; cursor: default; transform: none; }
 .pub-btn-go { color: #fff; background: var(--pub); border-color: transparent; }
 .pub-btn-go:hover { filter: brightness(1.08); background: var(--pub); }
+
+/* ── First-run tour ─────────────────────────────────────────────────────────── */
+/* One spotlight glides between stops; its enormous shadow is the dimmed screen. */
+#tourLayer {
+  position: fixed; inset: 0; z-index: 20000;
+  opacity: 0; transition: opacity 0.45s ease;
+  -webkit-app-region: no-drag;
+}
+#tourLayer.tour-on { opacity: 1; }
+
+.tour-hole {
+  position: absolute; left: 0; top: 0; width: 0; height: 0;
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 200vmax rgba(3, 6, 14, 0.76),
+    0 0 0 1.5px rgba(0, 200, 255, 0.55),
+    0 0 32px 4px rgba(0, 200, 255, 0.28);
+  pointer-events: none;
+  transition:
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s ease;
+}
+.tour-hole-none {
+  box-shadow: 0 0 0 200vmax rgba(3, 6, 14, 0.82), 0 0 0 0 transparent, 0 0 0 0 transparent;
+}
+/* A slow breath on the highlight so the eye finds it. */
+#tourLayer.tour-on .tour-hole:not(.tour-hole-none)::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 22px;
+  border: 1px solid rgba(0, 200, 255, 0.35);
+  animation: tourBreath 2.4s ease-in-out infinite;
+}
+@keyframes tourBreath {
+  0%, 100% { opacity: 0.2; transform: scale(0.99); }
+  50%      { opacity: 0.8; transform: scale(1.01); }
+}
+
+.tour-card {
+  position: absolute; left: 0; top: 0; width: 340px; max-width: calc(100vw - 32px);
+  padding: 20px 22px 18px;
+  border-radius: 18px;
+  background: rgba(8, 12, 28, 0.9);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-family: 'Inter', system-ui, sans-serif;
+  color: rgba(226, 236, 255, 0.95);
+  display: flex; flex-direction: column; gap: 10px;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
+}
+.tour-card.tour-swap { opacity: 0; }
+
+.tour-meta { display: flex; align-items: center; justify-content: space-between; }
+.tour-count {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  color: rgba(0, 200, 255, 0.75); text-transform: uppercase;
+}
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18); transition: background 0.3s, width 0.3s;
+}
+.tour-dots i.on { width: 16px; border-radius: 3px; background: #00c8ff; }
+
+.tour-title { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; color: #fff; }
+.tour-body { font-size: 13.5px; line-height: 1.6; color: rgba(200, 216, 245, 0.85); }
+.tour-body em { color: #fff; font-style: normal; }
+.tour-foot {
+  font-size: 12px; color: rgba(170, 190, 225, 0.6);
+  padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.tour-kbd {
+  display: inline-block; margin: 0 2px; padding: 1px 7px; border-radius: 6px;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px; color: #cfeaff;
+  background: rgba(0, 200, 255, 0.12); border: 1px solid rgba(0, 200, 255, 0.35);
+}
+
+.tour-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.tour-btn {
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 8px 16px; border-radius: 10px;
+  color: rgba(226, 236, 255, 0.85); background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.tour-btn:hover { color: #fff; border-color: rgba(0, 200, 255, 0.5); }
+.tour-next { color: #031018; background: #00c8ff; border-color: #00c8ff; }
+.tour-next:hover { color: #031018; background: #33d6ff; }
+.tour-btn:focus-visible, .tour-skip:focus-visible { outline: 2px solid #4de8ff; outline-offset: 2px; }
+
+/* Bottom-left: the middle of the bottom edge is where "Shift to typing" sits,
+   and the right edge belongs to the panels — both get highlighted. */
+.tour-skip {
+  position: absolute; left: 24px; bottom: 24px;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer;
+  padding: 8px 18px; border-radius: 999px;
+  color: rgba(200, 216, 245, 0.7); background: rgba(8, 12, 28, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: color 0.2s, border-color 0.2s;
+}
+.tour-skip:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole, .tour-card, #tourLayer { transition: none; }
+  #tourLayer.tour-on .tour-hole::after { animation: none; }
+}
