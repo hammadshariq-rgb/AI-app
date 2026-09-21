@@ -61,11 +61,35 @@ jobs:
 
       # --publish always uploads the installer AND latest.yml, the file the
       # installed app reads to discover updates. Without it auto-update can't work.
+      # Signs through Azure Trusted Signing when its secrets are present,
+      # otherwise builds unsigned as before. AZURE_TENANT_ID / AZURE_CLIENT_ID /
+      # AZURE_CLIENT_SECRET are read by electron-builder itself; the rest describe
+      # the signing account.
       - name: Build and publish Windows installer
         working-directory: app
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGN_ACCOUNT }}
+          AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
+          AZURE_PUBLISHER_NAME: ${{ secrets.AZURE_PUBLISHER_NAME }}
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGN_ACCOUNT" ] && [ -n "$AZURE_CERT_PROFILE" ]; then
+            echo "Signing with Azure Trusted Signing."
+            npx electron-builder --win --publish always \
+              --config.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" \
+              --config.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" \
+              --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE" \
+              --config.win.azureSignOptions.publisherName="$AZURE_PUBLISHER_NAME"
+          else
+            echo "No Azure signing secrets set — building unsigned."
+            unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
+            npx electron-builder --win --publish always
+          fi
 
       - name: Save EXE as artifact
         uses: actions/upload-artifact@v4
