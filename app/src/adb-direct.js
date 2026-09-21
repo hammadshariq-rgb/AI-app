@@ -15,11 +15,15 @@ const { app }       = require('electron');
 function loadAdmZip() { return require('adm-zip'); }
 
 // ── Bundled adb location (auto-downloaded into userData) ─────────────────────
+// Google publishes platform-tools per OS; the binary is adb.exe only on Windows.
+const ADB_BIN = process.platform === 'win32' ? 'adb.exe' : 'adb';
+const PLATFORM_TOOLS_OS = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux';
+
 function bundledAdbDir() {
   return path.join(app.getPath('userData'), 'platform-tools');
 }
 function bundledAdbPath() {
-  return path.join(bundledAdbDir(), 'adb.exe');
+  return path.join(bundledAdbDir(), ADB_BIN);
 }
 
 // ── Find adb.exe: bundled first, then common SDK installs, then PATH ──────────
@@ -30,6 +34,9 @@ function findAdb() {
 
   // 2. Common SDK install locations
   const candidates = [
+    path.join(process.env.HOME || '', 'Library', 'Android', 'sdk', 'platform-tools', 'adb'),
+    '/opt/homebrew/bin/adb',
+    '/usr/local/bin/adb',
     path.join(process.env.LOCALAPPDATA  || '', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
     path.join(process.env.ProgramFiles  || '', 'Android', 'android-sdk', 'platform-tools', 'adb.exe'),
     path.join(process.env['ProgramFiles(x86)'] || '', 'Android', 'android-sdk', 'platform-tools', 'adb.exe'),
@@ -52,7 +59,7 @@ function isAdbAvailable() {
 // ── Auto-download platform-tools from Google ──────────────────────────────────
 // Returns { ok, path, error }
 async function downloadAdb(onProgress) {
-  const PLATFORM_TOOLS_URL = 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip';
+  const PLATFORM_TOOLS_URL = `https://dl.google.com/android/repository/platform-tools-latest-${PLATFORM_TOOLS_OS}.zip`;
   const zipPath = path.join(app.getPath('userData'), 'platform-tools.zip');
   const outDir  = bundledAdbDir();
 
@@ -81,11 +88,15 @@ async function downloadAdb(onProgress) {
     zip.extractAllTo(app.getPath('userData'), true);
     // zip extracts to platform-tools/ directory — that's exactly what we want
   } catch (e) {
-    // adm-zip might not be bundled — try PowerShell expand
+    // adm-zip might not be bundled — fall back to the OS's own unzip
     await new Promise((resolve, reject) => {
-      const { exec } = require('child_process');
-      exec(`powershell -WindowStyle Hidden -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${app.getPath('userData')}' -Force"`,
-        { windowsHide: true, timeout: 30000 }, err => err ? reject(err) : resolve());
+      const done = (err) => (err ? reject(err) : resolve());
+      if (process.platform === 'win32') {
+        require('child_process').exec(`powershell -WindowStyle Hidden -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${app.getPath('userData')}' -Force"`,
+          { windowsHide: true, timeout: 30000 }, done);
+      } else {
+        execFile('unzip', ['-o', zipPath, '-d', app.getPath('userData')], { timeout: 30000 }, done);
+      }
     });
   }
 
@@ -94,7 +105,9 @@ async function downloadAdb(onProgress) {
 
   // Verify
   const adbExe = bundledAdbPath();
-  if (!fs.existsSync(adbExe)) throw new Error('Extraction failed — adb.exe not found after extract');
+  if (!fs.existsSync(adbExe)) throw new Error('Extraction failed — adb not found after extract');
+  // Zip extraction drops the executable bit on macOS and Linux.
+  if (process.platform !== 'win32') { try { fs.chmodSync(adbExe, 0o755); } catch (_) {} }
   onProgress && onProgress('ADB tools ready!');
   return adbExe;
 }
