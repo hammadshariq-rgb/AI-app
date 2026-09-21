@@ -484,6 +484,60 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'create_spreadsheet',
+      description: 'Build a real Excel spreadsheet (.xlsx) for the user — budgets, trackers, schedules, inventories, invoices, grade books, sales logs, meal plans, comparisons, anything in rows and columns. Use when they ask for a spreadsheet, Excel file, sheet, workbook, tracker, table they can edit, or to "put this in Excel". Also use it to CHANGE a spreadsheet you already made (the current one is given in the context): return the whole updated spreadsheet.\n\nBuild it the way a professional in that field would hand it over — a finished, working tool, not a list:\n- Use every detail they gave (their numbers, names, dates, currency, goals). Where they gave few, add realistic example rows marked as examples in a Notes column or the sheet note, so it is never empty — but never present invented figures as their real data.\n- Break combined figures into their parts and let Excel do the maths: "3 staff on 40,000 each" is Quantity 3 × Rate 40,000 with a computed Total, not a single 120,000.\n- Include the calculations they would obviously want rather than suggesting them: for money, the totals, net profit or remaining balance, and margin or % of income; for trackers, progress, status and what is overdue; for schedules, hours and totals. Use computed columns for anything derived, so the sheet stays correct when they edit it.\n- For budgets, finances and business sheets, add a "Summary" sheet with the headline figures, calculated from the detail sheet with whole-column formulas written directly as cell values, e.g. "=SUMIF(\'Monthly Budget\'!D:D,\\"Income\\",\'Monthly Budget\'!E:E)" — whole columns (D:D) so the summary stays right as rows are added.\n- Never put a total under a column that mixes different kinds of thing (income and expenses together is a meaningless sum) — total them separately, e.g. in the Summary.\n- Include the columns an expert would add that the user did not think of (e.g. Due date and Status on an invoice, Budget vs Actual and Variance on a budget).\n- Suggestions are for going FURTHER than what you built, not for basics you left out.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'File title, e.g. "Coffee Shop Budget — October 2026".' },
+          currency: { type: 'string', description: 'ISO currency code for money columns, e.g. CAD, USD, GBP, PKR. Use the one the user mentions, else the one for their location, else CAD.' },
+          sheets: {
+            type: 'array',
+            description: 'One or more sheets (tabs).',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Short tab name, max 31 characters.' },
+                columns: {
+                  type: 'array',
+                  description: 'Columns in order.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      header: { type: 'string', description: 'Column heading. Must be unique within the sheet.' },
+                      type: { type: 'string', enum: ['text', 'number', 'integer', 'currency', 'percent', 'date'], description: 'Controls the number format. Dates as YYYY-MM-DD.' },
+                      formula: { type: 'string', description: 'For computed columns only: an Excel formula written with column headings in braces, applied to every row, e.g. "{Quantity}*{Unit price}", "{Income}-{Expenses}", "IF({Actual}>{Budget},\\"Over\\",\\"OK\\")". Leave this column\'s cells empty in rows.' },
+                      total: { type: 'string', enum: ['sum', 'average', 'none'], description: 'Add a totals row entry for this column.' },
+                      options: { type: 'array', items: { type: 'string' }, description: 'Allowed values, shown as a dropdown (e.g. Paid / Due / Overdue).' },
+                    },
+                    required: ['header', 'type'],
+                  },
+                },
+                rows: {
+                  type: 'array',
+                  description: 'Data rows. Each row is an array of cell values in column order; use "" for computed columns. Plain numbers for amounts (18.5, not "$18.50"); percentages as 15 or "15%".',
+                  items: { type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }] } },
+                },
+                notes: { type: 'string', description: 'Optional one-line note shown under the table, e.g. how to use it.' },
+              },
+              required: ['name', 'columns', 'rows'],
+            },
+          },
+          summary: { type: 'string', description: 'One or two sentences you will say to the user about what you built and how it works.' },
+          suggestions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '2-4 concrete ideas to make this spreadsheet more useful for them, each phrased as something they could ask you next, e.g. "Add a monthly savings goal and show how far off I am", "Split expenses into fixed and variable".',
+          },
+          question: { type: 'string', description: 'Optional: one short question that would let you tailor it better (e.g. "What\'s your monthly income, so I can add a savings row?"). Omit if you already have what you need.' },
+        },
+        required: ['title', 'sheets', 'summary', 'suggestions'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'create_slides',
       description: 'Create a Google Slides presentation for the user. Use when the user says "make me a presentation", "create slides about X", "make a slideshow on X", or similar. Generate 6-10 slides with meaningful content.',
       parameters: {
@@ -781,6 +835,8 @@ REPLY STYLE:
 - Replies are spoken aloud — keep them to 1-3 sentences maximum for small talk and quick commands.
 - KNOWLEDGE QUESTIONS (accounting, finance, tax, business, law, science, maths, history, technology, health — any subject): answer directly in chat, thoroughly and accurately, the way a top expert would. Open with a one- or two-sentence direct answer, then structure the detail with short **bold** lead-ins or "## " headings, bullet or numbered lists for steps and options, and a Markdown table when comparing things or showing figures (e.g. a journal entry, a worked calculation). Include a short worked example when it helps. Keep it tight — no filler, no restating the question.
 - NEVER create a document, report file or slides for a question. Only use create_document / create_slides when the user explicitly asks for a document, report, doc, PDF or presentation to be made.
+- SPREADSHEETS: when the user asks for a spreadsheet, Excel file, tracker, budget, invoice, schedule or anything in rows and columns, use create_spreadsheet. Build it around THEIR details — their numbers, names, dates and currency — and design it the way an expert in that area would (the columns a bookkeeper, teacher or coach would actually use, computed columns for anything derived, a totals row where it helps). If they gave few details, fill in realistic example rows they can overwrite and say so. Always include ideas for taking it further, and ask one question if a single answer would let you tailor it much better.
+- CONTRIBUTE, DON'T JUST ANSWER: after a substantive answer or finished task, add ONE short, specific next step the user would genuinely value — an idea, a better way to do it, something they may have missed, or one question that would let you help further. Make it concrete to what they just asked (e.g. after a budget: "Want me to add a savings goal so you can see how far off you are?"; after explaining depreciation: "I can work through your own asset if you give me the cost and useful life."). Never generic ("Let me know if you need anything else"), never more than one, and skip it entirely for quick commands (opening apps, playing music, volume, reminders set) and small talk.
 - When opening or launching something, respond with short, composed phrases: "Right away.", "Consider it done.", "Opening that for you now." Never over-explain. Never end a response with "Understood." as a standalone word or sentence.
 - Speak with quiet confidence. Never sound eager or casual. Never use slang, exclamation marks, or filler words like "Sure!", "Of course!", "Absolutely!" or "Great question!".
 - Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${userNameBlock}${reminderBlock}${memoryBlock}${realtimeBlock}`;
@@ -790,7 +846,7 @@ REPLY STYLE:
 const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note)\b/i;
 
 // A document/slides deck is only made when the user actually asks for one.
-const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|presentation|powerpoint|ppt)\b|\bgoogle (doc|slides)\b|\bas a (document|doc|pdf|report)\b/i;
+const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;
 
 // Questions about a subject ("how does depreciation work?", "explain EBITDA")
 // should be answered in chat, not routed to a tool because they contain words
@@ -806,7 +862,7 @@ function isKnowledgeQuestion(message) {
 // Tools offered for this message — document/slide creation only when requested.
 function toolsFor(message) {
   if (DOC_INTENT.test(String(message || ''))) return TOOLS;
-  return TOOLS.filter(t => !['create_document', 'create_slides'].includes(t.function?.name));
+  return TOOLS.filter(t => !['create_document', 'create_slides', 'create_spreadsheet'].includes(t.function?.name));
 }
 
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
@@ -879,10 +935,12 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const local = tryLocalCommand(message);
   if (local) return { ...local, memory: null };
 
-  const needsTools = (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message);
+  // Spreadsheets, documents and slides are built by a tool, however they're phrased.
+  const isDocWork = DOC_INTENT.test(message);
+  const needsTools = isDocWork || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message));
 
   // Fast path: action queries with no context get a minimal prompt and trimmed history for speed
-  if (fast && needsTools && !realtimeContext) {
+  if (fast && needsTools && !realtimeContext && !isDocWork) {
     const fastMessages = [
       { role: 'system', content: FAST_SYSTEM_PROMPT(assistantName) },
       ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
@@ -921,6 +979,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
           else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
           else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
+          else if (fnName === 'create_spreadsheet') action = { type: 'create_spreadsheet', spec: args };
           else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
           else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
           else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
@@ -941,13 +1000,17 @@ async function respond({ message, history = [], assistantName, memories = [], re
 
   const hasImages = attachments.some(a => a.kind === 'image');
   const body = {
-    model: hasImages ? 'gpt-4o' : 'gpt-4o-mini',
-    max_tokens: needsTools ? 1500 : (hasImages ? 3000 : 1024),
+    // Building a spreadsheet or document is one long, careful answer: a stronger
+    // model, and enough room that the JSON isn't cut off part-way through a row.
+    model: hasImages ? 'gpt-4o' : (isDocWork ? 'gpt-4.1' : 'gpt-4o-mini'),
+    max_tokens: isDocWork ? 12000 : (needsTools ? 1500 : (hasImages ? 3000 : 1024)),
     messages,
   };
   if (needsTools) { body.tools = toolsFor(message); body.tool_choice = 'required'; }
 
-  const res = await serverFetch('chat', body, { timeout: 40000, retries: 2 });
+  // A full spreadsheet takes far longer than a one-line reply; don't retry it —
+  // a retry would double the wait and the cost for the same answer.
+  const res = await serverFetch('chat', body, isDocWork ? { timeout: 150000, retries: 0 } : { timeout: 40000, retries: 2 });
   const data = await res.json();
   if (data.error) throw new Error(data.error?.message || data.error);
 
@@ -981,6 +1044,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
     else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
     else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
+          else if (fnName === 'create_spreadsheet') action = { type: 'create_spreadsheet', spec: args };
     else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
     else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
     else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
@@ -1010,7 +1074,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
   const hasImages = attachments.some(a => a.kind === 'image');
 
   // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
-  const needsTools = !skipToolFallback && (ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message);
+  const needsTools = !skipToolFallback && (DOC_INTENT.test(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message)));
   if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }

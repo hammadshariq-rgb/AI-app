@@ -97,6 +97,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onUpdateReady: (cb) => ipcRenderer.on('update:ready', () => cb()),
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
+  sheetOpen: (p) => ipcRenderer.invoke('sheet:open', p),
+  sheetReveal: (p) => ipcRenderer.invoke('sheet:reveal', p),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
   addCalendarEvent: (d) => ipcRenderer.invoke('jarvis:addCalendarEvent', d),
   openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),

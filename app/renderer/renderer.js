@@ -4421,6 +4421,67 @@ function addMessageWithAttachments(role, text, attachments) {
 }
 
 // ===================== SEND TO AI =====================
+// ── Spreadsheet card ──────────────────────────────────────────────────────────
+function renderSpreadsheetCard(msgEl, sheet) {
+  const card = document.createElement('div');
+  card.className = 'sheet-card';
+
+  const totalRows = (sheet.sheets || []).reduce((n, s) => n + (s.rows || 0), 0);
+  const tabs = (sheet.sheets || []).length;
+  const file = String(sheet.path || '').split(/[\\/]/).pop();
+
+  const head = (sheet.preview?.headers || []).map((h) => `<th>${esc(h)}</th>`).join('');
+  const body = (sheet.preview?.rows || []).map((r) =>
+    '<tr>' + (sheet.preview.headers || []).map((_, i) =>
+      sheet.preview.formulaCols?.[i]
+        ? '<td class="sheet-calc" title="Calculated in Excel">ƒ</td>'
+        : `<td>${esc(typeof r[i] === 'number' ? r[i].toLocaleString() : (r[i] ?? ''))}</td>`).join('') + '</tr>').join('');
+
+  card.innerHTML = `
+    <div class="sheet-head">
+      <div class="sheet-icon" aria-hidden="true">X</div>
+      <div class="sheet-meta">
+        <div class="sheet-title">${esc(sheet.title || 'Spreadsheet')}</div>
+        <div class="sheet-sub">${tabs} sheet${tabs === 1 ? '' : 's'} · ${totalRows} row${totalRows === 1 ? '' : 's'} · Documents/Callisto/${esc(file)}</div>
+      </div>
+    </div>
+    ${head ? `<div class="sheet-preview"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>` : ''}
+    <div class="doc-action-row">
+      <button class="doc-btn sheet-open">Open in Excel</button>
+      <button class="doc-btn sheet-reveal">Show in folder</button>
+    </div>`;
+
+  const openBtn = card.querySelector('.sheet-open');
+  openBtn.addEventListener('click', async () => {
+    const r = await window.jarvis.sheetOpen(sheet.path);
+    if (!r?.ok) openBtn.textContent = r?.error === 'missing' ? 'File was moved or deleted' : 'No app to open .xlsx — try Show in folder';
+  });
+  card.querySelector('.sheet-reveal').addEventListener('click', () => window.jarvis.sheetReveal(sheet.path));
+
+  // The AI's ideas for taking it further. Tapping one asks for that change to
+  // this spreadsheet — phrased so it edits rather than starts a new one.
+  const ideas = (sheet.suggestions || []).filter(Boolean);
+  if (ideas.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-ideas';
+    wrap.innerHTML = '<div class="sheet-ideas-label">Ideas to take it further</div>';
+    ideas.forEach((idea) => {
+      const chip = document.createElement('button');
+      chip.className = 'sheet-idea';
+      chip.textContent = idea;
+      chip.addEventListener('click', () => {
+        wrap.querySelectorAll('.sheet-idea').forEach((b) => { b.disabled = true; });
+        chip.classList.add('picked');
+        sendToJarvis(`Update the spreadsheet: ${idea}`);
+      });
+      wrap.appendChild(chip);
+    });
+    card.appendChild(wrap);
+  }
+
+  msgEl.appendChild(card);
+}
+
 async function sendToJarvis(text) {
   // Guard: don't even attempt if we know we're offline
   if (!navigator.onLine) {
@@ -4537,6 +4598,9 @@ async function sendToJarvis(text) {
   // If the reply was already streaming into a bubble, finalise that one instead.
   const msgEl = _finishReplyGate(res.text);
   showStopBtn(false); setState('idle');
+
+  // Spreadsheet — preview, open in Excel, and the AI's ideas as one-tap follow-ups
+  if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
 
   // Document creation — show Save options
   if (res.docTitle && (res.docSections || res.docContent) && msgEl) {

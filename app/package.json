@@ -126,6 +126,7 @@
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
+    "exceljs": "^4.4.0",
     "form-data": "^4.0.6",
     "mongodb": "^7.5.0",
     "multicast-dns": "^7.2.5",

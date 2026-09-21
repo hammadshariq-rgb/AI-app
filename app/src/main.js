@@ -936,6 +936,26 @@ ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
 });
 
 // ── Artifacts (this week's creations) ────────────────────────────────────────
+// Spreadsheets Callisto made: open in Excel, or show in the folder. Only files
+// inside Documents/Callisto — the renderer can't open arbitrary paths this way.
+function _callistoDocPath(p) {
+  const dir = path.join(app.getPath('documents'), 'Callisto');
+  const resolved = path.resolve(String(p || ''));
+  return resolved.startsWith(dir + path.sep) && require('fs').existsSync(resolved) ? resolved : null;
+}
+ipcMain.handle('sheet:open', async (_e, p) => {
+  const file = _callistoDocPath(p);
+  if (!file) return { ok: false, error: 'missing' };
+  const err = await shell.openPath(file);
+  return err ? { ok: false, error: err } : { ok: true };
+});
+ipcMain.handle('sheet:reveal', (_e, p) => {
+  const file = _callistoDocPath(p);
+  if (!file) return { ok: false, error: 'missing' };
+  shell.showItemInFolder(file);
+  return { ok: true };
+});
+
 ipcMain.handle('artifacts:list', () => ({ items: artifacts.list(), resetsAt: artifacts.nextReset() }));
 
 // The newest media the customer attached or generated, remembered across restarts
@@ -1519,7 +1539,16 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     vipContext = `VIP SENDERS (people the user can email by first name):\n${vipLines.join('\n')}\nMatch the recipient the user mentions to this list by first name and use their full email in the draft. The name in the email address may differ slightly — e.g. "amnaweb122@gmail.com" is "Amna".`;
   }
 
-  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext].filter(Boolean).join('\n\n') || null;
+  // When they're talking about a spreadsheet, show the AI the last one it made so
+  // "add a column for tax" edits that sheet rather than inventing a new one.
+  let sheetContext = null;
+  const lastSheet = store.get('lastSpreadsheet');
+  if (lastSheet && /\b(spreadsheet|sheet|excel|workbook|columns?|rows?|tab|tracker)\b/i.test(message)
+      && Date.now() - (lastSheet.at || 0) < 7 * 86400000) {
+    const trimmedSheets = (lastSheet.sheets || []).map((s) => ({ ...s, rows: (s.rows || []).slice(0, 60) }));
+    sheetContext = `The spreadsheet you most recently built for the user ("${lastSheet.title}"), as JSON. If they ask to change it, call create_spreadsheet with the COMPLETE updated spreadsheet — keep everything they didn't ask to change:\n${JSON.stringify({ title: lastSheet.title, currency: lastSheet.currency, sheets: trimmedSheets })}`;
+  }
+  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext].filter(Boolean).join('\n\n') || null;
   const language = store.get('language') || 'English';
   const userProfile = store.get('profile') || {};
   const userName = userProfile.displayName || null;
@@ -1960,6 +1989,29 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to open it.`;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false, docTitle, docSections };
+  }
+
+  if (finalAction?.type === 'create_spreadsheet') {
+    const spec = finalAction.spec || {};
+    try {
+      const outDir = path.join(app.getPath('documents'), 'Callisto');
+      const built = await require('./services/spreadsheet').build(spec, outDir);
+      // Kept so "add a column for tax" edits this sheet rather than starting over.
+      store.set('lastSpreadsheet', { title: spec.title, currency: spec.currency, sheets: spec.sheets, path: built.path, at: Date.now() });
+      const suggestions = (Array.isArray(spec.suggestions) ? spec.suggestions : []).filter(Boolean).slice(0, 4);
+      const question = spec.question ? String(spec.question) : '';
+      const spokenText = [spec.summary || `Your spreadsheet "${built.title}" is ready.`, question].filter(Boolean).join(' ');
+      _sendTTS(_e.sender, spokenText);
+      return {
+        text: spokenText, audio: null, card: null, hasAction: true,
+        spreadsheet: { ...built, suggestions, question },
+      };
+    } catch (err) {
+      console.error('[SHEET] build failed:', err.message);
+      const spokenText = 'I designed the spreadsheet but couldn\'t save the file. Please try again.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
   }
 
   if (finalAction?.type === 'set_volume') {
