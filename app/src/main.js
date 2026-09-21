@@ -3263,8 +3263,17 @@ ipcMain.handle('tv:discover', (_e) => new Promise(resolve => {
 ipcMain.handle('tv:connect', async (_e, { host, port }) => {
   try {
     const res = await tvCast.connect(host, port);
-    if (overlayWindow && !overlayWindow.isDestroyed())
-      overlayWindow.webContents.send('tv:status-update', tvCast.getStatus());
+    const send = (ch, data) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, data); };
+    send('tv:status-update', tvCast.getStatus());
+    // Connected over Cast: quietly try to add ADB, which is what lets Callisto
+    // open a specific video. Progress (download, "accept on your TV") goes to
+    // the chat so the user knows what to do.
+    if (res.ok && !tvCast.getStatus().device?.hasAdb) {
+      tvCast.upgradeToAdb((s) => {
+        send('tv:adb-status', s);
+        if (s.phase === 'ready') send('tv:status-update', tvCast.getStatus());
+      });
+    }
     return res;
   } catch (err) { return { ok: false, error: err.message }; }
 });

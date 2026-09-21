@@ -123,6 +123,15 @@ async function shellWithAuth(host, cmd, timeoutMs = 10000) {
   return adbExec(['-s', `${host}:5555`, 'shell', cmd], timeoutMs);
 }
 
+// ── Device state: "device" (ready), "unauthorized" (waiting for the user to
+// accept the prompt on the TV), "offline", or null when it isn't listed ────────
+async function deviceState(host, port = 5555) {
+  const out = await adbExec(['devices'], 5000).catch(() => '');
+  const line = out.split(/\r?\n/).find((l) => l.startsWith(`${host}:${port}`));
+  if (!line) return null;
+  return line.split(/\s+/)[1] || null;
+}
+
 // ── App packages ──────────────────────────────────────────────────────────────
 const APP_PACKAGES = {
   youtube : 'com.google.android.youtube.tv',
@@ -137,4 +146,4 @@ async function openYouTube(host, videoId) {
     `am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}"`], 8000);
 }
 
-module.exports = { findAdb, isAdbAvailable, downloadAdb, connectToDevice, shellWithAuth, openYouTube, APP_PACKAGES };
+module.exports = { findAdb, isAdbAvailable, downloadAdb, connectToDevice, shellWithAuth, openYouTube, deviceState, APP_PACKAGES };

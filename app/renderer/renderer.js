@@ -1913,21 +1913,53 @@ window._checkMarketsOverlay = async function(text) {
   }, 300);
   tvWireAll(); // also try immediately
 
-  // ── Auto-reconnect to last TV on startup ─────────────────────────────────
-  setTimeout(async () => {
+  // ── Reconnect to the last TV ─────────────────────────────────────────────
+  // A TV in standby often misses the first attempt, so startup tries a few
+  // times, and a TV command reconnects on demand instead of giving up.
+  let _tvReconnecting = null;
+  function tvReconnectLast() {
+    if (tvConnected) return Promise.resolve(true);
+    if (!_tvReconnecting) _tvReconnecting = _tvReconnect().finally(() => { _tvReconnecting = null; });
+    return _tvReconnecting;
+  }
+  async function _tvReconnect() {
     try {
-      const last = localStorage.getItem('tv_last_device');
-      if (!last) return;
-      const dev = JSON.parse(last);
-      if (!dev || !dev.host) return;
+      let dev = JSON.parse(localStorage.getItem('tv_last_device') || 'null');
+      if (!dev || !dev.host) return false;
+      // Home routers hand out new addresses when a TV restarts, so look the TV up
+      // by name first rather than trusting the address saved at setup.
+      const found = await window.jarvis.tvDiscover().catch(() => []);
+      const match = (found || []).find((d) => d.name === dev.name)
+        || ((found || []).length === 1 && found[0].model === dev.model ? found[0] : null);
+      if (match && match.host !== dev.host) {
+        console.log('[TV] address changed', dev.host, '→', match.host);
+        dev = { ...dev, host: match.host, port: match.port || 8009 };
+        try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
+      }
       const res = await window.jarvis.tvConnect(dev.host, dev.port || 8009);
       if (res && res.ok) {
         tvConnected = dev;
         tvUpdateUI();
-        console.log('[TV] Auto-reconnected to', dev.name);
+        console.log('[TV] Reconnected to', dev.name);
+        return true;
       }
     } catch (_) {}
-  }, 3000);
+    return false;
+  }
+  [3000, 15000, 45000].forEach((ms) => setTimeout(() => { if (!tvConnected) tvReconnectLast(); }, ms));
+
+  // What Callisto is doing to get full control of the TV.
+  let _tvPromptShown = false;
+  window.jarvis.onTvAdbStatus?.((s) => {
+    if (s.phase === 'prompt' && !_tvPromptShown) {
+      _tvPromptShown = true;
+      addMessage('assistant', '📺 Look at your TV — it\'s asking **"Allow network debugging?"** Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
+      window.jarvis.speak('Please accept the prompt on your TV, and tick always allow.');
+    } else if (s.phase === 'ready') {
+      _tvPromptShown = false;
+      addMessage('assistant', `📺 Full control of **${tvConnected?.name || 'your TV'}** is set up — I can now play specific videos on it.`);
+    }
+  });
 
   // ── Voice command handler ────────────────────────────────────────────────
   window._checkTvCast = async function(text) {
@@ -1935,8 +1967,11 @@ window._checkMarketsOverlay = async function(text) {
 
     // Must contain "on tv" / "on the tv" / "on my tv" / "on television" / "on screen"
     if (!/\bon\s+(the\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t)) return false;
-    if (!tvConnected) {
-      addMessage('assistant', '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your Chromecast first.');
+    if (!tvConnected && !(await tvReconnectLast())) {
+      const known = !!localStorage.getItem('tv_last_device');
+      addMessage('assistant', known
+        ? '📺 I couldn\'t reach your TV. Check it\'s switched on and on the same Wi-Fi as this computer, then ask again.'
+        : '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your TV first.');
       return true;
     }
 
@@ -1952,7 +1987,8 @@ window._checkMarketsOverlay = async function(text) {
       window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
       try {
         const res = await window.jarvis.tvCastYouTube(query);
-        if (res && res.ok) addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
+        if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there. Once full control is set up I'll be able to play it directly.`);
+        else if (res && res.ok) addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
         else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
       } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
@@ -1985,7 +2021,8 @@ window._checkMarketsOverlay = async function(text) {
         window.jarvis.speak(`Playing ${song} on your TV.`);
         try {
           const res = await window.jarvis.tvCastYouTube(song + ' official audio');
-          if (res && res.ok) addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
+          if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there.`);
+          else if (res && res.ok) addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
           else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
         } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       } else {

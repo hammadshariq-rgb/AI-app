@@ -104,6 +104,16 @@ function discover(onUpdate, timeoutMs = 6000) {
   return scanResults;
 }
 
+// ── Cast handshake check ─────────────────────────────────────────────────────
+function probeCast(host, port, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const c = new Client();
+    const t = setTimeout(() => { try { c.close(); } catch (_) {} reject(new Error(`timeout after ${Math.round(timeoutMs / 1000)}s`)); }, timeoutMs);
+    c.connect({ host, port }, () => { clearTimeout(t); try { c.close(); } catch (_) {} resolve(); });
+    c.on('error', (err) => { clearTimeout(t); reject(err); });
+  });
+}
+
 // ── Connect ────────────────────────────────────────────────────────────────────
 async function connect(host, port = 8009) {
   // 1. Test ADB connectivity (most important for Android TV)
@@ -141,20 +151,21 @@ async function connect(host, port = 8009) {
     }
   }
 
-  // 2. Test castv2 connectivity as fallback
+  // 2. Test castv2 connectivity as fallback. A TV waking from standby can take
+  // well over 5s to finish the TLS handshake, so allow longer and try twice —
+  // a single short attempt is what made "connect" fail at random.
   let hasCastv2  = false;
   let castError  = '';
   if (!hasAdb) {
-    try {
-      await new Promise((resolve, reject) => {
-        const c = new Client();
-        const t = setTimeout(() => { try { c.close(); } catch(_){} reject(new Error('timeout after 5s')); }, 5000);
-        c.connect({ host, port }, () => { clearTimeout(t); try { c.close(); } catch(_){} hasCastv2 = true; resolve(); });
-        c.on('error', err => { clearTimeout(t); reject(err); });
-      });
-    } catch (e) {
-      castError = e.message;
-      console.log('[TV] castv2 failed:', e.message);
+    for (let attempt = 1; attempt <= 2 && !hasCastv2; attempt++) {
+      try {
+        await probeCast(host, port, 12000);
+        hasCastv2 = true;
+      } catch (e) {
+        castError = e.message;
+        console.log(`[TV] castv2 attempt ${attempt} failed:`, e.message);
+        if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+      }
     }
   }
 
@@ -195,7 +206,8 @@ async function adbShell(cmd) {
   try {
     const out = await adb.shellWithAuth(connectedDev.host, cmd, 10000);
     console.log('[TV ADB]', cmd, '→', out.slice(0, 120));
-    return true;
+    // Both am and monkey exit 0 when they fail, so read what they said.
+    return !/\bError\b|does not exist|No activities found|monkey aborted|unable to resolve/i.test(out);
   } catch (e) {
     console.warn('[TV ADB] failed:', e.message);
     return false;
@@ -238,13 +250,14 @@ async function castv2Launch(appId) {
     const c   = await getCastClient();
     await new Promise(r => setTimeout(r, 500));
     const App = makeAppClass(appId);
-    await new Promise(resolve => {
-      const t = setTimeout(resolve, 12000);
+    // Report what actually happened: a launch that errors or never answers is a
+    // failure, not a success — otherwise Callisto says "playing" to a blank TV.
+    return await new Promise(resolve => {
+      const t = setTimeout(() => resolve(false), 12000);
       try {
-        c.launch(App, () => { clearTimeout(t); resolve(); });
-      } catch (_) { clearTimeout(t); resolve(); }
+        c.launch(App, (err) => { clearTimeout(t); resolve(!err); });
+      } catch (_) { clearTimeout(t); resolve(false); }
     });
-    return true;
   } catch (_) { return false; }
 }
 
@@ -257,9 +270,9 @@ async function launchApp(appKey) {
 
   // 1. ADB — most reliable on Android TV
   if (connectedDev.hasAdb && pkg) {
-    const ok = await adbShell(
-      `am start -n ${pkg}/.TvMainActivity 2>/dev/null || monkey -p ${pkg} -c android.intent.category.LAUNCHER 1`
-    );
+    // monkey launches an app by package without needing its activity name;
+    // LEANBACK_LAUNCHER is the TV launcher category.
+    const ok = await adbShell(`monkey -p ${pkg} -c android.intent.category.LEANBACK_LAUNCHER 1`);
     if (ok) return true;
   }
 
@@ -286,10 +299,10 @@ async function castYouTube(query) {
 
   // 1. ADB — deep link directly to video
   if (connectedDev.hasAdb) {
-    const ok = await adbShell(
-      `am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}" -n ${ADB_PACKAGES.youtube}/.TvMainActivity 2>/dev/null || ` +
-      `am start -a android.intent.action.VIEW -d "vnd.youtube:${videoId}"`
-    );
+    // A plain "view this link" lets Android hand it to whichever YouTube app the
+    // TV has. Guessing an activity name fails silently on many TVs, and am start
+    // exits 0 even then, so an "|| fallback" after it never ran.
+    const ok = await adbShell(`am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}"`);
     if (ok) return { ok: true, title, videoId };
   }
 
@@ -297,9 +310,74 @@ async function castYouTube(query) {
   const dialOk = await dialLaunch('YouTube', `v=${videoId}`);
   if (dialOk) return { ok: true, title, videoId };
 
-  // 3. castv2 — launch YouTube app (video selection on TV)
-  await castv2Launch(APP_IDS.youtube);
-  return { ok: true, title, videoId };
+  // 3. castv2 can open the YouTube app but can't choose the video. Say so,
+  // rather than claiming the video is playing.
+  const opened = await castv2Launch(APP_IDS.youtube);
+  if (opened) return { ok: true, partial: true, title, videoId };
+  throw new Error('The TV didn\'t respond. Check it\'s switched on and on the same Wi-Fi.');
+}
+
+// ── Upgrade to ADB in the background ──────────────────────────────────────────
+// Android TVs with network debugging on (port 5555) can be driven directly —
+// the only reliable way to open a specific video. Fetch adb if needed, connect,
+// and wait for the user to accept the "Allow debugging?" prompt on the TV.
+let adbUpgrade = null;
+function upgradeToAdb(onStatus) {
+  if (!connectedDev || connectedDev.hasAdb) return Promise.resolve(false);
+  if (adbUpgrade) return adbUpgrade;
+  const host = connectedDev.host;
+  // Download progress arrives per network chunk; only pass on real changes.
+  let lastSaid = '';
+  const say = (s) => {
+    const key = `${s.phase}|${s.message || ''}`;
+    if (key === lastSaid) return;
+    lastSaid = key;
+    try { onStatus && onStatus(s); } catch (_) {}
+  };
+
+  adbUpgrade = (async () => {
+    const reachable = await new Promise((resolve) => {
+      const s = require('net').connect({ host, port: 5555, timeout: 2500 });
+      s.on('connect', () => { s.destroy(); resolve(true); });
+      s.on('timeout', () => { s.destroy(); resolve(false); });
+      s.on('error', () => resolve(false));
+    });
+    if (!reachable) return false;   // network debugging is off — stay on Cast
+
+    if (!adb.findAdb()) {
+      say({ phase: 'downloading' });
+      await adb.downloadAdb((msg) => say({ phase: 'downloading', message: msg }));
+    }
+
+    await adb.connectToDevice(host, 5555).catch(() => {});
+    let prompted = false;
+    for (let i = 0; i < 45; i++) {            // up to ~90s for them to accept
+      const state = await adb.deviceState(host, 5555);
+      if (state === 'device') {
+        const out = await adb.shellWithAuth(host, 'echo adb_ok', 8000).catch(() => '');
+        if (out.includes('adb_ok') && connectedDev && connectedDev.host === host) {
+          connectedDev.hasAdb = true;
+          connectedDev.adbError = '';
+          say({ phase: 'ready' });
+          return true;
+        }
+      } else if (state === 'unauthorized' && !prompted) {
+        prompted = true;
+        say({ phase: 'prompt' });
+      } else if (!state) {
+        await adb.connectToDevice(host, 5555).catch(() => {});
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    say({ phase: 'timeout' });
+    return false;
+  })().catch((e) => {
+    console.warn('[TV] ADB upgrade failed:', e.message);
+    say({ phase: 'failed', message: e.message });
+    return false;
+  }).finally(() => { adbUpgrade = null; });
+
+  return adbUpgrade;
 }
 
 // ── Open streaming app by URL ──────────────────────────────────────────────────
@@ -357,7 +435,7 @@ function stop() {
 }
 
 module.exports = {
-  discover, connect, disconnect,
+  discover, connect, disconnect, upgradeToAdb,
   castYouTube, castMedia, openUrl,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({

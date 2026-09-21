@@ -179,4 +179,5 @@ contextBridge.exposeInMainWorld('jarvis', {
   onTvDevicesUpdate: (cb)             => ipcRenderer.on('tv:devices-update', (_e, d) => cb(d)),
   onTvStatusUpdate:  (cb)             => ipcRenderer.on('tv:status-update',  (_e, d) => cb(d)),
   onTvAdbProgress:   (cb)             => ipcRenderer.on('tv:adb-progress',   (_e, d) => cb(d)),
+  onTvAdbStatus:     (cb)             => ipcRenderer.on('tv:adb-status',     (_e, d) => cb(d)),
 });
