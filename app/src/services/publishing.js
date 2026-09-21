@@ -121,7 +121,7 @@ async function toInstagram(media, { description }, authToken) {
   const token = await connectors.getInstagramToken();
   if (!token) throw new Error('Instagram isn’t connected. Connect it in Connectors first.');
 
-  const pages = await fetch(`https://graph.facebook.com/v18.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`).then((r) => r.json());
+  const pages = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`).then((r) => r.json());
   const igId = pages.data?.find((p) => p.instagram_business_account)?.instagram_business_account?.id;
   if (!igId) throw new Error('No Instagram business account is linked to that Facebook page.');
 
@@ -131,21 +131,21 @@ async function toInstagram(media, { description }, authToken) {
     if (isVideo(media.type)) { body.set('media_type', 'REELS'); body.set('video_url', publicUrl); }
     else body.set('image_url', publicUrl);
 
-    const created = await fetch(`https://graph.facebook.com/v18.0/${igId}/media`, { method: 'POST', body }).then((r) => r.json());
+    const created = await fetch(`https://graph.facebook.com/v23.0/${igId}/media`, { method: 'POST', body }).then((r) => r.json());
     if (!created.id) throw new Error(created.error?.message || 'Instagram wouldn’t accept the file.');
 
     // Video needs processing before it can be published.
     if (isVideo(media.type)) {
       for (let i = 0; i < 60; i++) {
         await wait(3000);
-        const st = await fetch(`https://graph.facebook.com/v18.0/${created.id}?fields=status_code,status&access_token=${token}`).then((r) => r.json());
+        const st = await fetch(`https://graph.facebook.com/v23.0/${created.id}?fields=status_code,status&access_token=${token}`).then((r) => r.json());
         if (st.status_code === 'FINISHED') break;
         if (st.status_code === 'ERROR') throw new Error(st.status || 'Instagram couldn’t process that video.');
         if (i === 59) throw new Error('Instagram is taking too long to process the video.');
       }
     }
 
-    const published = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish`, {
+    const published = await fetch(`https://graph.facebook.com/v23.0/${igId}/media_publish`, {
       method: 'POST',
       body: new URLSearchParams({ creation_id: created.id, access_token: token }),
     }).then((r) => r.json());

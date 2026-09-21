@@ -373,20 +373,20 @@ async function getInstagramStats() {
   try {
     // Get connected Instagram Business account via Facebook Graph
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v18.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`
+      `https://graph.facebook.com/v23.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`
     );
     const pagesData = await pagesRes.json();
     const igId = pagesData.data?.[0]?.instagram_business_account?.id;
     if (!igId) return null;
 
     const igRes = await fetch(
-      `https://graph.facebook.com/v18.0/${igId}?fields=name,username,followers_count,media_count,profile_picture_url&access_token=${token}`
+      `https://graph.facebook.com/v23.0/${igId}?fields=name,username,followers_count,media_count,profile_picture_url&access_token=${token}`
     );
     const igData = await igRes.json();
 
     // Recent media insights
     const mediaRes = await fetch(
-      `https://graph.facebook.com/v18.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count&limit=5&access_token=${token}`
+      `https://graph.facebook.com/v23.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count&limit=5&access_token=${token}`
     );
     const mediaData = await mediaRes.json();
 
@@ -846,11 +846,12 @@ function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace
   return lines.length ? lines.join('\n') : null;
 }
 
-async function pollForToken(service) {
+async function pollForToken(service, state) {
+  if (!state) return false;
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
     try {
-      const res = await fetch(`${SERVER}/connect/${service}/poll`);
+      const res = await fetch(`${SERVER}/connect/${service}/poll?state=${encodeURIComponent(state)}`);
       const data = await res.json();
       if (data.ok) {
         if (service === 'gmail') saveGmailTokens(data);

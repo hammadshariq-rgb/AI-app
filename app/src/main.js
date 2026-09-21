@@ -2883,74 +2883,6 @@ async function startMicrosoftOAuthFlow() {
   });
 }
 
-async function startInstagramOAuthFlow() {
-  const http = require('http');
-  const appId     = process.env.FACEBOOK_APP_ID;
-  const appSecret = process.env.FACEBOOK_APP_SECRET;
-  if (!appId || !appSecret) {
-    console.error('[OAuth] FACEBOOK_APP_ID / FACEBOOK_APP_SECRET not set in .env');
-    return false;
-  }
-  // instagram_content_publish lets customers post their own photos/videos
-  const SCOPE = 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,business_management';
-
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      const redirectUri = `http://127.0.0.1:${port}`;
-
-      server.once('request', async (req, res) => {
-        const reqUrl = new URL(req.url, `http://127.0.0.1:${port}`);
-        const code  = reqUrl.searchParams.get('code');
-        const error = reqUrl.searchParams.get('error');
-
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(_oauthPage('Instagram', error));
-        server.close();
-
-        if (!code) { resolve(false); return; }
-
-        try {
-          // Step 1: exchange code for short-lived token
-          const shortRes = await fetch('https://graph.facebook.com/v18.0/oauth/access_token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_id: appId, client_secret: appSecret, redirect_uri: redirectUri, code }),
-          });
-          const shortData = await shortRes.json();
-          if (!shortData.access_token) throw new Error(shortData.error?.message || 'No short-lived token');
-
-          // Step 2: exchange for long-lived token (60 days)
-          const longRes = await fetch(
-            `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortData.access_token}`
-          );
-          const longData = await longRes.json();
-          const accessToken = longData.access_token || shortData.access_token;
-          const expiresIn   = longData.expires_in || 5184000; // default 60 days
-
-          connectors.saveInstagramTokens({ access_token: accessToken, expires_in: expiresIn });
-
-          if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'instagram' });
-          resolve(true);
-        } catch (err) {
-          console.error('[OAuth] Instagram token exchange failed:', err.message);
-          resolve(false);
-        }
-      });
-
-      const authUrl = new URL('https://www.facebook.com/v18.0/dialog/oauth');
-      authUrl.searchParams.set('client_id', appId);
-      authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('scope', SCOPE);
-      authUrl.searchParams.set('response_type', 'code');
-      commands.openInChrome(authUrl.toString());
-    });
-
-    setTimeout(() => { server.close(); resolve(false); }, 5 * 60 * 1000);
-  });
-}
-
 async function startTikTokOAuthFlow() {
   const http   = require('http');
   const crypto = require('crypto');
@@ -3042,20 +2974,20 @@ ipcMain.handle('connector:connect', async (_e, service) => {
     startMicrosoftOAuthFlow(); // non-blocking — connector:connected fires when done
     return true;
   }
-  // Instagram: direct Facebook OAuth (no server needed)
-  if (service === 'instagram') {
-    startInstagramOAuthFlow(); // non-blocking
-    return true;
-  }
+  // Instagram goes through the server flow below: Meta's app secret must stay
+  // on the server, and a customer build never has it.
   // TikTok: direct TikTok OAuth with PKCE (no server needed)
   if (service === 'tiktok') {
     startTikTokOAuthFlow(); // non-blocking
     return true;
   }
   // Other services (Spotify, etc.) still use the server flow
-  const url = `${process.env.LICENSE_SERVER_URL || 'http://localhost:4000'}/connect/${service}`;
+  // A one-off secret ties this connection to this app: the server only hands
+  // the tokens back to a poll that presents it.
+  const state = require('crypto').randomBytes(24).toString('base64url');
+  const url = `${process.env.LICENSE_SERVER_URL || 'http://localhost:4000'}/connect/${service}?state=${state}`;
   commands.openInChrome(url);
-  connectors.pollForToken(service).then(async ok => {
+  connectors.pollForToken(service, state).then(async ok => {
     if (!ok || !overlayWindow) return;
     // For analytics: show property picker before declaring connected
     if (service === 'analytics') {
