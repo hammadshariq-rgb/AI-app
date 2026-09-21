@@ -3260,9 +3260,9 @@ ipcMain.handle('tv:discover', (_e) => new Promise(resolve => {
     : devs), 6200);
 }));
 
-ipcMain.handle('tv:connect', async (_e, { host, port }) => {
+ipcMain.handle('tv:connect', async (_e, { host, port, kind }) => {
   try {
-    const res = await tvCast.connect(host, port);
+    const res = await tvCast.connect(host, port, kind || null);
     const send = (ch, data) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, data); };
     send('tv:status-update', tvCast.getStatus());
     // Connected over Cast: quietly try to add ADB, which is what lets Callisto

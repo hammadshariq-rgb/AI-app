@@ -1708,6 +1708,25 @@ window._checkMarketsOverlay = async function(text) {
     }
   }
 
+  const TV_KIND_LABEL = { cast: 'Google TV / Chromecast', roku: 'Roku', firetv: 'Fire TV' };
+
+  // What to tell someone once their TV is connected — each kind of TV needs
+  // something different from them (or nothing at all).
+  function tvConnectedMessage(dev, res) {
+    const name = res.name || dev.name;
+    const tryThis = '\nTry:\n- *"play [title] on the TV"*\n- *"open Netflix on the TV"*';
+    if (res.kind === 'roku') {
+      return `📺 Connected to **${name}** (Roku). No setup needed.${tryThis}`;
+    }
+    if (res.kind === 'firetv' && !(res.method || '').includes('ADB')) {
+      return `📺 Found **${name}** (Fire TV). Look at the TV and choose **Allow** on "Allow USB debugging?", ticking **"Always allow from this computer"**. After that, I can play things on it.${tryThis}`;
+    }
+    if ((res.method || '').includes('ADB')) {
+      return `📺 Connected to **${name}** with full control.${tryThis}`;
+    }
+    return `📺 Connected to **${name}**. I'm setting up full control in the background — if your TV asks to allow debugging, choose **Allow**.${tryThis}`;
+  }
+
   // ── Render device list ───────────────────────────────────────────────────
   function tvRenderDevices(devs) {
     const list = getEl('tvDeviceList');
@@ -1719,8 +1738,8 @@ window._checkMarketsOverlay = async function(text) {
       row.className = 'tv-device-item';
       row.innerHTML = `
         <div>
-          <div class="tv-device-name">${dev.name}</div>
-          <div class="tv-device-model">${dev.model || 'Chromecast'} · ${dev.host}</div>
+          <div class="tv-device-name">${esc(dev.name)}</div>
+          <div class="tv-device-model">${esc(TV_KIND_LABEL[dev.kind] || dev.model || 'TV')} · ${esc(dev.host)}</div>
         </div>
         <button class="tv-connect-btn">CONNECT</button>`;
       row.querySelector('.tv-connect-btn').addEventListener('click', async (e) => {
@@ -1728,47 +1747,12 @@ window._checkMarketsOverlay = async function(text) {
         const btn = e.currentTarget;
         btn.textContent = '…'; btn.disabled = true;
         try {
-          const res = await window.jarvis.tvConnect(dev.host, dev.port);
+          const res = await window.jarvis.tvConnect(dev.host, dev.port, dev.kind);
           if (res.ok) {
             tvConnected = dev;
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
-            const isAdb = res.method && res.method.includes('ADB');
-            let statusLine = '';
-            if (isAdb) {
-              statusLine = '\n✅ **ADB connected** — full app control active.';
-            } else if (res.adbError) {
-              if (res.adbError.includes('not found')) {
-                statusLine = `\n⚠️ **ADB tools not installed** — TV app control needs them.\n` +
-                  `Click **Install ADB tools** below to auto-download (≈10 MB, free from Google).`;
-                // Show install button after message renders
-                setTimeout(() => {
-                  const msgEls = document.querySelectorAll('.message.assistant');
-                  const last = msgEls[msgEls.length - 1];
-                  if (!last) return;
-                  const btn = document.createElement('button');
-                  btn.textContent = '⬇️ Install ADB tools';
-                  btn.style.cssText = 'margin-top:8px;padding:6px 14px;border-radius:8px;border:1px solid rgba(61,255,180,0.4);background:rgba(61,255,180,0.08);color:rgba(61,255,180,1);cursor:pointer;font-size:13px;';
-                  btn.onclick = async () => {
-                    btn.textContent = 'Downloading…'; btn.disabled = true;
-                    window.jarvis.onTvAdbProgress(msg => { btn.textContent = msg; });
-                    const r = await window.jarvis.tvInstallAdb();
-                    if (r.ok) {
-                      btn.textContent = '✅ ADB installed! Reconnect your TV now.';
-                      addMessage('assistant', '✅ ADB tools installed. Click your TV in the list to reconnect — commands will now work.');
-                    } else {
-                      btn.textContent = '❌ Failed: ' + r.error;
-                      btn.disabled = false;
-                    }
-                  };
-                  last.appendChild(btn);
-                }, 100);
-              } else {
-                statusLine = `\n⚠️ **ADB failed**: ${res.adbError}\n` +
-                  `Using Chromecast fallback (limited — app launching may not work on this TV model).`;
-              }
-            }
-            addMessage('assistant', `📺 Connected to **${dev.name}** via ${res.method || 'TV'}.${statusLine}\nYou can now say:\n- *"play [title] on YouTube on TV"*\n- *"open Netflix on TV"*\n- *"play [song] music on TV"*`);
+            addMessage('assistant', tvConnectedMessage(dev, res));
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
             btn.textContent = 'RETRY'; btn.disabled = false;
@@ -1883,16 +1867,14 @@ window._checkMarketsOverlay = async function(text) {
       const btn = document.getElementById('tvManualConnectBtn');
       if (btn) { btn.textContent = 'Connecting…'; btn.disabled = true; }
       try {
-        const fakedev = { name: 'TV (' + ip + ')', host: ip, port: 8009 };
+        // The main process works out what kind of TV is at this address.
         const res = await window.jarvis.tvConnect(ip, 8009);
         if (res && res.ok) {
-          tvConnected = fakedev;
-          try { localStorage.setItem('tv_last_device', JSON.stringify(fakedev)); } catch(_) {}
+          const dev = { name: res.name || 'TV (' + ip + ')', host: ip, port: res.kind === 'roku' ? 8060 : 8009, kind: res.kind };
+          tvConnected = dev;
+          try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch(_) {}
           tvUpdateUI();
-          const isAdb = res.method && res.method.includes('ADB');
-          const note  = isAdb ? '\n✅ ADB connected — full app control active.'
-            : (res.adbError ? `\n⚠️ ADB: ${res.adbError}` : '');
-          addMessage('assistant', `📺 Connected to **${fakedev.name}** via ${res.method || 'TV'}.${note}`);
+          addMessage('assistant', tvConnectedMessage(dev, res));
           window.jarvis.speak('Connected to TV.');
         } else {
           addMessage('assistant', `Could not connect to ${ip}: ${(res && res.error) || 'unknown error'}`);
@@ -1936,7 +1918,7 @@ window._checkMarketsOverlay = async function(text) {
         dev = { ...dev, host: match.host, port: match.port || 8009 };
         try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
       }
-      const res = await window.jarvis.tvConnect(dev.host, dev.port || 8009);
+      const res = await window.jarvis.tvConnect(dev.host, dev.port || 8009, dev.kind);
       if (res && res.ok) {
         tvConnected = dev;
         tvUpdateUI();
@@ -1953,7 +1935,7 @@ window._checkMarketsOverlay = async function(text) {
   window.jarvis.onTvAdbStatus?.((s) => {
     if (s.phase === 'prompt' && !_tvPromptShown) {
       _tvPromptShown = true;
-      addMessage('assistant', '📺 Look at your TV — it\'s asking **"Allow network debugging?"** Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
+      addMessage('assistant', '📺 Look at your TV — it\'s asking to **allow debugging** from this computer ("Allow network debugging?" or "Allow USB debugging?"). Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
       window.jarvis.speak('Please accept the prompt on your TV, and tick always allow.');
     } else if (s.phase === 'ready') {
       _tvPromptShown = false;

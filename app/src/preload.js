@@ -166,7 +166,7 @@ contextBridge.exposeInMainWorld('jarvis', {
 
   // TV Cast (Chromecast)
   tvDiscover:     ()                  => ipcRenderer.invoke('tv:discover'),
-  tvConnect:      (host, port)        => ipcRenderer.invoke('tv:connect', { host, port }),
+  tvConnect:      (host, port, kind)  => ipcRenderer.invoke('tv:connect', { host, port, kind }),
   tvDisconnect:   ()                  => ipcRenderer.invoke('tv:disconnect'),
   tvStatus:       ()                  => ipcRenderer.invoke('tv:status'),
   tvCastYouTube:  (query)             => ipcRenderer.invoke('tv:cast-youtube', { query }),
