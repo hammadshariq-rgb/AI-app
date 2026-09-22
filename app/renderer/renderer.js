@@ -1724,7 +1724,8 @@ window._checkMarketsOverlay = async function(text) {
   // something different from them (or nothing at all).
   function tvConnectedMessage(dev, res) {
     const name = res.name || dev.name;
-    const tryThis = '\nTry:\n- *"play [title] on the TV"*\n- *"open Netflix on the TV"*';
+    const tryThis = '\nSay **"on my TV"** when you want the TV. Without it, things open on this computer.\n'
+      + 'Try:\n- *"play [title] on my TV"*\n- *"open Netflix on my TV"*\n- *"pause the TV"* or *"turn the TV volume up"*';
     if (res.kind === 'roku') {
       return `📺 Connected to **${name}** (Roku). No setup needed.${tryThis}`;
     }
@@ -2026,23 +2027,68 @@ window._checkMarketsOverlay = async function(text) {
 
     // "play X on the tv" with no app named: it may be a film on the TV's own drive.
     // (The TV was already confirmed before this runs, and stripped from t above.)
-    const gm = t.match(/^play\s+(.+)$/i);
+    const gm = t.match(/^(?:play|put|show|cast|stream|throw)\s+(?:on\s+)?(.+)$/i);
     if (gm && !/youtube|spotify|music|song|netflix|prime|amazon/i.test(t)) return { action: 'play_file', query: tidy(gm[1]), soft: true };
 
     return null;
   }
   window._parseTvRequest = parseTvRequest;   // exposed for testing from devtools
 
+  // The remote: "mute the TV", "pause my TV", "turn the TV off", "turn the volume
+  // up on the TV". Only commands that name the TV — a bare "mute" or "pause" is for
+  // this computer, and "how do I mute my TV?" is a question for the AI.
+  function parseTvRemote(raw) {
+    let t = String(raw || '').replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
+    if (!/\b(?:tv|television)\b/i.test(t)) return null;
+    if (/^(?:how|what|why|when|where|which|who|is|are|was|does|do|did|should|would|will|can\s+i|could\s+i)\b/i.test(t)) return null;
+    t = t.replace(/^(?:ok(?:ay)?\s+|hey\s+)?(?:(?:please|can\s+you|could\s+you|would\s+you|just)\s+)+/i, '')
+      .replace(/\s+(?:please|for\s+me|now)$/i, '')
+      // "pause on the TV" loses "on the TV"; "turn on the TV" keeps its "on".
+      .replace(/\s*(?:(?<!\b(?:turn|switch|power)\s+)\b(?:on|of|in)\s+)?(?:the\s+|my\s+)?\b(?:tv|television)(?:'s)?\b\s*/i, ' ')
+      .replace(/\s{2,}/g, ' ').trim().toLowerCase();
+    const setM = t.match(/^(?:set|put|turn)?\s*(?:the\s+)?volume\s+(?:to\s+|at\s+)?(\d{1,3})\s*%?(?:\s+percent)?$/);
+    if (setM) return { key: 'volume', level: Math.min(100, Number(setM[1])) / 100 };
+    const VOL = '(?:the\\s+)?(?:volume|sound)';
+    const KEYS = [
+      ['unmute',      /^(?:un-?mute|turn\s+(?:the\s+)?sound\s+(?:back\s+)?on)(?:\s+it)?$/],
+      ['mute',        /^(?:mute|silence|turn\s+(?:the\s+)?sound\s+off)(?:\s+it)?$/],
+      ['volume_up',   new RegExp(`^(?:turn\\s+(?:it\\s+|${VOL}\\s+)?up(?:\\s+${VOL})?|volume\\s+up|(?:make\\s+it\\s+)?louder|(?:raise|increase)\\s+${VOL})$`)],
+      ['volume_down', new RegExp(`^(?:turn\\s+(?:it\\s+|${VOL}\\s+)?down(?:\\s+${VOL})?|volume\\s+down|(?:make\\s+it\\s+)?quieter|(?:lower|decrease|reduce)\\s+${VOL})$`)],
+      ['power_off',   /^(?:turn|switch|power|shut)\s+(?:it\s+)?off$/],
+      ['power_on',    /^(?:turn|switch|power)\s+(?:it\s+)?on$/],
+      ['pause',       /^pause(?:\s+.+)?$/],
+      ['play',        /^(?:resume|unpause|continue|carry\s+on|play)(?:\s+(?:it|playing|the\s+(?:movie|film|show|video|episode|music|song)))?$/],
+      ['stop',        /^stop(?:\s+.+)?$/],
+      ['home',        /^(?:go\s+)?(?:back\s+)?(?:to\s+(?:the\s+)?)?home(?:\s+screen)?$/],
+      ['back',        /^go\s+back$/],
+      ['next',        /^(?:next|skip)(?:\s+(?:to\s+)?(?:the\s+)?next)?(?:\s+(?:one|episode|video|song))?$/],
+      ['previous',    /^previous(?:\s+(?:one|episode|video|song))?$/],
+    ];
+    for (const [key, re] of KEYS) if (re.test(t)) return { key };
+    return null;
+  }
+  window._parseTvRemote = parseTvRemote;
+
   window._checkTvCast = async function(text) {
     const t = text.trim();
 
-    // Must mention the TV: "on the tv", "on my tv", "on television", "on screen"
-    if (!/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t)) return false;
+    // Must be meant for the TV: "... on my TV", or a remote command naming it ("mute the TV").
+    // A question ("what's on TV tonight?") is for the AI, not the TV.
+    const remote = parseTvRemote(t);
+    const question = /^(?:how|what|what's|whats|why|when|where|which|who|whose|is|are|was|were|does|do|did|should|has|have)\b/i.test(t);
+    if (!remote && (question || !/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t))) return false;
     if (!tvConnected && !(await tvReconnectLast())) {
       const known = !!localStorage.getItem('tv_last_device');
       addMessage('assistant', known
         ? '📺 I couldn\'t reach your TV. Check it\'s switched on and on the same Wi-Fi as this computer, then ask again.'
         : '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your TV first.');
+      return true;
+    }
+
+    if (remote) {
+      const res = await window.jarvis.tvDo({ action: 'remote', ...remote }).catch((e) => ({ ok: false, message: e.message }));
+      addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
+      if (res.ok) window.jarvis.speak(res.message);
       return true;
     }
 
@@ -2068,9 +2114,12 @@ window._checkMarketsOverlay = async function(text) {
     // ── "play X on YouTube on TV" ──────────────────────────────────────────
     const ytM = t.match(/play\s+(.+?)\s+on\s+youtube/i)
              || t.match(/youtube\s+(.+?)\s+on\s+(?:the\s+|my\s+)?tv/i)
-             || t.match(/play\s+(.+?)\s+on\s+(?:the\s+|my\s+)?(?:tv|screen)/i);
+             || t.match(/(?:play|put|show|cast|stream|throw)\s+(.+?)\s+on\s+(?:the\s+|my\s+)?(?:tv|screen)/i);
     if (ytM) {
-      const query = ytM[1].trim().replace(/\s+on\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)$/i, '').trim();
+      const query = ytM[1].trim()
+        .replace(/\s+on\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)$/i, '')
+        .replace(/\s+on\s+(?:spotify|youtube(?:\s+music)?|apple\s+music)$/i, '')   // it plays through YouTube on the TV
+        .trim();
       addMessage('assistant', `📺 Searching YouTube for *"${query}"* and casting to **${tvConnected.name}**…`);
       window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
       try {
@@ -2131,29 +2180,15 @@ window._checkMarketsOverlay = async function(text) {
       return true;
     }
 
-    // ── "stop / pause TV" ─────────────────────────────────────────────────
-    if (/stop|pause/i.test(t)) {
-      addMessage('assistant', `⏹ Stopped playback on **${tvConnected.name}**.`);
-      await window.jarvis.tvStop().catch(() => {});
+    // Pause, mute, volume and power are handled by parseTvRemote above.
+    // Anything else asked "on my TV" stays with the TV: never done on this computer instead.
+    const openM = t.replace(/["“”]/g, '').match(/\b(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(.+?)\s+on\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i);
+    if (openM) {
+      const what = openM[1].trim();
+      addMessage('assistant', `📺 I can't open **${what}** on your TV yet. On the TV I can play YouTube, Netflix, Prime Video, Spotify, and videos stored on the TV itself.`);
+      window.jarvis.speak(`I can't open ${what} on your TV yet. I can do YouTube, Netflix, Prime Video, Spotify, and videos stored on the TV.`);
       return true;
     }
-
-    // ── "mute TV" ────────────────────────────────────────────────────────
-    if (/mute/i.test(t)) {
-      addMessage('assistant', `🔇 Muted **${tvConnected.name}**.`);
-      await window.jarvis.tvMute().catch(() => {});
-      return true;
-    }
-
-    // ── "volume X on TV" ─────────────────────────────────────────────────
-    const volM = t.match(/volume\s+(?:to\s+)?(\d+)/i);
-    if (volM) {
-      const pct = Math.max(0, Math.min(100, parseInt(volM[1])));
-      addMessage('assistant', `🔊 Setting TV volume to ${pct}%.`);
-      await window.jarvis.tvVolume(pct / 100).catch(() => {});
-      return true;
-    }
-
     return false;
   };
 })();
@@ -2173,7 +2208,8 @@ function _maybeForwardToHud(responseText, card) {
 }
 
 window._checkQuickLaunch = async function(text) {
-  const t = text.trim();
+  // "on my laptop" is where these run anyway: "open Netflix on my laptop" opens Netflix.
+  const t = text.trim().replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)\b/i, '').trim();
 
   // ── Spotify: "play X on spotify" ─────────────────────────────────────────
   // Skip if TV command — let _checkTvCast handle it
@@ -2183,7 +2219,10 @@ window._checkQuickLaunch = async function(text) {
   const ytStatsM = /(?:how many|what(?:'s|'re| are| is)?|show|tell me|my)\s+(?:my\s+)?(?:sub(?:scriber)?s?|view(?:s|er)?s?|channel\s+stats?|youtube\s+stats?|channel\s+analytic|youtube\s+analytic|last\s+video|recent\s+video|upload)/i.test(t)
     || /(?:youtube|channel)\s+(?:stats?|analytic|sub|view|revenue|earning)/i.test(t)
     || /(?:how(?:'s|\s+is|\s+are)?|what(?:'s| is)?)\s+(?:my\s+)?(?:channel|youtube)/i.test(t);
-  if (ytStatsM && !/\bplay\b|\bopen\b|\bsearch\b/i.test(t)) {
+  // Only for the user's own channel ("my views", "how's my channel") or an
+  // explicit "channel stats" — "explain how YouTube makes money" is a question.
+  const aboutOwnChannel = /\bmy\b/i.test(t) || /\b(?:channel|youtube)\s+(?:stats?|analytics?)\b/i.test(t);
+  if (ytStatsM && aboutOwnChannel && !/\bplay\b|\bopen\b|\bsearch\b/i.test(t)) {
     (async () => {
       try {
         const data = await window.jarvis.analyticsGet('all');
@@ -2219,12 +2258,13 @@ window._checkQuickLaunch = async function(text) {
 
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
   // Skip if this is a TV command
-  const ytM = !(/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
+  const ytM = !isTV
     && (t.match(/play\s+(.+?)\s+on\s+(?:youtube|yt)\b/i)
-      || t.match(/(?:open|search)\s+youtube\s+(?:for\s+)?(.+)/i)
+      || t.match(/^(?:search(?:\s+for)?|look\s+up|find)\s+(.+?)\s+on\s+(?:youtube|yt)[\s.!?]*$/i)
+      || t.match(/(?:open|search)\s+(?:on\s+)?youtube\s+(?:and\s+(?:search|look\s+up|find|play|watch)\s+)?(?:for\s+)?(.+)/i)
       || t.match(/^youtube\s+(.+)/i));
   if (ytM) {
-    const query = ytM[1].trim();
+    const query = ytM[1].replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
     addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
     window.jarvis.speak(`Opening ${query} on YouTube.`);
     window.jarvis.openGoogleUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
@@ -2254,7 +2294,7 @@ window._checkQuickLaunch = async function(text) {
   const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|calendar|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
   // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
   const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
-  const appOpenM = tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i);
+  const appOpenM = !isTV && (tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i));
   if (appOpenM) {
     const appName = (appOpenM[1] || '').trim().toLowerCase();
     if (!appName || appName.length < 2) { /* too short, let AI handle */ }
@@ -2282,11 +2322,12 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Google search: "search X on google" / "google X" ────────────────────
-  const googleM = t.match(/^(?:search|google|look up|find)\s+(.+?)\s+on\s+google\s*$/i)
+  const googleM = t.match(/^search\s+(?:on\s+)?google\s+(?:for\s+)?(.+)/i)
+               || t.match(/^(?:search|google|look up|find)\s+(.+?)\s+on\s+google\s*$/i)
                || t.match(/^google\s+(.+)/i)
                || t.match(/^search\s+(.+?)\s+(?:on\s+)?google\s*$/i);
   if (googleM) {
-    const query = googleM[1].trim();
+    const query = googleM[1].replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
     addMessage('assistant', `🔍 Searching Google for **${query}**…`);
     window.jarvis.speak(`Searching Google for ${query}.`);
     window.jarvis.openGoogleUrl(`https://www.google.com/search?q=${encodeURIComponent(query)}`);

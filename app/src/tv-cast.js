@@ -796,10 +796,13 @@ function matchFile(files, query) {
 //   { action: 'play_title', app: 'netflix' | 'prime', query, profile }
 //   { action: 'play_file',  query }                  — from the TV's own storage
 //   { action: 'open_app',   app, profile }
+//   { action: 'remote',     key, level }             — pause, mute, volume, power…
 async function run(cmd) {
   if (!connectedDev) throw new Error('Not connected to any TV');
   const { action, app = 'youtube', query = '', profile = null } = cmd || {};
   const isRoku = connectedDev.kind === 'roku';
+
+  if (action === 'remote') return remote(cmd.key, cmd.level);
 
   if (action === 'search') {
     if (isRoku) {
@@ -880,6 +883,58 @@ async function run(cmd) {
   }
 
   throw new Error(`Unknown TV action: ${action}`);
+}
+
+// ── The remote ─────────────────────────────────────────────────────────────────
+// Each button as a Roku key and an Android key event. Stop goes Home, as stop()
+// does: streaming apps ignore the media stop key but always stop when left.
+const REMOTE = {
+  play:        { roku: 'Play',       android: 126, say: 'Playing.' },
+  pause:       { roku: 'Play',       android: 127, say: 'Paused.' },
+  stop:        { roku: 'Home',       android: 3,   say: 'Stopped.' },
+  mute:        { roku: 'VolumeMute', android: 164, say: 'Muted the TV.' },
+  unmute:      { roku: 'VolumeUp',   android: 24,  say: 'Unmuted the TV.' },     // volume up always unmutes; the mute key only toggles
+  volume_up:   { roku: 'VolumeUp',   android: 24,  say: 'Turned the TV up.', times: 5 },
+  volume_down: { roku: 'VolumeDown', android: 25,  say: 'Turned the TV down.', times: 5 },
+  home:        { roku: 'Home',       android: 3,   say: 'Back to the home screen.' },
+  back:        { roku: 'Back',       android: 4,   say: 'Gone back.' },
+  next:        { roku: 'Fwd',        android: 87,  say: 'Skipped ahead.' },
+  previous:    { roku: 'Rev',        android: 88,  say: 'Gone back one.' },
+  power_off:   { roku: 'PowerOff',   android: 223, say: 'Turning the TV off.' }, // sleep, not the power toggle, so it can't turn it on by mistake
+  power_on:    { roku: 'PowerOn',    android: 224, say: 'Turning the TV on.' },
+};
+
+async function remote(key, level) {
+  if (key === 'volume') {
+    const res = await setVolume(level);
+    return res && res.ok === false ? { ok: false, message: res.error } : { ok: true, message: `TV volume set to ${Math.round(level * 100)}%.` };
+  }
+  const btn = REMOTE[key];
+  if (!btn) throw new Error(`Unknown TV button: ${key}`);
+  const done = { ok: true, message: btn.say };
+
+  if (connectedDev.kind === 'roku') {
+    for (let i = 0; i < (btn.times || 1); i++) await roku(`/keypress/${btn.roku}`);
+    return done;
+  }
+  if (adbReady()) {
+    await press(btn.android, btn.times || 1);
+    return done;
+  }
+  if (connectedDev.kind === 'firetv') return { ok: false, message: 'Accept "Allow USB debugging?" on your Fire TV first, then ask again.' };
+
+  // A Cast-only TV: Cast can mute, change the volume and stop, nothing else.
+  if (castClient && (key === 'mute' || key === 'unmute')) {
+    await new Promise((r) => castClient.setVolume({ muted: key === 'mute' }, r));
+    return done;
+  }
+  if (castClient && (key === 'volume_up' || key === 'volume_down')) {
+    const now = await new Promise((r) => castClient.getVolume((err, v) => r(err || !v ? 0.5 : v.level)));
+    await setVolume(now + (key === 'volume_up' ? 0.1 : -0.1));
+    return done;
+  }
+  if (key === 'stop') { await stop(); return done; }
+  return { ok: false, message: 'That needs full control of your TV. Accept the debugging prompt on the TV, then ask again.' };
 }
 
 function localVideos() { return (fileIndex && fileIndex.files) || []; }

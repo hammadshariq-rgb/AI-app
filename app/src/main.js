@@ -1235,10 +1235,14 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const { ACTION_KEYWORDS: _ak } = ai;
   // Voice transcripts arrive as 'Open WhatsApp.' or '"Song" by Artist.' — drop the
   // closing punctuation and quotes so the fast commands still match.
-  const _lo = message.trim().toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
-  const _openM = _lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
-  const _searchM = _lo.match(/^(?:search(?:\s+for)?|google)\s+(.+)$/);
-  const _urlM = _lo.match(/^(?:go to|open|navigate to)\s+(https?:\/\/\S+|\S+\.(?:com|org|net|io|co)\S*)$/);
+  // "on my laptop" is where these run anyway, so it's dropped; anything for the TV
+  // skips them entirely so it can never land on this computer by mistake.
+  const _lo = message.trim().toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim()
+    .replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)$/, '');
+  const _forTv = /\b(?:on|to)\s+(?:the\s+|my\s+)?(?:tv|television|chromecast)\b/.test(_lo);
+  const _openM = !_forTv && _lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
+  const _searchM = !_forTv && _lo.match(/^(?:search(?:\s+for)?|google)\s+(.+)$/);
+  const _urlM = !_forTv && _lo.match(/^(?:go to|open|navigate to)\s+(https?:\/\/\S+|\S+\.(?:com|org|net|io|co)\S*)$/);
   const FAST_MESSAGING = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
   const FAST_MUSIC = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
 
@@ -1289,8 +1293,13 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   }
 
   if (_searchM) {
-    const q = encodeURIComponent(_searchM[1].trim()).replace(/%20/g, '+');
-    const url = `https://www.google.com/search?q=${q}`;
+    // "search google for X" searches X; "search X on youtube" searches YouTube, not Google.
+    let q = _searchM[1].trim().replace(/^(?:on\s+)?google\s+(?:for\s+)?/, '').replace(/\s+on\s+google$/, '');
+    const onYt = /\s+on\s+(?:youtube|yt)$/.test(q) || /^(?:on\s+)?youtube\s+/.test(q);
+    q = q.replace(/\s+on\s+(?:youtube|yt)$/, '').replace(/^(?:on\s+)?youtube\s+(?:for\s+)?/, '');
+    const url = onYt
+      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+      : `https://www.google.com/search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`;
     // Fire action AND TTS simultaneously — don't wait for one before the other
     commands.run('open_url', url).catch(() => {});
     _sendTTS(_e.sender, 'Searching now.');
@@ -1327,9 +1336,14 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // ── Fast path: play commands — skip AI entirely, go straight to Spotify ──────
   // Catches: "play X", "play X on spotify", "play X by Y", "put on X", "i want to hear X", etc.
-  const _playM = _lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/)
+  // Not for Spotify: a title on Netflix or Prime, anything for the TV, or a video,
+  // film or game ("play the video I made", "play chess") — unless it names an artist.
+  const _notMusic = _forTv
+    || /\bon\s+(?:netflix|prime|amazon|disney|hulu|hbo|max|apple\s+tv|crunchyroll|twitch|tiktok|instagram|facebook)\b/.test(_lo)
+    || (/\b(?:video|videos|movie|film|episode|trailer|clip|game|chess)\b/.test(_lo) && !/\sby\s/.test(_lo));
+  const _playM = !_notMusic && (_lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/)
     // "Nice for What by Drake on Spotify" — no verb, but clearly a song request
-    || _lo.match(/^(?!open\b|launch\b|start\b)(.+?\s+by\s+.+?)\s+on\s+spotify$/);
+    || _lo.match(/^(?!open\b|launch\b|start\b)(.+?\s+by\s+.+?)\s+on\s+spotify$/));
   if (_playM) {
     const songQuery = _playM[1].trim();
     const _spotifyConnected = !!(store.get('connector.spotify.access_token'));

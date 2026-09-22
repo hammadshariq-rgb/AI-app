@@ -687,6 +687,8 @@ MUSIC RULES:
 - Whenever the user says "play", "put on", "queue", or "listen to" + any song/artist/album, ALWAYS use the play_music tool. Never just answer with text.
 - If the user says "open Spotify" / "open Apple Music" / etc., use open_app or open_chat for that app — do NOT use play_music.
 - Do not specify a service in play_music unless the user explicitly names one — the system picks the right one automatically.
+- open_app, play_music and open_url act on this computer. The TV is controlled only when the user says "on my TV", and that is handled before it reaches you — so if a message asks for something on the TV, never call those tools for it; say what you can do on the TV instead (YouTube, Netflix, Prime Video, Spotify, videos stored on the TV, pause, volume, power).
+- Only "play" a song with play_music. A film, a show, a video or a game ("play Red Notice on Netflix", "play the video I made", "play chess") is not music.
 
 SEARCH & BROWSER RULES:
 - Google is ALWAYS the default search engine. Use https://www.google.com/search?q=... for every search, every time. Never use Bing, Yahoo, DuckDuckGo, or any other search engine.
@@ -870,7 +872,10 @@ const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon 
 
 function tryLocalCommand(raw) {
   const msg = raw.trim();
-  const lo  = msg.toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
+  const lo  = msg.toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim()
+    .replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)$/, '');
+  // Anything for the TV is the TV's job, never this computer's.
+  if (/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:tv|television|chromecast)\b/.test(lo)) return null;
 
   const openMatch = lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
   if (openMatch) {
@@ -883,14 +888,24 @@ function tryLocalCommand(raw) {
       return { text: 'Right away.', action: { type: 'open_app', arg: target } };
   }
 
-  const playMatch = lo.match(/^(?:play|put on|queue|listen to)\s+(.+)$/);
+  // Music only: a Netflix title, a video, a film or a game goes to the AI instead.
+  const notMusic = /\bon\s+(?:netflix|prime|amazon|disney|hulu|hbo|max|apple\s+tv|crunchyroll|twitch|tiktok|instagram|facebook)\b/.test(lo)
+    || (/\b(?:video|videos|movie|film|episode|trailer|clip|game|chess)\b/.test(lo) && !/\sby\s/.test(lo));
+  // "play believer on spotify" plays "believer" on Spotify.
+  const playMatch = !notMusic && lo.match(/^(?:play|put on|queue|listen to)\s+(.+?)(?:\s+on\s+(spotify|apple music|youtube music))?$/);
   if (playMatch)
-    return { text: 'On it.', action: { type: 'play_music', arg: `|${playMatch[1].trim()}` } };
+    return { text: 'On it.', action: { type: 'play_music', arg: `${playMatch[2] || ''}|${playMatch[1].trim()}` } };
 
   const searchMatch = lo.match(/^(?:search(?:\s+for)?|google)\s+(.+)$/);
   if (searchMatch) {
-    const q = encodeURIComponent(searchMatch[1].trim()).replace(/%20/g, '+');
-    return { text: 'Searching now.', action: { type: 'open_url', arg: `https://www.google.com/search?q=${q}` } };
+    // "search google for X" searches X; "search X on youtube" searches YouTube.
+    let q = searchMatch[1].trim().replace(/^(?:on\s+)?google\s+(?:for\s+)?/, '').replace(/\s+on\s+google$/, '');
+    const onYt = /\s+on\s+(?:youtube|yt)$/.test(q) || /^(?:on\s+)?youtube\s+/.test(q);
+    q = q.replace(/\s+on\s+(?:youtube|yt)$/, '').replace(/^(?:on\s+)?youtube\s+(?:for\s+)?/, '');
+    const url = onYt
+      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+      : `https://www.google.com/search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`;
+    return { text: 'Searching now.', action: { type: 'open_url', arg: url } };
   }
 
   const urlMatch = lo.match(/^(?:go to|open|navigate to)\s+(https?:\/\/\S+|\S+\.(?:com|org|net|io|co)\S*)$/);
