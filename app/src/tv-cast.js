@@ -1035,8 +1035,27 @@ async function run(cmd) {
     if (gate.needsProfile || gate.needsPosition) return askForProfile(app, query, profile, gate);
     const label = app === 'prime' ? 'Prime Video' : 'Netflix';
     const who = profile.name || `profile ${profile.position}`;
-    const playing = await waitUntilPlaying(pkg, 12000);
-    return { ok: true, chosen: true, message: playing ? `Playing on ${label} as ${who}.` : `Chose ${who} on ${label}.` };
+    // Picking a profile takes as long as the user takes to answer, and by then the
+    // app has forgotten what it was asked to play — it lands on its home screen.
+    // So ask for the title again, unless it's already playing.
+    let playing = await waitUntilPlaying(pkg, 7000);
+    const title = lastPlayed && Date.now() - lastPlayed.at < 15 * 60 * 1000 ? lastPlayed : null;
+    if (!playing && title && title.app === app) {
+      await sleep(1500);
+      if (app === 'netflix' && title.netflixId) {
+        await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${title.netflixId}' ${pkg}`);
+      } else if (app === 'prime' && title.title) {
+        await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(title.title)}' ${pkg}`);
+      }
+      playing = await waitUntilPlaying(pkg, 15000);
+    }
+    const what = title && title.title ? `"${title.title}"` : null;
+    return {
+      ok: true, chosen: true,
+      message: playing ? `Playing ${what || ''} on ${label} as ${who}.`.replace('  ', ' ')
+        : what ? `Opened ${what} on ${label} as ${who} — press play on the remote if it's waiting.`
+          : `Chose ${who} on ${label}.`,
+    };
   }
 
   if ((action === 'play_title' && app === 'prime') || (action === 'open_app' && app === 'prime' && query)) {
@@ -1046,6 +1065,7 @@ async function run(cmd) {
     }
     if (!adbReady()) { await launchApp('prime'); return { ok: true, partial: true, message: `I opened Prime Video — search for "${query}" there.` }; }
     const pkg = pkgFor('prime');
+    lastPlayed = { app: 'prime', title: query, at: Date.now() };
     await sh(`am force-stop ${pkg}`);
     await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(query)}' ${pkg}`);
     const gate = await passProfileGate('prime', pkg, profile);
