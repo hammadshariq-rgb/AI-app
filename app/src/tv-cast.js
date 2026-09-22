@@ -89,14 +89,17 @@ function discover(onUpdate, timeoutMs = 6000) {
     const ptrs = all.filter(r => r.type === 'PTR' && r.name === '_googlecast._tcp.local');
     for (const ptr of ptrs) {
       const srv  = all.find(r => r.type === 'SRV' && r.name === ptr.data);
-      const a    = all.find(r => r.type === 'A');
+      // The address that belongs to this TV, not just the first one in the reply.
+      const a    = (srv && all.find(r => r.type === 'A' && r.name === srv.data.target)) || all.find(r => r.type === 'A');
       const txt  = all.find(r => r.type === 'TXT' && r.name === ptr.data);
       const host = a ? a.data : (srv ? srv.data.target.replace(/\.$/, '') : null);
       if (!host) continue;
       const tx   = parseTxt(txt ? txt.data : []);
       const name = tx.fn || ptr.data.replace('._googlecast._tcp.local', '') || host;
-      if (!scanResults.find(d => d.host === host)) {
-        const dev = { kind: 'cast', name, host, port: 8009, model: tx.md || 'Android TV' };
+      // One row per TV: a TV on both Wi-Fi and cable answers from two addresses.
+      const id = tx.id || ptr.data;
+      if (!scanResults.find(d => d.host === host || (d.castId && d.castId === id))) {
+        const dev = { kind: 'cast', name, host, port: 8009, model: tx.md || 'Android TV', castId: id };
         scanResults.push(dev);
         if (onUpdate) onUpdate([...scanResults]);
       }
@@ -940,7 +943,7 @@ async function remote(key, level) {
 function localVideos() { return (fileIndex && fileIndex.files) || []; }
 
 module.exports = {
-  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos,
+  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch,
   castYouTube, castMedia, openUrl,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({

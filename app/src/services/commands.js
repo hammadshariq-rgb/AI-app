@@ -252,8 +252,13 @@ function launchApp(name) {
       return;
     }
 
-    // 1. Try URI scheme — works cross-platform via the OS default handler
+    // 1. Try URI scheme — works cross-platform via the OS default handler —
+    //    but only when an app is installed for it; otherwise the website.
     const uri = URI_SCHEMES[lower];
+    if (uri && !hasAppFor(uri) && BROWSER_FALLBACKS[lower]) {
+      openInChrome(BROWSER_FALLBACKS[lower]).then(() => resolve(false)).catch(() => resolve(false));
+      return;
+    }
     if (uri) {
       shell.openExternal(uri).then(() => resolve(true)).catch(() => {
         // On Windows: URI scheme failed (app not installed or not registered).
@@ -458,10 +463,22 @@ function buildCallUrl(platform) {
   }
 }
 
+// Is an installed app registered for this kind of link (instagram:, whatsapp:)?
+// Windows doesn't fail a link with no app — it offers to find one in the Store —
+// so without this the website fallback never happened.
+function hasAppFor(uri) {
+  try {
+    const { app } = require('electron');
+    return !!app.getApplicationNameForProtocol(`${String(uri).split(':')[0]}://`);
+  } catch (_) { return true; }   // can't tell — try the link as before
+}
+
 function openUrl(url, platformFallback) {
   return new Promise((resolve) => {
     if (!url) { launchApp(platformFallback || '').then(resolve); return; }
     if (url.startsWith('http')) { openInChrome(url).then(resolve); return; }
+    const web = platformFallback && BROWSER_FALLBACKS[platformFallback];
+    if (web && !hasAppFor(url)) { openInChrome(web).then(resolve).catch(resolve); return; }
     shell.openExternal(url).then(() => resolve()).catch(() => {
       const web = platformFallback && BROWSER_FALLBACKS[platformFallback];
       if (web) openInChrome(web).then(resolve).catch(resolve);
@@ -518,6 +535,133 @@ function getSearchRoots() {
     roots.push(path.join(home, 'iCloud Drive'), path.join(home, 'Library', 'Mobile Documents'));
   }
   return roots;
+}
+
+// ─── FIND A FILE BY NAME ─────────────────────────────────────────────────────
+// "Open my budget file" opens the budget spreadsheet itself. The system's own
+// search (the Windows Search index, Spotlight on a Mac) already knows every file,
+// so ask it first, then walk the usual folders. The best match wins, not the
+// first one found: the exact name beats a partial one, a document beats a stray
+// cache file, and between equals the one changed most recently.
+const _SHEETS = ['xlsx', 'xls', 'xlsm', 'csv', 'numbers', 'ods'];
+const _DOCS = ['docx', 'doc', 'pdf', 'txt', 'rtf', 'pages', 'odt', 'md'];
+const _DECKS = ['pptx', 'ppt', 'key', 'odp'];
+const _PICS = ['jpg', 'jpeg', 'png', 'heic', 'gif', 'webp', 'bmp'];
+const _VIDS = ['mp4', 'mov', 'mkv', 'avi', 'm4v', 'webm'];
+const FILE_TYPE_EXTS = {
+  spreadsheet: _SHEETS, sheet: _SHEETS, excel: _SHEETS,
+  document: _DOCS, doc: _DOCS, word: ['docx', 'doc'], pdf: ['pdf'],
+  presentation: _DECKS, slides: _DECKS, deck: _DECKS, powerpoint: _DECKS,
+  photo: _PICS, picture: _PICS, image: _PICS, video: _VIDS,
+};
+const _USEFUL_EXTS = new Set([..._SHEETS, ..._DOCS, ..._DECKS, ..._PICS, ..._VIDS, 'zip', 'json']);
+const _SKIP_DIRS = /^(?:node_modules|\.git|\.cache|appdata|library|\$recycle\.bin|windows|program files.*|\.vscode|\.npm|venv|__pycache__|\..+)$/i;
+
+function parseFileQuery(raw) {
+  let name = String(raw || '').replace(/["“”]/g, '').replace(/[\s!?,;:]+$/, '').replace(/\.$/, '').trim()
+    .replace(/^(?:up\s+)?(?:my|the|a|an|that|this)\s+/i, '');
+  let exts = null;
+  const typeM = name.match(/\s+(file|files|document|doc|word(?:\s+doc(?:ument)?)?|pdf|spreadsheet|sheet|excel(?:\s+(?:file|sheet))?|presentation|slides|deck|powerpoint|photo|picture|image|video)$/i);
+  if (typeM) {
+    exts = FILE_TYPE_EXTS[typeM[1].toLowerCase().split(/\s+/)[0]] || null;
+    name = name.slice(0, typeM.index).trim();
+  }
+  const withExt = /\.[a-z0-9]{1,5}$/i.test(name);
+  return { name, exts, withExt };
+}
+
+function _norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+function scoreFile(fullPath, mtimeMs, want) {
+  const base = path.basename(fullPath);
+  const ext = path.extname(base).slice(1).toLowerCase();
+  if (want.exts && !want.exts.includes(ext)) return 0;
+  if (want.withExt) return base.toLowerCase() === want.name.toLowerCase() ? 200 : 0;
+  const stem = _norm(base.slice(0, base.length - (ext ? ext.length + 1 : 0)));
+  const w = _norm(want.name);
+  if (!w) return 0;
+  let s;
+  if (stem === w) s = 100;
+  else if (stem.startsWith(w)) s = 70;
+  else if (stem.includes(w)) s = 50;
+  else {
+    const words = w.split(' ');
+    if (!words.every((x) => stem.includes(x))) return 0;
+    s = 40;
+  }
+  if (_USEFUL_EXTS.has(ext)) s += 10;
+  const ageDays = (Date.now() - (mtimeMs || 0)) / 86400000;
+  return s + Math.max(0, 10 - ageDays / 30);   // up to +10 for a file changed lately
+}
+
+function _systemSearch(word) {
+  const { execFile } = require('child_process');
+  const home = os.homedir();
+  const safe = String(word).replace(/[^A-Za-z0-9 _.-]/g, '').trim();
+  if (!safe) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    if (IS_MAC) {
+      execFile('mdfind', ['-onlyin', home, `kMDItemFSName == "*${safe}*"cd`], { timeout: 6000, maxBuffer: 4 * 1024 * 1024 },
+        (err, out) => resolve(err ? [] : String(out).split('\n').filter(Boolean).slice(0, 300)));
+      return;
+    }
+    if (IS_WIN) {
+      const scope = home.replace(/\\/g, '/');
+      const ps = `$c=New-Object -ComObject ADODB.Connection;`
+        + `$c.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';");`
+        + `$r=$c.Execute("SELECT TOP 300 System.ItemPathDisplay FROM SYSTEMINDEX WHERE SCOPE='file:${scope}' AND System.FileName LIKE '%${safe}%'");`
+        + `while(-not $r.EOF){$r.Fields.Item('System.ItemPathDisplay').Value;$r.MoveNext()}`;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 8000, maxBuffer: 4 * 1024 * 1024 },
+        (err, out) => resolve(err ? [] : String(out).split(/\r?\n/).map((l) => l.trim()).filter(Boolean)));
+      return;
+    }
+    resolve([]);
+  });
+}
+
+function _walkForFiles(match, limit = 40000) {
+  const found = [];
+  const home = os.homedir();
+  const queue = getSearchRoots().concat(['Pictures', 'Videos', 'Movies', 'Music'].map((d) => path.join(home, d)))
+    .filter((r, i, all) => all.indexOf(r) === i).map((dir) => ({ dir, depth: 0 }));
+  let seen = 0;
+  while (queue.length && seen < limit) {
+    const { dir, depth } = queue.shift();
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { continue; }
+    for (const e of entries) {
+      seen++;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        // The home folder itself is only a starting point — its own subfolders are the roots above.
+        if (depth < 5 && dir !== home && !_SKIP_DIRS.test(e.name)) queue.push({ dir: full, depth: depth + 1 });
+      } else if (match(e.name)) {
+        found.push(full);
+      }
+    }
+  }
+  return found;
+}
+
+async function findFile(raw) {
+  const want = parseFileQuery(raw);
+  if (!want.name) return null;
+  // The longest word goes to the system search; scoring checks the rest.
+  const word = want.withExt ? want.name : _norm(want.name).split(' ').sort((a, b) => b.length - a.length)[0];
+  let candidates = await _systemSearch(word).catch(() => []);
+  if (!candidates.length) {
+    const w = _norm(word);
+    candidates = _walkForFiles((n) => _norm(n).includes(w));
+  }
+  let best = null;
+  for (const p of new Set(candidates)) {
+    let st;
+    try { st = fs.statSync(p); } catch (_) { continue; }
+    if (!st.isFile()) continue;
+    const s = scoreFile(p, st.mtimeMs, want);
+    if (s > 0 && (!best || s > best.score)) best = { path: p, score: s };
+  }
+  return best ? best.path : null;
 }
 
 function findFolder(name) {
@@ -658,41 +802,18 @@ async function run(action, arg) {
 
     case 'open_file': {
       const nameArg = String(arg).trim();
-      if (fs.existsSync(nameArg)) {
+      if (path.isAbsolute(nameArg) && fs.existsSync(nameArg)) {
         shell.openPath(nameArg);
-        return { ok: true, content: readFileContent(nameArg) };
+        return { ok: true, path: nameArg, content: readFileContent(nameArg) };
       }
-      const target = nameArg.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const root of getSearchRoots()) {
-        if (!fs.existsSync(root)) continue;
-        try {
-          const entries = fs.readdirSync(root, { withFileTypes: true });
-          for (const entry of entries) {
-            if (entry.isDirectory()) continue;
-            const clean = entry.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (clean.includes(target) || target.includes(clean.replace(/\.[^.]+$/, '').slice(0, 6))) {
-              const full = path.join(root, entry.name);
-              shell.openPath(full);
-              return { ok: true, content: readFileContent(full) };
-            }
-          }
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-            try {
-              for (const se of fs.readdirSync(path.join(root, entry.name), { withFileTypes: true })) {
-                if (se.isDirectory()) continue;
-                const clean = se.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (clean.includes(target)) {
-                  const full = path.join(root, entry.name, se.name);
-                  shell.openPath(full);
-                  return { ok: true, content: readFileContent(full) };
-                }
-              }
-            } catch (_) {}
-          }
-        } catch (_) {}
+      const full = await findFile(nameArg);
+      if (full) {
+        const err = await shell.openPath(full);
+        if (err) return { ok: false, error: `I found ${path.basename(full)} but couldn't open it: ${err}` };
+        return { ok: true, path: full, content: readFileContent(full) };
       }
-      return { ok: false, error: `Couldn't find a file named "${nameArg}". Try the 📁 button to browse manually.` };
+      const what = parseFileQuery(nameArg).name || nameArg;
+      return { ok: false, error: `I couldn't find a file called "${what}". Check the name, or use the 📁 button to browse.` };
     }
 
     case 'play_music': {
@@ -840,4 +961,4 @@ async function openDocumentFile(name) {
   return { ok: false, error: `Couldn't find "${name}" on this computer.` };
 }
 
-module.exports = { run, findFolder, readFileContent, makeCall, openChat, openInChrome, openDocumentFile };
+module.exports = { run, findFolder, findFile, parseFileQuery, readFileContent, makeCall, openChat, openInChrome, openDocumentFile };

@@ -1740,10 +1740,24 @@
             <div id="historyList"></div>
             <div class="sidebar-widget" id="widgetQuickCmds">
               <div class="sw-title">🎙 QUICK COMMANDS</div>
-              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Open my calendar'; document.getElementById('userInput').focus()">"Open my calendar"</button>
-              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Play focus music'; document.getElementById('userInput').focus()">"Play focus music"</button>
-              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value=\"What's on my schedule?\"; document.getElementById('userInput').focus()">"What's on my schedule?"</button>
-              <button class="sw-cmd chrome-btn" onclick="document.getElementById('userInput').value='Set a reminder for...'; document.getElementById('userInput').focus()">"Set a reminder for..."</button>
+              <!-- data-cmd fills the box; data-caret is where the cursor lands for the part the user types -->
+              <button class="sw-cmd chrome-btn" data-cmd="Open my calendar">"Open my calendar"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Show me my markets">"Show me my markets"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="What's on my schedule?">"What's on my schedule?"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Add a task to " data-caret="14">"Add a task to…"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Add  to my Google Calendar" data-caret="4">"Add … to my Google Calendar"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Play " data-caret="5">"Play [song name]"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Create me a 3D model of " data-caret="24">"Create me a 3D model of…"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Open  file" data-caret="5">"Open [name] file"</button>
+              <script>
+                document.querySelectorAll('#widgetQuickCmds .sw-cmd[data-cmd]').forEach((b) => b.addEventListener('click', () => {
+                  const input = document.getElementById('userInput');
+                  input.value = b.dataset.cmd;
+                  input.focus();
+                  const at = b.dataset.caret ? Number(b.dataset.caret) : input.value.length;
+                  try { input.setSelectionRange(at, at); } catch (_) {}
+                }));
+              </script>
             </div>
           </div>
 
@@ -1813,7 +1827,6 @@
                 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
                   <button class="tv-quick-btn" onclick="window._tvQuick('youtube')">▶ YouTube</button>
                   <button class="tv-quick-btn" onclick="window._tvQuick('netflix')">N Netflix</button>
-                  <button class="tv-quick-btn" onclick="window._tvQuick('spotify')">♫ Spotify</button>
                   <button class="tv-quick-btn" onclick="window._tvQuick('prime')">⭐ Prime</button>
                 </div>
                 <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
@@ -2130,7 +2143,7 @@
 
       <!-- ── Gesture Control ── -->
       <div id="magicCursor"><div class="mc-ring"></div><div class="mc-ring2"></div><div class="mc-dot"></div></div>
-      <button id="gestureToggleBtn" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
+      <button id="gestureToggleBtn" data-keys-title="Toggle gesture control (Ctrl+Shift+G)" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
           <video id="gestureCamPreview" autoplay playsinline muted></video>
@@ -2798,7 +2811,7 @@
       <span style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(150,170,255,0.7)">TIP</span>
     </div>
     <div style="font-size:12.5px;color:#c8d4ff;line-height:1.5">
-      Press <kbd style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace">Ctrl+Shift+S</kbd> on any tab to speak to Callisto
+      Press <kbd data-keys="Ctrl+Shift+C" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace">Ctrl+Shift+C</kbd> on any tab to speak to Callisto
     </div>
   </div>
 

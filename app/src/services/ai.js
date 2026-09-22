@@ -687,7 +687,7 @@ MUSIC RULES:
 - Whenever the user says "play", "put on", "queue", or "listen to" + any song/artist/album, ALWAYS use the play_music tool. Never just answer with text.
 - If the user says "open Spotify" / "open Apple Music" / etc., use open_app or open_chat for that app — do NOT use play_music.
 - Do not specify a service in play_music unless the user explicitly names one — the system picks the right one automatically.
-- open_app, play_music and open_url act on this computer. The TV is controlled only when the user says "on my TV", and that is handled before it reaches you — so if a message asks for something on the TV, never call those tools for it; say what you can do on the TV instead (YouTube, Netflix, Prime Video, Spotify, videos stored on the TV, pause, volume, power).
+- open_app, play_music and open_url act on this computer. The TV is controlled only when the user says "on my TV", and that is handled before it reaches you — so if a message asks for something on the TV, never call those tools for it; say what you can do on the TV instead (YouTube, Netflix, Prime Video, videos stored on the TV, pause, volume, power).
 - Only "play" a song with play_music. A film, a show, a video or a game ("play Red Notice on Netflix", "play the video I made", "play chess") is not music.
 
 SEARCH & BROWSER RULES:
@@ -878,6 +878,11 @@ function tryLocalCommand(raw) {
   if (/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:tv|television|chromecast)\b/.test(lo)) return null;
 
   const openMatch = lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
+  // A file or folder is found on the computer, not launched as an app.
+  if (openMatch && /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(openMatch[1].trim()))
+    return { text: 'Opening it now.', action: { type: 'open_file', arg: openMatch[1].trim() } };
+  if (openMatch && /.\s+folder$/.test(openMatch[1].trim()))
+    return { text: 'Opening it now.', action: { type: 'open_folder', arg: openMatch[1].trim().replace(/\s+folder$/, '').replace(/^(?:my|the)\s+/, '') } };
   if (openMatch) {
     const target = openMatch[1].trim();
     if (MESSAGING_APPS.test(target))

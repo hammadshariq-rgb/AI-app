@@ -1147,7 +1147,11 @@ const BROWSER_HEADERS = {
 };
 
 // Matches bare "X vs Y" queries (e.g. "argentina vs spain") plus keyword-based sports queries
-const SPORTS_REGEX = /\b(score|scoreline|result|match|game|vs\.?|versus|against|goal|goals|won|beat|cricket|football|soccer|basketball|tennis|f1|formula.?1|nba|nfl|premier.?league|champions.?league|world.?cup|wicket|century|innings|odi|test.?match|t20|grand.?slam|motm|man of the match|next match|upcoming|full.?time|half.?time|kick.?off)\b/i;
+// A sports question needs a sports word: "game", "won", "goal", "result" and
+// "upcoming" alone are everyday words ("remind me about the upcoming meeting",
+// "set a goal", "who won the election"). Reminders, tasks and notes are never sport.
+const _SPORTS_TERMS = /\b((?<!\b(?:high|credit|test|exam|sat|ielts|gre|my|your)\s)scores?|scoreline|match|matches|fixtures?|vs\.?|versus|cricket|football|soccer|basketball|baseball|hockey|tennis|rugby|f1|formula.?1|nba|nfl|nhl|mlb|mls|ipl|psl|premier.?league|champions.?league|europa.?league|world.?cup|la.?liga|serie.?a|bundesliga|wicket|innings|odi|test.?match|t20|grand.?slam|motm|man of the match|full.?time|half.?time|kick.?off)\b/i;
+const SPORTS_REGEX = { test: (s) => _SPORTS_TERMS.test(s) && !/^\s*(?:remind|add|create|make|set|schedule|put|write|note|save|plan|book)\b/i.test(s) && !/\b(?:task|reminder|to-?do|calendar|meeting|appointment)\b/i.test(s) };
 
 // ESPN — search across recent dates for any sport/league
 async function espnFindMatch(query, sport, league) {
@@ -1557,21 +1561,35 @@ const STOCK_KEYWORDS = /\b(stock|share|shares|price|invest|market|nasdaq|nyse|cr
 async function fetchCardData(query) {
   return _cached(`card:${query}`, () => _fetchCardDataInner(query), 45000);
 }
+// A company or coin named as a whole word — "ada" is not in "canada", nor "sol" in "console".
+function _namedTicker(q) {
+  for (const [name, ticker] of Object.entries(TICKER_MAP)) {
+    if (ticker && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q)) return ticker;
+  }
+  return null;
+}
+
+// Buying something is shopping, not a stock question: "how much is a used Batman
+// figure on Amazon" wants Amazon, not Amazon's share price.
+const SHOPPING_INTENT = /\b(buy|order|purchase|shop|shopping|used|second.?hand|refurbished|cheapest|cheap|deals?|discount|on sale|for sale|find me|delivery|shipping|in stock|(?:on|from|at)\s+(?:amazon|ebay|walmart|target|aliexpress|temu|etsy|best buy|costco))\b/i;
+const EXPLICIT_STOCK = /\b(stocks?|shares|share price|stock price|ticker|market cap|nasdaq|nyse|tsx|crypto|cryptocurrency|trading at|invest(?:ing)? in)\b/i;
+
 async function _fetchCardDataInner(query) {
   const q = query.toLowerCase();
 
-  // Stock / crypto detection
-  if (STOCK_KEYWORDS.test(q) || /\b(bitcoin|ethereum|crypto|btc|eth|sol|doge|bnb|xrp|stock|shares?|ticker)\b/i.test(q)) {
+  // Stock / crypto: an explicit stock question, or a price question about a company
+  // or coin named outright. Never for shopping.
+  const namedTicker = _namedTicker(q);
+  const wantsStock = !(SHOPPING_INTENT.test(q) && !/\b(stock price|share price|shares|ticker|market cap)\b/i.test(q))
+    && (EXPLICIT_STOCK.test(q) || (STOCK_KEYWORDS.test(q) && !!namedTicker));
+  if (wantsStock) {
     // Check if the user is asking about a known private company — return null immediately
     for (const priv of PRIVATE_COMPANIES) {
       if (q.includes(priv)) return { type: 'private_company', name: priv.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') };
     }
 
     // 1. Check known name map first
-    let symbol = null;
-    for (const [name, ticker] of Object.entries(TICKER_MAP)) {
-      if (q.includes(name) && ticker) { symbol = ticker; break; }
-    }
+    let symbol = namedTicker;
 
     // 2. Try to extract a ticker (ALL CAPS 1-5 letters) from the query
     if (!symbol) {
@@ -1612,7 +1630,7 @@ async function _fetchCardDataInner(query) {
   }
 
   // Sports scores — ESPN (World Cup + all leagues) then Google
-  if (/match|score|game|vs|versus|goal|cricket|football|soccer|basketball|tennis|premier league|champions league|world cup|nba|nfl|f1/i.test(q)) {
+  if (SPORTS_REGEX.test(q)) {
     const espn = await espnSportsSearch(query);
     if (espn) return espn;
     return await googleSportsScore(query);
@@ -1626,7 +1644,8 @@ async function _fetchCardDataInner(query) {
 
   // Movie queries — implicit: "tell me about fight club", "what is interstellar", bare title
   // Try OMDB/TMDB for any non-person, non-sports, non-stock query that could be a movie title
-  if (/\b(tell me about|what is|what was|about the|review of|synopsis of|story of|ending of|who made|who wrote|who starred)\b/i.test(q) && !/\b(person|people|artist|band|group|politician|president|pm|ceo|founder|scientist|inventor|animal|country|city|food|dish|flag|battle|war|revolution)\b/i.test(q)) {
+  // "What is Japan?" is a country, not a film called Japan — only "what is X about" asks about a film.
+  if (/\b(tell me about|what(?:'s| is| was) .{1,40} about|about the|review of|synopsis of|story of|ending of|who made|who wrote|who starred)\b/i.test(q) &&!/\b(person|people|artist|band|group|politician|president|pm|ceo|founder|scientist|inventor|animal|country|city|food|dish|flag|battle|war|revolution)\b/i.test(q)) {
     const card = await getMovieCard(query);
     if (card) return card;
   }

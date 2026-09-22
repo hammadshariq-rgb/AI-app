@@ -148,6 +148,7 @@ let captureWindow = null;   // Ctrl+Shift+Y screen capture overlay
 let tray = null;
 let hudVoiceMode  = false;   // true while waiting for a Ctrl+Shift+C response
 let hudListening  = false;   // tracks whether HUD mic is currently active
+let captureFromApp = false;  // Ctrl+Shift+X pressed while Callisto was the window in front
 let magicEditActive = false; // true while the Magic Editor is listening (Ctrl+Shift+E)
 let isQuitting    = false;   // true only during a real quit, so 'close' can hide instead
 
@@ -371,21 +372,23 @@ ipcMain.handle('capture:identify', async (_e, bounds) => {
       overlayWindow.webContents.send('jarvis:sentence-audio', { audio });
     }
 
-    // 6. Push HUD card — always visible regardless of which app is in focus
-    ensureHud();
-    sendToHud('hud:card', {
-      type: 'wiki',
-      text,
-      card: card || { type: 'wiki', title: 'Identified', summary: text },
-      title: card?.title || 'Identified',
-    });
+    // The card shows what was circled.
+    const shown = { ...(card || { type: 'wiki', title: 'Identified', summary: text }) };
+    if (!shown.imageUrl) shown.imageUrl = imageBase64;
 
-    // 7. Always push to main chat window — show it so the user sees the full answer
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      // Bring window to front so user sees the answer card in chat
-      if (!overlayWindow.isVisible()) overlayWindow.show();
+    // 6. Circled inside Callisto: the answer as a chat bubble with its card.
+    //    Circled in another app: a small card over that app while Callisto speaks,
+    //    without pulling Callisto in front — the chat still keeps the answer.
+    if (captureFromApp && overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.show();
       overlayWindow.focus();
-      overlayWindow.webContents.send('jarvis:hud-response', { text, card });
+      overlayWindow.webContents.send('jarvis:hud-response', { text, card: shown });
+    } else {
+      ensureHud();
+      sendToHud('hud:card', { type: 'wiki', text, card: shown, title: shown.title || 'Identified' });
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('jarvis:hud-response', { text, card: shown, background: true });
+      }
     }
 
     return { ok: true };
@@ -469,7 +472,7 @@ app.on('second-instance', (_e, argv) => {
 function createTray() {
   tray = new Tray(path.join(__dirname, '..', 'assets', 'icon.png'));
   const menu = Menu.buildFromTemplate([
-    { label: `Summon ${getAssistantName()} (Ctrl+Shift+J)`, click: toggleOverlay },
+    { label: `Summon ${getAssistantName()} (${process.platform === 'darwin' ? '⌘⇧J' : 'Ctrl+Shift+J'})`, click: toggleOverlay },
     { label: 'Sign in / Manage subscription', click: () => commands.openInChrome(process.env.LICENSE_SERVER_URL + '/account') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
@@ -650,10 +653,12 @@ app.whenReady().then(async () => {
   console.log('overlay window created.');
   // Create HUD overlay in the background (not visible until Ctrl+Shift+C pressed)
   createHudWindow();
+  // Warm the Windows key helper so the first Magic Editor copy/paste is instant.
+  setTimeout(startKeyHelper, 4000);
 
   // Wake hotkey - true voice wake-word ("Hey Jarvis") needs a native engine (e.g. Picovoice
   // Porcupine); wiring that in is the natural next step. Hotkey ships as the v1 trigger.
-  globalShortcut.register('Control+Shift+J', toggleOverlay);
+  globalShortcut.register('CommandOrControl+Shift+J', toggleOverlay);
 
   // Ctrl+Space — Clipboard AI: grab clipboard text and process it with the AI
   globalShortcut.register('Control+Space', () => {
@@ -671,36 +676,37 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
   });
 
-  // Ctrl+Shift+X — Magic Cursor: open screen-capture lasso overlay (circle anything → AI identifies it)
-  globalShortcut.register('Control+Shift+X', () => {
+  // Ctrl+Shift+X — Magic Cursor: open screen-capture lasso overlay (circle anything → AI identifies it).
+  // Pressing it again while the cursor is up puts it away.
+  globalShortcut.register('CommandOrControl+Shift+X', () => {
+    if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) { closeCaptureOverlay(); return; }
+    // Where the user was decides where the answer goes (see capture:identify).
+    captureFromApp = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
+    if (captureWindow && !captureWindow.isDestroyed()) closeCaptureOverlay();   // a finished one still identifying
     openCaptureOverlay();
   });
 
-  // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer
-  globalShortcut.register('Control+Shift+C', () => {
+  // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer.
+  // The mic lives in the app window, so it decides start or stop and reports back
+  // (hud:mic-state) — the key and the "Listening…" pill can never disagree with it.
+  globalShortcut.register('CommandOrControl+Shift+C', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    if (hudListening) {
-      // Second press — stop listening, let renderer send the transcript to AI
-      hudListening = false;
-      sendToHud('hud:listening-stop', {});
-      overlayWindow.webContents.send('jarvis:hud-voice-trigger'); // stopRecording() path
-    } else {
-      // First press — start listening
-      hudListening = true;
-      hudVoiceMode = true;
-      sendToHud('hud:listening', {});
-      overlayWindow.webContents.send('jarvis:hud-voice-trigger'); // startRecording() path
-    }
+    hudVoiceMode = true;   // the answer to what's said goes to the small card
+    overlayWindow.webContents.send('jarvis:hud-voice-trigger');
+  });
+  ipcMain.on('hud:mic-state', (_e, { on }) => {
+    hudListening = !!on;
+    sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {});
   });
 
   // Ctrl+Shift+G — Toggle gesture control
-  globalShortcut.register('Control+Shift+G', () => {
+  globalShortcut.register('CommandOrControl+Shift+G', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
   });
 
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
-  const magicEditRegistered = globalShortcut.register('Control+Shift+E', async () => {
+  const magicEditRegistered = globalShortcut.register('CommandOrControl+Shift+E', async () => {
     // Second press while the editor is open: stop the mic and apply the edit,
     // rather than starting over (which used to wipe what the user just said).
     if (magicEditActive) {
@@ -710,22 +716,28 @@ app.whenReady().then(async () => {
     }
     const { clipboard } = require('electron');
     const { execFile } = require('child_process');
-    // Step 1: Send Ctrl+C to whatever app currently has focus (copies the selection)
-    // We use PowerShell SendKeys — fires before Electron steals focus since we haven't shown any window yet
-    // Save current clipboard so we can detect if the copy actually changed it
-    const clipBefore = clipboard.readText();
+    // Step 1: Copy the selection in whatever app has focus.
+    // The clipboard is emptied first (and put back afterwards), so the text we read
+    // is only ever what the user just selected. Reading "whatever was on the
+    // clipboard" when the copy was slow is how whole documents used to get edited.
+    magicClipboardSaved = saveClipboard();
+    clipboard.clear();
     // The user is still holding Ctrl+Shift when this fires. Sending Ctrl+C now
     // arrives as Ctrl+Shift+C — which in Chrome opens DevTools instead of
-    // copying — so wait for the keys to come up first, then send the copy.
+    // copying — so the key helper waits for the keys to come up first.
     await new Promise(resolve => {
+      if (process.platform === 'win32' && sendKeysFast('copy', resolve)) return;
       if (process.platform === 'darwin') {
-        execFile('osascript', ['-e',
-          'repeat 20 times\n' +
-          '  if not ((key down control) or (key down shift)) then exit repeat\n' +
-          '  delay 0.05\n' +
-          'end repeat\n' +
-          'tell application "System Events" to keystroke "c" using command down',
-        ], { timeout: 2000 }, resolve);
+        // Wait until ⌘, Shift and Control are up (the shortcut is ⌘⇧E), then copy
+        // with ⌘C. NSEvent reads the keys actually held; plain AppleScript can't.
+        execFile('osascript', ['-l', 'JavaScript', '-e',
+          "ObjC.import('AppKit');" +
+          'for (var i = 0; i < 30; i++) {' +
+          '  if (($.NSEvent.modifierFlags & ((1 << 17) | (1 << 18) | (1 << 20))) === 0) break;' +
+          '  delay(0.04);' +
+          '}' +
+          "Application('System Events').keystroke('c', { using: 'command down' });",
+        ], { timeout: 2500 }, resolve);
         return;
       }
       execFile('powershell.exe', [
@@ -742,20 +754,17 @@ app.whenReady().then(async () => {
          [System.Windows.Forms.SendKeys]::SendWait('^c')`
       ], { timeout: 3000 }, resolve);
     });
-    // Step 2: Give clipboard time to update — wait longer for browser/web apps (Google Docs etc.)
-    // Retry up to 3× in 200ms increments so slow apps (Google Docs, Word) have time to write the clipboard
+    // Step 2: Wait for the copy to land — quick apps take a few milliseconds,
+    // Google Docs and Word up to about a second.
     let selectedText = '';
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await new Promise(r => setTimeout(r, 200));
-      const clip = clipboard.readText().trim();
-      if (clip && clip !== clipBefore.trim()) { selectedText = clip; break; }
-    }
-    if (!selectedText) {
-      // Last-ditch: maybe clipboard didn't change but still has text (re-copy of same selection)
+    for (let waited = 0; waited < 1500 && !selectedText; waited += 50) {
+      await new Promise(r => setTimeout(r, 50));
       selectedText = clipboard.readText().trim();
     }
     if (!selectedText) {
-      sendToHud('hud:card', { type: 'info', text: '✏️ Nothing selected — highlight text first, then press Ctrl+Shift+E.' });
+      restoreClipboard(magicClipboardSaved);
+      magicClipboardSaved = null;
+      sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected — highlight text first, then press ${process.platform === 'darwin' ? 'Cmd' : 'Ctrl'}+Shift+E.` });
       return;
     }
     // Step 3: Show overlay + enter magic edit mode
@@ -774,17 +783,7 @@ app.whenReady().then(async () => {
   // Another app holding this combination would silently swallow the shortcut.
   if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app — Magic Editor won\'t open.');
 
-  // Ctrl+S — background voice trigger: show window, start mic, auto-hide after response
-  globalShortcut.register('Control+S', () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    if (!overlayWindow.isVisible()) {
-      overlayWindow.show();
-      overlayWindow.focus();
-      const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
-      overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
-    }
-    overlayWindow.webContents.send('jarvis:voice-trigger');
-  });
+  // (No global Ctrl+S: it took Save away from every other app. Ctrl+Shift+C is the voice key.)
 
   // Auth is handled in the renderer on first open; nothing to check here at startup
 
@@ -1091,14 +1090,98 @@ Return ONLY the Python code — no markdown fences, no explanation.`
 });
 
 // ── Magic Editor ─────────────────────────────────────────────────────────────
-ipcMain.on('magic:ended', () => { magicEditActive = false; });
+// The user's clipboard, kept while the editor borrows it and put back afterwards.
+let magicClipboardSaved = null;
+function saveClipboard() {
+  const { clipboard } = require('electron');
+  try {
+    const image = clipboard.readImage();
+    return { text: clipboard.readText(), html: clipboard.readHTML(), image: image && !image.isEmpty() ? image : null };
+  } catch (_) { return null; }
+}
+function restoreClipboard(saved) {
+  if (!saved) return;
+  const { clipboard } = require('electron');
+  try {
+    const data = {};
+    if (saved.text) data.text = saved.text;
+    if (saved.html) data.html = saved.html;
+    if (saved.image) data.image = saved.image;
+    if (Object.keys(data).length) clipboard.write(data); else clipboard.clear();
+  } catch (_) {}
+}
+
+// Windows key helper: one PowerShell kept running with SendKeys and the key-state
+// check already loaded. Starting PowerShell for each copy and paste cost about a
+// second apiece — and the paste's 600 ms limit sometimes killed it before it typed.
+let _keyHelper = null;
+let _keyHelperSeq = 0;
+const _keyHelperWaiting = new Map();
+function startKeyHelper() {
+  if (process.platform !== 'win32') return null;
+  if (_keyHelper && _keyHelper.exitCode === null && !_keyHelper.killed) return _keyHelper;
+  const { spawn } = require('child_process');
+  const script = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    "Add-Type -Namespace Cal -Name Keys -MemberDefinition '[DllImport(\"user32.dll\")] public static extern short GetAsyncKeyState(int k);'",
+    '[Console]::Out.WriteLine("ready"); [Console]::Out.Flush()',
+    'while ($true) {',
+    '  $line = [Console]::In.ReadLine(); if ($line -eq $null) { break }',
+    '  $p = $line.Split(" "); $id = $p[0]; $cmd = $p[1]',
+    // Wait for Ctrl, Shift and Alt to come up, so ^c isn't read as Ctrl+Shift+C
+    '  for ($i = 0; $i -lt 40; $i++) {',
+    '    $held = ([Cal.Keys]::GetAsyncKeyState(0x11) -band 0x8000) -or ([Cal.Keys]::GetAsyncKeyState(0x10) -band 0x8000) -or ([Cal.Keys]::GetAsyncKeyState(0x12) -band 0x8000)',
+    '    if (-not $held) { break }; Start-Sleep -Milliseconds 20',
+    '  }',
+    '  if ($cmd -eq "copy") { [System.Windows.Forms.SendKeys]::SendWait("^c") }',
+    '  if ($cmd -eq "paste") { [System.Windows.Forms.SendKeys]::SendWait("^v") }',
+    '  [Console]::Out.WriteLine("done $id"); [Console]::Out.Flush()',
+    '}',
+  ].join('\n');
+  try {
+    _keyHelper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true });
+  } catch (_) { _keyHelper = null; return null; }
+  _keyHelper.ready = false;
+  let buf = '';
+  _keyHelper.stdout.on('data', (d) => {
+    buf += d.toString();
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line === 'ready') _keyHelper.ready = true;
+      const m = line.match(/^done (\d+)$/);
+      if (m && _keyHelperWaiting.has(m[1])) { _keyHelperWaiting.get(m[1])(); _keyHelperWaiting.delete(m[1]); }
+    }
+  });
+  _keyHelper.on('exit', () => { for (const done of _keyHelperWaiting.values()) done(); _keyHelperWaiting.clear(); _keyHelper = null; });
+  _keyHelper.on('error', () => { _keyHelper = null; });
+  return _keyHelper;
+}
+// Sends copy/paste through the warm helper. Returns false if it isn't running yet
+// (the caller then uses a one-off PowerShell as before).
+function sendKeysFast(cmd, done) {
+  const h = startKeyHelper();
+  if (!h || !h.ready) return false;
+  const id = String(++_keyHelperSeq);
+  const t = setTimeout(() => { if (_keyHelperWaiting.delete(id)) done(); }, 3000);
+  _keyHelperWaiting.set(id, () => { clearTimeout(t); done(); });
+  try { h.stdin.write(`${id} ${cmd}\n`); } catch (_) { clearTimeout(t); _keyHelperWaiting.delete(id); return false; }
+  return true;
+}
+app.on('will-quit', () => { try { _keyHelper && _keyHelper.kill(); } catch (_) {} });
+
+ipcMain.on('magic:ended', () => {
+  magicEditActive = false;
+  // Closed without an edit — give the user their clipboard back.
+  if (magicClipboardSaved) { restoreClipboard(magicClipboardSaved); magicClipboardSaved = null; }
+});
 
 ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
   magicEditActive = false;
   try {
     const res = await ai.serverFetch('magic-edit', { selectedText, instruction }, { timeout: 30000, retries: 1 });
     const data = await res.json();
-    if (data.error) return { error: data.error };
+    if (data.error) { restoreClipboard(magicClipboardSaved); magicClipboardSaved = null; return { error: data.error }; }
     const editedText = data.editedText || selectedText;
     // Put edited text in clipboard
     const { clipboard } = require('electron');
@@ -1107,26 +1190,32 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
     // otherwise the paste lands in Callisto instead of their document.
     const wasVisible = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible();
     if (wasVisible) overlayWindow.hide();
+    const savedClip = magicClipboardSaved;
+    magicClipboardSaved = null;
     setTimeout(async () => {
       const { execFile } = require('child_process');
-      // Bring Callisto back once the paste has landed, but without taking focus —
-      // the user carries on typing in their document.
+      // Once the paste has landed: the user's own clipboard goes back, and Callisto
+      // returns without taking focus — the user carries on typing in their document.
       const restore = () => setTimeout(() => {
+        restoreClipboard(savedClip);
         if (wasVisible && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
           overlayWindow.showInactive();
         }
       }, 500);
       if (process.platform === 'darwin') {
-        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 1500 }, restore);
+        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 2500 }, restore);
         return;
       }
+      if (sendKeysFast('paste', restore)) return;
       execFile('powershell.exe', [
         '-NonInteractive', '-NoProfile', '-Command',
         `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
-      ], { timeout: 600 }, restore);
-    }, 600);
+      ], { timeout: 4000 }, restore);
+    }, 350);
     return { editedText, summary: data.summary || null };
   } catch (err) {
+    restoreClipboard(magicClipboardSaved);
+    magicClipboardSaved = null;
     return { error: err.message };
   }
 });
@@ -1221,7 +1310,7 @@ function classifyAIError(err) {
   return { error: 'unknown', userMsg: "Something went wrong on my end. Please try again." };
 }
 
-ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] }) => {
+async function _chatHandler(_e, { message, history, attachments = [] }) {
   console.log('[CHAT] received:', message?.slice(0, 60));
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);
@@ -1311,6 +1400,21 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     _sendTTS(_e.sender, 'Right away.');
     return { text: 'Right away.', audio: null, card: null, hasAction: true };
   }
+  // "open my budget file", "open the essay document", "open resume.pdf" — a file,
+  // found and opened (Finder/File Explorer's own search), not an app called "budget file".
+  if (_openM && /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(_openM[1].trim())) {
+    const res = await commands.run('open_file', _openM[1].trim()).catch((e) => ({ ok: false, error: e.message }));
+    const t = res?.ok ? `Opening ${path.basename(res.path)}.` : (res?.error || "I couldn't find that file.");
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: !!res?.ok };
+  }
+  if (_openM && /.\s+folder$/.test(_openM[1].trim())) {
+    const name = _openM[1].trim().replace(/\s+folder$/, '').replace(/^(?:my|the)\s+/, '');
+    const res = await commands.run('open_folder', name).catch((e) => ({ ok: false, error: e.message }));
+    const t = res?.ok ? `Opening your ${name} folder.` : (res?.error || "I couldn't find that folder.");
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: !!res?.ok };
+  }
   if (_openM) {
     const target = _openM[1].trim();
     if (FAST_MESSAGING.test(target) || FAST_MUSIC.test(target) || (!target.includes('.com') && !target.includes('http'))) {
@@ -1346,11 +1450,18 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     || _lo.match(/^(?!open\b|launch\b|start\b)(.+?\s+by\s+.+?)\s+on\s+spotify$/));
   if (_playM) {
     const songQuery = _playM[1].trim();
+    const namedOther = /\bon\s+(?:apple\s+music|youtube\s+music|youtube)\s*$/.test(_lo);
     const _spotifyConnected = !!(store.get('connector.spotify.access_token'));
-    if (_spotifyConnected) {
+    if (_spotifyConnected && !namedOther) {
       // Respond immediately, then run the play logic in the background
       _coreSpotifyPlay(songQuery).catch(() => stopSpotifyFocusLock());
       const spokenText = `Playing ${songQuery} on Spotify.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
+    }
+    // Not connected: Spotify if it's installed, otherwise YouTube (see playSongUnconnected).
+    if (!namedOther) {
+      const spokenText = await playSongUnconnected(songQuery);
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: true };
     }
@@ -1385,16 +1496,33 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     return { text: spokenText, audio: null, card: null, browserPanelUrl: googleUrl, hasAction: true };
   }
 
+  // Asking Callisto to do something is never a request for a picture card:
+  // "remind me to buy black shoes", "add a task to call the park manager".
+  const _isActionRequest = /^(?:(?:hey\s+\w+|ok(?:ay)?|please|can\s+you|could\s+you|would\s+you)[,\s]+)*(?:remind|add|set|create|make|schedule|send|email|write|draft|put|book|call|text|message|play|open|launch|delete|remove|cancel|note|save|buy|order|generate|draw|translate|summari[sz]e|edit|rewrite|fix|turn|mute|pause|stop)\b/i.test(message.trim())
+    || /\b(?:task|reminder|to-?do|calendar|email|spreadsheet|document|slides|presentation)\b/i.test(message);
+  // "What is a pangolin?", "what's the Eiffel Tower?", "what is Japan?" — a thing to
+  // show with a picture, like "who is". Not "what's the time", "what is my…", "what's up".
+  const _isWhatIs = /^(?:so\s+)?what(?:'s|\s+is|\s+are|\s+was|\s+were)\s+(?:a\s+|an\s+|the\s+)?[\w\s'.-]{2,40}\??$/i.test(message.trim())
+    && !/\b(?:my|your|our|me|i|time|date|day|today|tomorrow|tonight|weather|temperature|forecast|news|score|price|stock|worth|difference|best|going on|happening|plan|schedule|up|wrong|this|that|it|meaning|point)\b/i.test(message);
+  // Speak whole sentences, not a summary cut off mid-word.
+  const _speakable = (s, max = 320) => {
+    const t = String(s || '').trim();
+    if (t.length <= max) return t;
+    const cut = t.slice(0, max);
+    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    return end > 60 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…';
+  };
+
   // Person/celebrity/historical figure query — fetch Wikipedia card first
   const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of|actor|actress|singer|rapper|musician|footballer|basketball player|tennis player|boxer|athlete|sportsperson|sportsman|sportswoman|politician|president|prime minister|pm of|chancellor|governor|founder|ceo|scientist|inventor|historical figure|who played|played by|celebrity|famous|legend)\b/i;
   // Current-leader queries need live realtime context — don't short-circuit them
   const CURRENT_LEADER_REGEX = /\b(prime minister of|president of|pm of|chancellor of|who('s| is) the (current |new |present )?(?:prime minister|president|pm|chancellor|leader)|current (?:prime minister|president|pm|chancellor)|who leads|who runs|head of state|head of government)\b/i;
   const isCurrentLeader = CURRENT_LEADER_REGEX.test(message);
-  if (PERSON_FAST_REGEX.test(message) && !isCurrentLeader) {
+  if (PERSON_FAST_REGEX.test(message) && !isCurrentLeader && !_isActionRequest) {
     const personCard = await realtime.fetchCardData(message).catch(() => null);
     if (personCard?.imageUrl || personCard?.heroImage) {
       const p = personCard;
-      const spokenText = (p.bio || p.subtitle || p.summary || p.description || p.name || '').slice(0, 300);
+      const spokenText = _speakable(p.bio || p.subtitle || p.summary || p.description || p.name || '');
       if (spokenText) _sendTTS(_e.sender, spokenText);
       return { text: spokenText || p.name, audio: null, card: personCard, hasAction: false };
     }
@@ -1403,7 +1531,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // Image search queries — "show me a photo of X", "picture of X", "what does X look like"
   const IMAGE_QUERY_REGEX = /\b(show me (a |the )?photo(s)? of|picture(s)? of|image(s)? of|what does .{0,30} look like|show me what .{0,30} looks like)\b/i;
-  if (IMAGE_QUERY_REGEX.test(message)) {
+  if (IMAGE_QUERY_REGEX.test(message) && !_isActionRequest) {
     const topic = message.replace(IMAGE_QUERY_REGEX, '').replace(/[?!.]+$/, '').trim();
     const [cardResult, imgResult] = await Promise.all([
       realtime.fetchCardData(message).catch(() => null),
@@ -1411,7 +1539,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     ]);
     const best = (cardResult?.imageUrl || cardResult?.heroImage) ? cardResult : imgResult;
     if (best) {
-      const spokenText = (best.summary || best.subtitle || best.description || best.title || 'Here you go.').slice(0, 300);
+      const spokenText = _speakable(best.summary || best.subtitle || best.description || best.title || 'Here you go.');
       if (spokenText) _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: best, hasAction: false };
     }
@@ -1419,10 +1547,10 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
 
   // Historical/art/food/flag/fashion/nature queries — show card directly
   const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like|game|video game|minecraft|fortnite|call of duty|pokemon|zelda|mario|fifa|gta|game character|brand|clothing|outfit|dress|fashion|sneakers|shoes|shirt|jacket|plant|flower|tree|rose|tulip|sunflower|oak|pine|cherry blossom|cactus|orchid|colour|color|shade of|hue|tone of|red|blue|green|yellow|purple|orange|pink|black|white|brown|park|garden|beach|mountain|lake|river|forest|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|stadium|monument|national park|nature reserve|zoo|museum|island|valley|canyon|coast)\b/i;
-  if (VISUAL_CARD_REGEX.test(message)) {
+  if ((VISUAL_CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest) {
     const visualCard = await realtime.fetchCardData(message).catch(() => null);
     if (visualCard && (visualCard.imageUrl || visualCard.heroImage || visualCard.poster)) {
-      const spokenText = (visualCard.summary || visualCard.subtitle || visualCard.description || visualCard.plot || visualCard.title || '').slice(0, 300);
+      const spokenText = _speakable(visualCard.summary || visualCard.subtitle || visualCard.description || visualCard.plot || visualCard.title || '');
       if (spokenText) _sendTTS(_e.sender, spokenText);
       return { text: spokenText || visualCard.title || 'Here you go.', audio: null, card: visualCard, hasAction: false };
     }
@@ -1442,7 +1570,7 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
   const isMarkRead = MARK_READ_REGEX.test(message);
   const isEmailQuery = !isMarkRead && (UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message));
   const needsRealtime = REALTIME_REGEX.test(message);
-  const needsCard = CARD_REGEX.test(message);
+  const needsCard = (CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest;
   const needsNews = !isEmailQuery && NEWS_REGEX.test(message);
 
   // Run ALL data fetches in parallel — don't wait for one before starting another
@@ -1746,9 +1874,14 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
         finalAction = { type: 'play_music', arg: `spotify|${query}` };
         finalText = `Opening Spotify with "${query}".`;
       }
+    } else if (aiService && aiService !== 'spotify') {
+      // The user named another service ("on Apple Music") — use it
+      finalAction = { type: 'play_music', arg: `${aiService}|${query}` };
     } else {
-      // Non-Spotify or Spotify not connected — open preferred/resolved service
-      finalAction = { type: 'play_music', arg: `${resolvedService}|${query}` };
+      // Spotify first: installed → the song opens in Spotify; not installed → YouTube
+      const spokenText = await playSongUnconnected(query);
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
     }
   }
 
@@ -2279,6 +2412,23 @@ ipcMain.handle('jarvis:chat', async (_e, { message, history, attachments = [] })
     _sendTTS(_e.sender, userMsg);
     return { error, userMsg };
   }
+}
+
+// Every answer to a Ctrl+Shift+C question reaches the small card over the user's
+// app — including the quick ones (a person's card, a picture, a score) that return
+// before the end of the handler, where the forwarding used to live alone.
+ipcMain.handle('jarvis:chat', async (_e, args) => {
+  const wasHud = hudVoiceMode;
+  const res = await _chatHandler(_e, args);
+  if (wasHud && hudVoiceMode && res && (res.text || res.card || res.userMsg)) {
+    hudVoiceMode = false;
+    hudListening = false;
+    const text = res.text || res.userMsg || '';
+    sendToHud('hud:card', res.card
+      ? { type: res.card.type || 'wiki', text, card: res.card, title: res.card.title || res.card.name || '' }
+      : { type: 'info', text });
+  }
+  return res;
 });
 
 // Utility: fetch a CDN script as text (used by tubes-cursor.js to bypass sandbox)
@@ -2613,6 +2763,21 @@ ipcMain.handle('shop:search', async (_e, { store: shopStore, query, limit }) => 
   });
 });
 
+// Open a store's own search; if the site can't be reached at all, Google it instead.
+// Only a failed connection counts — stores often answer scripts with 503, which
+// says nothing about whether the page loads in a browser.
+ipcMain.handle('shop:open', async (_e, { url, fallbackUrl }) => {
+  const allowed = (u) => /^https:\/\/(?:www\.)?(?:amazon\.(?:com|ca|co\.uk)|aliexpress\.com|temu\.com|google\.com)\//i.test(String(u || ''));
+  if (!allowed(url)) url = fallbackUrl;
+  if (!allowed(url)) return { ok: false };
+  let reachable = true;
+  try { await fetch(url, { method: 'HEAD', redirect: 'manual', timeout: 4000 }); }
+  catch (_) { reachable = false; }
+  const target = reachable || !allowed(fallbackUrl) ? url : fallbackUrl;
+  await shell.openExternal(target);
+  return { ok: true, usedFallback: target !== url };
+});
+
 ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);
 ipcMain.handle('voice:setSpeed', (_e, speed) => {
   store.set('voiceSpeed', speed);
@@ -2649,6 +2814,7 @@ ipcMain.handle('jarvis:hide', () => {
 ipcMain.handle('jarvis:hudForward', (_e, { text, card }) => {
   hudVoiceMode = false;
   hudListening = false;
+  if (!text && !card) return;   // nothing to show — just end HUD mode
   const cardPayload = card
     ? { type: card.type || 'info', text: text || '', card, title: card.title || card.name || '' }
     : { type: 'info', text: text || '' };
@@ -3572,6 +3738,58 @@ ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
   setTimeout(() => suppressSpotifyWindow(), 3000);
   return { ok: true };
 });
+
+// ── Playing a song: Spotify first, always ─────────────────────────────────────
+// Connected Spotify plays in the background (_coreSpotifyPlay). Otherwise, if the
+// Spotify app is installed, the song is found and opened in it — YouTube isn't
+// touched. Only with no Spotify at all does it go to the user's other chosen
+// service, or else to YouTube.
+function isSpotifyInstalled() {
+  const fs = require('fs');
+  try {
+    if (process.platform === 'win32' && fs.existsSync(path.join(process.env.APPDATA || '', 'Spotify', 'Spotify.exe'))) return true;
+    if (process.platform === 'darwin' && (fs.existsSync('/Applications/Spotify.app')
+      || fs.existsSync(path.join(require('os').homedir(), 'Applications', 'Spotify.app')))) return true;
+    // Microsoft Store installs live elsewhere, but every install registers spotify: links.
+    return !!app.getApplicationNameForProtocol('spotify://');
+  } catch (_) { return false; }
+}
+
+async function findSpotifySong(query) {
+  const own = await connectors.searchSpotifyTrack(query).catch(() => null);
+  if (own?.ok) return own;
+  try {
+    const r = await fetch(`${_serverBase()}/ai/spotify-search?q=${encodeURIComponent(query)}`, { headers: _authHeader(), timeout: 6000 });
+    const d = await r.json();
+    return d?.ok ? d : null;
+  } catch (_) { return null; }
+}
+
+// Plays `query` without a Spotify connection. Returns what to say.
+async function playSongUnconnected(query) {
+  if (isSpotifyInstalled()) {
+    const found = await findSpotifySong(query);
+    if (found?.trackUri) {
+      await commands.run('play_music', `spotify_track_uri|${found.trackUri}`).catch(() => {});
+      return `Playing ${found.trackName}${found.artistName ? ` by ${found.artistName}` : ''} on Spotify.`;
+    }
+    await commands.run('play_music', `spotify|${query}`).catch(() => {});
+    return `Opening ${query} in Spotify.`;
+  }
+  const pref = String(store.get('music.service') || '').toLowerCase();
+  if (pref && pref !== 'spotify' && pref !== 'youtube') {
+    await commands.run('play_music', `${pref}|${query}`).catch(() => {});
+    return `Playing ${query} on ${pref.replace(/\b\w/g, (c) => c.toUpperCase())}.`;
+  }
+  // YouTube: straight to the top video rather than a page of results.
+  const video = await tvCast.youtubeSearch(query).catch(() => null);
+  if (video?.videoId) {
+    await commands.openInChrome(`https://www.youtube.com/watch?v=${video.videoId}`).catch(() => {});
+    return `Spotify isn't installed, so here's ${video.title} on YouTube.`;
+  }
+  await commands.run('play_music', `youtube|${query}`).catch(() => {});
+  return `Spotify isn't installed, so here's ${query} on YouTube.`;
+}
 
 // ── Core Spotify play logic — shared by fast-path and IPC handler ─────────────
 // Every call bumps _spotifyGen. An older run that is still awaiting something checks

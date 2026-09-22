@@ -2,6 +2,21 @@ function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── Shortcut names per keyboard ──────────────────────────────────────────────
+// On a Mac, Callisto's shortcuts use ⌘ Cmd where Windows uses Ctrl (Shift stays).
+// One stays on Control: macOS keeps Cmd+Space for Spotlight and never passes it on.
+const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
+function keys(combo) {
+  if (!IS_MAC) return combo;
+  if (combo === 'Ctrl+Space') return 'Control+Space';
+  return combo.replace(/\bCtrl\+/g, 'Cmd+');
+}
+window.keys = keys;
+document.querySelectorAll('[data-keys]').forEach((el) => { el.textContent = keys(el.dataset.keys); });
+document.querySelectorAll('[data-keys-title]').forEach((el) => {
+  el.title = el.dataset.keysTitle.replace(/Ctrl\+[A-Za-z+]+/g, (c) => keys(c));
+});
+
 // ── Offline / online detection ────────────────────────────────────────────────
 const offlineBanner = document.getElementById('offlineBanner');
 const offlineBannerText = document.getElementById('offlineBannerText');
@@ -1662,9 +1677,10 @@ window._checkMarketsOverlay = async function(text) {
   // "how's my portfolio", "what are my stocks at", "check my holdings".
   // "Show me Apple stock" names a company and belongs to the single-stock card,
   // so it deliberately doesn't match: this needs my/our, or "the markets".
-  const MARKETS_RE = /\b(?:my|our)\s+(?:markets?|portfolio|stocks?|shares|holdings|investments?)\b|\bportfolio\s+(?:overview|summary|page)\b|\bopen\s+(?:the\s+)?portfolio\b|\bhow\s+(?:are|is|'s)\s+the\s+markets?\b/i;
+  const MARKETS_RE = /\b(?:my|our)\s+(?:markets?|portfolio|stocks?|shares|holdings|investments?)\b|\bportfolio\s+(?:overview|summary|page)\b|\b(?:open|expand|show|pull\s+up|bring\s+up)\s+(?:me\s+)?(?:the\s+)?(?:markets?|portfolio)\b(?!\s+(?:for|of|in|on|at|near)\b)|\bhow\s+(?:are|is|'s)\s+the\s+markets?\b/i;
   if (!MARKETS_RE.test(text)) return false;
   await showMarketsOverlay();
+  window._hudWantsWindow = true;   // asked from another app: bring Callisto up to show them
   // Asking for an overview is a question, and questions get an answer in the
   // chat. Asking to see the markets just opens them — then Callisto reads the
   // numbers aloud while they're on screen, without cluttering the chat.
@@ -1706,6 +1722,7 @@ window._checkMarketsOverlay = async function(text) {
         ? `${tvDevices.length} device${tvDevices.length > 1 ? 's' : ''} found — tap to connect`
         : (tvScanning ? 'Scanning your network…' : 'Not connected');
     }
+    if (!tvScanning) tvRenderDevices(tvDevices);   // the connected TV leaves the list; a disconnected one returns
   }
 
   const TV_KIND_LABEL = { cast: 'Google TV / Chromecast', roku: 'Roku', firetv: 'Fire TV' };
@@ -1739,9 +1756,13 @@ window._checkMarketsOverlay = async function(text) {
   }
 
   // ── Render device list ───────────────────────────────────────────────────
-  function tvRenderDevices(devs) {
+  function tvRenderDevices(all) {
     const list = getEl('tvDeviceList');
     if (!list) return;
+    // One row per TV, and the connected TV only in "Connected to" — never twice.
+    const same = (a, b) => !!a && !!b && (a.host === b.host || (a.name === b.name && (a.kind || 'cast') === (b.kind || 'cast')));
+    const devs = [];
+    for (const d of all || []) if (!same(d, tvConnected) && !devs.some((x) => same(x, d))) devs.push(d);
     list.style.display = devs.length ? 'flex' : 'none';
     list.innerHTML = '';
     devs.forEach(dev => {
@@ -1763,6 +1784,7 @@ window._checkMarketsOverlay = async function(text) {
             tvConnected = dev;
             try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch (_) {}
             tvUpdateUI();
+            tvRenderDevices(tvDevices);
             addMessage('assistant', tvConnectedMessage(dev, res));
             window.jarvis.speak(`Connected to ${dev.name}.`);
           } else {
@@ -2185,8 +2207,8 @@ window._checkMarketsOverlay = async function(text) {
     const openM = t.replace(/["“”]/g, '').match(/\b(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(.+?)\s+on\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i);
     if (openM) {
       const what = openM[1].trim();
-      addMessage('assistant', `📺 I can't open **${what}** on your TV yet. On the TV I can play YouTube, Netflix, Prime Video, Spotify, and videos stored on the TV itself.`);
-      window.jarvis.speak(`I can't open ${what} on your TV yet. I can do YouTube, Netflix, Prime Video, Spotify, and videos stored on the TV.`);
+      addMessage('assistant', `📺 I can't open **${what}** on your TV yet. On the TV I can play YouTube, Netflix, Prime Video, and videos stored on the TV itself.`);
+      window.jarvis.speak(`I can't open ${what} on your TV yet. I can do YouTube, Netflix, Prime Video, and videos stored on the TV.`);
       return true;
     }
     return false;
@@ -2195,6 +2217,75 @@ window._checkMarketsOverlay = async function(text) {
 
 // ===================== QUICK-LAUNCH COMMANDS =====================
 // Spotify, YouTube, Instagram, WhatsApp, Google Calendar
+
+// After Ctrl+Shift+C, a command the app handled itself (an app opened, the TV,
+// shopping) sends what it said to the small card, unless it already sent its own.
+// Markets and the calendar are things to look at, so Callisto comes to the front.
+function _hudAfterHandled(assistantCountBefore) {
+  if (!window._hudVoiceActive) return;
+  setTimeout(() => {
+    if (!window._hudVoiceActive) return;   // the handler forwarded its own card
+    const said = [...chat.querySelectorAll('.msg-row.assistant .msg-text')];
+    const fresh = said.length > assistantCountBefore ? said[said.length - 1].innerText.trim() : '';
+    if (window._hudWantsWindow) window.jarvis.focusWindow?.();
+    window._hudWantsWindow = false;
+    _maybeForwardToHud(fresh.slice(0, 400), null);
+  }, 1500);
+}
+
+// Reads the date and time out of a phrase — "on Friday at 3pm", "tomorrow",
+// "July 15", "the 20th at 9:30" — and hands back what's left as the title.
+// No date means the next time that hour comes round (or tomorrow at 10am).
+function parseWhen(phrase) {
+  const now = new Date();
+  let s = ` ${phrase} `;
+  let day = null, hour = null, minute = 0;
+  const cut = (re) => { const m = s.match(re); if (m) s = s.replace(m[0], ' '); return m; };
+  const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  if (cut(/\s(?:on\s+|for\s+)?today\b/i)) day = new Date(now);
+  else if (cut(/\s(?:on\s+|for\s+)?tomorrow\b/i)) { day = new Date(now); day.setDate(day.getDate() + 1); }
+  else {
+    const wd = cut(/\s(?:on\s+|for\s+|this\s+|next\s+)*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i);
+    if (wd) {
+      day = new Date(now);
+      const ahead = (DAYS.indexOf(wd[1].toLowerCase()) - now.getDay() + 7) % 7 || 7;
+      day.setDate(day.getDate() + ahead);
+    } else {
+      const md = cut(/\s(?:on\s+|for\s+)?(?:the\s+)?(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?|(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i);
+      const nth = !md && cut(/\s(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
+      if (md) {
+        const mon = MONTHS.indexOf((md[1] || md[4]).slice(0, 3).toLowerCase());
+        day = new Date(now.getFullYear(), mon, Number(md[2] || md[3]));
+        if (day < new Date(now.getFullYear(), now.getMonth(), now.getDate())) day.setFullYear(day.getFullYear() + 1);
+      } else if (nth) {
+        day = new Date(now.getFullYear(), now.getMonth(), Number(nth[1]));
+        if (day < new Date(now.getFullYear(), now.getMonth(), now.getDate())) day.setMonth(day.getMonth() + 1);
+      }
+    }
+  }
+
+  const tm = cut(/\s(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=\s|$)/i)
+          || cut(/\sat\s+(\d{1,2}):(\d{2})\b/i);
+  if (tm) {
+    hour = Number(tm[1]) % 12 + (/^p/i.test(tm[3] || '') ? 12 : 0);
+    if (!tm[3]) hour = Number(tm[1]);
+    minute = Number(tm[2] || 0);
+  } else if (cut(/\s(?:at\s+)?noon\b/i)) hour = 12;
+  else if (cut(/\s(?:at\s+)?midnight\b/i)) hour = 0;
+
+  if (!day) {
+    day = new Date(now);
+    const later = hour !== null && (hour > now.getHours() || (hour === now.getHours() && minute > now.getMinutes()));
+    if (!later) day.setDate(day.getDate() + 1);
+  }
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour ?? 10, hour === null ? 0 : minute);
+  const label = start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    + ' at ' + start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const rest = s.replace(/\s+(?:on|at|for)\s*$/i, '').replace(/\s{2,}/g, ' ').trim();
+  return { start, label, rest };
+}
 
 // Helper: if this request came from Ctrl+Shift+C (HUD mode), forward the result
 // to the HUD overlay so it appears on top of whatever app the user is in.
@@ -2275,8 +2366,8 @@ window._checkQuickLaunch = async function(text) {
   if (/^open\s+instagram\s*$/i.test(t) || /^launch\s+instagram\s*$/i.test(t)) {
     addMessage('assistant', `📸 Opening Instagram…`);
     window.jarvis.speak('Opening Instagram.');
-    // Try the native app first; only open web if user explicitly asks for web Instagram
-    window.jarvis.openUrl('instagram://app');
+    // The Instagram app if it's installed, otherwise instagram.com in the browser.
+    window.jarvis.openApp('instagram');
     return true;
   }
 
@@ -2294,7 +2385,10 @@ window._checkQuickLaunch = async function(text) {
   const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|calendar|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
   // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
   const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
-  const appOpenM = !isTV && (tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i));
+  // A file or folder ("open my budget file", "open resume.pdf") is found and opened
+  // by the main process, not launched as an app.
+  const opensFile = /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video|folder)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/i.test(tOpen);
+  const appOpenM = !isTV && !opensFile && (tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i));
   if (appOpenM) {
     const appName = (appOpenM[1] || '').trim().toLowerCase();
     if (!appName || appName.length < 2) { /* too short, let AI handle */ }
@@ -2335,9 +2429,14 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Google Calendar: "show my calendar" → full overlay ───────────────────
-  if (/show\s+(?:me\s+)?(?:my\s+)?(?:calendar|schedule)|open\s+(?:my\s+)?calendar|my\s+calendar|calendar\s+view/i.test(t)) {
+  // Seeing the calendar only — "add X to my calendar" adds, and "what's on my
+  // calendar" reads the events out (both below).
+  const changesCalendar = /\b(?:add|put|schedule|create|set\s+up|book|remove|delete|cancel|move|reschedule)\b/i.test(t);
+  if (!changesCalendar && !/what(?:'s|\s+is)\s+on\s+my\s+calendar/i.test(t)
+      && /\b(?:show|open|expand|pull\s+up|bring\s+up|display|view|see)\s+(?:me\s+)?(?:my\s+|the\s+)?(?:calendar|schedule)\b|^(?:my\s+)?calendar(?:\s+view)?[\s.!?]*$/i.test(t)) {
     if (typeof window.showCalendarOverlay === 'function') {
       window.showCalendarOverlay();
+      window._hudWantsWindow = true;
       addMessage('assistant', '📅 Here\'s your calendar!');
       window.jarvis.speak('Opening your calendar.');
       return true;
@@ -2379,19 +2478,16 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Google Calendar: "add X to my calendar on DATE" ─────────────────────
-  const calM = t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?(?:google\s+)?calendar(?:\s+on\s+(.+))?/i)
-             || t.match(/(?:schedule|set up|create)\s+(.+?)\s+(?:on\s+)?(?:my\s+)?(?:google\s+)?calendar(?:\s+for\s+(.+))?/i);
+  const calM = t.match(/add\s+(.+?)\s+to\s+(?:my\s+)?(?:google\s+)?calendar\b(.*)$/i)
+             || t.match(/(?:schedule|set up|create)\s+(.+?)\s+(?:on|in)\s+(?:my\s+)?(?:google\s+)?calendar\b(.*)$/i);
   if (calM) {
-    const title = calM[1].trim();
-    const dateStr = calM[2] ? calM[2].trim() : '';
-    // Parse date — try natural language, fallback to tomorrow
-    let start = new Date(); start.setDate(start.getDate() + 1); start.setHours(10,0,0,0);
-    if (dateStr) {
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed)) { start = parsed; start.setHours(10,0,0,0); }
-    }
-    const end = new Date(start.getTime() + 60*60*1000); // 1 hour
-    addMessage('assistant', `📅 Adding **${title}** to your calendar${dateStr ? ` on ${dateStr}` : ''}…`);
+    // "add dentist on Friday at 3pm to my calendar" and "add dentist to my calendar
+    // tomorrow at 3pm" both work: the when is read from anywhere in the sentence.
+    const when = parseWhen(`${calM[1]} ${calM[2] || ''}`);
+    const title = when.rest.replace(/[\s.!?,;:]+$/, '').trim() || calM[1].trim();
+    const start = when.start;
+    const dateStr = when.label;
+    addMessage('assistant', `📅 Adding **${title}** to your calendar for ${dateStr}…`);
     (async () => {
       // 1) Add to in-app planner (always works, no connection needed)
       await window.jarvis.reminderAdd({ text: title, datetime: start.getTime(), earlyMinutes: 10 }).catch(() => {});
@@ -2400,9 +2496,11 @@ window._checkQuickLaunch = async function(text) {
       // 2) Add to Google Calendar if connected (no browser switch)
       let googleOk = false;
       try {
+        const pad = (n) => String(n).padStart(2, '0');
         const result = await window.jarvis.calendarAdd({
           title,
-          date: start.toISOString().split('T')[0],
+          // Local date, not UTC — an evening event mustn't slip to the next day.
+          date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
           time: start.toTimeString().slice(0, 5),
           duration: 60,
           description: 'Added by Callisto'
@@ -2411,9 +2509,9 @@ window._checkQuickLaunch = async function(text) {
       } catch (_) {}
 
       const where = googleOk ? 'your in-app planner and Google Calendar' : 'your in-app planner';
-      const msg = `**${title}** added to ${where}${dateStr ? ` on ${dateStr}` : ''}.`;
+      const msg = `**${title}** added to ${where} for ${dateStr}.`;
       addMessage('assistant', `✅ ${msg}`);
-      const spokenMsg = `I've added ${title} to ${googleOk ? 'your Google Calendar' : 'your planner'}${dateStr ? ` on ${dateStr}` : ''}.`;
+      const spokenMsg = `I've added ${title} to ${googleOk ? 'your Google Calendar' : 'your planner'} for ${dateStr}.`;
       window.jarvis.speak(spokenMsg);
     })();
     return true;
@@ -2457,26 +2555,41 @@ window._checkQuickLaunch = async function(text) {
                  || t.match(/^(?:show|open|check)\s+(.+?)\s+(?:stock|share|price)\s*[\?\.]?$/i)
                  || t.match(/^(?:how(?:'s|\s+is|\s+are)?|what(?:'s|\s+is)?)\s+(.+?)\s+(?:stock|share|doing|performing|trading)\s*[\?\.]?$/i)
                  || t.match(/^(.+?)\s+(?:stock\s+price|share\s+price)\s*[\?\.]?$/i);
-  if (stockIntM && !/\b(?:show|find|search|order|buy)\b.*\bon\s+amazon\b/i.test(t)) {
-    const rawQuery = (stockIntM[1] || '').trim();
-    // Map common company names to tickers
-    const NAME_TO_TICKER = {
-      amazon: 'AMZN', apple: 'AAPL', google: 'GOOGL', alphabet: 'GOOGL',
-      microsoft: 'MSFT', tesla: 'TSLA', meta: 'META', facebook: 'META',
-      netflix: 'NFLX', nvidia: 'NVDA', 'coca cola': 'KO', disney: 'DIS',
-      spotify: 'SPOT', uber: 'UBER', airbnb: 'ABNB', twitter: 'X',
-      paypal: 'PYPL', salesforce: 'CRM', adobe: 'ADBE', intel: 'INTC',
-      amd: 'AMD', arm: 'ARM', 'jp morgan': 'JPM', 'goldman sachs': 'GS',
-    };
+  // Map common company names to tickers
+  const NAME_TO_TICKER = {
+    amazon: 'AMZN', apple: 'AAPL', google: 'GOOGL', alphabet: 'GOOGL',
+    microsoft: 'MSFT', tesla: 'TSLA', meta: 'META', facebook: 'META',
+    netflix: 'NFLX', nvidia: 'NVDA', 'coca cola': 'KO', disney: 'DIS',
+    spotify: 'SPOT', uber: 'UBER', airbnb: 'ABNB', twitter: 'X',
+    paypal: 'PYPL', salesforce: 'CRM', adobe: 'ADBE', intel: 'INTC',
+    amd: 'AMD', arm: 'ARM', 'jp morgan': 'JPM', 'goldman sachs': 'GS',
+  };
+  // The company: a known name anywhere in the sentence, else the words before
+  // "stock" with the lead-in dropped ("show me", "what's", "how is", "the").
+  const knownName = Object.keys(NAME_TO_TICKER).find((n) => new RegExp(`\\b${n}\\b`, 'i').test(t));
+  const rawQuery = stockIntM ? (knownName || String(stockIntM[1] || '')
+    .replace(/^(?:can\s+you\s+|please\s+)?(?:show|give|get|tell|pull\s+up|bring\s+up|check)\s+(?:me\s+)?/i, '')
+    .replace(/^(?:what(?:'s|\s+is)|how(?:'s|\s+is|\s+are))\s+/i, '')
+    .replace(/^(?:the\s+)?(?:price\s+of\s+|stock\s+price\s+(?:of|for)\s+)?(?:the\s+)?/i, '')
+    .replace(/'s$/i, '')
+    .trim()) : '';
+  // "what is a stock?", "penny stock", "how is my mom doing?" aren't a company's shares.
+  const typedTicker = /\b[A-Z]{1,5}\b/.test(text) && /^[A-Z]{1,5}$/.test(String(stockIntM?.[1] || '').trim());
+  const genericStock = !rawQuery || /^(?:a|an|the|this|that|my|your|our|any|some|which|what|penny|growth|value|dividend|blue\s*chip|tech|meme|best|good|cheap|top|buy|sell|preferred|common|index)$/i.test(rawQuery)
+    || /\b(?:my|your|his|her|their|our)\b/i.test(rawQuery);
+  const viaDoing = stockIntM && !/\b(?:stock|shares?)\b/i.test(t);   // "how is X doing" with no stock word
+  const isStock = stockIntM && !genericStock && (!viaDoing || !!knownName || typedTicker)
+    && !/\b(?:show|find|search|order|buy|get)\b.*\b(?:on|from|at)\s+amazon\b/i.test(t);
+  if (isStock) {
     const lookupSym = NAME_TO_TICKER[rawQuery.toLowerCase()] || rawQuery.toUpperCase();
-    addMessage('assistant', `📈 Looking up **${rawQuery}** stock…`);
-    window.jarvis.speak(`Pulling up ${rawQuery} stock.`).catch(() => {});
+    setState('thinking');
     (async () => {
       try {
         const sym = NAME_TO_TICKER[rawQuery.toLowerCase()]
           ? lookupSym
           : (await window.jarvis.financeResolve(rawQuery).catch(() => null)) || lookupSym;
         const stockData = await window.jarvis.financeGetStock(sym).catch(() => null);
+        setState('idle');
         if (!stockData) {
           const errText = `❌ Couldn't find stock data for **${rawQuery}**. Try the full ticker symbol.`;
           addMessage('assistant', errText);
@@ -2484,26 +2597,25 @@ window._checkQuickLaunch = async function(text) {
           return;
         }
         const stockCard = { ...stockData, type: 'stock' };
-        const stockText = `📈 **${sym}** — $${stockData.price ?? ''} ${stockData.change ?? ''}`;
-        _maybeForwardToHud(stockText, stockCard);
-        showCard(stockCard);
-        // Say the price, not just "looking up…"
         const cur = stockData.currency === 'USD' ? '$' : `${stockData.currency || ''} `;
         const dir = stockData.positive ? 'up' : 'down';
         const pct = String(stockData.changePct || '').replace('-', '');
-        addMessage('assistant', `📈 **${stockData.name || sym} (${stockData.symbol || sym})** is at **${cur}${stockData.price}**, ${dir} ${pct}% today.`);
+        const said = `📈 **${stockData.name || sym} (${stockData.symbol || sym})** is at **${cur}${stockData.price}**, ${dir} ${pct}% today.`;
+        _maybeForwardToHud(said, stockCard);
+        // The price in the chat, the card with its chart and an "Add to Portfolio"
+        // button, and one spoken line. Adding to the portfolio is the user's choice.
+        addMessage('assistant', said);
+        showCard(stockCard);
         window.jarvis.speak(`${stockData.name || rawQuery} is at ${cur === '$' ? '' : cur}${stockData.price}${cur === '$' ? ' dollars' : ''}, ${dir} ${pct} percent today.`).catch(() => {});
-        if (typeof window.finAddStock === 'function') window.finAddStock(stockCard).catch?.(() => {});
-        document.getElementById('finPanel')?.classList.remove('fp-hidden');
-      } catch (e) { console.error('[stock intercept]', e); }
+      } catch (e) { setState('idle'); console.error('[stock intercept]', e); }
     })();
     return true;
   }
 
   // ── Amazon / eBay search: "show X on amazon" / "find X on ebay" ──────────
-  const amazonM = t.match(/(?:show|find|search|look up|order|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+amazon/i)
+  const amazonM = t.match(/(?:show|find|search|look up|order|get|buy)\s+(?:me\s+|us\s+)?(.+?)\s+(?:on|from|at|in)\s+amazon\b/i)
                || t.match(/search\s+amazon\s+(?:for\s+)?(.+)/i)
-               || t.match(/amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i);
+               || t.match(/^amazon\s+(?:search\s+for\s+|find\s+)?(.+)/i);
   if (amazonM) {
     const query = amazonM[1].trim();
     // Don't intercept stock/finance queries that happen to mention amazon
@@ -3281,9 +3393,32 @@ function cleanShoppingQuery(raw) {
     .trim();
 }
 
+// Amazon for the country the user is in, going by their time zone.
+function amazonSite() {
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  if (/^America\/(?:Toronto|Vancouver|Edmonton|Winnipeg|Halifax|Regina|St_Johns|Moncton|Montreal|Whitehorse|Yellowknife|Iqaluit)/.test(tz)) return 'www.amazon.ca';
+  if (/^Europe\/(?:London|Belfast)$/.test(tz)) return 'www.amazon.co.uk';
+  return 'www.amazon.com';
+}
+
 async function runShoppingSearch(store, query) {
   const meta = STORE_META[store] || STORE_META.ebay;
   if (!query) return;
+
+  // Amazon, AliExpress and Temu have no product feed to preview, so open their
+  // own search straight away — and if the site can't be reached, Google it.
+  if (store === 'amazon' || store === 'aliexpress' || store === 'temu') {
+    addMessage('assistant', `${meta.emoji} Opening **${meta.name}** results for **${query}**…`);
+    window.jarvis.speak(`Here's ${query} on ${meta.name}.`);
+    const res = await window.jarvis.shopSearch(store, query, 1).catch(() => null);
+    let url = res?.searchUrl || '';
+    if (store === 'amazon') url = (url || `https://www.amazon.com/s?k=${encodeURIComponent(query)}`).replace('www.amazon.com', amazonSite());
+    const google = `https://www.google.com/search?q=${encodeURIComponent(`${meta.name} ${query}`)}`;
+    const opened = await window.jarvis.shopOpen(url || google, google).catch(() => null);
+    if (opened && opened.usedFallback) addMessage('assistant', `${meta.name} didn't load, so I searched Google for it instead.`);
+    return;
+  }
 
   addMessage('assistant', `${meta.emoji} Searching ${meta.name} for **${query}**…`);
   window.jarvis.speak(`Searching ${meta.name} for ${query}.`);
@@ -3580,7 +3715,7 @@ function showCard(card) {
         ${metaRows ? `<div class="stock-meta">${metaRows}</div>` : ''}
         <a class="stock-link" href="#" id="cardStockLink">View on Yahoo Finance →</a>
         <button class="card-fav-btn" id="cardFavBtn">⭐ ADD TO FAVOURITES</button>
-        <button id="cardFinBtn">📊 ADD TO FINANCIAL SECTION</button>
+        <button id="cardFinBtn">📊 ADD TO PORTFOLIO</button>
       </div>`;
     // Wire all card buttons
     setTimeout(() => {
@@ -3609,12 +3744,12 @@ function showCard(card) {
       if (finBtn) {
         // Check if already in panel
         if (finPortfolio.some(s => s.symbol === card.symbol)) {
-          finBtn.textContent = '✓ IN FINANCIAL SECTION'; finBtn.classList.add('added'); finBtn.disabled = true;
+          finBtn.textContent = '✓ IN PORTFOLIO'; finBtn.classList.add('added'); finBtn.disabled = true;
         }
         finBtn.addEventListener('click', async () => {
           try {
             await window.finAddStock(card);
-            finBtn.textContent = '✓ IN FINANCIAL SECTION';
+            finBtn.textContent = '✓ ADDED TO PORTFOLIO';
             finBtn.classList.add('added');
             finBtn.disabled = true;
           } catch (err) {
@@ -4152,6 +4287,7 @@ function showCard(card) {
             <div class="ans-label">${esc((card.category || 'ANSWER').toUpperCase())}</div>
           </div>
         </div>
+        ${card.imageUrl ? `<img src="${esc(card.imageUrl)}" alt="${esc(card.title || '')}" style="display:block;width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin:10px 0;background:rgba(0,0,0,0.25)" onerror="this.remove()" />` : ''}
         ${formulaHtml}
         <div class="ans-summary">${esc(card.summary || '')}</div>
         ${stepsHtml}
@@ -4364,25 +4500,28 @@ window._hudVoiceActive = false;
 if (window.jarvis.onHudVoiceTrigger) {
   window.jarvis.onHudVoiceTrigger(() => {
     if (isRecording) {
-      window._hudVoiceActive = false;
+      // Stop and answer. _hudVoiceActive stays on until the answer has gone to the
+      // small card — clearing it here sent app-handled answers nowhere.
+      window._hudVoiceActive = true;
+      window.jarvis.hudMicState?.(false);
       stopRecording();
     } else {
       window._hudVoiceActive = true;
-      startRecording();
+      startRecording().then(() => window.jarvis.hudMicState?.(isRecording));
     }
   });
 }
 
 // Ctrl+Shift+Y capture result — add as a chat bubble if the main window is open
 if (window.jarvis.onHudResponse) {
-  window.jarvis.onHudResponse(({ text, card }) => {
+  window.jarvis.onHudResponse(({ text, card, background }) => {
     if (!text) return;
-    // Treat it like an incoming AI message — push into chat
-    const aiMsg = { role: 'assistant', content: text };
-    msgs.push(aiMsg);
-    addMessage('assistant', text, card || null);
-    chatHistory.push(aiMsg);
-    scrollToBottom();
+    // Treat it like an incoming AI message: a chat bubble, and in the app the card
+    // beside it. From another app the small card already showed it, so the chat
+    // just keeps the answer for later.
+    history.push({ role: 'assistant', content: text });
+    addMessage('assistant', text);
+    if (card && !background) showCard(card);
   });
 }
 
@@ -4648,7 +4787,21 @@ function renderSpreadsheetCard(msgEl, sheet) {
   msgEl.appendChild(card);
 }
 
+// Names people often mistype or the mic mishears, put right before anything is
+// routed — "play don 2 on netfix" must reach Netflix, not Spotify.
+function normaliseCommand(text) {
+  return String(text || '')
+    .replace(/\bnet\s?(?:flix|fix|flex|flx|flicks|flick)\b/gi, 'Netflix')
+    .replace(/\byou\s?tube\b/gi, 'YouTube')
+    .replace(/\bspoti\s?fy\b|\bspotofy\b|\bspotfy\b/gi, 'Spotify')
+    .replace(/\bwhats\s?app\b/gi, 'WhatsApp')
+    .replace(/\binsta\s?gram\b/gi, 'Instagram')
+    .replace(/\bprime\s+vid(?:eo|ioe|oe)\b/gi, 'Prime Video')
+    .replace(/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:t\.?v\.?|tele|telly)(?=[\s.!?,]|$)/gi, (m) => m.replace(/t\.?v\.?|tele|telly/i, 'TV'));
+}
+
 async function sendToJarvis(text) {
+  text = normaliseCommand(text);
   // Guard: don't even attempt if we know we're offline
   if (!navigator.onLine) {
     addMessage('assistant', "I can't reach the internet right now. Check your connection and try again.");
@@ -4668,35 +4821,37 @@ async function sendToJarvis(text) {
     if (window._hudVoiceActive && typeof _maybeForwardToHud === 'function') _maybeForwardToHud('Updating your 3D model…', null);
     return;
   }
+  // How many answers were showing, so a Ctrl+Shift+C request can find the new one.
+  const _asstBefore = chat.querySelectorAll('.msg-row.assistant .msg-text').length;
   // Check Google Flow video creation (must run before HiggsField — takes "make me a video about X")
   if (typeof window._checkGoogleFlow === 'function') {
     const handled = await window._checkGoogleFlow(text);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check HiggsField video generation (image-based, animate, effects)
   if (typeof window._checkHiggsfield === 'function') {
     const handled = await window._checkHiggsfield(text, attachments);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check markets overlay command
   if (typeof window._checkMarketsOverlay === 'function') {
     const handled = await window._checkMarketsOverlay(text);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check TV cast commands — runs before quick-launch so "play X on YouTube on TV" → TV, not local browser
   if (typeof window._checkTvCast === 'function') {
     const handled = await window._checkTvCast(text);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check quick-launch commands (Spotify, YouTube, Instagram, WhatsApp, Calendar)
   if (typeof window._checkQuickLaunch === 'function') {
     const handled = await window._checkQuickLaunch(text);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check creative (painting / 3D model) — may short-circuit the AI call
   if (typeof window._checkCreative === 'function') {
     const handled = await window._checkCreative(text);
-    if (handled) return;
+    if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check if message triggers browser panel (shopping / places)
   if (typeof window._checkBrowserPanel === 'function') window._checkBrowserPanel(text);
@@ -4726,6 +4881,7 @@ async function sendToJarvis(text) {
 
   // Capture HUD mode BEFORE the async chat call — _maybeForwardToHud clears it afterwards
   const _wasHudRequest = !!window._hudVoiceActive;
+  window._hudVoiceActive = false;   // the main process sends this reply to the small card
 
   let res;
   try {
@@ -5273,7 +5429,7 @@ if (window.jarvis.onSentenceText) {
     _meActive = true;
     _meRetries = 0;
     if (mePreview) mePreview.textContent = selectedText.length > 120 ? selectedText.slice(0, 120) + '…' : selectedText;
-    setMeState('listening', 'Listening — press Ctrl+Shift+E again when you\'re done…');
+    setMeState('listening', `Listening — press ${keys('Ctrl+Shift+E')} again when you're done…`);
     bar.classList.remove('hidden');
     // Auto-start voice recording
     if (typeof startRecording === 'function') startRecording('magic-edit');
@@ -5970,18 +6126,18 @@ async function showSplash(name) {
 // ─────────────────────────────────────────────────────────────────
 function initWelcomeScroll() {
   const CAPS = [
-    { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak to any tab, AI responds by voice',     kbd: 'Ctrl+Shift+C', colorA: '#00c8ff', colorB: '#003a5c' },
-    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen — AI identifies',  kbd: 'Ctrl+Shift+X', colorA: '#8b5cf6', colorB: '#2d1b69' },
+    { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak to any tab, AI responds by voice',     kbd: keys('Ctrl+Shift+C'), colorA: '#00c8ff', colorB: '#003a5c' },
+    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen — AI identifies',  kbd: keys('Ctrl+Shift+X'), colorA: '#8b5cf6', colorB: '#2d1b69' },
     { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       kbd: null,           colorA: '#00e5b0', colorB: '#00382e' },
     { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       kbd: null,           colorA: '#f472b6', colorB: '#5c1840' },
     { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             kbd: null,           colorA: '#60a5fa', colorB: '#1e3a5c' },
     { emoji: '◇', title: 'FILE INTELLIGENCE',  sub: 'Google Drive, Docs & Sheets, unified',       kbd: null,           colorA: '#34d399', colorB: '#064e3b' },
     { emoji: '◆', title: 'PERSISTENT MEMORY',  sub: 'I remember everything that matters',         kbd: null,           colorA: '#fbbf24', colorB: '#4c2a00' },
-    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    kbd: 'Ctrl+Shift+J', colorA: '#a78bfa', colorB: '#2e1065' },
+    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    kbd: keys('Ctrl+Shift+J'), colorA: '#a78bfa', colorB: '#2e1065' },
     { emoji: '⊕', title: 'WEB SEARCH',         sub: 'Real-time information, instantly',            kbd: null,           colorA: '#38bdf8', colorB: '#0c2a40' },
     { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           kbd: null,           colorA: '#4ade80', colorB: '#052e16' },
     { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                kbd: null,           colorA: '#fb923c', colorB: '#431407' },
-    { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           kbd: 'Ctrl+Shift+E', colorA: '#e879f9', colorB: '#4a044e' },
+    { emoji: '✧', title: 'MAGIC EDITOR',       sub: 'Edit any text anywhere on screen',           kbd: keys('Ctrl+Shift+E'), colorA: '#e879f9', colorB: '#4a044e' },
     { emoji: '⬢', title: '3D MODELS',          sub: 'Say it, and watch it built in 3D',           kbd: null,           colorA: '#22d3ee', colorB: '#083344' },
     { emoji: '▣', title: 'CAST TO TV',         sub: 'Send anything to your television',           kbd: null,           colorA: '#f87171', colorB: '#450a0a' },
     { emoji: '❖', title: 'GOOGLE FLOW',        sub: 'Cinematic video, made from a sentence',      kbd: null,           colorA: '#818cf8', colorB: '#1e1b4b' },
@@ -6336,7 +6492,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Voice to any tab</div>
             <div class="ob-shortcut-desc">Speak to Callisto from any app — AI responds by voice</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+C</span>
+          <span class="ob-kbd">${keys('Ctrl+Shift+C')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">✏️</span>
@@ -6344,7 +6500,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Edit text on other tabs</div>
             <div class="ob-shortcut-desc">Select text anywhere, press shortcut, speak your edit — AI rewrites it</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+E</span>
+          <span class="ob-kbd">${keys('Ctrl+Shift+E')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🔮</span>
@@ -6352,7 +6508,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Magic cursor — circle to identify</div>
             <div class="ob-shortcut-desc">Draw a circle around anything on screen — AI tells you what it is</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+X</span>
+          <span class="ob-kbd">${keys('Ctrl+Shift+X')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">💬</span>
@@ -6360,7 +6516,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Open / hide Callisto</div>
             <div class="ob-shortcut-desc">Summon or dismiss the Callisto window instantly</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+J</span>
+          <span class="ob-kbd">${keys('Ctrl+Shift+J')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">📋</span>
@@ -6368,7 +6524,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Clipboard AI</div>
             <div class="ob-shortcut-desc">Copy any text, press this — AI analyses it instantly</div>
           </div>
-          <span class="ob-kbd">Ctrl+Space</span>
+          <span class="ob-kbd">${keys('Ctrl+Space')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🤚</span>
@@ -6376,7 +6532,7 @@ const ONBOARD_STEPS = [
             <div class="ob-shortcut-name">Hand gesture control</div>
             <div class="ob-shortcut-desc">Toggle camera hand-gesture reader — control Callisto with your hand</div>
           </div>
-          <span class="ob-kbd">Ctrl+Shift+G</span>
+          <span class="ob-kbd">${keys('Ctrl+Shift+G')}</span>
         </div>
       </div>`,
     validate: () => true,
@@ -8476,6 +8632,7 @@ async function stopRecording() {
       // Mid-edit, keep the editor open and listen again instead of dumping the user out.
       if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) { setState('idle'); return; }
       addMessage('assistant', 'I didn\'t catch that — please check your microphone and try again.');
+      _maybeForwardToHud('I didn\'t catch that. Check your microphone and try again.', null);
       setState('idle');
       return;
     }
@@ -8490,13 +8647,16 @@ async function stopRecording() {
     // Whisper commonly hallucinates these when it hears silence or noise
     const WHISPER_HALLUCINATIONS = /^(thank you\.?|thanks\.?|you\.?|\.+|\s*|\[.*?\]|♪.*?♪|subscribe|like and subscribe|see you next time|bye\.?|okay\.?|ok\.?|um+\.?|uh+\.?|hmm+\.?|…+)$/i;
     // Also reject if the transcript contains our own system-prompt keywords (Whisper echoing training data)
-    const SYSTEM_PROMPT_LEAK = /open my files|open folder|volume up|volume down|shut down|blue screen|BSOD|differentiate|integrate|factorise|formula for|calculate|prime minister|who is the president|who invented|how was discovered/i;
+    // An echo is a run of these phrases together; any single one is a real request
+    // ("who is the president of Pakistan", "turn the TV volume up", "calculate 15% of 80").
+    const SYSTEM_PROMPT_LEAK = /open my files|open folder|volume up|volume down|shut down|blue screen|BSOD|differentiate|integrate|factorise|formula for|calculate|prime minister|who is the president|who invented|how was discovered/gi;
 
     const trimmed = (text || '').trim();
+    const leakHits = new Set((trimmed.match(SYSTEM_PROMPT_LEAK) || []).map((s) => s.toLowerCase())).size;
     const isGarbage = !trimmed
       || trimmed.length < 2
       || WHISPER_HALLUCINATIONS.test(trimmed)
-      || SYSTEM_PROMPT_LEAK.test(trimmed);
+      || leakHits >= 3;
 
     if (!isGarbage) {
       // Magic Edit mode: intercept transcript and route to editor
@@ -8510,6 +8670,7 @@ async function stopRecording() {
     } else {
       // Silence / noise — speak a short "didn't hear" response, no chat bubble
       if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
+      _maybeForwardToHud(`I didn't hear that. Press ${keys('Ctrl+Shift+C')} and try again.`, null);
       setState('idle');
     }
   } catch (err) {

@@ -25,7 +25,7 @@
     {
       targets: ['#attachWrap', '#micWrap', '#clearWrap'],
       title: 'Talk to Callisto',
-      body: `Tap the mic and just speak. Or press ${KEY('Ctrl')}${KEY('Shift')}${KEY('C')} to talk from any app — even when Callisto is minimised.`,
+      body: `Tap the mic and just speak. Or press ${KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl')}${KEY('Shift')}${KEY('C')} to talk from any app — even when Callisto is minimised.`,
       foot: '<b>+</b> attaches a photo or file &nbsp;·&nbsp; the bin clears the conversation',
     },
     {

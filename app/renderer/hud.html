@@ -254,13 +254,19 @@ function showCard(data) {
   const cfg = TYPE_CFG[type] || TYPE_CFG.info;
   const dur = (type === 'wiki' || type === 'info') ? 10 : 7;
 
+  // Everything shown is text, never markup: this window can reach the system, and
+  // the words come from the web and from whatever was circled on screen.
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
   // Gather image URL — try card.imageUrl first, then card.image, then card.photo
-  const imgUrl = card?.imageUrl || card?.image || card?.photo || null;
+  const rawImg = card?.imageUrl || card?.image || card?.photo || '';
+  const imgUrl = /^(?:https?:|data:image\/)/i.test(rawImg) ? esc(rawImg) : null;
 
   // Card title / subtitle
-  const cardTitle = card?.title || title || (type === 'wiki' ? 'Identified' : cfg.label);
-  const cardSub   = card?.source || card?.category || '';
-  const bodyText  = card?.summary || card?.description || text || '';
+  const cardTitle = esc(card?.title || title || (type === 'wiki' ? 'Identified' : cfg.label));
+  const cardSub   = esc(card?.source || card?.category || '');
+  const bodyText  = esc(card?.summary || card?.description || text || '');
+  const eventSub  = esc(card?.when || (card?.to ? 'To: ' + card.to : ''));
 
   const el = document.createElement('div');
   el.className = `hud-card ${type || 'info'}`;
@@ -284,7 +290,7 @@ function showCard(data) {
         <div class="event-icon-wrap" style="background:${iconBg}">${cfg.icon}</div>
         <div>
           <div class="event-name">${cardTitle}</div>
-          <div class="event-sub">${card?.when || card?.to ? (card.when || 'To: '+card.to) : (bodyText.slice(0,80)||'')}</div>
+          <div class="event-sub">${eventSub || bodyText.slice(0, 80)}</div>
           ${cfg.badge ? `<span class="event-badge" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>` : ''}
         </div>
       </div>`;

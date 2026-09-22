@@ -39,7 +39,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   openApp: (name) => ipcRenderer.invoke('jarvis:openApp', name),
   openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
   // Forward a quick-launch result to the HUD overlay (Ctrl+Shift+C mode)
+  platform: process.platform,   // 'darwin' on a Mac — shortcuts show ⌘ Cmd there
   hudForward: (text, card) => ipcRenderer.invoke('jarvis:hudForward', { text, card }),
+  hudMicState: (on) => ipcRenderer.send('hud:mic-state', { on: !!on }),
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
   placesNearby: (query, lat, lng, city) => ipcRenderer.invoke('places:nearby', { query, lat, lng, city }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),
@@ -134,6 +136,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   getLatestMedia: ()           => ipcRenderer.invoke('media:getLatest'),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
+  shopOpen:      (url, fallbackUrl)    => ipcRenderer.invoke('shop:open', { url, fallbackUrl }),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
   callStart:     (payload) => ipcRenderer.invoke('call:start', payload),
   callRespond:   (callId, approved, note) => ipcRenderer.invoke('call:respond', { callId, approved, note }),

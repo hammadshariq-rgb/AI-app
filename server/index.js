@@ -1790,6 +1790,46 @@ app.post('/ai/place-phone', authMiddleware, async (req, res) => {
 });
 
 // ── Magic Editor — edit highlighted text via voice instruction ─────────────────
+// ── Spotify song lookup ───────────────────────────────────────────────────────
+// "Play Believer" should start the song in the Spotify app even when the user
+// hasn't connected Spotify to Callisto. Callisto's own app credentials can search
+// the catalogue (client-credentials: no user data), and the app opens the track.
+let _spotifyAppToken = { value: null, expires: 0 };
+async function spotifyAppToken() {
+  if (_spotifyAppToken.value && Date.now() < _spotifyAppToken.expires) return _spotifyAppToken.value;
+  if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) return null;
+  const creds = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
+  const r = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  _spotifyAppToken = { value: d.access_token, expires: Date.now() + ((d.expires_in || 3600) - 60) * 1000 };
+  return _spotifyAppToken.value;
+}
+
+app.get('/ai/spotify-search', authMiddleware, aiLimiter, async (req, res) => {
+  const plain = String(req.query.q || '').replace(/^play\s+/i, '').trim().slice(0, 150);
+  if (!plain) return res.status(400).json({ ok: false, error: 'q required' });
+  try {
+    const token = await spotifyAppToken();
+    if (!token) return res.json({ ok: false, error: 'not_configured' });
+    const search = async (q) => {
+      const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`, { headers: { Authorization: `Bearer ${token}` } });
+      return (await r.json().catch(() => ({})))?.tracks?.items?.[0] || null;
+    };
+    // "song by artist" → field filter first for accuracy, then the plain phrase
+    const by = plain.match(/^(.+?)\s+by\s+(.+)$/i);
+    const track = (by && await search(`track:${by[1].trim()} artist:${by[2].trim()}`)) || await search(plain);
+    if (!track) return res.json({ ok: false, error: 'track_not_found' });
+    res.json({ ok: true, trackUri: track.uri, trackName: track.name, artistName: (track.artists || []).map((a) => a.name).join(', ') });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
 // ── Streaming title lookup ────────────────────────────────────────────────────
 // Netflix's TV app can't search by name — it only opens a title by its id. Find
 // that id with a web search so "play Red Notice on Netflix" can start it.
@@ -1821,14 +1861,18 @@ app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { selectedText, instruction } = req.body;
     if (!selectedText || !instruction) return res.status(400).json({ error: 'selectedText and instruction required' });
+    // A sentence or a paragraph comes back in a second on the mini model; long
+    // pieces (essays) get the full model. The reply is sized to the selection.
+    const long = selectedText.length > 1500;
     const result = await openai.chat.completions.create({
-      model: 'gpt-4.1',
-      max_tokens: 2000,
+      model: long ? 'gpt-4.1' : 'gpt-4.1-mini',
+      max_tokens: Math.min(6000, Math.ceil(selectedText.length / 3) + 600),
       temperature: 0.3,
       messages: [
         {
           role: 'system',
           content: `You are a precise text editor. The user will give you a piece of text and a voice instruction for how to edit it.
+Edit ONLY the text you are given — it is exactly what the user selected, whether a sentence, a paragraph or a whole essay. Your reply replaces that selection, so never add text from outside it, never write a longer document around it, and never return anything but the edited version of it.
 Preserve the original formatting (line breaks, paragraphs) unless the instruction asks to change it.
 If the instruction asks you to ADD something, integrate it naturally.
 If the instruction is unclear, make the most sensible improvement possible.
