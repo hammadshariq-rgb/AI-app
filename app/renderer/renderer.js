@@ -2043,9 +2043,10 @@ window._checkMarketsOverlay = async function(text) {
     const fm = t.match(/\bplay\s+(.+?)\s+(?:from|off|on)\s+(?:my\s+|the\s+)?(?:tv'?s\s+)?(?:usb|flash\s+drive|hard\s+drive|drive|storage|downloads?|media(?:\s+(?:player|center|centre))?|files|memory)\b/i);
     if (fm && tidy(fm[1])) return { action: 'play_file', query: tidy(fm[1]) };
 
-    // Opening Netflix/Prime on a particular profile: "open netflix on hammad's profile"
-    const om = t.match(/\bopen\s+(netflix|prime(?:\s+video)?|amazon(?:\s+prime|\s+video)?)\b/i);
-    if (om && profile) return { action: 'open_app', app: appOf(om[1]), profile };
+    // Opening Netflix/Prime ("open netflix on hammad's profile"): it lands on
+    // "Who's watching?", which the TV side gets past or asks about.
+    const om = t.match(/\b(?:open|launch|start|put\s+on)\s+(netflix|prime(?:\s+video)?|amazon(?:\s+prime|\s+video)?)\b/i);
+    if (om) return { action: 'open_app', app: appOf(om[1]), profile };
 
     // "play X on the tv" with no app named: it may be a film on the TV's own drive.
     // (The TV was already confirmed before this runs, and stripped from t above.)
@@ -2060,15 +2061,18 @@ window._checkMarketsOverlay = async function(text) {
   // up on the TV". Only commands that name the TV — a bare "mute" or "pause" is for
   // this computer, and "how do I mute my TV?" is a question for the AI.
   function parseTvRemote(raw) {
-    let t = String(raw || '').replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
-    if (!/\b(?:tv|television)\b/i.test(t)) return null;
+    let t = String(raw || '').replace(/["“”]/g, '').replace(/[’‘]/g, "'").replace(/[\s.!?,;:]+$/, '').trim();
+    // "TV", "TVs", "TV's" all name the TV — "increase my TVs volume to 80".
+    if (!/\b(?:tv|television)(?:'?s)?\b/i.test(t)) return null;
     if (/^(?:how|what|why|when|where|which|who|is|are|was|does|do|did|should|would|will|can\s+i|could\s+i)\b/i.test(t)) return null;
     t = t.replace(/^(?:ok(?:ay)?\s+|hey\s+)?(?:(?:please|can\s+you|could\s+you|would\s+you|just)\s+)+/i, '')
       .replace(/\s+(?:please|for\s+me|now)$/i, '')
       // "pause on the TV" loses "on the TV"; "turn on the TV" keeps its "on".
-      .replace(/\s*(?:(?<!\b(?:turn|switch|power)\s+)\b(?:on|of|in)\s+)?(?:the\s+|my\s+)?\b(?:tv|television)(?:'s)?\b\s*/i, ' ')
+      .replace(/\s*(?:(?<!\b(?:turn|switch|power)\s+)\b(?:on|of|in|for)\s+)?(?:the\s+|my\s+)?\b(?:tv|television)(?:'?s)?\b\s*/i, ' ')
       .replace(/\s{2,}/g, ' ').trim().toLowerCase();
-    const setM = t.match(/^(?:set|put|turn)?\s*(?:the\s+)?volume\s+(?:to\s+|at\s+)?(\d{1,3})\s*%?(?:\s+percent)?$/);
+    // An exact level: "set the volume to 80", "increase volume to 80", "turn the volume up to 80", "volume 30"
+    const setM = t.match(/^(?:(?:set|put|turn|change|increase|raise|decrease|lower|reduce|bring|make)\s+)?(?:the\s+)?volume\s+(?:(?:up|down)\s+)?(?:(?:to|at)\s+)?(\d{1,3})\s*%?(?:\s+percent)?$/)
+      || t.match(/^(?:turn|bring)\s+(?:it\s+)?(?:up|down)\s+to\s+(\d{1,3})\s*%?$/);
     if (setM) return { key: 'volume', level: Math.min(100, Number(setM[1])) / 100 };
     const VOL = '(?:the\\s+)?(?:volume|sound)';
     const KEYS = [
@@ -2091,20 +2095,185 @@ window._checkMarketsOverlay = async function(text) {
   }
   window._parseTvRemote = parseTvRemote;
 
+  // ── "Who's watching?" ────────────────────────────────────────────────────
+  // When Netflix or Prime opens on its profile screen, Callisto asks who's
+  // watching and the user's next words answer it — no "on my TV" needed. Netflix
+  // hides its screen from Callisto, so the first time a name is used it asks where
+  // that profile sits, and remembers. The last profile used is chosen next time.
+  let tvProfileAsk = null;   // { app, query, needsPosition, profileName, until }
+  const loadTvProfiles = () => { try { return JSON.parse(localStorage.getItem('tv_profiles') || '{}'); } catch (_) { return {}; } };
+  const saveTvProfiles = (p) => { try { localStorage.setItem('tv_profiles', JSON.stringify(p)); } catch (_) {} };
+  const profileKey = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  function rememberProfile(app, profile) {
+    if (!profile) return;
+    const all = loadTvProfiles();
+    const mine = all[app] || (all[app] = { positions: {}, last: null });
+    if (profile.name && profile.position) mine.positions[profileKey(profile.name)] = profile.position;
+    mine.last = profile;
+    saveTvProfiles(all);
+  }
+  // A name the user gave, with its position filled in when Netflix needs one.
+  function withKnownPosition(app, profile) {
+    if (!profile || !profile.name || profile.position) return profile;
+    const pos = (loadTvProfiles()[app]?.positions || {})[profileKey(profile.name)];
+    return pos ? { ...profile, position: pos } : profile;
+  }
+  const lastProfile = (app) => loadTvProfiles()[app]?.last || null;
+
+  const PROFILE_ORDINAL = { first: 1, '1st': 1, one: 1, second: 2, '2nd': 2, two: 2, third: 3, '3rd': 3, three: 3, fourth: 4, '4th': 4, four: 4, fifth: 5, '5th': 5, five: 5 };
+  // "Hammad Shariq", "hammad shariq as the profile on Netflix", "use Hammad's
+  // profile", "profile 2", "the second one". Anything else isn't an answer.
+  // recentAsk: the question was just asked, so a bare name ("Hammad Shariq") answers it.
+  function parseProfileReply(raw, recentAsk = true) {
+    const hadProfileWord = /\bprofile\b/i.test(raw);
+    let s = String(raw || '').toLowerCase().replace(/[’‘]/g, "'").replace(/["“”]/g, '').replace(/[.!?,]+$/, '').trim()
+      .replace(/\b(?:on|in|for)\s+(?:netflix|prime(?:\s+video)?|amazon(?:\s+prime)?)\b/g, ' ')
+      .replace(/\b(?:on|in)\s+(?:the\s+|my\s+)?(?:tv|television)(?:'?s)?\b/g, ' ')
+      .replace(/\s{2,}/g, ' ').trim()
+      .replace(/^(?:(?:ok(?:ay)?|yes|yeah|please|so)[,\s]+)*/, '')
+      .replace(/^(?:use|choose|pick|select|go\s+with|open|it'?s|its|it\s+is|i'?m|i\s+am|watch\s+(?:as|on)|log\s+in\s+as|sign\s+in\s+as|switch\s+to|as)\s+/, '')
+      .replace(/\s+(?:as|for)\s+(?:the\s+)?profile$/, '')
+      .replace(/'?s?\s+profile$/, '')
+      .replace(/^(?:the\s+)?profile\s+(?:called\s+|named\s+|number\s+)?/, '')
+      .replace(/\s{2,}/g, ' ').trim();
+    if (!s) return null;
+    const ord = s.match(/^(?:the\s+)?(?:number\s+)?(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|one|two|three|four|five|[1-9])(?:\s+(?:one|profile))?(?:\s+from\s+the\s+left)?$/);
+    if (ord) return { position: PROFILE_ORDINAL[ord[1]] || Number(ord[1]) };
+    // A command, a question or a pleasantry is never a profile name.
+    if (/^(?:play|open|close|search|show|stop|pause|resume|mute|turn|set|skip|rewind|go|what|who|how|why|when|where|which|is|are|can|could|would|will|do|does|did|should|remind|add|make|create|write|send|call|text|tell|give|get|find|explain|define|translate|calculate|help|book|buy|order|delete|remove|cancel|never\s*mind|no|nope|yes|yeah|ok(?:ay)?|thanks?|thank\s+you|cool|great|nice|wait|hold\s+on|hello|hi|hey)\b/.test(s)) return null;
+    if (!hadProfileWord && (s.split(' ').length > 3 || !recentAsk)) return null;
+    if (s.split(' ').length > 4) return null;
+    return { name: s.replace(/\b\w/g, (c) => c.toUpperCase()) };
+  }
+
+  // What came back from the TV: ask who's watching, or say what happened.
+  function reportTvResult(res, profileUsed, app) {
+    if (res && res.askProfile) {
+      tvProfileAsk = { app: res.app || app, query: res.query || '', needsPosition: !!res.needsPosition, profileName: res.profileName || null, askedAt: Date.now(), until: Date.now() + 3 * 60 * 1000 };
+      addMessage('assistant', `📺 ${res.message}`);
+      window.jarvis.speak(res.message);
+      return;
+    }
+    tvProfileAsk = null;
+    if (res && res.ok && profileUsed && (app === 'netflix' || app === 'prime')) rememberProfile(app, profileUsed);
+    addMessage('assistant', `${res && res.ok ? '📺' : '⚠️'} ${(res && res.message) || (res && res.ok ? 'Done.' : 'That didn\'t work.')}`);
+    if (res && res.ok && res.message) window.jarvis.speak(res.message.replace(/["*]/g, ''));
+  }
+
+  async function answerProfileQuestion(reply) {
+    const ask = tvProfileAsk;
+    let profile = reply;
+    if (reply.position && ask.needsPosition && ask.profileName) {
+      profile = { name: ask.profileName, position: reply.position };    // "Hammad is the second one"
+    } else if (reply.name) {
+      profile = withKnownPosition(ask.app, reply);
+      if (ask.app === 'netflix' && !profile.position) {
+        tvProfileAsk = { ...ask, needsPosition: true, profileName: reply.name, askedAt: Date.now(), until: Date.now() + 3 * 60 * 1000 };
+        const q = `Netflix doesn't let me read its profile names. Which number is ${reply.name}, counting from the left?`;
+        addMessage('assistant', `📺 ${q}`);
+        window.jarvis.speak(q);
+        return true;
+      }
+    }
+    const who = profile.name || `profile ${profile.position}`;
+    addMessage('assistant', `📺 Choosing **${who}** on ${ask.app === 'prime' ? 'Prime Video' : 'Netflix'}…`);
+    const res = await window.jarvis.tvDo({ action: 'choose_profile', app: ask.app, query: ask.query, profile })
+      .catch((e) => ({ ok: false, message: e.message }));
+    reportTvResult(res, profile, ask.app);
+    return true;
+  }
+
+  // ── Skipping to a time ───────────────────────────────────────────────────
+  // "skip to 1:20:00", "go to 45 minutes", "jump to minute 30", "skip ahead 10
+  // minutes", "fast forward 30 seconds", "rewind 2 minutes", "go back 30 seconds".
+  function parseDuration(raw) {
+    const s = String(raw || '').trim().replace(/^the\s+/, '');
+    let m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (m) return +m[1] * 3600 + +m[2] * 60 + +m[3];
+    m = s.match(/^(\d{1,3}):(\d{2})$/);
+    if (m) return +m[1] * 60 + +m[2];
+    if (/^half\s+an?\s+hour$/.test(s)) return 1800;
+    if (/^(?:an|one)\s+hour$/.test(s)) return 3600;
+    if (/^(?:a|one)\s+minute$/.test(s)) return 60;
+    const re = /(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/g;
+    let total = 0, any = false, x;
+    while ((x = re.exec(s))) {
+      any = true;
+      const n = parseFloat(x[1]), u = x[2][0];
+      total += u === 'h' ? n * 3600 : u === 'm' ? n * 60 : n;
+    }
+    return any && !s.replace(re, '').replace(/\band\b|,/g, '').trim() ? Math.round(total) : null;
+  }
+  function parseTvSeek(raw) {
+    const t = String(raw || '').toLowerCase().replace(/[’‘]/g, "'").replace(/[.!?]+$/, '').trim()
+      .replace(/\s*\b(?:on|in)\s+(?:the\s+|my\s+)?(?:tv|television)(?:'?s)?\b/g, '')
+      .replace(/^(?:(?:please|can\s+you|could\s+you|just)\s+)+/, '').trim();
+    let m = t.match(/^(?:skip|go|jump|fast\s+forward|move|seek|take\s+it|start\s+it|play\s+it)\s+(?:(?:ahead|forward)\s+)?(?:to|from|at)\s+(?:the\s+)?(minute\s+)?(.+?)(?:\s+mark)?$/);
+    if (m) {
+      const s = m[1] && /^\d+$/.test(m[2]) ? Number(m[2]) * 60 : parseDuration(m[2]);
+      if (s != null) return { to: s };
+    }
+    m = t.match(/^(?:skip|go|jump|move|seek)\s+(?:ahead|forward|on)\s+(?:by\s+)?(.+)$/)
+      || t.match(/^(?:fast\s+forward|forward|skip)\s+(?:by\s+)?(.+)$/);
+    if (m) { const s = parseDuration(m[1]); if (s != null) return { by: s }; }
+    m = t.match(/^(?:rewind|go\s+back|skip\s+back(?:wards?)?|jump\s+back|back)\s+(?:by\s+)?(.+)$/);
+    if (m) { const s = parseDuration(m[1]); if (s != null) return { by: -s }; }
+    return null;
+  }
+  window._parseTvSeek = parseTvSeek;
+
+  // The TV didn't answer: it may be switched off. Ask it to wake up (Wake-on-LAN)
+  // and connect again. True when the TV is back.
+  async function tvWakeUp() {
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem('tv_last_device') || 'null'); } catch (_) {}
+    if (!last || !last.host) return false;
+    addMessage('assistant', `📺 Your TV isn't answering — trying to switch it on…`);
+    const w = await window.jarvis.tvWake(last.host, last.name).catch(() => null);
+    return !!(w && w.ok) && await tvReconnectLast();
+  }
+
   window._checkTvCast = async function(text) {
     const t = text.trim();
+
+    // Answering "who's watching?" — while that question is open, the reply goes to the TV.
+    if (tvProfileAsk && Date.now() < tvProfileAsk.until && tvConnected) {
+      const reply = parseProfileReply(t, Date.now() - tvProfileAsk.askedAt < 90 * 1000);
+      if (reply) return answerProfileQuestion(reply);
+    }
+
+    // Skipping is something only the TV does, so once a TV is set up these go to it.
+    const seekTo = parseTvSeek(t);
+    if (seekTo && localStorage.getItem('tv_last_device')) {
+      if (!tvConnected && !(await tvReconnectLast())) {
+        addMessage('assistant', '📺 I couldn\'t reach your TV. Check it\'s on and on the same Wi-Fi as this computer.');
+        return true;
+      }
+      const res = await window.jarvis.tvDo({ action: 'seek', ...seekTo }).catch((e) => ({ ok: false, message: e.message }));
+      reportTvResult(res, null, null);
+      return true;
+    }
 
     // Must be meant for the TV: "... on my TV", or a remote command naming it ("mute the TV").
     // A question ("what's on TV tonight?") is for the AI, not the TV.
     const remote = parseTvRemote(t);
     const question = /^(?:how|what|what's|whats|why|when|where|which|who|whose|is|are|was|were|does|do|did|should|has|have)\b/i.test(t);
-    if (!remote && (question || !/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t))) return false;
+    if (!remote && (question || !/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)(?:'?s)?\b/i.test(t))) return false;
     if (!tvConnected && !(await tvReconnectLast())) {
       const known = !!localStorage.getItem('tv_last_device');
-      addMessage('assistant', known
-        ? '📺 I couldn\'t reach your TV. Check it\'s switched on and on the same Wi-Fi as this computer, then ask again.'
-        : '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your TV first.');
-      return true;
+      // Off or in standby: switch it on (unless the ask was to switch it off).
+      const woke = known && !(remote && remote.key === 'power_off') && await tvWakeUp();
+      if (!woke) {
+        addMessage('assistant', known
+          ? '📺 I couldn\'t reach your TV. If it\'s switched off, turn it on with the remote — or turn on **network standby** (Wake on LAN) in the TV\'s settings so I can switch it on myself. It also needs to be on the same Wi-Fi as this computer.'
+          : '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your TV first.');
+        return true;
+      }
+      if (remote && remote.key === 'power_on') {
+        addMessage('assistant', '📺 Your TV is on.');
+        window.jarvis.speak('Your TV is on.');
+        return true;
+      }
     }
 
     if (remote) {
@@ -2121,12 +2290,16 @@ window._checkMarketsOverlay = async function(text) {
         : richer.action === 'play_file' ? `Looking for *"${richer.query}"* on your TV`
         : richer.action === 'play_title' ? `Finding *"${richer.query}"* on ${richer.app === 'prime' ? 'Prime Video' : 'Netflix'}`
         : `Opening ${richer.app === 'prime' ? 'Prime Video' : richer.app}`;
+      // Netflix and Prime: the profile named, else the one used last time; a name
+      // Netflix needs as a position gets the position the user told us before.
+      if ((richer.app === 'netflix' || richer.app === 'prime') && (richer.action === 'play_title' || richer.action === 'open_app')) {
+        richer.profile = withKnownPosition(richer.app, richer.profile || lastProfile(richer.app));
+      }
       if (!richer.soft) addMessage('assistant', `📺 ${label}…`);
       const res = await window.jarvis.tvDo(richer).catch((e) => ({ ok: false, message: e.message }));
       // A generic "play X on the TV" that isn't a file on the TV falls back to YouTube below.
       if (!(richer.action === 'play_file' && richer.soft && !res.ok)) {
-        addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
-        if (res.ok) window.jarvis.speak(res.message.replace(/["*]/g, ''));
+        reportTvResult(res, richer.profile, richer.app);
         return true;
       }
     }

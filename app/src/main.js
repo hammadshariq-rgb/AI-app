@@ -1804,6 +1804,16 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
 
   // For play_music — try Spotify Web API first (plays in background), else fall back to opening app/browser
   let finalAction = result.action;
+  // Anything about the TV is the TV's job. If a TV request reached the AI, its
+  // tools for this computer — volume, power, music, apps — must not act here
+  // ("increase my TV's volume to 80" was turning up the laptop).
+  if (finalAction && /\b(?:tv|television)(?:'?s)?\b/i.test(message)
+      && ['set_volume', 'system_power', 'play_music', 'open_app'].includes(finalAction.type)) {
+    finalAction = null;
+    finalText = 'That sounds like it\'s for your TV, so I left this computer alone. Try saying it with "on my TV" — for example "set the volume to 80 on my TV".';
+    _sendTTS(_e.sender, finalText);
+    return { text: finalText, audio: null, card: null, hasAction: false };
+  }
   if (finalAction?.type === 'play_music') {
     const parts = finalAction.arg.split('|');
     const aiService = (parts[0] || '').trim();
@@ -3440,9 +3450,30 @@ ipcMain.handle('tv:discover', (_e) => new Promise(resolve => {
     : devs), 6200);
 }));
 
+// The TV's hardware address, noted whenever it's on, so "turn on my TV" can wake
+// it from standby later (Wake-on-LAN). Kept by address and by name.
+async function rememberTvMac(host, name) {
+  const mac = await tvCast.macFor(host).catch(() => null);
+  if (!mac) return;
+  const macs = store.get('tvMacs') || {};
+  macs[host] = mac;
+  if (name) macs[`name:${name}`] = mac;
+  store.set('tvMacs', macs);
+}
+
+ipcMain.handle('tv:wake', async (_e, { host, name }) => {
+  try {
+    const macs = store.get('tvMacs') || {};
+    const mac = macs[host] || (name && macs[`name:${name}`]) || await tvCast.macFor(host).catch(() => null);
+    if (!mac) return { ok: false, error: 'no_address' };
+    return { ok: await tvCast.wakeAndWait(host, mac) };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('tv:connect', async (_e, { host, port, kind }) => {
   try {
     const res = await tvCast.connect(host, port, kind || null);
+    if (res.ok) rememberTvMac(host, res.name).catch(() => {});
     const send = (ch, data) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, data); };
     send('tv:status-update', tvCast.getStatus());
     // Connected over Cast: quietly try to add ADB, which is what lets Callisto

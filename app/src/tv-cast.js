@@ -398,9 +398,144 @@ async function castv2Launch(appId) {
   } catch (_) { return false; }
 }
 
+// ── Waking the TV ─────────────────────────────────────────────────────────────
+// A resting Google TV runs its screensaver ("Dreaming"), and anything opened then
+// starts behind it — the user had to press a remote button before commands showed.
+// One wake-up key press ends the screensaver; it takes about two seconds to close.
+async function ensureAwake() {
+  if (!adbReady()) return;
+  const state = async () => {
+    const out = await sh("dumpsys power | grep 'mWakefulness='; dumpsys dreams | grep mCurrentDreamName", 5000).catch(() => '');
+    return { awake: /mWakefulness=Awake/.test(out), dreaming: /mCurrentDreamName=(?!null)\S/.test(out) };
+  };
+  let s = await state();
+  if (s.awake && !s.dreaming) return;
+  await press(224);                                   // KEYCODE_WAKEUP
+  for (const end = Date.now() + 4000; Date.now() < end; await sleep(500)) {
+    s = await state();
+    if (s.awake && !s.dreaming) { await sleep(300); return; }
+  }
+}
+
+// Switching a TV on from standby: the laptop's network table knows the TV's
+// hardware address while it's on, and a Wake-on-LAN packet to that address asks it
+// to power up (TVs with "network standby" / "wake on LAN" turned on answer it).
+function macFor(host) {
+  const { execFile } = require('child_process');
+  return new Promise((resolve) => {
+    execFile('arp', process.platform === 'win32' ? ['-a', host] : ['-n', host], { timeout: 4000 }, (err, out) => {
+      const m = String(out || '').match(/([0-9a-f]{1,2}[-:]){5}[0-9a-f]{1,2}/i);
+      resolve(!err && m ? m[0].toLowerCase().replace(/-/g, ':').split(':').map((x) => x.padStart(2, '0')).join(':') : null);
+    });
+  });
+}
+
+async function wakeAndWait(host, mac, ms = 25000) {
+  const dgram = require('dgram');
+  const bytes = Buffer.from(mac.split(':').map((h) => parseInt(h, 16)));
+  const packet = Buffer.concat([Buffer.alloc(6, 0xff), ...Array(16).fill(bytes)]);
+  const subnetBroadcast = host.replace(/\.\d+$/, '.255');
+  const send = () => new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4');
+    sock.bind(() => {
+      sock.setBroadcast(true);
+      let left = 4;
+      const done = () => { if (--left === 0) { try { sock.close(); } catch (_) {} resolve(); } };
+      for (const addr of ['255.255.255.255', subnetBroadcast]) for (const port of [9, 7]) sock.send(packet, port, addr, done);
+    });
+  });
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    await send().catch(() => {});
+    if (await portOpen(host, 5555, 1500) || await portOpen(host, 8009, 1500)) return true;
+    await sleep(1500);
+  }
+  return false;
+}
+
+// ── Skipping to a time ────────────────────────────────────────────────────────
+// What's playing right now: the app, its position (seconds) and its title.
+async function nowPlaying() {
+  const out = await sh('dumpsys media_session; cat /proc/uptime', 8000).catch(() => '');
+  const uptimeMs = Number((out.match(/(?:^|\n)(\d+\.\d+) \d+\.\d+\s*$/) || [])[1]) * 1000;
+  let best = null;
+  for (let i = out.indexOf('package='); i >= 0; i = out.indexOf('package=', i + 8)) {
+    const next = out.indexOf('package=', i + 8);
+    const block = out.slice(i, next < 0 ? undefined : next);
+    if (/active=false/.test(block)) continue;
+    const st = block.match(/state=PlaybackState \{state=(\d+), position=(\d+),.*?speed=([\d.]+), updated=(\d+)/);
+    if (!st || !['2', '3'].includes(st[1])) continue;
+    const pkg = block.match(/package=(\S+)/)[1];
+    const playing = st[1] === '3';
+    const sinceUpdate = uptimeMs ? uptimeMs - Number(st[4]) : 0;
+    // A "playing" position that hasn't been updated for hours is stale, not true.
+    const trusted = !playing || (sinceUpdate >= 0 && sinceUpdate < 6 * 3600 * 1000);
+    const position = (Number(st[2]) + (playing && trusted ? sinceUpdate * Number(st[3]) : 0)) / 1000;
+    const title = ((block.match(/description=([^,]+)/) || [])[1] || '').trim();
+    const cand = { pkg, playing, position: trusted ? position : null, title };
+    if (!best || (playing && !best.playing)) best = cand;
+  }
+  return best;
+}
+
+let lastPlayed = null;   // { app: 'youtube' | 'netflix', videoId?, netflixId?, title, at }
+
+const fmtTime = (s) => {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+};
+
+async function seek({ to = null, by = null }) {
+  if (connectedDev.kind === 'roku') return { ok: false, message: 'Skipping to a time isn\'t supported on a Roku yet.' };
+  if (!adbReady()) return { ok: false, message: 'Skipping needs full control of your TV — accept the debugging prompt on the TV, then ask again.' };
+  const np = await nowPlaying();
+  if (!np) return { ok: false, message: 'Nothing is playing on your TV right now.' };
+  const target = to != null ? to : (np.position != null ? np.position + by : null);
+  const where = target != null ? fmtTime(target) : null;
+
+  // YouTube: reopen the same video at the exact second — found by its title when
+  // Callisto didn't start it.
+  if (/youtube/.test(np.pkg) && target != null) {
+    let videoId = lastPlayed?.app === 'youtube' && lastPlayed.videoId
+      && (!np.title || norm(np.title).startsWith(norm(lastPlayed.title).slice(0, 20))) ? lastPlayed.videoId : null;
+    if (!videoId && np.title) videoId = (await youtubeSearch(np.title).catch(() => null))?.videoId || null;
+    if (videoId) {
+      await sh(`am start -a android.intent.action.VIEW -d 'https://www.youtube.com/watch?v=${videoId}&t=${Math.round(target)}s' ${np.pkg}`);
+      return { ok: true, message: `Skipped to ${where}.` };
+    }
+  }
+
+  // Netflix and the rest: fast-forward / rewind in the app's own steps (10 s on
+  // Netflix and YouTube), a few at a time so the player keeps up, then check.
+  const delta = target != null && np.position != null ? target - np.position : by;
+  if (delta == null) return { ok: false, message: 'I can\'t tell where the video is, so I can\'t jump to an exact time. Try "skip ahead 5 minutes".' };
+  const step = async (secs) => {
+    const code = secs > 0 ? 90 : 89;                   // MEDIA_FAST_FORWARD / MEDIA_REWIND
+    let steps = Math.min(600, Math.round(Math.abs(secs) / 10));
+    while (steps > 0) {
+      const n = Math.min(20, steps);
+      await press(code, n);
+      steps -= n;
+      if (steps > 0) await sleep(250);
+    }
+  };
+  await step(delta);
+  // Where it actually landed: players differ in step size, so make up any shortfall.
+  if (target != null) {
+    for (let round = 0; round < 2; round++) {
+      await sleep(1500);
+      const now = await nowPlaying().catch(() => null);
+      if (!now || now.position == null || Math.abs(target - now.position) < 20) break;
+      await step(target - now.position);
+    }
+  }
+  return { ok: true, message: where ? `Skipped to ${where}.` : `Skipped ${delta > 0 ? 'ahead' : 'back'} ${fmtTime(Math.abs(delta))}.` };
+}
+
 // ── Launch an app (ADB → DIAL → castv2) ───────────────────────────────────────
 async function launchApp(appKey) {
   if (!connectedDev) throw new Error('Not connected to any TV');
+  await ensureAwake().catch(() => {});
 
   if (connectedDev.kind === 'roku') {
     const channel = ROKU_CHANNELS[appKey];
@@ -458,8 +593,10 @@ async function launchApp(appKey) {
 // ── Cast YouTube ───────────────────────────────────────────────────────────────
 async function castYouTube(query) {
   if (!connectedDev) throw new Error('Not connected to any TV');
+  await ensureAwake().catch(() => {});
 
   const { videoId, title } = await youtubeSearch(query);
+  lastPlayed = { app: 'youtube', videoId, title, at: Date.now() };
 
   // Roku: YouTube's channel takes the video id directly.
   if (connectedDev.kind === 'roku') {
@@ -560,6 +697,7 @@ function upgradeToAdb(onStatus) {
 // ── Open streaming app by URL ──────────────────────────────────────────────────
 async function openUrl(url, appName = 'App') {
   if (!connectedDev) throw new Error('Not connected to any TV');
+  await ensureAwake().catch(() => {});
 
   let appKey = null;
   if (/netflix/i.test(url))           appKey = 'netflix';
@@ -656,12 +794,20 @@ function sh(cmd, ms = 10000) { return adb.shellWithAuth(connectedDev.host, cmd, 
 // One `input keyevent` takes a list of codes, so a row of presses is one round trip.
 function press(code, times = 1) { return times > 0 ? sh(`input keyevent ${Array(times).fill(code).join(' ')}`) : Promise.resolve(); }
 
+// This app's own media session only: its block runs from its "package=" line to
+// the next session's, and it has to be active. Reading past the block picked up
+// another app's (or a leftover) "playing" — Netflix was reported playing while it
+// sat on "Who's watching?", so the profile was never chosen.
 async function playbackState(pkg) {
   const out = await sh('dumpsys media_session', 8000).catch(() => '');
-  const i = out.indexOf(`package=${pkg}`);
-  if (i < 0) return null;
-  const m = out.slice(i, i + 900).match(/state=PlaybackState \{state=(\d+)/);
-  return m ? Number(m[1]) : null;          // 3 = playing, 2 = paused
+  for (let i = out.indexOf(`package=${pkg}`); i >= 0; i = out.indexOf(`package=${pkg}`, i + 1)) {
+    const next = out.indexOf('package=', i + 8);
+    const block = out.slice(i, next < 0 ? i + 1500 : next);
+    const m = block.match(/state=PlaybackState \{state=(\d+)/);
+    if (!m || /active=false/.test(block)) continue;   // a leftover session says nothing about now
+    return Number(m[1]);                   // 3 = playing, 2 = paused
+  }
+  return null;
 }
 async function waitUntilPlaying(pkg, ms) {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(800)) {
@@ -691,14 +837,22 @@ const ORDINALS = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, one: 1, t
 function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
 
 // Get past "Who's watching?" after starting Netflix or Prime.
-//   profile: { name?: "hammad", position?: 2 } — or nothing for the highlighted one.
+//   profile: { name?: "hammad", position?: 2 }. With no profile, nothing is picked
+//   for the user: { needsProfile: true } comes back and Callisto asks who's watching.
 async function passProfileGate(app, pkg, profile) {
-  await sleep(app === 'netflix' ? 6500 : 5500);
-  if ((await playbackState(pkg)) === 3) return { note: null };   // no picker — already going
+  // Netflix's own start takes 5–10 s; if its watch link plays by itself there's no picker.
+  await sleep(app === 'netflix' ? 5000 : 5500);
+  if (app === 'netflix') {
+    for (const end = Date.now() + 4500; Date.now() < end; await sleep(1500)) {
+      if ((await playbackState(pkg)) === 3) return { note: null };
+    }
+  } else if ((await playbackState(pkg)) === 3) {
+    return { note: null };
+  }
 
   // Prime can be seen, so only act if "Who's watching?" is really on screen —
-  // otherwise OK would type into the search box. Netflix can't be seen; its
-  // watch link either plays (caught above) or waits on the picker.
+  // otherwise OK would type into the search box. Netflix can't be seen; a watch
+  // link that isn't playing by now is waiting on the picker.
   let seen = null;
   if (app === 'prime') {
     // Prime can take 10s or more to reach the picker from a fresh start, and a
@@ -710,7 +864,12 @@ async function passProfileGate(app, pkg, profile) {
     }
     if (!seen) return { note: null };      // no picker appeared — nothing to choose
   }
+  if (!profile || (!profile.name && !profile.position)) return { needsProfile: true, names: seen?.names || null };
+  return chooseProfile(app, profile, seen);
+}
 
+// Choose a profile on a "Who's watching?" screen that's showing now.
+async function chooseProfile(app, profile, seen = null) {
   const horizontal = app === 'netflix';
   const back = horizontal ? KEY.LEFT : KEY.UP;
   const fwd = horizontal ? KEY.RIGHT : KEY.DOWN;
@@ -729,15 +888,28 @@ async function passProfileGate(app, pkg, profile) {
       const delta = idx - seen.highlighted;
       const vertical = seen.layout !== 'horizontal';
       await press(delta > 0 ? (vertical ? KEY.DOWN : KEY.RIGHT) : (vertical ? KEY.UP : KEY.LEFT), Math.abs(delta));
+    } else if (app === 'netflix') {
+      // Netflix hides its screen from screenshots, so a name means nothing to us
+      // until the user says where it is. Nothing is pressed — the picker stays up.
+      return { needsPosition: true };
     } else {
-      await press(KEY.OK);
-      return { note: app === 'netflix'
-        ? `Netflix doesn't let me see its profile names, so I picked the highlighted profile. Say "use profile 2" to choose by position.`
-        : `I couldn't find a profile called ${profile.name}, so I picked the highlighted one.` };
+      return { needsProfile: true, names: seen?.names || null };
     }
   }
   await press(KEY.OK);
   return { note: null };
+}
+
+// "Who's watching?" is on the TV and Callisto needs the user to say who. The app
+// keeps this question open so the next thing they say picks the profile.
+function askForProfile(app, query, profile, gate) {
+  const label = app === 'prime' ? 'Prime Video' : 'Netflix';
+  const message = gate.needsPosition
+    ? `${label} doesn't let me read its profile names. Which number is ${profile?.name || 'yours'}, counting from the left?`
+    : gate.names && gate.names.length
+      ? `${label} is asking who's watching: ${gate.names.join(', ')}. Which profile?`
+      : `${label} is asking who's watching. Which profile — say the name, or its number from the left?`;
+  return { ok: true, partial: true, askProfile: true, app, query, profileName: profile?.name || null, names: gate.names || null, needsPosition: !!gate.needsPosition, message };
 }
 
 async function lookupNetflixId(title) {
@@ -805,7 +977,11 @@ async function run(cmd) {
   const { action, app = 'youtube', query = '', profile = null } = cmd || {};
   const isRoku = connectedDev.kind === 'roku';
 
+  // Wake a resting TV first, or whatever is opened lands behind its screensaver.
+  if (!(action === 'remote' && cmd.key === 'power_off')) await ensureAwake().catch(() => {});
+
   if (action === 'remote') return remote(cmd.key, cmd.level);
+  if (action === 'seek') return seek(cmd);
 
   if (action === 'search') {
     if (isRoku) {
@@ -837,15 +1013,30 @@ async function run(cmd) {
       return { ok: true, partial: true, message: `I opened Netflix — search for "${query}" there. Full control needs the TV's debugging permission.` };
     }
     const pkg = pkgFor('netflix');
+    lastPlayed = { app: 'netflix', netflixId: id, title: query, at: Date.now() };
     // A fresh start is what makes Netflix honour the link; a running Netflix ignores it.
     await sh(`am force-stop ${pkg}`);
     await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${id}' ${pkg}`);
     const gate = await passProfileGate('netflix', pkg, profile);
+    if (gate.needsProfile || gate.needsPosition) return askForProfile('netflix', query, profile, gate);
     const playing = await waitUntilPlaying(pkg, 15000);
     return {
       ok: true, partial: !playing,
-      message: [playing ? `Playing "${query}" on Netflix.` : `Netflix is opening "${query}".`, gate.note].filter(Boolean).join(' '),
+      message: playing ? `Playing "${query}" on Netflix.` : `Netflix is opening "${query}" on your TV.`,
     };
+  }
+
+  // The user answered "who's watching?" — pick that profile on the screen now.
+  if (action === 'choose_profile') {
+    if (!adbReady()) return { ok: false, message: 'Choosing a profile needs the TV\'s debugging permission — accept the prompt on the TV, then ask again.' };
+    const pkg = pkgFor(app);
+    const seen = app === 'prime' ? await readProfiles().catch(() => null) : null;
+    const gate = await chooseProfile(app, profile, seen);
+    if (gate.needsProfile || gate.needsPosition) return askForProfile(app, query, profile, gate);
+    const label = app === 'prime' ? 'Prime Video' : 'Netflix';
+    const who = profile.name || `profile ${profile.position}`;
+    const playing = await waitUntilPlaying(pkg, 12000);
+    return { ok: true, chosen: true, message: playing ? `Playing on ${label} as ${who}.` : `Chose ${who} on ${label}.` };
   }
 
   if ((action === 'play_title' && app === 'prime') || (action === 'open_app' && app === 'prime' && query)) {
@@ -858,9 +1049,10 @@ async function run(cmd) {
     await sh(`am force-stop ${pkg}`);
     await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(query)}' ${pkg}`);
     const gate = await passProfileGate('prime', pkg, profile);
+    if (gate.needsProfile || gate.needsPosition) return askForProfile('prime', query, profile, gate);
     // Stop at the results: pressing on into a title can land on "Rent" or "Buy",
     // and Callisto shouldn't start a purchase.
-    return { ok: true, partial: true, message: [`"${query}" is up in Prime Video's search — pick it with your remote.`, gate.note].filter(Boolean).join(' ') };
+    return { ok: true, partial: true, message: `"${query}" is up in Prime Video's search — pick it with your remote.` };
   }
 
   if (action === 'play_file') {
@@ -874,12 +1066,14 @@ async function run(cmd) {
   }
 
   if (action === 'open_app') {
-    if (profile && adbReady() && (app === 'netflix' || app === 'prime')) {
+    // Netflix and Prime open on "Who's watching?" — get past it, or ask who.
+    if (adbReady() && (app === 'netflix' || app === 'prime')) {
       const pkg = pkgFor(app);
       await sh(`am force-stop ${pkg}`);
       await launchApp(app);
       const gate = await passProfileGate(app, pkg, profile);
-      return { ok: true, message: [`Opened ${app === 'prime' ? 'Prime Video' : 'Netflix'}.`, gate.note].filter(Boolean).join(' ') };
+      if (gate.needsProfile || gate.needsPosition) return askForProfile(app, '', profile, gate);
+      return { ok: true, message: `Opened ${app === 'prime' ? 'Prime Video' : 'Netflix'}${profile?.name ? ` as ${profile.name}` : ''}.` };
     }
     await launchApp(app);
     return { ok: true, message: `Opened ${app} on your TV.` };
@@ -907,8 +1101,20 @@ const REMOTE = {
   power_on:    { roku: 'PowerOn',    android: 224, say: 'Turning the TV on.' },
 };
 
+// An exact volume over ADB. The TV's own scale varies (0–15 on Fire TV, 0–100 on
+// TCL), so read it from the audio report — `volume --get` prints nothing on some TVs.
+async function adbSetVolume(level) {
+  const audio = await sh("dumpsys audio | grep -A6 '^- STREAM_MUSIC'", 6000).catch(() => '');
+  const max = Number((audio.match(/Max:\s*(\d+)/) || [])[1]) || 15;
+  await sh(`cmd media_session volume --stream 3 --set ${Math.round(Math.max(0, Math.min(1, level)) * max)}`, 6000);
+}
+
 async function remote(key, level) {
   if (key === 'volume') {
+    if (adbReady()) {
+      await adbSetVolume(level);
+      return { ok: true, message: `TV volume set to ${Math.round(level * 100)}%.` };
+    }
     const res = await setVolume(level);
     return res && res.ok === false ? { ok: false, message: res.error } : { ok: true, message: `TV volume set to ${Math.round(level * 100)}%.` };
   }
@@ -943,7 +1149,7 @@ async function remote(key, level) {
 function localVideos() { return (fileIndex && fileIndex.files) || []; }
 
 module.exports = {
-  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch,
+  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch, macFor, wakeAndWait,
   castYouTube, castMedia, openUrl,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({
