@@ -33,6 +33,7 @@ const FIRE_PACKAGES = {                   // Amazon Fire TV package names
   spotify : 'com.spotify.tv.android',
   prime   : 'com.amazon.avod',
 };
+const APP_LABEL = { youtube: 'YouTube', netflix: 'Netflix', spotify: 'Spotify', prime: 'Prime Video' };
 const DIAL_NAMES = {                      // DIAL REST endpoint names
   youtube : 'YouTube',
   netflix : 'Netflix',
@@ -243,6 +244,12 @@ async function connect(host, port = 8009, kind = null) {
     return { ok: true, kind: 'firetv', name: connectedDev.name, method: connectedDev.hasAdb ? 'ADB (direct shell)' : 'Fire TV (setting up)' };
   }
 
+  // Nothing answering at this address (the router gave the TV a new one, or
+  // it's off)? Say so in ~2s instead of spending 24s on handshakes, so the
+  // caller can go and find the TV by name.
+  const [castPort, adbPort] = await Promise.all([portOpen(host, port || 8009, 2000), portOpen(host, 5555, 2000)]);
+  if (!castPort && !adbPort) throw new Error(`No TV is answering at ${host}. Check it's on and on the same Wi-Fi.`);
+
   // 1. Test ADB connectivity (most important for Android TV)
   let hasAdb    = false;
   let adbError  = '';
@@ -403,6 +410,19 @@ async function launchApp(appKey) {
   const pkg      = (fire ? FIRE_PACKAGES : ADB_PACKAGES)[appKey];
   const dialName = DIAL_NAMES[appKey];
   const appId    = APP_IDS[appKey];
+
+  // Not installed on the TV? Say so and open its install page there, rather than
+  // failing silently or doing it on the computer instead.
+  if (connectedDev.hasAdb && pkg) {
+    const installed = await adb.shellWithAuth(connectedDev.host, `pm list packages ${pkg}`, 8000).catch(() => '');
+    if (!installed.includes(`package:${pkg}`)) {
+      const store = fire ? `amzn://apps/android?p=${pkg}` : `market://details?id=${pkg}`;
+      await adb.shellWithAuth(connectedDev.host, `am start -a android.intent.action.VIEW -d '${store}'`, 8000).catch(() => {});
+      const err = new Error(`${APP_LABEL[appKey] || appKey} isn't installed on your TV. I've opened its page in the TV's app store — install it there, then ask again.`);
+      err.notInstalled = true;
+      throw err;
+    }
+  }
 
   // 1. ADB — most reliable on Android TV, and the only way on Fire TV
   if (connectedDev.hasAdb && pkg) {
@@ -616,8 +636,256 @@ async function stop() {
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  Going further: search, streaming titles, profiles, and files on the TV
+// ══════════════════════════════════════════════════════════════════════════════
+// Verified on a TCL Android TV: YouTube opens straight into search results;
+// Netflix opens a title by id (it has no search link); Prime Video opens its
+// own search; both show "Who's watching?" first when started fresh; and the
+// TV's media player plays video files from its USB drive.
+
+const KEY = { UP: 19, DOWN: 20, LEFT: 21, RIGHT: 22, OK: 23, HOME: 3 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function adbReady() { return !!(connectedDev && connectedDev.hasAdb && connectedDev.kind !== 'roku'); }
+function pkgFor(app) { return (connectedDev?.kind === 'firetv' ? FIRE_PACKAGES : ADB_PACKAGES)[app]; }
+function sh(cmd, ms = 10000) { return adb.shellWithAuth(connectedDev.host, cmd, ms); }
+// One `input keyevent` takes a list of codes, so a row of presses is one round trip.
+function press(code, times = 1) { return times > 0 ? sh(`input keyevent ${Array(times).fill(code).join(' ')}`) : Promise.resolve(); }
+
+async function playbackState(pkg) {
+  const out = await sh('dumpsys media_session', 8000).catch(() => '');
+  const i = out.indexOf(`package=${pkg}`);
+  if (i < 0) return null;
+  const m = out.slice(i, i + 900).match(/state=PlaybackState \{state=(\d+)/);
+  return m ? Number(m[1]) : null;          // 3 = playing, 2 = paused
+}
+async function waitUntilPlaying(pkg, ms) {
+  for (const end = Date.now() + ms; Date.now() < end; await sleep(800)) {
+    if ((await playbackState(pkg)) === 3) return true;
+  }
+  return false;
+}
+
+// Read a "Who's watching?" screen: names in order and which is highlighted.
+// Only works where the app allows screenshots (Prime yes, Netflix no).
+async function readProfiles() {
+  const png = await adb.screencap(connectedDev.host).catch(() => null);
+  if (!png || png.length < 20000) return null;          // black = screenshots blocked
+  const ai = require('./services/ai');
+  const res = await ai.serverFetch('chat', {
+    model: 'gpt-4o-mini', max_tokens: 200, temperature: 0,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: 'This is a TV "Who\'s watching?" profile picker. Reply with JSON only: {"names":[profile names in on-screen order, excluding Add/New/Kids buttons],"highlighted":<0-based index of the highlighted profile>,"layout":"vertical" or "horizontal"}. If this is not a profile picker, reply {"names":[]}.' },
+      { type: 'image_url', image_url: { url: `data:image/png;base64,${png.toString('base64')}`, detail: 'low' } },
+    ] }],
+  }, { timeout: 20000, retries: 1 });
+  const data = await res.json();
+  try { return JSON.parse(String(data.choices?.[0]?.message?.content || '').replace(/```json|```/g, '').trim()); } catch (_) { return null; }
+}
+
+const ORDINALS = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, one: 1, two: 2, three: 3, four: 4, five: 5 };
+function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+
+// Get past "Who's watching?" after starting Netflix or Prime.
+//   profile: { name?: "hammad", position?: 2 } — or nothing for the highlighted one.
+async function passProfileGate(app, pkg, profile) {
+  await sleep(app === 'netflix' ? 6500 : 5500);
+  if ((await playbackState(pkg)) === 3) return { note: null };   // no picker — already going
+
+  // Prime can be seen, so only act if "Who's watching?" is really on screen —
+  // otherwise OK would type into the search box. Netflix can't be seen; its
+  // watch link either plays (caught above) or waits on the picker.
+  let seen = null;
+  if (app === 'prime') {
+    // Prime can take 10s or more to reach the picker from a fresh start, and a
+    // screenshot mid-load is just a dark screen — so keep looking for a while.
+    for (const end = Date.now() + 12000; Date.now() < end; await sleep(1500)) {
+      seen = await readProfiles().catch(() => null);
+      if (seen && Array.isArray(seen.names) && seen.names.length) break;
+      seen = null;
+    }
+    if (!seen) return { note: null };      // no picker appeared — nothing to choose
+  }
+
+  const horizontal = app === 'netflix';
+  const back = horizontal ? KEY.LEFT : KEY.UP;
+  const fwd = horizontal ? KEY.RIGHT : KEY.DOWN;
+  const pos = profile?.position || ORDINALS[norm(profile?.name)] || null;
+
+  if (pos) {
+    await press(back, 8);                       // start from the first profile
+    await press(fwd, pos - 1);
+  } else if (profile?.name) {
+    seen = seen || await readProfiles().catch(() => null);
+    const want = norm(profile.name);
+    const idx = seen && Array.isArray(seen.names)
+      ? seen.names.findIndex((n) => norm(n) === want || norm(n).startsWith(want) || want.startsWith(norm(n)))
+      : -1;
+    if (idx >= 0 && Number.isInteger(seen.highlighted)) {
+      const delta = idx - seen.highlighted;
+      const vertical = seen.layout !== 'horizontal';
+      await press(delta > 0 ? (vertical ? KEY.DOWN : KEY.RIGHT) : (vertical ? KEY.UP : KEY.LEFT), Math.abs(delta));
+    } else {
+      await press(KEY.OK);
+      return { note: app === 'netflix'
+        ? `Netflix doesn't let me see its profile names, so I picked the highlighted profile. Say "use profile 2" to choose by position.`
+        : `I couldn't find a profile called ${profile.name}, so I picked the highlighted one.` };
+    }
+  }
+  await press(KEY.OK);
+  return { note: null };
+}
+
+async function lookupNetflixId(title) {
+  const ai = require('./services/ai');
+  const res = await ai.serverFetch('stream-lookup', { service: 'netflix', title }, { timeout: 25000, retries: 1 });
+  const data = await res.json().catch(() => ({}));
+  return data && data.ok ? data.id : null;
+}
+
+// ── Files stored on the TV (USB drives, Downloads, Movies) ───────────────────
+const VIDEO_EXT = { mp4: 'video/mp4', mkv: 'video/x-matroska', avi: 'video/x-msvideo', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/mp4', ts: 'video/mp2t', wmv: 'video/x-ms-wmv' };
+let fileIndex = null;           // { host, at, files: [{ path, name, words }] }
+
+async function indexTvFiles(force = false) {
+  if (!adbReady()) return [];
+  if (!force && fileIndex && fileIndex.host === connectedDev.host && Date.now() - fileIndex.at < 10 * 60 * 1000) return fileIndex.files;
+  // USB drives mount as /storage/<id>; the phone-style storage is /sdcard.
+  // Skip the recycle bin and Windows' hidden metadata files.
+  const exts = Object.keys(VIDEO_EXT).map((e) => `-iname '*.${e}'`).join(' -o ');
+  const out = await sh(
+    `for d in /sdcard $(ls -d /storage/* 2>/dev/null | grep -v -e emulated -e self); do find "$d" -maxdepth 7 -type f \\( ${exts} \\) 2>/dev/null; done | grep -iv -e RECYCLE -e '/\\$[IR]' | head -2000`,
+    30000).catch(() => '');
+  const files = out.split(/\r?\n/).filter(Boolean).map((p) => {
+    const name = p.split('/').pop();
+    return { path: p, name, words: norm(name.replace(/\.[^.]+$/, '')).split(' ') };
+  });
+  fileIndex = { host: connectedDev.host, at: Date.now(), files };
+  return files;
+}
+
+// What a person would call a file: "John.Wick.Chapter.3.2019.2160p.BluRay.mkv"
+// → "John Wick Chapter 3 (2019)". Keeps the name, drops the release details.
+function prettyTitle(fileName) {
+  let s = String(fileName).replace(/\.[^.]+$/, '').replace(/[._]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const year = s.match(/[([]?\b(19[3-9]\d|20[0-4]\d)\b[)\]]?/);
+  if (year && year.index > 0) s = `${s.slice(0, year.index).trim()} (${year[1]})`;
+  else s = s.replace(/\b(\d{3,4}p|bluray|brrip|web ?dl|webrip|hdrip|dvdrip|x26[45]|hevc|full movie)\b.*$/i, '').trim();
+  return s || fileName;
+}
+
+// Best file for a spoken title: every word of the title should appear in the
+// file name; release junk (1080p, BluRay…) simply doesn't count against it.
+function matchFile(files, query) {
+  const want = norm(query).split(' ').filter((w) => w.length > 1 && !['the', 'a', 'an', 'movie', 'film'].includes(w));
+  if (!want.length) return null;
+  let best = null;
+  for (const f of files) {
+    const hits = want.filter((w) => f.words.includes(w)).length;
+    const score = hits / want.length;
+    // On a tie, the name with fewer extra words is the closer match —
+    // "john wick" means John Wick (2014), not John Wick: Chapter 3.
+    if (score > (best?.score || 0) || (best && score === best.score && f.words.length < best.words.length)) best = { ...f, score };
+  }
+  return best && best.score >= 0.75 ? best : null;
+}
+
+// ── One entry point for everything above ─────────────────────────────────────
+//   { action: 'search',     app: 'youtube', query }
+//   { action: 'play_title', app: 'netflix' | 'prime', query, profile }
+//   { action: 'play_file',  query }                  — from the TV's own storage
+//   { action: 'open_app',   app, profile }
+async function run(cmd) {
+  if (!connectedDev) throw new Error('Not connected to any TV');
+  const { action, app = 'youtube', query = '', profile = null } = cmd || {};
+  const isRoku = connectedDev.kind === 'roku';
+
+  if (action === 'search') {
+    if (isRoku) {
+      const provider = ROKU_CHANNELS[app] || ROKU_CHANNELS.youtube;
+      await roku(`/search/browse?keyword=${encodeURIComponent(query)}&provider-id=${provider}&launch=true`);
+      return { ok: true, message: `Searching ${app === 'youtube' ? 'YouTube' : app} for "${query}" on your Roku.` };
+    }
+    if (adbReady() && app === 'youtube') {
+      await sh(`am start -a android.intent.action.VIEW -d 'https://www.youtube.com/results?search_query=${encodeURIComponent(query)}' ${pkgFor('youtube')}`);
+      return { ok: true, message: `Here are the YouTube results for "${query}" on your TV.` };
+    }
+    if (adbReady() && app === 'prime') return run({ action: 'play_title', app: 'prime', query, profile });
+    await launchApp(app);
+    return { ok: true, partial: true, message: `I opened ${app} on your TV — search for "${query}" there.` };
+  }
+
+  if (action === 'play_title' && app === 'netflix') {
+    const id = await lookupNetflixId(query);
+    if (!id) {
+      await launchApp('netflix').catch(() => {});
+      return { ok: false, message: `I couldn't find "${query}" on Netflix, so I just opened Netflix.` };
+    }
+    if (isRoku) {
+      await roku(`/launch/${ROKU_CHANNELS.netflix}?contentId=${id}&mediaType=movie`);
+      return { ok: true, message: `Playing "${query}" on Netflix.` };
+    }
+    if (!adbReady()) {
+      await launchApp('netflix');
+      return { ok: true, partial: true, message: `I opened Netflix — search for "${query}" there. Full control needs the TV's debugging permission.` };
+    }
+    const pkg = pkgFor('netflix');
+    // A fresh start is what makes Netflix honour the link; a running Netflix ignores it.
+    await sh(`am force-stop ${pkg}`);
+    await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${id}' ${pkg}`);
+    const gate = await passProfileGate('netflix', pkg, profile);
+    const playing = await waitUntilPlaying(pkg, 15000);
+    return {
+      ok: true, partial: !playing,
+      message: [playing ? `Playing "${query}" on Netflix.` : `Netflix is opening "${query}".`, gate.note].filter(Boolean).join(' '),
+    };
+  }
+
+  if ((action === 'play_title' && app === 'prime') || (action === 'open_app' && app === 'prime' && query)) {
+    if (isRoku) {
+      await roku(`/search/browse?keyword=${encodeURIComponent(query)}&provider-id=${ROKU_CHANNELS.prime}&launch=true`);
+      return { ok: true, partial: true, message: `I searched Prime Video for "${query}" on your Roku.` };
+    }
+    if (!adbReady()) { await launchApp('prime'); return { ok: true, partial: true, message: `I opened Prime Video — search for "${query}" there.` }; }
+    const pkg = pkgFor('prime');
+    await sh(`am force-stop ${pkg}`);
+    await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(query)}' ${pkg}`);
+    const gate = await passProfileGate('prime', pkg, profile);
+    // Stop at the results: pressing on into a title can land on "Rent" or "Buy",
+    // and Callisto shouldn't start a purchase.
+    return { ok: true, partial: true, message: [`"${query}" is up in Prime Video's search — pick it with your remote.`, gate.note].filter(Boolean).join(' ') };
+  }
+
+  if (action === 'play_file') {
+    if (!adbReady()) return { ok: false, message: 'Playing files from the TV needs its debugging permission — accept the prompt on the TV, then ask again.' };
+    const files = await indexTvFiles();
+    const hit = matchFile(files, query);
+    if (!hit) return { ok: false, message: files.length ? `I couldn't find "${query}" among the ${files.length} videos on your TV.` : 'I couldn\'t find any videos stored on your TV.' };
+    const ext = hit.name.split('.').pop().toLowerCase();
+    await sh(`am start -a android.intent.action.VIEW -d 'file://${hit.path.replace(/'/g, "'\\''")}' -t ${VIDEO_EXT[ext] || 'video/*'}`);
+    return { ok: true, message: `Playing ${prettyTitle(hit.name)} from your TV's storage.` };
+  }
+
+  if (action === 'open_app') {
+    if (profile && adbReady() && (app === 'netflix' || app === 'prime')) {
+      const pkg = pkgFor(app);
+      await sh(`am force-stop ${pkg}`);
+      await launchApp(app);
+      const gate = await passProfileGate(app, pkg, profile);
+      return { ok: true, message: [`Opened ${app === 'prime' ? 'Prime Video' : 'Netflix'}.`, gate.note].filter(Boolean).join(' ') };
+    }
+    await launchApp(app);
+    return { ok: true, message: `Opened ${app} on your TV.` };
+  }
+
+  throw new Error(`Unknown TV action: ${action}`);
+}
+
+function localVideos() { return (fileIndex && fileIndex.files) || []; }
+
 module.exports = {
-  discover, connect, disconnect, upgradeToAdb,
+  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos,
   castYouTube, castMedia, openUrl,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({

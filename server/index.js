@@ -1790,6 +1790,33 @@ app.post('/ai/place-phone', authMiddleware, async (req, res) => {
 });
 
 // ── Magic Editor — edit highlighted text via voice instruction ─────────────────
+// ── Streaming title lookup ────────────────────────────────────────────────────
+// Netflix's TV app can't search by name — it only opens a title by its id. Find
+// that id with a web search so "play Red Notice on Netflix" can start it.
+const _streamIdCache = new Map();
+app.post('/ai/stream-lookup', authMiddleware, aiLimiter, async (req, res) => {
+  const service = String(req.body?.service || '').toLowerCase();
+  const title = String(req.body?.title || '').trim().slice(0, 120);
+  if (service !== 'netflix' || !title) return res.status(400).json({ error: 'netflix and a title are required' });
+  const key = `${service}:${title.toLowerCase()}`;
+  if (_streamIdCache.has(key)) return res.json(_streamIdCache.get(key));
+  try {
+    const r = await openai.responses.create({
+      model: 'gpt-4.1-mini',
+      tools: [{ type: 'web_search_preview' }],
+      input: `Find the official Netflix page for "${title}". Reply with only its URL in the form https://www.netflix.com/title/<digits> and nothing else. If it is not on Netflix, reply NONE.`,
+    });
+    const text = String(r.output_text || '');
+    const m = text.match(/netflix\.com\/(?:[a-z-]+\/)?title\/(\d{6,10})/i);
+    const out = m ? { ok: true, id: m[1] } : { ok: false };
+    _streamIdCache.set(key, out);
+    res.json(out);
+  } catch (err) {
+    console.error('[stream-lookup]', err.message);
+    res.status(502).json({ error: 'lookup failed' });
+  }
+});
+
 app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { selectedText, instruction } = req.body;

@@ -175,6 +175,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   tvVolume:       (level)             => ipcRenderer.invoke('tv:volume', { level }),
   tvMute:         ()                  => ipcRenderer.invoke('tv:mute'),
   tvStop:         ()                  => ipcRenderer.invoke('tv:stop'),
+  tvDo:           (cmd)               => ipcRenderer.invoke('tv:do', cmd),
+  tvVideos:       ()                  => ipcRenderer.invoke('tv:videos'),
   tvInstallAdb:   ()                  => ipcRenderer.invoke('tv:install-adb'),
   onTvDevicesUpdate: (cb)             => ipcRenderer.on('tv:devices-update', (_e, d) => cb(d)),
   onTvStatusUpdate:  (cb)             => ipcRenderer.on('tv:status-update',  (_e, d) => cb(d)),

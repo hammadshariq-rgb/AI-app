@@ -1710,6 +1710,16 @@ window._checkMarketsOverlay = async function(text) {
 
   const TV_KIND_LABEL = { cast: 'Google TV / Chromecast', roku: 'Roku', firetv: 'Fire TV' };
 
+  // Open an app on the TV and say so if it didn't work (e.g. it isn't installed).
+  async function tvOpenAndReport(url, name) {
+    const res = await window.jarvis.tvOpenUrl(url, name).catch((e) => ({ ok: false, error: e.message }));
+    if (res && res.ok === false) {
+      addMessage('assistant', `⚠️ ${res.error || `Couldn't open ${name} on the TV.`}`);
+      window.jarvis.speak((res.error || `Couldn't open ${name} on the TV.`).split('.')[0] + '.');
+    }
+    return res;
+  }
+
   // What to tell someone once their TV is connected — each kind of TV needs
   // something different from them (or nothing at all).
   function tvConnectedMessage(dev, res) {
@@ -1826,7 +1836,7 @@ window._checkMarketsOverlay = async function(text) {
     const NAMES = { youtube: 'YouTube', netflix: 'Netflix', spotify: 'Spotify', prime: 'Prime Video' };
     const url = URLS[app];
     if (!url) return;
-    window.jarvis.tvOpenUrl(url, NAMES[app]).catch(() => {});
+    tvOpenAndReport(url, NAMES[app]);
     addMessage('assistant', `📺 Opening **${NAMES[app]}** on your TV…`);
     window.jarvis.speak(`Opening ${NAMES[app]} on your TV.`);
   };
@@ -1908,8 +1918,16 @@ window._checkMarketsOverlay = async function(text) {
     try {
       let dev = JSON.parse(localStorage.getItem('tv_last_device') || 'null');
       if (!dev || !dev.host) return false;
-      // Home routers hand out new addresses when a TV restarts, so look the TV up
-      // by name first rather than trusting the address saved at setup.
+      // Fast path: the TV is usually still where it was. A wrong address now
+      // fails in ~2s, so this costs little when it misses.
+      const direct = await window.jarvis.tvConnect(dev.host, dev.port || 8009, dev.kind).catch(() => null);
+      if (direct && direct.ok) {
+        tvConnected = dev;
+        tvUpdateUI();
+        return true;
+      }
+      // Home routers hand out new addresses when a TV restarts, so look the TV
+      // up by name on the network and try again there.
       const found = await window.jarvis.tvDiscover().catch(() => []);
       const match = (found || []).find((d) => d.name === dev.name)
         || ((found || []).length === 1 && found[0].model === dev.model ? found[0] : null);
@@ -1944,11 +1962,82 @@ window._checkMarketsOverlay = async function(text) {
   });
 
   // ── Voice command handler ────────────────────────────────────────────────
+  // Turns a spoken TV request into one command for tv-cast's run():
+  //   "open youtube on my tv and search mr beast"          → search
+  //   "play red notice on netflix on hammad's profile"     → play_title + profile
+  //   "open netflix, then profile 2, and play army of thieves"
+  //   "play john wick from my usb on the tv"               → play_file
+  //   "play john wick on the tv"                           → play_file if it's on the TV, else YouTube
+  // Returns null for anything the simpler handlers below already cover.
+  function parseTvRequest(raw) {
+    // The TV itself is implied from here on; drop it so it can't end up in a search.
+    let t = String(raw).replace(/[.!?]+$/, '')
+      .replace(/\s+(?:on|in|to)\s+(?:the\s+|my\s+)?(?:tv|television|screen)\b/gi, '')
+      .replace(/\s{2,}/g, ' ').trim();
+    const appOf = (s) => /netflix/i.test(s || '') ? 'netflix' : /prime|amazon/i.test(s || '') ? 'prime' : /youtube/i.test(s || '') ? 'youtube' : null;
+    const tidy = (s) => String(s || '')
+      .replace(/\b(?:please|for me)\b/gi, '')
+      .replace(/^[\s,]+|[\s,]+$/g, '')
+      .replace(/^(?:the\s+)?(?:movie|film|show|video)\s+/i, '');
+
+    // Profile: "hammad's profile", "hammad profile", "second profile", "profile 2", "profile hammad"
+    const STOP = /^(?:on|use|using|choose|select|pick|with|in|as|then|and|to|the|my|this|that|a|your|his|her|their|netflix|prime|amazon|youtube|open|play|watch)$/i;
+    let profile = null;
+    const before = t.match(/\b((?:[a-z][a-z'.-]*\s+)?[a-z0-9][a-z0-9'.-]*)'?s?\s+profile\b/i);
+    const after = t.match(/\bprofile\s+(?:called\s+|named\s+|number\s+)?(\d|[a-z][a-z'.-]*)\b/i);
+    const words = before ? before[1].replace(/'s$/i, '').split(/\s+/).filter((w) => !STOP.test(w)) : [];
+    if (words.length) {
+      const who = words.join(' ');
+      profile = /^\d$/.test(who) ? { position: Number(who) } : { name: who };
+      t = t.replace(before[0], ' ');
+    } else if (after && !STOP.test(after[1])) {
+      profile = /^\d$/.test(after[1]) ? { position: Number(after[1]) } : { name: after[1] };
+      t = t.replace(after[0], ' ');
+    } else if (before) {
+      t = t.replace(/\bprofile\b/i, ' ');
+    }
+    t = t.replace(/\b(?:on|use|using|choose|select|pick|with|in|as)\s+(?:the\s+)?(?=[,\s]*(?:and|then|$))/gi, ' ')
+      .replace(/\s*,\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+    // Search: "search mr beast", "open youtube and search for mr beast", "look up X on youtube"
+    const sm = t.match(/\b(?:search|look\s*up|find)\s+(?:for\s+)?(.+?)(?:\s+on\s+(youtube|netflix|prime(?:\s+video)?|amazon(?:\s+prime)?))?$/i);
+    if (sm) {
+      const q = tidy(sm[1]);
+      if (q) return { action: 'search', app: appOf(sm[2]) || appOf(t) || 'youtube', query: q, profile };
+    }
+
+    // A title on Netflix or Prime: "play X on netflix", "open netflix and play X"
+    const tm = t.match(/\b(?:play|watch|put on|start|stream)\s+(.+?)\s+(?:on|in|from)\s+(netflix|prime(?:\s+video)?|amazon(?:\s+prime|\s+video)?)\b/i)
+            || t.match(/\bopen\s+(netflix|prime(?:\s+video)?|amazon(?:\s+prime|\s+video)?)\b.*?\b(?:and|then)\s+(?:play|watch|put on|start)\s+(.+)$/i);
+    if (tm) {
+      const opener = /^open/i.test(tm[0].trim());
+      const app = appOf(opener ? tm[1] : tm[2]);
+      const q = tidy(opener ? tm[2] : tm[1]);
+      if (q && app && app !== 'youtube') return { action: 'play_title', app, query: q, profile };
+    }
+
+    // A file stored on the TV: "play X from my usb / downloads / media player"
+    const fm = t.match(/\bplay\s+(.+?)\s+(?:from|off|on)\s+(?:my\s+|the\s+)?(?:tv'?s\s+)?(?:usb|flash\s+drive|hard\s+drive|drive|storage|downloads?|media(?:\s+(?:player|center|centre))?|files|memory)\b/i);
+    if (fm && tidy(fm[1])) return { action: 'play_file', query: tidy(fm[1]) };
+
+    // Opening Netflix/Prime on a particular profile: "open netflix on hammad's profile"
+    const om = t.match(/\bopen\s+(netflix|prime(?:\s+video)?|amazon(?:\s+prime|\s+video)?)\b/i);
+    if (om && profile) return { action: 'open_app', app: appOf(om[1]), profile };
+
+    // "play X on the tv" with no app named: it may be a film on the TV's own drive.
+    // (The TV was already confirmed before this runs, and stripped from t above.)
+    const gm = t.match(/^play\s+(.+)$/i);
+    if (gm && !/youtube|spotify|music|song|netflix|prime|amazon/i.test(t)) return { action: 'play_file', query: tidy(gm[1]), soft: true };
+
+    return null;
+  }
+  window._parseTvRequest = parseTvRequest;   // exposed for testing from devtools
+
   window._checkTvCast = async function(text) {
     const t = text.trim();
 
-    // Must contain "on tv" / "on the tv" / "on my tv" / "on television" / "on screen"
-    if (!/\bon\s+(the\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t)) return false;
+    // Must mention the TV: "on the tv", "on my tv", "on television", "on screen"
+    if (!/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)\b/i.test(t)) return false;
     if (!tvConnected && !(await tvReconnectLast())) {
       const known = !!localStorage.getItem('tv_last_device');
       addMessage('assistant', known
@@ -1957,14 +2046,31 @@ window._checkMarketsOverlay = async function(text) {
       return true;
     }
 
+    // Going further: search, a title on Netflix/Prime, a profile, a file on the TV.
+    const richer = parseTvRequest(t);
+    if (richer) {
+      const label = richer.action === 'search' ? `Searching for *"${richer.query}"*`
+        : richer.action === 'play_file' ? `Looking for *"${richer.query}"* on your TV`
+        : richer.action === 'play_title' ? `Finding *"${richer.query}"* on ${richer.app === 'prime' ? 'Prime Video' : 'Netflix'}`
+        : `Opening ${richer.app === 'prime' ? 'Prime Video' : richer.app}`;
+      if (!richer.soft) addMessage('assistant', `📺 ${label}…`);
+      const res = await window.jarvis.tvDo(richer).catch((e) => ({ ok: false, message: e.message }));
+      // A generic "play X on the TV" that isn't a file on the TV falls back to YouTube below.
+      if (!(richer.action === 'play_file' && richer.soft && !res.ok)) {
+        addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
+        if (res.ok) window.jarvis.speak(res.message.replace(/["*]/g, ''));
+        return true;
+      }
+    }
+
     const sym = s => s.currency === 'GBP' ? '£' : '$'; // unused here but pattern consistency
 
     // ── "play X on YouTube on TV" ──────────────────────────────────────────
     const ytM = t.match(/play\s+(.+?)\s+on\s+youtube/i)
-             || t.match(/youtube\s+(.+?)\s+on\s+tv/i)
-             || t.match(/play\s+(.+?)\s+on\s+(?:the\s+)?(?:tv|screen)/i);
+             || t.match(/youtube\s+(.+?)\s+on\s+(?:the\s+|my\s+)?tv/i)
+             || t.match(/play\s+(.+?)\s+on\s+(?:the\s+|my\s+)?(?:tv|screen)/i);
     if (ytM) {
-      const query = ytM[1].trim().replace(/\s+on\s+(the\s+)?(?:tv|television|screen|chromecast)$/i, '').trim();
+      const query = ytM[1].trim().replace(/\s+on\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)$/i, '').trim();
       addMessage('assistant', `📺 Searching YouTube for *"${query}"* and casting to **${tvConnected.name}**…`);
       window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
       try {
@@ -1980,7 +2086,7 @@ window._checkMarketsOverlay = async function(text) {
     if (/netflix/i.test(t)) {
       addMessage('assistant', `📺 Launching **Netflix** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Netflix on your TV.');
-      try { await window.jarvis.tvOpenUrl('https://www.netflix.com', 'Netflix'); }
+      try { await tvOpenAndReport('https://www.netflix.com', 'Netflix'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
@@ -1989,7 +2095,7 @@ window._checkMarketsOverlay = async function(text) {
     if (/\byoutube\b/i.test(t) && !ytM) {
       addMessage('assistant', `📺 Launching **YouTube** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening YouTube on your TV.');
-      try { await window.jarvis.tvOpenUrl('https://www.youtube.com', 'YouTube'); }
+      try { await tvOpenAndReport('https://www.youtube.com', 'YouTube'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
@@ -2010,7 +2116,7 @@ window._checkMarketsOverlay = async function(text) {
       } else {
         addMessage('assistant', `📺 Launching **Spotify** on **${tvConnected.name}**…`);
         window.jarvis.speak('Opening Spotify on your TV.');
-        try { await window.jarvis.tvOpenUrl('https://open.spotify.com', 'Spotify'); }
+        try { await tvOpenAndReport('https://open.spotify.com', 'Spotify'); }
         catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       }
       return true;
@@ -2020,7 +2126,7 @@ window._checkMarketsOverlay = async function(text) {
     if (/prime|amazon\s+video/i.test(t)) {
       addMessage('assistant', `📺 Launching **Prime Video** on **${tvConnected.name}**…`);
       window.jarvis.speak('Opening Prime Video on your TV.');
-      try { await window.jarvis.tvOpenUrl('https://www.primevideo.com', 'Prime Video'); }
+      try { await tvOpenAndReport('https://www.primevideo.com', 'Prime Video'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
     }
@@ -2071,7 +2177,7 @@ window._checkQuickLaunch = async function(text) {
 
   // ── Spotify: "play X on spotify" ─────────────────────────────────────────
   // Skip if TV command — let _checkTvCast handle it
-  const isTV = /\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t);
+  const isTV = /\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i.test(t);
 
   // ── YouTube channel stats: "how many subs", "my channel stats", etc. ──────
   const ytStatsM = /(?:how many|what(?:'s|'re| are| is)?|show|tell me|my)\s+(?:my\s+)?(?:sub(?:scriber)?s?|view(?:s|er)?s?|channel\s+stats?|youtube\s+stats?|channel\s+analytic|youtube\s+analytic|last\s+video|recent\s+video|upload)/i.test(t)
@@ -2113,7 +2219,7 @@ window._checkQuickLaunch = async function(text) {
 
   // ── YouTube: must explicitly say "on youtube" / "open youtube" ───────────
   // Skip if this is a TV command
-  const ytM = !(/\bon\s+(the\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
+  const ytM = !(/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i.test(t))
     && (t.match(/play\s+(.+?)\s+on\s+(?:youtube|yt)\b/i)
       || t.match(/(?:open|search)\s+youtube\s+(?:for\s+)?(.+)/i)
       || t.match(/^youtube\s+(.+)/i));

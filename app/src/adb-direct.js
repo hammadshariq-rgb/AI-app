@@ -145,6 +145,23 @@ async function deviceState(host, port = 5555) {
   return line.split(/\s+/)[1] || null;
 }
 
+// ── Screenshot of the TV, as PNG bytes ────────────────────────────────────────
+// Some TVs (TCL among them) print debug lines before the image, so cut from the
+// PNG signature onward. Apps that protect their video (Netflix) come back black.
+function screencap(host, port = 5555) {
+  return new Promise((resolve, reject) => {
+    const adbPath = findAdb() || 'adb';
+    execFile(adbPath, ['-s', `${host}:${port}`, 'exec-out', 'screencap', '-p'],
+      { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024, timeout: 10000, windowsHide: true },
+      (err, stdout) => {
+        if (err && !(stdout && stdout.length)) return reject(err);
+        const start = stdout.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        if (start < 0) return reject(new Error('No image came back from the TV'));
+        resolve(stdout.subarray(start));
+      });
+  });
+}
+
 // ── App packages ──────────────────────────────────────────────────────────────
 const APP_PACKAGES = {
   youtube : 'com.google.android.youtube.tv',
@@ -159,4 +176,4 @@ async function openYouTube(host, videoId) {
     `am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}"`], 8000);
 }
 
-module.exports = { findAdb, isAdbAvailable, downloadAdb, connectToDevice, shellWithAuth, openYouTube, deviceState, APP_PACKAGES };
+module.exports = { findAdb, isAdbAvailable, downloadAdb, connectToDevice, shellWithAuth, openYouTube, deviceState, screencap, APP_PACKAGES };

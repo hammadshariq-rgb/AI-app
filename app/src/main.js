@@ -3271,8 +3271,14 @@ ipcMain.handle('tv:connect', async (_e, { host, port, kind }) => {
     if (res.ok && !tvCast.getStatus().device?.hasAdb) {
       tvCast.upgradeToAdb((s) => {
         send('tv:adb-status', s);
-        if (s.phase === 'ready') send('tv:status-update', tvCast.getStatus());
+        if (s.phase === 'ready') {
+          send('tv:status-update', tvCast.getStatus());
+          tvCast.indexTvFiles().catch(() => {});
+        }
       });
+    } else if (res.ok) {
+      // Know what's on the TV's USB drive before anyone asks for it.
+      tvCast.indexTvFiles().catch(() => {});
     }
     return res;
   } catch (err) { return { ok: false, error: err.message }; }
@@ -3306,6 +3312,13 @@ ipcMain.handle('tv:mute',        async () => {
   try { return await tvCast.setMute(true); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Search, play a title on Netflix/Prime, choose a profile, play a file on the TV.
+ipcMain.handle('tv:do', async (_e, cmd) => {
+  try { return await tvCast.run(cmd); }
+  catch (err) { return { ok: false, message: err.message }; }
+});
+ipcMain.handle('tv:videos', () => tvCast.localVideos().map((f) => f.name));
+
 ipcMain.handle('tv:stop',        async () => {
   try { return await tvCast.stop(); }
   catch (err) { return { ok: false, error: err.message }; }
