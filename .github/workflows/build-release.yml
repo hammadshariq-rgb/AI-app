@@ -102,6 +102,9 @@ jobs:
   build-mac:
     needs: version
     runs-on: macos-latest
+    # Notarisation is the slow part. An hour is generous; without a limit a stuck
+    # submission held the job for six hours before GitHub killed it.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repo
@@ -203,8 +206,35 @@ jobs:
               exit 1
             fi
             echo "Notarisation login accepted ($WHAT)."
-            npx electron-builder --mac --publish always \
-              --config.mac.notarize.teamId="$APPLE_TEAM"
+            # Sign here, notarise below. electron-builder waits on Apple with no
+            # time limit of its own, and a stuck submission hung this job for
+            # hours; doing it directly gives a deadline and prints the progress.
+            npx electron-builder --mac --publish never --config.mac.notarize=false
+            for dmg in dist/*.dmg; do
+              echo "Notarising $(basename "$dmg")…"
+              if [ -n "$APPLE_API_KEY_P8" ]; then
+                xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
+                  --issuer "$APPLE_API_ISSUER" --wait --timeout 30m
+              else
+                xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
+                  --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 30m
+              fi
+              # Staple the ticket into the file so it opens even offline.
+              xcrun stapler staple "$dmg"
+              xcrun stapler validate "$dmg"
+            done
+            # electron-builder published nothing this time, so upload the files.
+            gh release create "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "${{ needs.version.outputs.tag }}" --notes "Callisto ${{ needs.version.outputs.version }}" 2>/dev/null || true
+            gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
+              dist/*.dmg dist/*.blockmap
+            # latest-mac.yml is what installed Macs read to find an update.
+            if [ -f dist/latest-mac.yml ]; then
+              gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber dist/latest-mac.yml
+            else
+              echo "::error::latest-mac.yml wasn't produced, so Macs won't see this release as an update."
+              exit 1
+            fi
           else
             echo "No Apple credentials set — building with the ad-hoc signature."
             unset CSC_LINK CSC_KEY_PASSWORD
