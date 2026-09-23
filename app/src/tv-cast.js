@@ -1037,17 +1037,21 @@ async function run(cmd) {
     const who = profile.name || `profile ${profile.position}`;
     // Picking a profile takes as long as the user takes to answer, and by then the
     // app has forgotten what it was asked to play — it lands on its home screen.
-    // So ask for the title again, unless it's already playing.
-    let playing = await waitUntilPlaying(pkg, 7000);
+    // So always ask for the title again. "Something is playing" can't be trusted
+    // here: Netflix's home screen auto-plays preview trailers, which is how a film
+    // that never started got reported as playing.
+    let playing = false;
     const title = lastPlayed && Date.now() - lastPlayed.at < 15 * 60 * 1000 ? lastPlayed : null;
-    if (!playing && title && title.app === app) {
-      await sleep(1500);
+    if (title && title.app === app) {
+      await sleep(3000);                       // let the profile's home screen settle
       if (app === 'netflix' && title.netflixId) {
         await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${title.netflixId}' ${pkg}`);
       } else if (app === 'prime' && title.title) {
         await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(title.title)}' ${pkg}`);
       }
-      playing = await waitUntilPlaying(pkg, 15000);
+      playing = await waitUntilPlaying(pkg, 20000);
+    } else {
+      playing = await waitUntilPlaying(pkg, 7000);
     }
     const what = title && title.title ? `"${title.title}"` : null;
     return {
