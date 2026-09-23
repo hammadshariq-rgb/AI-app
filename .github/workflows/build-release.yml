@@ -176,6 +176,14 @@ jobs:
             export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_PASSWORD"
             export APPLE_TEAM_ID="$APPLE_TEAM"
             export CSC_IDENTITY_AUTO_DISCOVERY=true
+            # Check the notarisation login before building: Apple rejects it at the
+            # very end otherwise, after ten minutes of packaging.
+            if ! xcrun notarytool history --apple-id "$APPLE_ID" \
+                 --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" > /dev/null 2>&1; then
+              echo "::error::Apple rejected the notarisation login. Check APPLE_ID is the Apple ID that owns the membership, and that APPLE_APP_SPECIFIC_PASSWORD is an app-specific password from appleid.apple.com for that same Apple ID (format abcd-efgh-ijkl-mnop)."
+              exit 1
+            fi
+            echo "Notarisation login accepted."
             npx electron-builder --mac --publish always \
               --config.mac.notarize.teamId="$APPLE_TEAM"
           else

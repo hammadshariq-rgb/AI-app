@@ -13,7 +13,8 @@ const path = require('path');
 exports.default = async function adhocSign(context) {
   if (context.electronPlatformName !== 'darwin') return;
   // A real certificate is configured — electron-builder handles signing itself.
-  if (process.env.CSC_LINK || process.env.CSC_NAME) return;
+  // CSC_KEYCHAIN counts too: CI imports the Developer ID into its own keychain.
+  if (process.env.CSC_LINK || process.env.CSC_NAME || process.env.CSC_KEYCHAIN) return;
 
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   const entitlements = path.join(__dirname, 'entitlements.mac.plist');
