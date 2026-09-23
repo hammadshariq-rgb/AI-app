@@ -370,34 +370,72 @@ async function getInstagramToken() {
 async function getInstagramStats() {
   const token = await getInstagramToken();
   if (!token) return null;
+  const graph = async (path) => {
+    const res = await fetch(`https://graph.facebook.com/v23.0/${path}${path.includes('?') ? '&' : '?'}access_token=${token}`);
+    return res.json();
+  };
   try {
     // Get connected Instagram Business account via Facebook Graph
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v23.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`
-    );
-    const pagesData = await pagesRes.json();
-    const igId = pagesData.data?.[0]?.instagram_business_account?.id;
+    const pagesData = await graph('me/accounts?fields=instagram_business_account,name');
+    const igId = pagesData.data?.find((p) => p.instagram_business_account)?.instagram_business_account?.id;
     if (!igId) return null;
 
-    const igRes = await fetch(
-      `https://graph.facebook.com/v23.0/${igId}?fields=name,username,followers_count,media_count,profile_picture_url&access_token=${token}`
-    );
-    const igData = await igRes.json();
+    const DAY = 86400;
+    const until = Math.floor(Date.now() / 1000);
+    const since = until - 30 * DAY;
+    // Insights need their own permission and can be refused (a brand-new account
+    // has none yet), so each part is optional — the basics still come back.
+    const [igData, mediaData, daily, totals] = await Promise.all([
+      graph(`${igId}?fields=name,username,followers_count,follows_count,media_count,profile_picture_url`),
+      graph(`${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,media_product_type,permalink,thumbnail_url,media_url,insights.metric(views,reach,saved,shares)&limit=6`),
+      graph(`${igId}/insights?metric=views,reach,profile_views&period=day&since=${since}&until=${until}`).catch(() => ({})),
+      graph(`${igId}/insights?metric=accounts_engaged,total_interactions&metric_type=total_value&period=days_28`).catch(() => ({})),
+    ]);
 
-    // Recent media insights
-    const mediaRes = await fetch(
-      `https://graph.facebook.com/v23.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count&limit=5&access_token=${token}`
-    );
-    const mediaData = await mediaRes.json();
+    // A day-by-day metric comes back as a list of values to add up.
+    const sumDaily = (name) => {
+      const row = (daily.data || []).find((d) => d.name === name);
+      return row ? (row.values || []).reduce((n, v) => n + (v.value || 0), 0) : null;
+    };
+    const totalOf = (name) => {
+      const row = (totals.data || []).find((d) => d.name === name);
+      return row ? (row.total_value?.value ?? null) : null;
+    };
+    const metricOf = (post, name) => {
+      const row = (post.insights?.data || []).find((d) => d.name === name);
+      return row ? (row.values?.[0]?.value ?? null) : null;
+    };
 
+    const followers = igData.followers_count || 0;
+    const views30 = sumDaily('views');
+    const reach30 = sumDaily('reach');
+    const interactions = totalOf('total_interactions');
     return {
       username: igData.username || igData.name,
-      followers: igData.followers_count || 0,
+      profilePicture: igData.profile_picture_url || null,
+      followers,
+      following: igData.follows_count || 0,
       posts: igData.media_count || 0,
-      recentPosts: (mediaData.data || []).map(p => ({
-        caption: (p.caption || '').slice(0, 60),
+      // Last 30 days. Null where Instagram gave nothing, so the UI can leave it out.
+      views30,
+      reach30,
+      profileViews30: sumDaily('profile_views'),
+      accountsEngaged: totalOf('accounts_engaged'),
+      interactions,
+      // Share of the people reached who did something — the number creators watch.
+      engagementRate: interactions && reach30 ? ((interactions / reach30) * 100).toFixed(1) : null,
+      recentPosts: (mediaData.data || []).map((p) => ({
+        id: p.id,
+        caption: (p.caption || '').replace(/\s+/g, ' ').slice(0, 60),
         likes: p.like_count || 0,
         comments: p.comments_count || 0,
+        views: metricOf(p, 'views'),
+        reach: metricOf(p, 'reach'),
+        saved: metricOf(p, 'saved'),
+        shares: metricOf(p, 'shares'),
+        kind: p.media_product_type === 'REELS' ? 'Reel' : p.media_type === 'VIDEO' ? 'Video' : p.media_type === 'CAROUSEL_ALBUM' ? 'Carousel' : 'Post',
+        thumbnail: p.thumbnail_url || p.media_url || null,
+        link: p.permalink || null,
         date: p.timestamp,
       })),
     };
@@ -822,7 +860,9 @@ function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace
   }
   if (instagram) {
     lines.push(`Instagram (@${instagram.username}): ${instagram.followers.toLocaleString()} followers, ${instagram.posts} posts.`);
-    if (instagram.recentPosts.length) lines.push(`Last post got ${instagram.recentPosts[0].likes} likes, ${instagram.recentPosts[0].comments} comments.`);
+    if (instagram.views30 != null) lines.push(`Last 30 days: ${instagram.views30.toLocaleString()} views, ${(instagram.reach30 || 0).toLocaleString()} accounts reached${instagram.engagementRate ? `, ${instagram.engagementRate}% engagement` : ''}.`);
+    const last = instagram.recentPosts[0];
+    if (last) lines.push(`Last ${last.kind.toLowerCase()}${last.views != null ? ` got ${last.views.toLocaleString()} views,` : ' got'} ${last.likes} likes, ${last.comments} comments.`);
   }
   if (tiktok) {
     lines.push(`TikTok (${tiktok.username}): ${tiktok.followers.toLocaleString()} followers, ${tiktok.totalLikes.toLocaleString()} total likes, ${tiktok.videoCount} videos.`);

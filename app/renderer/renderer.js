@@ -7499,13 +7499,20 @@ function renderAnalyticsDashboard(data) {
   if (instagram) {
     const recentHtml = (instagram.recentPosts || []).slice(0, 3).map(p =>
       `<div class="apc-recent-item apc-recent-video">
-        <div class="apc-ri-title">${esc(p.caption || 'Post')}</div>
+        <div class="apc-ri-title">${esc(p.caption || p.kind || 'Post')}</div>
         <div class="apc-ri-stats">
+          ${p.views != null ? `<span class="apc-ri-stat">👁 ${fmtNum(p.views)}</span>` : ''}
           <span class="apc-ri-stat">♥ ${fmtNum(p.likes)}</span>
           ${p.comments ? `<span class="apc-ri-stat">💬 ${fmtNum(p.comments)}</span>` : ''}
+          ${p.shares ? `<span class="apc-ri-stat">↗ ${fmtNum(p.shares)}</span>` : ''}
         </div>
       </div>`
     ).join('');
+    // Views and reach only exist once Instagram has insights for the account.
+    const views30 = instagram.views30 != null
+      ? `<div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.views30)}</div><div class="apc-stat-label">VIEWS 30D</div></div>` : '';
+    const reach30 = instagram.reach30 != null
+      ? `<div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.reach30)}</div><div class="apc-stat-label">REACH 30D</div></div>` : '';
     const engRate = instagram.engagementRate ? `<div class="apc-stat"><div class="apc-stat-val apc-stat-green">${instagram.engagementRate}%</div><div class="apc-stat-label">ENG. RATE</div></div>` : '';
     cards.push(`
       <div class="analytics-platform-card" style="border-color:rgba(249,83,198,0.2)">
@@ -7523,7 +7530,8 @@ function renderAnalyticsDashboard(data) {
         </div>
         <div class="apc-stats">
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.followers)}</div><div class="apc-stat-label">FOLLOWERS</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.following || '—')}</div><div class="apc-stat-label">FOLLOWING</div></div>
+          ${views30}
+          ${reach30}
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(instagram.posts)}</div><div class="apc-stat-label">POSTS</div></div>
           ${engRate}
         </div>
