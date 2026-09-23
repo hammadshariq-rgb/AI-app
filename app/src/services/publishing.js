@@ -24,7 +24,7 @@ const MIME = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
 };
 
-const PLATFORM_NAMES = { youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok' };
+const PLATFORM_NAMES = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
 
 function mimeFor(file) { return MIME[path.extname(file).toLowerCase()] || 'application/octet-stream'; }
 const isVideo = (type) => String(type).startsWith('video/');
@@ -156,6 +156,38 @@ async function toInstagram(media, { description }, authToken) {
   }
 }
 
+// ── Facebook Page ─────────────────────────────────────────────────────────────
+// The same Meta login as Instagram, so connecting Instagram covers both. Only a
+// Page can be posted to — Meta closed posting to personal profiles years ago.
+async function toFacebook(media, { title, description }, authToken) {
+  const token = await connectors.getInstagramToken();
+  if (!token) throw new Error('Facebook isn’t connected. Connect Instagram in Connectors — it covers your Facebook Page too.');
+
+  const pages = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=id,name,access_token&access_token=${token}`).then((r) => r.json());
+  const page = pages.data?.[0];
+  if (!page?.access_token) throw new Error(pages.error?.message || 'No Facebook Page found on that account.');
+
+  const caption = (description || title || '').slice(0, 5000);
+  const publicUrl = await hostTemporarily(media.buf, media.type, authToken);
+  try {
+    const video = isVideo(media.type);
+    const body = new URLSearchParams({ access_token: page.access_token });
+    if (video) { body.set('file_url', publicUrl); if (caption) body.set('description', caption); if (title) body.set('title', title); }
+    else { body.set('url', publicUrl); if (caption) body.set('caption', caption); }
+
+    const res = await fetch(`https://graph.facebook.com/v23.0/${page.id}/${video ? 'videos' : 'photos'}`, { method: 'POST', body }).then((r) => r.json());
+    const id = res.id || res.post_id;
+    if (!id) throw new Error(res.error?.message || 'Facebook wouldn’t accept the post.');
+    return {
+      id,
+      url: `https://www.facebook.com/${String(id).includes('_') ? id : `${page.id}/posts/${id}`}`,
+      note: video ? 'Facebook may take a minute to finish processing the video.' : null,
+    };
+  } finally {
+    await unhost(publicUrl, authToken);
+  }
+}
+
 // ── TikTok ────────────────────────────────────────────────────────────────────
 async function toTikTok(media, { title, privacy }) {
   const token = await connectors.getTikTokToken();
@@ -211,7 +243,7 @@ async function toTikTok(media, { title, privacy }) {
   };
 }
 
-// Publishes one item. `platform` is youtube | instagram | tiktok.
+// Publishes one item. `platform` is youtube | instagram | facebook | tiktok.
 async function publish({ platform, filePath, url, title, description, privacy, authToken }) {
   const name = PLATFORM_NAMES[platform];
   if (!name) throw new Error('That platform isn’t supported yet.');
@@ -219,6 +251,7 @@ async function publish({ platform, filePath, url, title, description, privacy, a
 
   if (platform === 'youtube') return { ...(await toYouTube(media, { title, description, privacy })), platform: name };
   if (platform === 'instagram') return { ...(await toInstagram(media, { description: description || title }, authToken)), platform: name };
+  if (platform === 'facebook') return { ...(await toFacebook(media, { title, description }, authToken)), platform: name };
   return { ...(await toTikTok(media, { title, privacy })), platform: name };
 }
 

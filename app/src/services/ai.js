@@ -114,6 +114,7 @@ const TOOLS = [
         properties: {
           platform: { type: 'string', description: 'Platform name: whatsapp, instagram, discord, telegram, messenger, snapchat, signal, skype, slack, twitter, x, facebook, viber, line, teams, zoom' },
           contact: { type: 'string', description: 'Phone number for WhatsApp/Viber (e.g. +12345678900), username for Instagram/Telegram/Snapchat/Twitter/Signal, or leave empty to just open the app' },
+          message: { type: 'string', description: 'WhatsApp only: the message to type into the chat, when the user dictated one ("tell Ahmed I am running late"). It is typed ready to send, never sent — leave empty otherwise.' },
         },
         required: ['platform'],
       },
@@ -139,11 +140,11 @@ const TOOLS = [
     function: {
       name: 'upload_media',
       description:
-        "Post a video or photo to the user's own connected social account — YouTube, Instagram or TikTok. Use when they say things like \"upload this to YouTube\", \"post that video on TikTok\", \"put this on Instagram\", \"upload my last video\". Callisto always shows a confirmation card before anything is posted, so it is safe to call. Never invent a title or caption the user didn't ask for — leave those empty.",
+        "Post a video or photo to the user's own connected social account — YouTube, Instagram, their Facebook Page or TikTok. Use when they say things like \"upload this to YouTube\", \"post that video on TikTok\", \"put this on Instagram\", \"post it on Facebook\", \"upload my last video\". Callisto always shows a confirmation card before anything is posted, so it is safe to call. Never invent a title or caption the user didn't ask for — leave those empty.",
       parameters: {
         type: 'object',
         properties: {
-          platform: { type: 'string', enum: ['youtube', 'instagram', 'tiktok'], description: 'Where to post it.' },
+          platform: { type: 'string', enum: ['youtube', 'instagram', 'facebook', 'tiktok'], description: 'Where to post it. facebook posts to the user\'s Facebook Page (Meta does not allow posting to personal profiles).' },
           source: {
             type: 'string',
             enum: ['last_video', 'last_image', 'choose_file'],
@@ -697,6 +698,7 @@ SEARCH & BROWSER RULES:
 OPENING APPS RULES:
 - When the user asks to open WhatsApp or Instagram, always use open_chat (not open_url) — this tries the desktop app first and only falls back to the browser if the app isn't installed.
 - Same for all messaging apps: always prefer open_chat over open_url so the desktop app is used when available.
+- "Send a WhatsApp to X saying Y" / "text Ahmed that I'm late": call open_chat with platform whatsapp, the contact, and message set to what they dictated. It opens that chat with the words typed in, ready for them to press send. Say that it's ready to send — never claim it was sent, because Callisto does not press send.
 
 CURRENT KNOWLEDGE RULES (CRITICAL — never break these):
 - When REAL-TIME DATA is provided above, that is always the ground truth. Use ONLY that. Do not contradict it or add details not in it.
@@ -981,7 +983,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'open_folder')   action = { type: 'open_folder',   arg: args.name };
           else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
           else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
-          else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}` };
+          else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
           else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
           else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
           else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
@@ -1046,7 +1048,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'open_folder')   action = { type: 'open_folder',   arg: args.name };
     else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
     else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
-    else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}` };
+    else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
     else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
     else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
     else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };

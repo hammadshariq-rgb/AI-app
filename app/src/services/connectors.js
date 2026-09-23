@@ -58,6 +58,8 @@ function getConnectorStatus() {
     drive: !!store.get('connector.drive.access_token'),
     youtube: !!store.get('connector.youtube.access_token'),
     instagram: !!store.get('connector.instagram.access_token'),
+    // The Instagram login is a Meta login, so it covers the Facebook Page too.
+    facebook: !!store.get('connector.instagram.access_token'),
     tiktok: !!store.get('connector.tiktok.access_token'),
     shopify: !!store.get('connector.shopify.access_token'),
     squarespace: !!store.get('connector.squarespace.api_key'),

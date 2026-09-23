@@ -410,11 +410,16 @@ end tell`;
 }
 
 // ─── CHAT & CALL URL BUILDERS ────────────────────────────────────────────────
-function buildChatUrl(platform, contact) {
+function buildChatUrl(platform, contact, message) {
+  const text = String(message || '').trim();
   switch (platform) {
     case 'whatsapp': {
+      // The message is typed into the chat, ready for the user to press send —
+      // Callisto never sends it for them.
       const phone = contact.replace(/[^+\d]/g, '');
-      return phone.length >= 7 ? `whatsapp://send?phone=${phone}` : 'whatsapp:';
+      const body = text ? `&text=${encodeURIComponent(text.slice(0, 2000))}` : '';
+      if (phone.length >= 7) return `whatsapp://send?phone=${phone}${body}`;
+      return text ? `whatsapp://send?text=${encodeURIComponent(text.slice(0, 2000))}` : 'whatsapp:';
     }
     case 'telegram':  return contact ? `tg://resolve?domain=${contact}` : 'tg:';
     case 'discord':   return 'discord:';
@@ -487,9 +492,9 @@ function openUrl(url, platformFallback) {
   });
 }
 
-function openChat(platform, contact) {
+function openChat(platform, contact, message) {
   return new Promise((resolve) => {
-    const url = buildChatUrl(platform, contact);
+    const url = buildChatUrl(platform, contact, message);
     openUrl(url, platform).then(resolve);
   });
 }
@@ -778,8 +783,9 @@ async function run(action, arg) {
     }
 
     case 'open_chat': {
+      // platform|contact|message — the message is typed into the chat, not sent.
       const parts = String(arg).split('|');
-      await openChat((parts[0] || '').toLowerCase().trim(), (parts[1] || '').trim());
+      await openChat((parts[0] || '').toLowerCase().trim(), (parts[1] || '').trim(), parts.slice(2).join('|').trim());
       return { ok: true };
     }
 
