@@ -3057,6 +3057,7 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 .connector-icon.drive      { background: rgba(251,188,4,0.14);  border: 1px solid rgba(251,188,4,0.22);  color: #FBBC04; }
 .connector-icon.youtube    { background: rgba(255,0,0,0.13);    border: 1px solid rgba(255,0,0,0.20);    color: #FF0000; }
 .connector-icon.instagram  { background: rgba(225,48,108,0.13); border: 1px solid rgba(225,48,108,0.20); color: #E1306C; }
+.connector-icon.facebook   { background: rgba(24,119,242,0.13); border: 1px solid rgba(24,119,242,0.20); color: #1877F2; }
 .connector-icon.tiktok     { background: rgba(0,242,234,0.12);  border: 1px solid rgba(0,242,234,0.20);  color: #00F2EA; }
 .connector-icon.shopify    { background: rgba(100,194,66,0.13); border: 1px solid rgba(100,194,66,0.20); color: #64C242; }
 .connector-icon.squarespace{ background: rgba(200,195,190,0.10);border: 1px solid rgba(200,195,190,0.18);color: #C8C3BE; }
@@ -3471,6 +3472,7 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 .connector-icon.ganalytics  { background: rgba(228,121,17,0.12); color: #e47811; border: 1px solid rgba(228,121,17,0.3); }
 .connector-icon.stripe      { background: rgba(103,114,229,0.12); color: #6772e5; border: 1px solid rgba(103,114,229,0.3); }
 .connector-icon.instagram { background: rgba(225,48,108,0.12); color: #e1306c; border: 1px solid rgba(225,48,108,0.3); }
+.connector-icon.facebook { background: rgba(24,119,242,0.12); color: #1877f2; border: 1px solid rgba(24,119,242,0.3); }
 .connector-icon.tiktok   { background: rgba(105,201,208,0.12); color: #69c9d0; border: 1px solid rgba(105,201,208,0.3); }
 .connector-icon.shopify  { background: rgba(150,191,92,0.12); color: #96bf5c; border: 1px solid rgba(150,191,92,0.3); }
 

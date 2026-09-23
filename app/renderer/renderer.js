@@ -7324,6 +7324,9 @@ function renderAnalyticsConnectors(status) {
 
   setRow('youtube', document.getElementById('youtubeStatus'), document.getElementById('youtubeBtn'));
   setRow('instagram', document.getElementById('instagramStatus'), document.getElementById('instagramBtn'));
+  // Facebook rides on the same Meta login as Instagram: one connection covers both,
+  // so this row connects and disconnects that one.
+  setRow('instagram', document.getElementById('facebookStatus'), document.getElementById('facebookBtn'));
   setRow('tiktok', document.getElementById('tiktokStatus'), document.getElementById('tiktokBtn'));
   setRow('shopify', document.getElementById('shopifyStatus'), document.getElementById('shopifyBtn'));
   setRow('squarespace', document.getElementById('squarespaceStatus'), document.getElementById('squarespaceBtn'));
@@ -7787,6 +7790,21 @@ const CONNECT_STEPS = {
       'Select the <strong>Facebook Page</strong> linked to your Instagram',
       'Click <strong>Allow</strong> to grant Instagram access',
       'The tab will close — you\'re connected',
+    ],
+    continueLabel: 'Open Facebook Sign-In →',
+    action: () => window.jarvis.connectorConnect('instagram'),
+  },
+  // One Meta login covers the Page and the Instagram account, so this is the
+  // same sign-in — connecting either lights up both rows.
+  facebook: {
+    icon: 'f', title: 'CONNECT FACEBOOK PAGE', subtitle: 'A Facebook Page you manage',
+    steps: [
+      'A browser window will open',
+      'Log into <strong>Facebook</strong>',
+      'Select the <strong>Page</strong> you want Callisto to post to',
+      'Click <strong>Allow</strong> to grant posting and insights access',
+      'The tab will close — you\'re connected',
+      'This also connects <strong>Instagram</strong>, if that account is linked to the Page',
     ],
     continueLabel: 'Open Facebook Sign-In →',
     action: () => window.jarvis.connectorConnect('instagram'),
@@ -9490,6 +9508,7 @@ micBtn.addEventListener('click', () => {
 const PUB_META = {
   youtube:   { emoji: '▶', colour: '#ff0033', kind: 'video' },
   instagram: { emoji: '◎', colour: '#e1306c', kind: 'both' },
+  facebook:  { emoji: 'f', colour: '#1877f2', kind: 'both' },
   tiktok:    { emoji: '♪', colour: '#25f4ee', kind: 'video' },
 };
 
