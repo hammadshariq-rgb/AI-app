@@ -3530,6 +3530,13 @@ ipcMain.handle('tv:do', async (_e, cmd) => {
 });
 ipcMain.handle('tv:videos', () => tvCast.localVideos().map((f) => f.name));
 
+// Is the TV playing something right now? Lets a bare "pause" or "skip the ad"
+// go to the TV only when the TV is what's playing.
+ipcMain.handle('tv:playing', async () => {
+  try { return await tvCast.activePlayback(); }
+  catch (_) { return { playing: false, app: null }; }
+});
+
 ipcMain.handle('tv:stop',        async () => {
   try { return await tvCast.stop(); }
   catch (err) { return { ok: false, error: err.message }; }

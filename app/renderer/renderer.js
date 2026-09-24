@@ -2091,6 +2091,7 @@ window._checkMarketsOverlay = async function(text) {
       ['stop',        /^stop(?:\s+.+)?$/],
       ['home',        /^(?:go\s+)?(?:back\s+)?(?:to\s+(?:the\s+)?)?home(?:\s+screen)?$/],
       ['back',        /^go\s+back$/],
+      ['skip_ad',     /^(?:skip|press\s+skip)(?:\s+(?:the|this|that))?\s+(?:ad|ads|advert|advertisement|commercial)$/],
       ['next',        /^(?:next|skip)(?:\s+(?:to\s+)?(?:the\s+)?next)?(?:\s+(?:one|episode|video|song))?$/],
       ['previous',    /^previous(?:\s+(?:one|episode|video|song))?$/],
     ];
@@ -2098,6 +2099,24 @@ window._checkMarketsOverlay = async function(text) {
     return null;
   }
   window._parseTvRemote = parseTvRemote;
+
+  // Said while watching, without naming the TV: "pause", "skip the ad", "louder".
+  // These only go to the TV when the TV is the thing actually playing — otherwise
+  // they belong to this computer.
+  function parseBareMediaCommand(raw) {
+    const t = String(raw || '').toLowerCase().replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '')
+      .replace(/^(?:(?:ok(?:ay)?|hey|please|can\s+you|could\s+you|just)\s+)+/, '').trim();
+    const BARE = [
+      ['skip_ad',     /^(?:skip|press\s+skip)(?:\s+(?:the|this|that))?\s+(?:ad|ads|advert|advertisement|commercial)$/],
+      ['pause',       /^pause(?:\s+(?:it|this|the\s+(?:movie|film|show|video|episode)))?$/],
+      ['play',        /^(?:resume|unpause|continue|carry\s+on)(?:\s+(?:it|playing|the\s+(?:movie|film|show|video|episode)))?$/],
+      ['volume_up',   /^(?:louder|turn\s+it\s+up|volume\s+up)$/],
+      ['volume_down', /^(?:quieter|turn\s+it\s+down|volume\s+down)$/],
+      ['next',        /^(?:next\s+(?:episode|video)|skip\s+(?:the\s+)?intro)$/],
+    ];
+    for (const [key, re] of BARE) if (re.test(t)) return { key };
+    return null;
+  }
 
   // ── "Who's watching?" ────────────────────────────────────────────────────
   // When Netflix or Prime opens on its profile screen, Callisto asks who's
@@ -2244,6 +2263,18 @@ window._checkMarketsOverlay = async function(text) {
     if (tvProfileAsk && Date.now() < tvProfileAsk.until && tvConnected) {
       const reply = parseProfileReply(t, Date.now() - tvProfileAsk.askedAt < 90 * 1000);
       if (reply) return answerProfileQuestion(reply);
+    }
+
+    // "Pause" or "skip the ad" while the TV is playing: the TV is what they mean.
+    // If the TV isn't playing, this falls through to the computer as before.
+    if (!parseTvRemote(t) && tvConnected) {
+      const bare = parseBareMediaCommand(t);
+      if (bare && (await window.jarvis.tvPlaying().catch(() => null))?.playing) {
+        const res = await window.jarvis.tvDo({ action: 'remote', ...bare }).catch((e) => ({ ok: false, message: e.message }));
+        addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
+        if (res.ok) window.jarvis.speak(res.message);
+        return true;
+      }
     }
 
     // Skipping is something only the TV does, so once a TV is set up these go to it.

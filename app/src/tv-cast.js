@@ -477,6 +477,16 @@ async function nowPlaying() {
   return best;
 }
 
+// Is the TV actually playing something right now (any app)? Used so a bare
+// "pause" or "skip the ad" can go to the TV without naming it, and only when the
+// TV is the thing playing.
+async function activePlayback() {
+  const a = await nowPlaying();
+  if (!a || !a.playing) return { playing: false, app: null };
+  const playing = await reallyPlaying(a.pkg);
+  return { playing, app: playing ? a.pkg : null, title: a.title || '' };
+}
+
 let lastPlayed = null;   // { app: 'youtube' | 'netflix', videoId?, netflixId?, title, at }
 
 const fmtTime = (s) => {
@@ -1167,6 +1177,9 @@ const REMOTE = {
   previous:    { roku: 'Rev',        android: 88,  say: 'Gone back one.' },
   power_off:   { roku: 'PowerOff',   android: 223, say: 'Turning the TV off.' }, // sleep, not the power toggle, so it can't turn it on by mistake
   power_on:    { roku: 'PowerOn',    android: 224, say: 'Turning the TV on.' },
+  // YouTube's "Skip Ad" button is focused while a skippable ad runs, so Select
+  // presses it. Nothing else is on screen to press by mistake during an ad.
+  skip_ad:     { roku: 'Select',     android: 23,  say: 'Pressed skip.' },
 };
 
 // An exact volume over ADB. The TV's own scale varies (0–15 on Fire TV, 0–100 on
@@ -1217,7 +1230,7 @@ async function remote(key, level) {
 function localVideos() { return (fileIndex && fileIndex.files) || []; }
 
 module.exports = {
-  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch, macFor, wakeAndWait,
+  discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch, macFor, wakeAndWait, activePlayback,
   castYouTube, castMedia, openUrl,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({
