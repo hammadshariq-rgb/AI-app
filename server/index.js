@@ -986,7 +986,8 @@ app.get('/connect/tiktok', (req, res) => {
     redirect_uri: `${PUBLIC_URL}/connect/tiktok/callback`,
     scope: 'user.info.basic,video.list,video.upload,video.publish',
     response_type: 'code',
-    state: 'jarvis',
+    // This connection's own secret, like the other providers — not a fixed word.
+    state: String(req.query.state || ''),
   });
   res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
 });
@@ -1014,6 +1015,27 @@ app.get('/connect/tiktok/callback', async (req, res) => {
   } catch (err) {
     res.send(`<p>TikTok connection failed: ${err.message}</p>`);
   }
+});
+
+// TikTok's access token lasts a day, so the app refreshes here rather than
+// carrying the client secret, which has no business being in a distributed app.
+app.post('/connect/tiktok/refresh', async (req, res) => {
+  const { refresh_token } = req.body;
+  if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
+  if (!process.env.TIKTOK_CLIENT_KEY) return res.status(500).json({ error: 'TikTok not configured on the server' });
+  try {
+    const r = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_key: process.env.TIKTOK_CLIENT_KEY,
+        client_secret: process.env.TIKTOK_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token,
+      }),
+    });
+    res.json(await r.json());
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/connect/tiktok/poll', (req, res) => {

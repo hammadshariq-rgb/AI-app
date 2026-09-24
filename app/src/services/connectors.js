@@ -451,22 +451,17 @@ async function getInstagramStats() {
 
 function saveTikTokTokens(tokens) { saveTokens('tiktok', tokens); }
 
+// Through the licence server, which holds the client secret. Reading it from the
+// environment here only ever worked on a developer's own machine, so TikTok went
+// dead for every customer a day after they connected it.
 async function refreshTikTokToken() {
   const tokens = loadTokens('tiktok');
   if (!tokens?.refresh_token) return null;
   try {
-    const clientKey    = process.env.TIKTOK_CLIENT_KEY;
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-    if (!clientKey || !clientSecret) return null;
-    const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+    const res = await fetch(`${SERVER}/connect/tiktok/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_key: clientKey,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refresh_token,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
     });
     const data = await res.json();
     if (data.access_token) {
