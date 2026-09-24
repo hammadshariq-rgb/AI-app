@@ -795,25 +795,63 @@ function sh(cmd, ms = 10000) { return adb.shellWithAuth(connectedDev.host, cmd, 
 function press(code, times = 1) { return times > 0 ? sh(`input keyevent ${Array(times).fill(code).join(' ')}`) : Promise.resolve(); }
 
 // This app's own media session only: its block runs from its "package=" line to
-// the next session's, and it has to be active. Reading past the block picked up
-// another app's (or a leftover) "playing" — Netflix was reported playing while it
-// sat on "Who's watching?", so the profile was never chosen.
-async function playbackState(pkg) {
+// the next session's. Reading past the block picked up another app's (or a
+// leftover) "playing".
+async function playbackInfo(pkg) {
   const out = await sh('dumpsys media_session', 8000).catch(() => '');
-  for (let i = out.indexOf(`package=${pkg}`); i >= 0; i = out.indexOf(`package=${pkg}`, i + 1)) {
+  for (let i = out.indexOf(`package=${pkg}`); i >= 0; i = out.indexOf(`package=${pkg}`, i + 8)) {
     const next = out.indexOf('package=', i + 8);
     const block = out.slice(i, next < 0 ? i + 1500 : next);
-    const m = block.match(/state=PlaybackState \{state=(\d+)/);
-    if (!m || /active=false/.test(block)) continue;   // a leftover session says nothing about now
-    return Number(m[1]);                   // 3 = playing, 2 = paused
+    const m = block.match(/state=PlaybackState \{state=(\d+), position=(-?\d+)/);
+    if (!m) continue;
+    return { active: !/active=false/.test(block), state: Number(m[1]), position: Number(m[2]) };
   }
   return null;
 }
+
+async function playbackState(pkg) {
+  const info = await playbackInfo(pkg);
+  return info && info.active ? info.state : null;    // 3 = playing, 2 = paused
+}
+
+// Netflix reports "playing" with the position stuck at 0 while it sits on
+// "Who's watching?" — that's the home screen's preview, not the film. The only
+// honest test is whether the position actually moves.
+async function reallyPlaying(pkg) {
+  const a = await playbackInfo(pkg);
+  if (!a || !a.active || a.state !== 3) return false;
+  await sleep(2500);
+  const b = await playbackInfo(pkg);
+  return !!(b && b.active && b.state === 3 && b.position > a.position);
+}
+
+// The app has drawn something: Netflix publishes its session as it finishes
+// starting, about 20 seconds in on a TV, which is when its picker appears.
+async function uiReady(pkg) {
+  const info = await playbackInfo(pkg);
+  return !!(info && info.active);
+}
 async function waitUntilPlaying(pkg, ms) {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(800)) {
-    if ((await playbackState(pkg)) === 3) return true;
+    if (await reallyPlaying(pkg)) return true;
   }
   return false;
+}
+
+// After a fresh start with a title: does it play by itself, or is it waiting on
+// "Who's watching?" The picker takes about 20 seconds to appear on a TV, so this
+// watches for either outcome instead of guessing a delay.
+async function waitForPlaybackOrPicker(pkg, ms = 40000) {
+  const end = Date.now() + ms;
+  let uiSeenAt = 0;
+  while (Date.now() < end) {
+    if (await reallyPlaying(pkg)) return 'playing';
+    if (!uiSeenAt && await uiReady(pkg)) uiSeenAt = Date.now();
+    // The picker needs a moment to be able to take key presses once it's drawn.
+    if (uiSeenAt && Date.now() - uiSeenAt > 2500) return 'picker';
+    await sleep(1200);
+  }
+  return 'timeout';
 }
 
 // Read a "Who's watching?" screen: names in order and which is highlighted.
@@ -840,15 +878,12 @@ function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '
 //   profile: { name?: "hammad", position?: 2 }. With no profile, nothing is picked
 //   for the user: { needsProfile: true } comes back and Callisto asks who's watching.
 async function passProfileGate(app, pkg, profile) {
-  // Netflix's own start takes 5–10 s; if its watch link plays by itself there's no picker.
-  await sleep(app === 'netflix' ? 5000 : 5500);
-  if (app === 'netflix') {
-    for (const end = Date.now() + 4500; Date.now() < end; await sleep(1500)) {
-      if ((await playbackState(pkg)) === 3) return { note: null };
-    }
-  } else if ((await playbackState(pkg)) === 3) {
-    return { note: null };
-  }
+  // Wait for one of the two real outcomes rather than a fixed delay: the film
+  // plays by itself, or "Who's watching?" is up. The picker appears about 20
+  // seconds into a TV's cold start, and pressing keys before that hit nothing —
+  // which is how Netflix ended up sitting on the picker doing nothing.
+  const outcome = await waitForPlaybackOrPicker(pkg, app === 'netflix' ? 45000 : 40000);
+  if (outcome === 'playing') return { note: null };
 
   // Prime can be seen, so only act if "Who's watching?" is really on screen —
   // otherwise OK would type into the search box. Netflix can't be seen; a watch
@@ -898,6 +933,15 @@ async function chooseProfile(app, profile, seen = null) {
   }
   await press(KEY.OK);
   return { note: null };
+}
+
+// Netflix is open on the right profile, but its TV app decides for itself whether
+// to honour a title — so say what's true rather than claiming it's playing.
+function netflixOpenedMessage(query, profile) {
+  const who = profile?.name ? ` on ${profile.name}'s profile` : '';
+  return query
+    ? `Netflix is open${who}. If it hasn't started "${query}", press play on it with your remote — Netflix's TV app doesn't always let me open a title directly.`
+    : `Netflix is open${who}.`;
 }
 
 // "Who's watching?" is on the TV and Callisto needs the user to say who. The app
@@ -1014,16 +1058,17 @@ async function run(cmd) {
     }
     const pkg = pkgFor('netflix');
     lastPlayed = { app: 'netflix', netflixId: id, title: query, at: Date.now() };
-    // A fresh start is what makes Netflix honour the link; a running Netflix ignores it.
+    // Ask for the title on a fresh start — the only moment Netflix reads it.
+    // Measured on a TCL Google TV: this build ignores the request in every form
+    // (watch link, title page, nflx:, the partner deeplink URL and the DIAL
+    // payload), before and after its profile screen, and lands on Netflix's home.
+    // The request costs nothing on TVs that do honour it, and the profile is
+    // still handled either way, so the user is one button from the film.
     await sh(`am force-stop ${pkg}`);
     await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${id}' ${pkg}`);
     const gate = await passProfileGate('netflix', pkg, profile);
     if (gate.needsProfile || gate.needsPosition) return askForProfile('netflix', query, profile, gate);
-    const playing = await waitUntilPlaying(pkg, 15000);
-    return {
-      ok: true, partial: !playing,
-      message: playing ? `Playing "${query}" on Netflix.` : `Netflix is opening "${query}" on your TV.`,
-    };
+    return { ok: true, partial: true, message: netflixOpenedMessage(query, profile) };
   }
 
   // The user answered "who's watching?" — pick that profile on the screen now.
@@ -1035,20 +1080,19 @@ async function run(cmd) {
     if (gate.needsProfile || gate.needsPosition) return askForProfile(app, query, profile, gate);
     const label = app === 'prime' ? 'Prime Video' : 'Netflix';
     const who = profile.name || `profile ${profile.position}`;
-    // Picking a profile takes as long as the user takes to answer, and by then the
-    // app has forgotten what it was asked to play — it lands on its home screen.
-    // So always ask for the title again. "Something is playing" can't be trusted
-    // here: Netflix's home screen auto-plays preview trailers, which is how a film
-    // that never started got reported as playing.
+    const title = lastPlayed && Date.now() - lastPlayed.at < 15 * 60 * 1000 && lastPlayed.app === app ? lastPlayed : null;
+    if (app === 'netflix') {
+      // Netflix's TV app drops the title when its profile screen appears, and
+      // ignores a fresh request while it's running (both measured on a TCL Google
+      // TV). The profile is chosen, which is the part that does work.
+      await sleep(3000);
+      return { ok: true, chosen: true, message: netflixOpenedMessage(title?.title || '', profile) };
+    }
+    // Prime: ask for the search again now the profile is in.
     let playing = false;
-    const title = lastPlayed && Date.now() - lastPlayed.at < 15 * 60 * 1000 ? lastPlayed : null;
-    if (title && title.app === app) {
-      await sleep(3000);                       // let the profile's home screen settle
-      if (app === 'netflix' && title.netflixId) {
-        await sh(`am start -a android.intent.action.VIEW -d 'https://www.netflix.com/watch/${title.netflixId}' ${pkg}`);
-      } else if (app === 'prime' && title.title) {
-        await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(title.title)}' ${pkg}`);
-      }
+    if (title && title.title) {
+      await sleep(3000);
+      await sh(`am start -a android.intent.action.VIEW -d 'https://app.primevideo.com/search?phrase=${encodeURIComponent(title.title)}' ${pkg}`);
       playing = await waitUntilPlaying(pkg, 20000);
     } else {
       playing = await waitUntilPlaying(pkg, 7000);
@@ -1057,7 +1101,7 @@ async function run(cmd) {
     return {
       ok: true, chosen: true,
       message: playing ? `Playing ${what || ''} on ${label} as ${who}.`.replace('  ', ' ')
-        : what ? `Opened ${what} on ${label} as ${who} — press play on the remote if it's waiting.`
+        : what ? `${what} is up in ${label}'s search as ${who} — pick it with your remote.`
           : `Chose ${who} on ${label}.`,
     };
   }
