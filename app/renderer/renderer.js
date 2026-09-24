@@ -8665,17 +8665,26 @@ function convoBanner(on) {
   document.body.appendChild(el);
 }
 
+// Each turn behaves like a Ctrl+Shift+C question: the "Listening…" pill while
+// the mic is live, and the answer on the card over whatever app or website the
+// person is in — they're rarely looking at Callisto while talking to it.
+function convoListen() {
+  convoVadReset();
+  startRecording().then(() => window.jarvis.hudMicState?.(isRecording, true));
+}
+
 function convoStart() {
   window._convoMode = true;
   convoBanner(true);
   addMessage('assistant', `🎙 Conversation mode is on — talk to me normally, I'll answer each time you pause. Say "stop listening", or press ${keys('Win+Alt+C')} again, to end it.`);
-  if (!isRecording) { convoVadReset(); startRecording(); }
+  if (!isRecording) convoListen();
 }
 
 function convoStop(spoken) {
   window._convoMode = false;
   _vad = null;
   convoBanner(false);
+  window.jarvis.hudMicState?.(false, true);
   if (isRecording) { window._discardRecording = true; stopRecording(); }
   addMessage('assistant', '🎙 Conversation mode off.');
   if (spoken) window.jarvis.speak('Okay, I\'ve stopped listening.');
@@ -8686,8 +8695,7 @@ function convoStop(spoken) {
 setInterval(() => {
   if (!window._convoMode || isRecording || _convoBusy || audioPlaying) return;
   if (document.getElementById('_thinkingRow')) return;
-  convoVadReset();
-  startRecording();
+  convoListen();
 }, 700);
 
 if (window.jarvis.onConvoToggle) {
@@ -9003,6 +9011,11 @@ async function stopRecording() {
         : false;
       if (!handled) {
         _convoBusy = true;
+        // Answer on the card over their app, like a Ctrl+Shift+C question does.
+        if (window._convoMode) {
+          window._hudVoiceActive = true;
+          window.jarvis.hudMicState?.(false, true);
+        }
         try { await sendToJarvis(trimmed); } finally { _convoBusy = false; }
       } else setState('idle');
     } else if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) {

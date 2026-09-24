@@ -41,7 +41,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Forward a quick-launch result to the HUD overlay (Ctrl+Shift+C mode)
   platform: process.platform,   // 'darwin' on a Mac — shortcuts show ⌘ Cmd there
   hudForward: (text, card) => ipcRenderer.invoke('jarvis:hudForward', { text, card }),
-  hudMicState: (on) => ipcRenderer.send('hud:mic-state', { on: !!on }),
+  // convo: this turn is part of a running conversation, so its answer belongs on
+  // the card over the user's app, the same as a Ctrl+Shift+C question.
+  hudMicState: (on, convo) => ipcRenderer.send('hud:mic-state', { on: !!on, convo: !!convo }),
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
   placesNearby: (query, lat, lng, city) => ipcRenderer.invoke('places:nearby', { query, lat, lng, city }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),

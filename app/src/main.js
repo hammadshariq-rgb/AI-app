@@ -694,8 +694,12 @@ app.whenReady().then(async () => {
     hudVoiceMode = true;   // the answer to what's said goes to the small card
     overlayWindow.webContents.send('jarvis:hud-voice-trigger');
   });
-  ipcMain.on('hud:mic-state', (_e, { on }) => {
+  ipcMain.on('hud:mic-state', (_e, { on, convo }) => {
     hudListening = !!on;
+    // A conversation turn answers on the card over whatever app they're in, just
+    // like Ctrl+Shift+C. (The in-app mic button doesn't set this, so its answers
+    // stay in the app as before.)
+    if (on && convo) hudVoiceMode = true;
     sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {});
   });
 
