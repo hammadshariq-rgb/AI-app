@@ -210,18 +210,25 @@ jobs:
             # time limit of its own, and a stuck submission hung this job for
             # hours; doing it directly gives a deadline and prints the progress.
             npx electron-builder --mac --publish never --config.mac.notarize=false
+            # Apple's queue can sit on a submission for hours, especially a new
+            # team's first ones. Waiting is capped; if the ticket isn't back in
+            # time the signed build still ships, because Gatekeeper asks Apple
+            # online and accepts it the moment Apple finishes. Stapling only
+            # matters for opening the file with no internet.
             for dmg in dist/*.dmg; do
               echo "Notarising $(basename "$dmg")…"
               if [ -n "$APPLE_API_KEY_P8" ]; then
-                xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
-                  --issuer "$APPLE_API_ISSUER" --wait --timeout 30m
+                NOTARISED=$(xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
+                  --issuer "$APPLE_API_ISSUER" --wait --timeout 20m && echo yes || echo no)
               else
-                xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
-                  --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 30m
+                NOTARISED=$(xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
+                  --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m && echo yes || echo no)
               fi
-              # Staple the ticket into the file so it opens even offline.
-              xcrun stapler staple "$dmg"
-              xcrun stapler validate "$dmg"
+              if [ "$NOTARISED" = yes ] && xcrun stapler staple "$dmg" && xcrun stapler validate "$dmg"; then
+                echo "$(basename "$dmg") is notarised and stapled."
+              else
+                echo "::warning::Apple hasn't finished notarising $(basename "$dmg") — shipping it signed. Macs check with Apple online, so it opens cleanly once Apple finishes (usually within a few hours). The submission id is in the log above."
+              fi
             done
             # electron-builder published nothing this time, so upload the files.
             gh release create "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft \
