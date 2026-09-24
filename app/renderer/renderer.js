@@ -9,6 +9,7 @@ const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
 function keys(combo) {
   if (!IS_MAC) return combo;
   if (combo === 'Ctrl+Space') return 'Control+Space';
+  if (combo === 'Win+Alt+C') return 'Ctrl+Option+C';   // conversation mode
   return combo.replace(/\bCtrl\+/g, 'Cmd+');
 }
 window.keys = keys;
@@ -8603,6 +8604,96 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   }
 });
 
+// ===================== CONVERSATION MODE =====================
+// Win+Alt+C (Ctrl+Option+C on a Mac) starts a running conversation: Callisto
+// listens, answers as soon as the person stops speaking, then listens again,
+// until it's switched off. Ctrl+Shift+C still works as the one-shot it always was.
+window._convoMode = false;
+let _convoBusy = false;     // a question is with the AI right now
+let _vad = null;            // when the person started, how loud the room is, when they last spoke
+
+const CONVO_SILENCE_MS = 1100;   // quiet this long after speech = they've finished
+const CONVO_MIN_MS     = 900;    // never cut in before this
+const CONVO_IDLE_MS    = 15000;  // nothing said: start the listening window again
+
+function convoVadReset() {
+  _vad = { startedAt: Date.now(), samples: [], floor: null, heard: false, lastLoud: 0 };
+}
+
+// Called for every audio buffer while recording in conversation mode.
+function convoVad(buf) {
+  if (!_vad) convoVadReset();
+  let sum = 0, n = 0;
+  for (let i = 0; i < buf.length; i += 4) { sum += buf[i] * buf[i]; n++; }
+  const rms = Math.sqrt(sum / Math.max(1, n));
+  const now = Date.now();
+
+  // Learn the room first, so a noisy fan doesn't read as speech.
+  if (_vad.floor === null) {
+    _vad.samples.push(rms);
+    if (now - _vad.startedAt > 500) {
+      const avg = _vad.samples.reduce((a, b) => a + b, 0) / _vad.samples.length;
+      _vad.floor = Math.max(0.008, avg * 2.5);
+    }
+    return;
+  }
+  if (rms > _vad.floor * 1.8) { _vad.heard = true; _vad.lastLoud = now; return; }
+  if (_vad.heard && now - _vad.lastLoud > CONVO_SILENCE_MS && now - _vad.startedAt > CONVO_MIN_MS) {
+    _vad = null;
+    stopRecording();            // sends what was just said
+    return;
+  }
+  if (!_vad.heard && now - _vad.startedAt > CONVO_IDLE_MS) convoVadReset();
+}
+
+function convoBanner(on) {
+  let el = document.getElementById('convoBanner');
+  if (!on) { el?.remove(); return; }
+  if (el) return;
+  el = document.createElement('div');
+  el.id = 'convoBanner';
+  el.innerHTML = `<span class="cb-dot"></span> Conversation mode — just talk. ${keys('Win+Alt+C')} to stop.`;
+  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:99998;'
+    + 'display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:999px;'
+    + 'background:rgba(10,14,35,0.92);border:1px solid rgba(0,200,255,0.35);backdrop-filter:blur(14px);'
+    + 'font-size:12.5px;color:#c8e4ff;letter-spacing:0.3px;box-shadow:0 8px 30px rgba(0,0,0,0.45)';
+  const dot = document.createElement('style');
+  dot.textContent = '#convoBanner .cb-dot{width:8px;height:8px;border-radius:50%;background:#00c8ff;'
+    + 'box-shadow:0 0 10px #00c8ff;animation:cbPulse 1.4s ease-in-out infinite}'
+    + '@keyframes cbPulse{0%,100%{opacity:1}50%{opacity:0.25}}';
+  el.appendChild(dot);
+  document.body.appendChild(el);
+}
+
+function convoStart() {
+  window._convoMode = true;
+  convoBanner(true);
+  addMessage('assistant', `🎙 Conversation mode is on — talk to me normally, I'll answer each time you pause. Say "stop listening", or press ${keys('Win+Alt+C')} again, to end it.`);
+  if (!isRecording) { convoVadReset(); startRecording(); }
+}
+
+function convoStop(spoken) {
+  window._convoMode = false;
+  _vad = null;
+  convoBanner(false);
+  if (isRecording) { window._discardRecording = true; stopRecording(); }
+  addMessage('assistant', '🎙 Conversation mode off.');
+  if (spoken) window.jarvis.speak('Okay, I\'ve stopped listening.');
+}
+
+// Between turns: pick the listening back up once Callisto has finished speaking
+// and the answer is in. Mic stays off while it talks, so it can't hear itself.
+setInterval(() => {
+  if (!window._convoMode || isRecording || _convoBusy || audioPlaying) return;
+  if (document.getElementById('_thinkingRow')) return;
+  convoVadReset();
+  startRecording();
+}, 700);
+
+if (window.jarvis.onConvoToggle) {
+  window.jarvis.onConvoToggle(() => (window._convoMode ? convoStop(false) : convoStart()));
+}
+
 // ===================== RECORDING =====================
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -8811,7 +8902,10 @@ async function startRecording() {
     processorNode = audioContext.createScriptProcessor(4096, 1, 1);
     processorNode.onaudioprocess = (e) => {
       if (!isRecording) return;
-      pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      const buf = e.inputBuffer.getChannelData(0);
+      pcmChunks.push(new Float32Array(buf));
+      // In conversation mode the pause in speech is what ends the turn.
+      if (window._convoMode) convoVad(buf);
     };
     sourceNode.connect(analyserNode);
     sourceNode.connect(processorNode);
@@ -8867,8 +8961,10 @@ async function stopRecording() {
     if (peak < 0.0001) {
       // Mid-edit, keep the editor open and listen again instead of dumping the user out.
       if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) { setState('idle'); return; }
-      addMessage('assistant', 'I didn\'t catch that — please check your microphone and try again.');
-      _maybeForwardToHud('I didn\'t catch that. Check your microphone and try again.', null);
+      if (!window._convoMode) {
+        addMessage('assistant', 'I didn\'t catch that — please check your microphone and try again.');
+        _maybeForwardToHud('I didn\'t catch that. Check your microphone and try again.', null);
+      }
       setState('idle');
       return;
     }
@@ -8895,12 +8991,20 @@ async function stopRecording() {
       || leakHits >= 3;
 
     if (!isGarbage) {
+      // "Stop listening" ends the conversation rather than being answered.
+      if (window._convoMode && /^(?:ok(?:ay)?[,\s]+)?(?:stop listening|stop the conversation|end the conversation|that'?s all|that'?s it|thanks?,? that'?s all|goodbye|bye for now)\b/i.test(trimmed)) {
+        convoStop(true);
+        setState('idle');
+        return;
+      }
       // Magic Edit mode: intercept transcript and route to editor
       const handled = typeof window._magicEditHandleTranscript === 'function'
         ? await window._magicEditHandleTranscript(trimmed)
         : false;
-      if (!handled) await sendToJarvis(trimmed);
-      else setState('idle');
+      if (!handled) {
+        _convoBusy = true;
+        try { await sendToJarvis(trimmed); } finally { _convoBusy = false; }
+      } else setState('idle');
     } else if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) {
       setState('idle');
     } else {

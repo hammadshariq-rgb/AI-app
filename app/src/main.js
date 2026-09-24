@@ -699,6 +699,17 @@ app.whenReady().then(async () => {
     sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {});
   });
 
+  // Win+Alt+C (Ctrl+Option+C on a Mac) — conversation mode: Callisto listens,
+  // answers when the person stops speaking, then listens again, until it's
+  // switched off. Windows+Alt on its own can't be registered by any app: the OS
+  // only hands over a combination that includes a real key.
+  const convoAccel = process.platform === 'darwin' ? 'Control+Alt+C' : 'Super+Alt+C';
+  const convoRegistered = globalShortcut.register(convoAccel, () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
+    overlayWindow.webContents.send('jarvis:convo-toggle');
+  });
+  if (!convoRegistered) console.warn(`[SHORTCUT] ${convoAccel} is taken by another app — conversation mode won't toggle.`);
+
   // Ctrl+Shift+G — Toggle gesture control
   globalShortcut.register('CommandOrControl+Shift+G', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;

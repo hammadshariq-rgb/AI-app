@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onActionFired: (cb) => ipcRenderer.on('jarvis:action-fired', (_e, d) => cb(d)),
   onVoiceTrigger: (cb) => ipcRenderer.on('jarvis:voice-trigger', () => cb()),
   onHudVoiceTrigger: (cb) => ipcRenderer.on('jarvis:hud-voice-trigger', () => cb()),
+  onConvoToggle: (cb) => ipcRenderer.on('jarvis:convo-toggle', () => cb()),
   onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
   onSentenceAudio: (cb) => ipcRenderer.on('jarvis:sentence-audio', (_e, d) => cb(d)),
   onSentenceText: (cb) => ipcRenderer.on('jarvis:sentence-text', (_e, d) => cb(d)),
