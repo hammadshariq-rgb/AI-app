@@ -984,7 +984,9 @@ app.get('/connect/tiktok', (req, res) => {
   const params = new URLSearchParams({
     client_key: clientKey,
     redirect_uri: `${PUBLIC_URL}/connect/tiktok/callback`,
-    scope: 'user.info.basic,video.list,video.upload,video.publish',
+    // user.info.stats is what returns follower, like and video counts — the
+    // dashboard showed them while the connection never asked for them.
+    scope: 'user.info.basic,user.info.stats,video.list,video.upload,video.publish',
     response_type: 'code',
     // This connection's own secret, like the other providers — not a fixed word.
     state: String(req.query.state || ''),
