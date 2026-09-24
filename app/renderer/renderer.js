@@ -2040,7 +2040,11 @@ window._checkMarketsOverlay = async function(text) {
     }
 
     // A file stored on the TV: "play X from my usb / downloads / media player"
-    const fm = t.match(/\bplay\s+(.+?)\s+(?:from|off|on)\s+(?:my\s+|the\s+)?(?:tv'?s\s+)?(?:usb|flash\s+drive|hard\s+drive|drive|storage|downloads?|media(?:\s+(?:player|center|centre))?|files|memory)\b/i);
+    // Saying USB or media player means the TV's own storage — never YouTube.
+    // The spellings cover what the mic hears: "u s b", "usb drive", "pen drive".
+    const STORAGE = '(?:usb(?:\\s+(?:drive|stick))?|u\\s?s\\s?b|pen\\s?drive|flash(?:\\s+drive)?|thumb\\s?drive|hard\\s+(?:drive|disk)|external\\s+(?:drive|disk)|drive|storage|downloads?|media(?:\\s+(?:player|centre|center))?|files|memory|gallery)';
+    const fm = t.match(new RegExp(`\\b(?:play|open|watch|put\\s+on|start)\\s+(.+?)\\s+(?:from|off|on|in)\\s+(?:my\\s+|the\\s+)?(?:tv'?s\\s+)?${STORAGE}\\b`, 'i'))
+      || t.match(new RegExp(`\\b(?:from|off|on|in)\\s+(?:my\\s+|the\\s+)?(?:tv'?s\\s+)?${STORAGE}\\s+(?:play|open|watch|put\\s+on|start)\\s+(.+)$`, 'i'));
     if (fm && tidy(fm[1])) return { action: 'play_file', query: tidy(fm[1]) };
 
     // Opening Netflix/Prime ("open netflix on hammad's profile"): it lands on
@@ -4970,6 +4974,8 @@ function normaliseCommand(text) {
     .replace(/\bwhats\s?app\b/gi, 'WhatsApp')
     .replace(/\binsta\s?gram\b/gi, 'Instagram')
     .replace(/\bprime\s+vid(?:eo|ioe|oe)\b/gi, 'Prime Video')
+    // The mic drops letters from "USB" — "on my ub", "from my u s b".
+    .replace(/\b(on|from|in|off)\s+(my\s+|the\s+)?(?:u\s?s\s?b|ub|usp|yusb|usb'?s)\b/gi, (m, p, own) => `${p} ${own || ''}USB`.replace(/\s+/g, ' '))
     .replace(/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:t\.?v\.?|tele|telly)(?=[\s.!?,]|$)/gi, (m) => m.replace(/t\.?v\.?|tele|telly/i, 'TV'));
 }
 
