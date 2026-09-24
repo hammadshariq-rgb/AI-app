@@ -989,9 +989,13 @@ app.get('/connect/tiktok', (req, res) => {
     // video.list belongs to the Display API, which TikTok doesn't grant to every
     // app; asking for a scope the app doesn't have makes TikTok refuse the whole
     // sign-in, so it's added through TIKTOK_EXTRA_SCOPES once that's approved.
-    scope: ['user.info.basic', 'user.info.stats', 'video.upload', 'video.publish']
-      .concat(String(process.env.TIKTOK_EXTRA_SCOPES || '').split(',').map((s) => s.trim()).filter(Boolean))
-      .join(','),
+    // TIKTOK_SCOPES replaces the list outright — TikTok refuses the whole
+    // sign-in over one scope the app doesn't hold, and which scopes an app
+    // holds differs between sandbox and production.
+    scope: String(process.env.TIKTOK_SCOPES || '').trim()
+      || ['user.info.basic', 'user.info.stats', 'video.upload', 'video.publish']
+        .concat(String(process.env.TIKTOK_EXTRA_SCOPES || '').split(',').map((s) => s.trim()).filter(Boolean))
+        .join(','),
     response_type: 'code',
     // This connection's own secret, like the other providers — not a fixed word.
     state: String(req.query.state || ''),
