@@ -497,13 +497,13 @@ async function getTikTokStats() {
     const user = userData.data?.user;
     if (!user) return null;
 
-    // Recent videos
-    const videoRes = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,create_time', {
+    // Recent videos need the Display API's video.list, which TikTok grants
+    // separately — without it the counts above still show.
+    const videoData = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,create_time', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ max_count: 5 }),
-    });
-    const videoData = await videoRes.json();
+    }).then((r) => r.json()).catch(() => ({}));
 
     return {
       username: user.display_name,
