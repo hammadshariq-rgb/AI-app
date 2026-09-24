@@ -3125,83 +3125,6 @@ async function startMicrosoftOAuthFlow() {
   });
 }
 
-async function startTikTokOAuthFlow() {
-  const http   = require('http');
-  const crypto = require('crypto');
-  const clientKey    = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  if (!clientKey || !clientSecret) {
-    console.error('[OAuth] TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET not set in .env');
-    return false;
-  }
-  // video.upload/publish let customers post their own videos
-  const SCOPE = 'user.info.basic,video.list,user.info.stats,video.upload,video.publish';
-  const codeVerifier  = crypto.randomBytes(32).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-  const state = crypto.randomBytes(8).toString('hex');
-
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      const redirectUri = `http://127.0.0.1:${port}`;
-
-      server.once('request', async (req, res) => {
-        const reqUrl = new URL(req.url, `http://127.0.0.1:${port}`);
-        const code  = reqUrl.searchParams.get('code');
-        const error = reqUrl.searchParams.get('error');
-
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(_oauthPage('TikTok', error));
-        server.close();
-
-        if (!code) { resolve(false); return; }
-
-        try {
-          const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              client_key: clientKey,
-              client_secret: clientSecret,
-              code,
-              grant_type: 'authorization_code',
-              redirect_uri: redirectUri,
-              code_verifier: codeVerifier,
-            }),
-          });
-          const tokens = await tokenRes.json();
-          if (!tokens.access_token) throw new Error(tokens.error_description || tokens.message || 'No access_token');
-
-          connectors.saveTikTokTokens({
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_in: tokens.expires_in || 86400,
-          });
-
-          if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'tiktok' });
-          resolve(true);
-        } catch (err) {
-          console.error('[OAuth] TikTok token exchange failed:', err.message);
-          resolve(false);
-        }
-      });
-
-      const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
-      authUrl.searchParams.set('client_key', clientKey);
-      authUrl.searchParams.set('scope', SCOPE);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('code_challenge', codeChallenge);
-      authUrl.searchParams.set('code_challenge_method', 'S256');
-      commands.openInChrome(authUrl.toString());
-    });
-
-    setTimeout(() => { server.close(); resolve(false); }, 5 * 60 * 1000);
-  });
-}
-
 // ── Connectors IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('connector:status', () => connectors.getConnectorStatus());
 ipcMain.handle('connector:connect', async (_e, service) => {
@@ -3216,13 +3139,10 @@ ipcMain.handle('connector:connect', async (_e, service) => {
     startMicrosoftOAuthFlow(); // non-blocking — connector:connected fires when done
     return true;
   }
-  // Instagram goes through the server flow below: Meta's app secret must stay
-  // on the server, and a customer build never has it.
-  // TikTok: direct TikTok OAuth with PKCE (no server needed)
-  if (service === 'tiktok') {
-    startTikTokOAuthFlow(); // non-blocking
-    return true;
-  }
+  // Instagram and TikTok go through the server flow below: their app secrets
+  // must stay on the server, and a customer build never has them. TikTok used to
+  // sign in from here, which meant the button did nothing at all for anyone
+  // without the keys in their environment — including every customer.
   // Other services (Spotify, etc.) still use the server flow
   // A one-off secret ties this connection to this app: the server only hands
   // the tokens back to a poll that presents it.
