@@ -992,8 +992,13 @@ app.get('/connect/tiktok', (req, res) => {
     // TIKTOK_SCOPES replaces the list outright — TikTok refuses the whole
     // sign-in over one scope the app doesn't hold, and which scopes an app
     // holds differs between sandbox and production.
+    // video.publish (posting straight to the profile) is withheld until TikTok
+    // audits an app, and asking for a scope the app lacks makes TikTok refuse the
+    // whole sign-in — so it isn't requested. Uploads land in the user's drafts
+    // meanwhile, which publishing.js already falls back to. After the audit, add
+    // it with TIKTOK_SCOPES.
     scope: String(process.env.TIKTOK_SCOPES || '').trim()
-      || ['user.info.basic', 'user.info.stats', 'video.upload', 'video.publish']
+      || ['user.info.basic', 'user.info.stats', 'video.list', 'video.upload']
         .concat(String(process.env.TIKTOK_EXTRA_SCOPES || '').split(',').map((s) => s.trim()).filter(Boolean))
         .join(','),
     response_type: 'code',
