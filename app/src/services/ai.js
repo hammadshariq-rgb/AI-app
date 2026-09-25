@@ -114,7 +114,7 @@ const TOOLS = [
         properties: {
           platform: { type: 'string', description: 'Platform name: whatsapp, instagram, discord, telegram, messenger, snapchat, signal, skype, slack, twitter, x, facebook, viber, line, teams, zoom' },
           contact: { type: 'string', description: 'Phone number for WhatsApp/Viber (e.g. +12345678900), username for Instagram/Telegram/Snapchat/Twitter/Signal, or leave empty to just open the app' },
-          message: { type: 'string', description: 'WhatsApp only: the message to type into the chat, when the user dictated one ("tell Ahmed I am running late"). It is typed ready to send, never sent — leave empty otherwise.' },
+          message: { type: 'string', description: 'Leave empty. Callisto does not type messages into chats.' },
         },
         required: ['platform'],
       },
@@ -137,12 +137,12 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'send_message',
-      description: 'Send a DM on Instagram, or type a WhatsApp message ready to send. Use for "DM Sara that I am running late", "reply to Ahmed saying yes", "message Sara on Instagram". On Instagram it is SENT for real, so only call it when the user clearly dictated the message. On WhatsApp it is only typed into the chat for them to press send — never say it was sent.',
+      description: 'Send a DM on Instagram. Use for "DM Sara that I am running late", "reply to Ahmed saying yes", "message Sara on Instagram". It is SENT for real once the user approves it on the card, so only call it when they clearly dictated a message. Instagram only — Callisto cannot send on WhatsApp or anywhere else.',
       parameters: {
         type: 'object',
         properties: {
-          platform: { type: 'string', enum: ['instagram', 'whatsapp'], description: 'instagram sends for real; whatsapp only composes' },
-          to: { type: 'string', description: 'Who to send it to — the Instagram username or name as it appears in their inbox, or the phone number for WhatsApp' },
+          platform: { type: 'string', enum: ['instagram'], description: 'Instagram only' },
+          to: { type: 'string', description: 'Who to send it to — the Instagram username or name as it appears in their inbox' },
           message: { type: 'string', description: 'Exactly what to say, in the user\'s own words' },
         },
         required: ['platform', 'message'],
@@ -752,10 +752,10 @@ OPENING APPS RULES:
 - "Send a WhatsApp to X saying Y" / "text Ahmed that I'm late": call open_chat with platform whatsapp, the contact, and message set to what they dictated. It opens that chat with the words typed in, ready for them to press send. Say that it's ready to send — never claim it was sent, because Callisto does not press send.
 
 MESSAGES (reading and sending DMs):
-- Instagram DMs can be READ and SENT for real. WhatsApp can only be COMPOSED — there is no way to read a personal WhatsApp account, and Callisto never presses send.
+- Instagram DMs can be READ and SENT for real. WhatsApp cannot: Callisto can open a WhatsApp chat and place WhatsApp calls, but it cannot read or send WhatsApp messages at all.
 - "any new messages?", "check my DMs", "what did Sara say?", "read my Instagram messages" → read_messages. Pass "from" only when they named a person.
 - "DM Sara that I'm running late", "reply to Ahmed saying yes", "message Sara on Instagram" → send_message with platform instagram. It shows the user the message for approval before it goes, so say it's ready to send, not that it's sent.
-- If they ask to read WhatsApp messages ("what did Ahmed say on WhatsApp?", "check my WhatsApp"), do NOT call read_messages. Tell them plainly that WhatsApp doesn't allow any app to read a personal account's messages, and offer to open the chat instead.
+- If they ask to read OR send a WhatsApp message ("what did Ahmed say on WhatsApp?", "send Ahmed a WhatsApp"), do NOT call read_messages or send_message. Say plainly that WhatsApp does not allow any app to read or send for a personal account, then use open_chat to open that chat so they can type it themselves.
 - Instagram DMs need their Instagram account connected and only work for Professional/Creator accounts. If it isn't connected, say so and point them at Connectors.
 - Never invent the contents of a message. Only report what read_messages actually returned.
 

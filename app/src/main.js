@@ -2020,17 +2020,12 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // WhatsApp only ever types the message into the chat for the user to send.
   if (finalAction?.type === 'send_message') {
     const p = finalAction.payload || {};
-    if (p.platform === 'whatsapp') {
-      // WhatsApp can't be sent to from here, so the draft is checked in the app
-      // first and only then handed to WhatsApp with the words already typed.
-      const spoken = p.to
-        ? `Ready for ${p.to}. Check it, then press Open in WhatsApp and hit send there.`
-        : 'Ready. Check it, then press Open in WhatsApp and hit send there.';
+    if (p.platform && p.platform !== 'instagram') {
+      // Instagram is the only place Callisto can actually send. WhatsApp and
+      // the rest can only be opened, or called.
+      const spoken = 'I can\'t send messages on WhatsApp — it doesn\'t allow apps to. I can open the chat so you can type it, or call them instead.';
       _sendTTS(_e.sender, spoken);
-      return {
-        text: spoken, audio: null, hasAction: false,
-        card: { type: 'dm-send', platform: 'whatsapp', to: p.to || '', message: p.message || '' },
-      };
+      return { text: spoken, audio: null, hasAction: false };
     }
     const status = await connectors.getConnectorStatus();
     if (!status.instagram) {
@@ -3536,11 +3531,6 @@ ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
       target = found.contactId;
     }
     return connectors.sendInstagramMessage(target, text);
-  }
-  if (platform === 'whatsapp') {
-    // Typed into WhatsApp ready to send — Callisto never presses send itself.
-    await commands.openChat('whatsapp', to || '', text || '');
-    return { ok: true, composed: true };
   }
   return { ok: false, error: 'unsupported' };
 });

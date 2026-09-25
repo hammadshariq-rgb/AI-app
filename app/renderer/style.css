@@ -8990,7 +8990,3 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   color: rgba(0,200,255,0.85); }
 .dm-kind { font-size: 9.5px; font-weight: 700; letter-spacing: 1px; padding: 1px 5px; border-radius: 4px;
   background: rgba(225,48,108,0.2); color: #ff8ab5; margin-right: 3px; }
-/* WhatsApp drafts are green, so the card can't be mistaken for the Instagram one */
-.card-dm-wa .dm-head { color: rgba(120,230,160,0.9); }
-.card-dm-wa .dm-send { background: rgba(37,211,102,0.18); border-color: rgba(37,211,102,0.45); color: #7ee8a6; }
-.card-dm-wa .dm-draft:focus { border-color: rgba(37,211,102,0.5); }

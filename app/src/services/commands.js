@@ -414,12 +414,10 @@ function buildChatUrl(platform, contact, message) {
   const text = String(message || '').trim();
   switch (platform) {
     case 'whatsapp': {
-      // The message is typed into the chat, ready for the user to press send —
-      // Callisto never sends it for them.
+      // Open the chat only. Callisto does not type or send WhatsApp messages.
       const phone = contact.replace(/[^+\d]/g, '');
-      const body = text ? `&text=${encodeURIComponent(text.slice(0, 2000))}` : '';
-      if (phone.length >= 7) return `whatsapp://send?phone=${phone}${body}`;
-      return text ? `whatsapp://send?text=${encodeURIComponent(text.slice(0, 2000))}` : 'whatsapp:';
+      if (phone.length >= 7) return `whatsapp://send?phone=${phone}`;
+      return 'whatsapp:';
     }
     case 'telegram':  return contact ? `tg://resolve?domain=${contact}` : 'tg:';
     case 'discord':   return 'discord:';

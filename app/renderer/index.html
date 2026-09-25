@@ -1877,6 +1877,10 @@
                 <div class="connector-info"><div class="connector-name">INSTAGRAM</div><div class="connector-status" id="instagramStatus">Not connected</div></div>
                 <button class="connector-btn" id="instagramBtn">CONNECT</button>
               </div>
+              <!-- Personal accounts have no Instagram API at all, so say this
+                   before they connect rather than leaving them with an empty
+                   inbox and no idea why. -->
+              <p class="connector-note">Instagram needs a <strong>Professional account</strong> (Business or Creator) linked to a Facebook Page — posting, insights and DMs don't work on a personal account. You can switch for free in Instagram → Settings → Account type.</p>
               <div class="connector-row" id="facebookRow">
                 <div class="connector-icon facebook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></div>
                 <div class="connector-info"><div class="connector-name">FACEBOOK PAGE</div><div class="connector-status" id="facebookStatus">Not connected</div></div>

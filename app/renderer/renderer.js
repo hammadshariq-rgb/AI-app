@@ -4559,21 +4559,16 @@ function showCard(card) {
     }, 50);
   } else if (card.type === 'dm-send') {
     // Instagram really sends, so nothing goes out until this is approved.
-    // WhatsApp can't be sent to at all — the button hands it over with the
-    // words typed in, and the user presses send in WhatsApp itself.
-    const isWa = card.platform === 'whatsapp';
     cardContent.innerHTML = `
-      <div class="card-dm${isWa ? ' card-dm-wa' : ''}">
-        <div class="dm-head">${isWa ? 'SEND ON WHATSAPP' : 'SEND ON INSTAGRAM'}</div>
-        <div class="dm-to">To <strong>${esc(card.to || 'whoever you pick')}</strong></div>
+      <div class="card-dm">
+        <div class="dm-head">SEND ON INSTAGRAM</div>
+        <div class="dm-to">To <strong>${esc(card.to || '')}</strong></div>
         <div class="dm-draft" id="dmDraft" contenteditable="true">${esc(card.message || '')}</div>
         <div class="dm-actions">
-          <button class="dm-send" id="dmConfirm">${isWa ? 'OPEN IN WHATSAPP' : 'SEND'}</button>
+          <button class="dm-send" id="dmConfirm">SEND</button>
           <button class="dm-cancel" id="dmCancel">CANCEL</button>
         </div>
-        <div class="dm-note" id="dmSendNote">${isWa
-          ? 'Edit it here first. WhatsApp opens with this typed in — you press send there, because WhatsApp does not let any app send for you.'
-          : 'Edit the text above if you want to change it before sending.'}</div>
+        <div class="dm-note" id="dmSendNote">Edit the text above if you want to change it before sending.</div>
       </div>`;
     setTimeout(() => {
       const note = document.getElementById('dmSendNote');
@@ -4582,14 +4577,6 @@ function showCard(card) {
       btn?.addEventListener('click', async () => {
         const text = (document.getElementById('dmDraft')?.innerText || '').trim();
         if (!text) { note.textContent = '⚠ Nothing to send.'; return; }
-        if (isWa) {
-          await window.jarvis.dmSend('whatsapp', card.to, text);
-          btn.textContent = '✓ OPENED';
-          btn.disabled = true;
-          note.textContent = 'WhatsApp is open with your message typed in — press send there.';
-          addMessage('assistant', `Typed into WhatsApp${card.to ? ` for ${card.to}` : ''}: "${text}" — press send in WhatsApp.`);
-          return;
-        }
         btn.disabled = true; btn.textContent = 'SENDING…';
         const r = await window.jarvis.dmSend('instagram', card.to, text, card.contactId)
           .catch((e) => ({ ok: false, error: e.message }));
