@@ -166,6 +166,16 @@
           <svg class="mv-command-spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>
           <input id="mvCmdInput" type="text" placeholder="Tell Callisto what to change — “make it black and silver”" aria-label="Tell Callisto what to change">
           <kbd class="mv-kbd">Ctrl Shift C</kbd>
+          <button class="mv-btn mv-btn-ghost mv-btn-sm mv-hand-btn" id="mvHandBtn" type="button"
+                  title="Control the model with your hands (Ctrl Shift G)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10.5V4a1.5 1.5 0 0 1 3 0v7"/>
+              <path d="M14 11V6a1.5 1.5 0 0 1 3 0v7"/>
+              <path d="M8 12v-1a1.5 1.5 0 0 0-3 0v4a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"/>
+            </svg>
+            <span id="mvHandBtnLabel">Hands</span>
+          </button>
           <button class="mv-btn mv-btn-primary mv-btn-sm" type="submit">Apply</button>
         </form>
 
@@ -220,8 +230,32 @@
       commandHandler(text);
     });
 
+    // Hand control is the same toggle as Ctrl+Shift+G — the button just makes
+    // it findable, since nobody discovers a shortcut on their own.
+    const handBtn = root.querySelector('#mvHandBtn');
+    handBtn?.addEventListener('click', () => {
+      if (typeof window._gestureToggle === 'function') window._gestureToggle();
+      // The toggle reports back through setHandsActive; this keeps the button
+      // honest if it doesn't.
+      setTimeout(() => setHandsActive(!!window._gestureActive), 60);
+    });
+
     bindInspector();
     bindPointer();
+  }
+
+  // Reflect whether hand control is running, so the button and the two hand
+  // chips agree with what the camera is actually doing.
+  function setHandsActive(on) {
+    const btn = root?.querySelector('#mvHandBtn');
+    const label = root?.querySelector('#mvHandBtnLabel');
+    const hands = root?.querySelector('.mv-hands');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(!!on));
+      btn.classList.toggle('mv-hand-btn-on', !!on);
+    }
+    if (label) label.textContent = on ? 'Hands on' : 'Hands';
+    if (hands) hands.classList.toggle('mv-hands-live', !!on);
   }
 
   // ── Input ─────────────────────────────────────────────────────────────────
@@ -1092,6 +1126,7 @@
     isOpen: () => open,
     handInput,
     rightHand,
+    setHandsActive,
     onCommand: (fn) => { commandHandler = fn; },
     setBusy,
     info: () => ({ title: current.title, taskId: current.taskId, prompt: current.prompt, loaded: !!modelRoot }),

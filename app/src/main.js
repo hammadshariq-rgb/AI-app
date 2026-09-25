@@ -34,7 +34,48 @@ if (process.defaultApp) {
 }
 
 const store = new Store();
-const artifacts = require('./services/artifacts').createStore(store);
+// The panel refreshes itself whenever something is created, and a finished
+// creation says so out loud — the user often closes the progress window and
+// waits for it in the background.
+const artifacts = require('./services/artifacts').createStore(store, (entry) => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send('artifacts:changed', entry || null);
+  }
+  if (entry && entry.file) notifyCreationReady(entry);
+});
+
+const KIND_WORD = { model: '3D model', image: 'image', video: 'video' };
+const _notifiedArtifacts = new Set();
+
+// Fires once per creation, when its file has finished downloading.
+function notifyCreationReady(entry) {
+  if (!entry || _notifiedArtifacts.has(entry.id)) return;
+  _notifiedArtifacts.add(entry.id);
+  const what = KIND_WORD[entry.kind] || 'creation';
+  const name = String(entry.title || entry.prompt || '').slice(0, 60);
+  try {
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: `Your ${what} is ready`,
+        body: name ? `“${name}” — open Artifacts to see it.` : 'Open Artifacts to see it.',
+        silent: false,
+      });
+      // Clicking it takes them straight to the creation.
+      n.on('click', () => {
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          if (overlayWindow.isMinimized()) overlayWindow.restore();
+          overlayWindow.show();
+          overlayWindow.focus();
+          overlayWindow.webContents.send('artifacts:open', entry.id);
+        }
+      });
+      n.show();
+    }
+  } catch (_) {}
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('artifacts:ready', { id: entry.id, kind: entry.kind, title: name });
+  }
+}
 const tasks = require('./services/tasks');
 tasks.init(store);
 

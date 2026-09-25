@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   dmThread: (platform, id)               => ipcRenderer.invoke('dm:thread', { platform, id }),
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
   dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
+  // Artifacts: the panel refreshes live, and a finished creation announces itself
+  onArtifactsChanged: (cb) => ipcRenderer.on('artifacts:changed', (_e, d) => cb(d)),
+  onArtifactReady:    (cb) => ipcRenderer.on('artifacts:ready', (_e, d) => cb(d)),
+  onArtifactOpen:     (cb) => ipcRenderer.on('artifacts:open', (_e, id) => cb(id)),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),

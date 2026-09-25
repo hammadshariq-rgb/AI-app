@@ -9797,6 +9797,46 @@ micBtn.addEventListener('click', () => {
   }
   window._renderArtifacts = load;
 
+  // The panel used to refresh only when the user switched sections, so a model
+  // that finished in the background was invisible until they navigated away and
+  // back. Now every change reloads it wherever they are.
+  window.jarvis.onArtifactsChanged?.(() => { load().catch(() => {}); });
+
+  // A finished creation says so in the app too, not just the OS notification,
+  // and the toast jumps straight to it.
+  window.jarvis.onArtifactReady?.((d) => {
+    const word = { model: '3D model', image: 'image', video: 'video' }[d?.kind] || 'creation';
+    addMessage('assistant', `✨ Your ${word} is ready${d?.title ? ` — “${d.title}”` : ''}. It's in Artifacts.`);
+    artifactToast(`Your ${word} is ready`, d?.id);
+  });
+
+  window.jarvis.onArtifactOpen?.((id) => { openArtifactsAt(id); });
+
+  // Jump to Artifacts and flash the new creation so it's easy to spot.
+  async function openArtifactsAt(id) {
+    try {
+      document.querySelector('[data-section="artifacts"]')?.click();
+      await load();
+      if (!id) return;
+      const el = document.querySelector(`.art-card[data-id="${CSS.escape(id)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('art-justmade');
+        setTimeout(() => el.classList.remove('art-justmade'), 2600);
+      }
+    } catch (_) {}
+  }
+
+  function artifactToast(text, id) {
+    const t = document.createElement('div');
+    t.className = 'art-toast';
+    t.innerHTML = `<span>✨ ${esc(text)}</span><button>VIEW</button>`;
+    t.querySelector('button').addEventListener('click', () => { openArtifactsAt(id); t.remove(); });
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add('art-toast-in'), 20);
+    setTimeout(() => { t.classList.remove('art-toast-in'); setTimeout(() => t.remove(), 400); }, 9000);
+  }
+
   // ── Lightbox for images and videos ─────────────────────────────────────────
   function lightbox(a) {
     const box = document.createElement('div');

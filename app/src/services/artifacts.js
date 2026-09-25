@@ -30,7 +30,11 @@ function nextReset() {
   return weekStart() + 7 * 24 * 60 * 60 * 1000;
 }
 
-function createStore(store) {
+function createStore(store, onChange) {
+  // Called whenever the collection changes, so the Artifacts panel can refresh
+  // itself instead of only reloading when the user switches sections.
+  const changed = (entry) => { try { onChange && onChange(entry || null); } catch (_) {} };
+
   function all() { return store.get('artifacts') || []; }
   function save(list) { store.set('artifacts', list); }
 
@@ -74,6 +78,7 @@ function createStore(store) {
       file: null, thumbFile: null, createdAt: Date.now(),
     };
     save([entry, ...all()]);
+    changed(entry);
 
     (async () => {
       const file = path.join(dir(), `${id}.${EXT[kind]}`);
@@ -85,6 +90,7 @@ function createStore(store) {
           try { await download(thumbnail, tf); patch.thumbFile = tf; } catch (_) {}
         }
         save(all().map(a => (a.id === id ? { ...a, ...patch } : a)));
+        changed({ ...entry, ...patch });
       } catch (_) { /* keep the remote link as a fallback */ }
     })();
     return entry;
@@ -105,6 +111,7 @@ function createStore(store) {
     const a = list.find(x => x.id === id);
     if (a) for (const f of [a.file, a.thumbFile]) { if (f) { try { fs.unlinkSync(f); } catch (_) {} } }
     save(list.filter(x => x.id !== id));
+    changed(null);
     return true;
   }
 

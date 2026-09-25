@@ -8417,6 +8417,23 @@ body.light-mode .voice-preview-status { color: rgba(20, 30, 80, 0.55); }
   border: 1px solid var(--mv-line-soft); background: rgba(255, 255, 255, 0.03);
 }
 
+/* Hands button — the camera gesture toggle, next to the Ctrl+Shift+C chip,
+   because nobody finds a keyboard shortcut on their own. */
+.mv-hand-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.mv-hand-btn svg { width: 15px; height: 15px; }
+.mv-hand-btn-on {
+  border-color: rgba(61, 255, 150, 0.5) !important;
+  color: rgba(120, 255, 190, 0.95) !important;
+  background: rgba(61, 255, 150, 0.12) !important;
+  box-shadow: 0 0 16px rgba(61, 255, 150, 0.18);
+}
+/* The two hand chips only look live while the camera is actually reading. */
+.mv-hands { opacity: 0.4; transition: opacity 0.25s; }
+.mv-hands.mv-hands-live { opacity: 1; }
+
 .mv-hint {
   position: absolute; left: 0; right: 0; bottom: 12px;
   font-size: 10.5px; letter-spacing: 0.04em; text-align: center;
@@ -8488,6 +8505,7 @@ body.light-mode .voice-preview-status { color: rgba(20, 30, 80, 0.55); }
   .mv-inspector { left: 12px; right: 12px; width: auto; top: auto; bottom: 88px; max-height: 46%; }
   .mv-dock { left: 10px; }
   .mv-kbd, .mv-hint { display: none; }
+  .mv-hand-btn span { display: none; }
   .mv-command { width: calc(100% - 24px); bottom: 20px; }
   .mv-btn-primary span { display: none; }
 }
@@ -8999,3 +9017,28 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 }
 .connector-note strong { color: rgba(255,214,130,0.92); }
 .connector-note em { color: rgba(205,222,252,0.85); font-style: normal; font-weight: 600; }
+
+/* Artifacts: a creation that just finished, and the toast that points at it */
+.art-card.art-justmade {
+  animation: artFlash 2.4s ease-out;
+  border-color: rgba(0, 200, 255, 0.55) !important;
+}
+@keyframes artFlash {
+  0%, 100% { box-shadow: 0 0 0 rgba(0,200,255,0); }
+  15%, 55% { box-shadow: 0 0 26px rgba(0,200,255,0.4); }
+}
+.art-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 26px);
+  display: flex; align-items: center; gap: 14px; z-index: 9999;
+  padding: 11px 14px 11px 17px; border-radius: 12px;
+  background: rgba(16, 22, 38, 0.97); border: 1px solid rgba(0, 200, 255, 0.35);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  font-size: 13px; color: rgba(225, 238, 255, 0.95);
+  opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.art-toast.art-toast-in { opacity: 1; transform: translate(-50%, 0); }
+.art-toast button {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 11.5px; letter-spacing: 1.4px;
+  padding: 6px 13px; border-radius: 7px; cursor: pointer;
+  background: rgba(0, 200, 255, 0.16); border: 1px solid rgba(0, 200, 255, 0.45); color: #7fdcff;
+}

@@ -3517,6 +3517,9 @@
       function toggleGesture() {
         gestureEnabled = !gestureEnabled;
         updateEngageBtns(gestureEnabled);
+        // The 3D studio has its own Hands button; keep it in step with this.
+        window._gestureActive = gestureEnabled;
+        try { window.CallistoModelViewer?.setHandsActive?.(gestureEnabled); } catch (_) {}
         if (gestureEnabled) {
           toggleBtn.classList.add('active');
           panel.classList.remove('hidden');
