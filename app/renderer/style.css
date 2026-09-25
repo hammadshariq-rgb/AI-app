@@ -8920,3 +8920,58 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   color: rgba(180,200,240,0.75); background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 4px 9px; white-space: nowrap;
 }
+
+/* ── Direct messages (Instagram DMs) ──────────────────────────────────────── */
+.card-dm { display: flex; flex-direction: column; gap: 10px; }
+.dm-head { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; color: rgba(225,150,220,0.9); }
+.dm-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px;
+  cursor: pointer; transition: background 0.15s; }
+.dm-row:hover { background: rgba(255,255,255,0.06); }
+.dm-row.dm-unread .dm-name { color: #fff; font-weight: 700; }
+.dm-row.dm-unread .dm-preview { color: rgba(225,235,255,0.92); }
+.dm-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: flex;
+  align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff;
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); }
+.dm-row-main { flex: 1; min-width: 0; }
+.dm-row-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.dm-name { font-size: 13px; font-weight: 600; color: rgba(215,228,255,0.9);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-time { font-size: 10.5px; color: rgba(150,170,210,0.6); flex: none; }
+.dm-preview { font-size: 12px; color: rgba(165,185,220,0.75); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-you { color: rgba(140,160,200,0.7); }
+.dm-badge { flex: none; min-width: 19px; height: 19px; border-radius: 10px; background: #e1306c;
+  color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; padding: 0 6px; }
+.dm-empty { font-size: 12.5px; color: rgba(160,180,215,0.65); padding: 14px 4px; }
+
+.dm-thread { display: flex; flex-direction: column; gap: 7px; max-height: 300px; overflow-y: auto;
+  padding: 4px 2px; }
+.dm-bubble { max-width: 78%; padding: 8px 11px; border-radius: 13px; }
+.dm-theirs { align-self: flex-start; background: rgba(255,255,255,0.08);
+  border-bottom-left-radius: 4px; }
+.dm-mine { align-self: flex-end; background: rgba(225,48,108,0.22);
+  border: 1px solid rgba(225,48,108,0.3); border-bottom-right-radius: 4px; }
+.dm-bubble-text { font-size: 13px; line-height: 1.45; color: rgba(228,238,255,0.94);
+  white-space: pre-wrap; word-break: break-word; }
+.dm-bubble-time { font-size: 10px; color: rgba(160,180,215,0.55); margin-top: 3px; text-align: right; }
+
+.dm-reply, .dm-actions { display: flex; gap: 7px; }
+.dm-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 9px; padding: 9px 12px; color: rgba(215,230,255,0.95); font-size: 13px;
+  outline: none; font-family: inherit; }
+.dm-input:focus { border-color: rgba(225,48,108,0.5); }
+.dm-to { font-size: 12.5px; color: rgba(180,200,235,0.8); }
+.dm-draft { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 10px; padding: 11px 13px; font-size: 13px; line-height: 1.5;
+  color: rgba(228,238,255,0.95); outline: none; min-height: 44px; white-space: pre-wrap; }
+.dm-draft:focus { border-color: rgba(225,48,108,0.5); }
+.dm-send, .dm-cancel { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 1.4px;
+  font-size: 12.5px; padding: 9px 18px; border-radius: 8px; cursor: pointer; }
+.dm-send { background: rgba(225,48,108,0.2); border: 1px solid rgba(225,48,108,0.5); color: #ff8ab5; }
+.dm-cancel { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(200,215,245,0.8); }
+.dm-send:disabled { opacity: 0.55; cursor: default; }
+.dm-note { font-size: 11px; color: rgba(155,175,212,0.65); line-height: 1.4; }
+.dm-note.dm-note-bad { color: #ffb0b0; }

@@ -1967,6 +1967,77 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
     };
   }
 
+  // Reading DMs — Instagram only, and the card shows the conversation.
+  if (finalAction?.type === 'read_messages') {
+    const who = (finalAction.payload?.from || '').trim();
+    const inbox = await connectors.getInstagramInbox(25);
+    if (!inbox.ok) {
+      const spoken = inbox.error === 'not_connected'
+        ? 'Instagram isn\'t connected yet. Open Connectors and link your Instagram account first.'
+        : `I couldn't read your Instagram messages: ${inbox.error}`;
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: false };
+    }
+    if (who) {
+      const match = await connectors.findInstagramContact(who);
+      if (!match) {
+        const spoken = `I couldn't find anyone called ${who} in your Instagram messages.`;
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, hasAction: false };
+      }
+      const thread = await connectors.getInstagramThread(match.id, 30);
+      const theirLast = [...(thread.messages || [])].reverse().find((m) => !m.fromMe);
+      const spoken = theirLast
+        ? `${match.name} said: ${theirLast.text}`
+        : `You and ${match.name} have a conversation, but they haven't sent anything yet.`;
+      _sendTTS(_e.sender, spoken);
+      return {
+        text: spoken, audio: null, hasAction: false,
+        card: { type: 'dm-thread', platform: 'instagram', ...thread, contactId: match.contactId },
+      };
+    }
+    const unread = inbox.threads.filter((t) => t.unread > 0);
+    const spoken = inbox.threads.length === 0
+      ? 'You have no Instagram messages yet.'
+      : unread.length
+        ? `You have ${unread.length} unread message${unread.length === 1 ? '' : 's'} on Instagram — the newest is from ${unread[0].name}.`
+        : `Nothing unread. Your most recent Instagram message is from ${inbox.threads[0].name}.`;
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken, audio: null, hasAction: false, card: { type: 'dm-inbox', platform: 'instagram', ...inbox } };
+  }
+
+  // Sending — Instagram really sends, so it's confirmed on a card first.
+  // WhatsApp only ever types the message into the chat for the user to send.
+  if (finalAction?.type === 'send_message') {
+    const p = finalAction.payload || {};
+    if (p.platform === 'whatsapp') {
+      await commands.openChat('whatsapp', p.to || '', p.message || '');
+      const spoken = p.to
+        ? `I've typed that into your WhatsApp chat with ${p.to} — press send when you're happy with it.`
+        : 'I\'ve opened WhatsApp with that typed in — press send when you\'re happy with it.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: true };
+    }
+    const status = await connectors.getConnectorStatus();
+    if (!status.instagram) {
+      const spoken = 'Instagram isn\'t connected yet. Open Connectors and link your Instagram account first.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: false };
+    }
+    const match = p.to ? await connectors.findInstagramContact(p.to) : null;
+    if (p.to && !match) {
+      const spoken = `I couldn't find anyone called ${p.to} in your Instagram messages. They need to have messaged you first.`;
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: false };
+    }
+    const spoken = `Ready to send to ${match?.name || p.to}. Check it and press Send.`;
+    _sendTTS(_e.sender, spoken);
+    return {
+      text: spoken, audio: null, hasAction: false,
+      card: { type: 'dm-send', platform: 'instagram', to: match?.name || p.to, contactId: match?.contactId || null, message: p.message || '' },
+    };
+  }
+
   if (finalAction?.type === 'upload_media') {
     const p = finalAction.payload || {};
     const status = await connectors.getConnectorStatus();
@@ -3404,6 +3475,34 @@ ipcMain.handle('shopify:connect', async (_e, { shop, access_token }) => {
   } catch (err) {
     return { ok: false, error: 'Could not reach your Shopify store. Check the store URL.' };
   }
+});
+
+// ── Messages: Instagram DMs (read + send) and WhatsApp (compose) ─────────────
+ipcMain.handle('dm:inbox', async (_e, platform) => {
+  if (platform === 'instagram') return connectors.getInstagramInbox(25);
+  // WhatsApp has no API for a personal account, so there's nothing to read.
+  return { ok: false, error: 'unsupported' };
+});
+ipcMain.handle('dm:thread', (_e, { platform, id }) => {
+  if (platform === 'instagram') return connectors.getInstagramThread(id, 30);
+  return Promise.resolve({ ok: false, error: 'unsupported' });
+});
+ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
+  if (platform === 'instagram') {
+    let target = contactId;
+    if (!target && to) {
+      const found = await connectors.findInstagramContact(to);
+      if (!found) return { ok: false, error: `I couldn't find anyone called "${to}" in your Instagram messages.` };
+      target = found.contactId;
+    }
+    return connectors.sendInstagramMessage(target, text);
+  }
+  if (platform === 'whatsapp') {
+    // Typed into WhatsApp ready to send — Callisto never presses send itself.
+    await commands.openChat('whatsapp', to || '', text || '');
+    return { ok: true, composed: true };
+  }
+  return { ok: false, error: 'unsupported' };
 });
 
 ipcMain.handle('connector:getVip', () => connectors.getVipSenders());

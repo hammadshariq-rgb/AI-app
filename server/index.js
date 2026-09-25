@@ -935,8 +935,10 @@ app.get('/connect/instagram', (req, res) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
-    // pages_manage_posts also lets Callisto post to the user's Facebook Page.
-    scope: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts',
+    // pages_manage_posts also lets Callisto post to the user's Facebook Page;
+    // instagram_manage_messages + pages_messaging cover reading and replying to
+    // DMs. Both message scopes need Advanced Access from Meta's app review.
+    scope: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_manage_messages,pages_messaging',
     response_type: 'code',
   });
   res.redirect(`https://www.facebook.com/v23.0/dialog/oauth?${params}`);

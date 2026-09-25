@@ -3847,6 +3847,19 @@ if (window.jarvis && window.jarvis.onCallEvent) {
   });
 }
 
+// "2h", "Tue", "14:05" — whichever reads best for how old the message is.
+function dmWhen(iso) {
+  if (!iso) return '';
+  const t = new Date(iso);
+  if (isNaN(t)) return '';
+  const mins = Math.floor((Date.now() - t.getTime()) / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h`;
+  if (mins < 10080) return t.toLocaleDateString([], { weekday: 'short' });
+  return t.toLocaleDateString([], { day: 'numeric', month: 'short' });
+}
+
 function showCard(card) {
   if (!card) { cardPanel.classList.add('hidden'); return; }
   cardPanel.classList.remove('hidden');
@@ -4451,6 +4464,105 @@ function showCard(card) {
     _activeCallCard = card;
     cardContent.innerHTML = renderCallCard(card);
     wireCallCard();
+  } else if (card.type === 'dm-inbox') {
+    const rows = (card.threads || []).map((t) => `
+      <div class="dm-row${t.unread ? ' dm-unread' : ''}" data-dm-id="${esc(t.id)}">
+        <div class="dm-avatar">${esc((t.name || '?').replace(/^@/, '').charAt(0).toUpperCase())}</div>
+        <div class="dm-row-main">
+          <div class="dm-row-top"><span class="dm-name">${esc(t.name)}</span><span class="dm-time">${esc(dmWhen(t.lastAt))}</span></div>
+          <div class="dm-preview">${t.lastFromMe ? '<span class="dm-you">You:</span> ' : ''}${esc(t.lastMessage || '—')}</div>
+        </div>
+        ${t.unread ? `<span class="dm-badge">${t.unread}</span>` : ''}
+      </div>`).join('');
+    cardContent.innerHTML = `
+      <div class="card-dm">
+        <div class="dm-head">INSTAGRAM${card.username ? ` · @${esc(card.username)}` : ''}</div>
+        ${rows || '<div class="dm-empty">No messages yet.</div>'}
+      </div>`;
+    setTimeout(() => {
+      cardContent.querySelectorAll('[data-dm-id]').forEach((el) => {
+        el.addEventListener('click', async () => {
+          const t = await window.jarvis.dmThread('instagram', el.dataset.dmId);
+          if (t.ok) showCard({ type: 'dm-thread', platform: 'instagram', ...t });
+        });
+      });
+    }, 50);
+  } else if (card.type === 'dm-thread') {
+    const bubbles = (card.messages || []).map((m) => `
+      <div class="dm-bubble ${m.fromMe ? 'dm-mine' : 'dm-theirs'}">
+        <div class="dm-bubble-text">${esc(m.text || '')}</div>
+        <div class="dm-bubble-time">${esc(dmWhen(m.at))}</div>
+      </div>`).join('');
+    cardContent.innerHTML = `
+      <div class="card-dm">
+        <div class="dm-head">${esc(card.name || 'Conversation')} · INSTAGRAM</div>
+        <div class="dm-thread">${bubbles || '<div class="dm-empty">No messages in this chat.</div>'}</div>
+        <div class="dm-reply">
+          <input id="dmReplyInput" class="dm-input" placeholder="Reply…" maxlength="1000"/>
+          <button id="dmReplySend" class="dm-send">SEND</button>
+        </div>
+        <div class="dm-note" id="dmNote">Instagram only allows a reply within 24 hours of their last message.</div>
+      </div>`;
+    setTimeout(() => {
+      const input = document.getElementById('dmReplyInput');
+      const btn = document.getElementById('dmReplySend');
+      const note = document.getElementById('dmNote');
+      const thread = cardContent.querySelector('.dm-thread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+      const send = async () => {
+        const text = (input.value || '').trim();
+        if (!text) return;
+        btn.disabled = true; btn.textContent = 'SENDING…';
+        const r = await window.jarvis.dmSend('instagram', card.name, text, card.contactId)
+          .catch((e) => ({ ok: false, error: e.message }));
+        if (r.ok) {
+          input.value = '';
+          note.textContent = '✓ Sent.';
+          const t = await window.jarvis.dmThread('instagram', card.id);
+          if (t.ok) showCard({ type: 'dm-thread', platform: 'instagram', ...t, contactId: card.contactId });
+        } else {
+          note.textContent = `⚠ ${r.error}`;
+          note.classList.add('dm-note-bad');
+          btn.disabled = false; btn.textContent = 'SEND';
+        }
+      };
+      btn?.addEventListener('click', send);
+      input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    }, 50);
+  } else if (card.type === 'dm-send') {
+    // Instagram really sends, so nothing goes out until this is approved.
+    cardContent.innerHTML = `
+      <div class="card-dm">
+        <div class="dm-head">SEND ON INSTAGRAM</div>
+        <div class="dm-to">To <strong>${esc(card.to || '')}</strong></div>
+        <div class="dm-draft" id="dmDraft" contenteditable="true">${esc(card.message || '')}</div>
+        <div class="dm-actions">
+          <button class="dm-send" id="dmConfirm">SEND</button>
+          <button class="dm-cancel" id="dmCancel">CANCEL</button>
+        </div>
+        <div class="dm-note" id="dmSendNote">Edit the text above if you want to change it before sending.</div>
+      </div>`;
+    setTimeout(() => {
+      const note = document.getElementById('dmSendNote');
+      const btn = document.getElementById('dmConfirm');
+      document.getElementById('dmCancel')?.addEventListener('click', () => { showCard(null); addMessage('assistant', 'Cancelled — nothing was sent.'); });
+      btn?.addEventListener('click', async () => {
+        const text = (document.getElementById('dmDraft')?.innerText || '').trim();
+        if (!text) { note.textContent = '⚠ Nothing to send.'; return; }
+        btn.disabled = true; btn.textContent = 'SENDING…';
+        const r = await window.jarvis.dmSend('instagram', card.to, text, card.contactId)
+          .catch((e) => ({ ok: false, error: e.message }));
+        if (r.ok) {
+          btn.textContent = '✓ SENT';
+          note.textContent = `Sent to ${card.to}.`;
+          addMessage('assistant', `✅ Sent to ${card.to} on Instagram: "${text}"`);
+        } else {
+          btn.disabled = false; btn.textContent = 'SEND';
+          note.textContent = `⚠ ${r.error}`;
+          note.classList.add('dm-note-bad');
+        }
+      });
+    }, 50);
   } else if (card.type === 'command') {
     // Proposed, not run: the exact command and folder are shown, and it only
     // runs when the user presses Run.

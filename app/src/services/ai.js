@@ -123,6 +123,35 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'read_messages',
+      description: 'Read the user\'s Instagram DMs — their inbox ("any new messages?", "what did Sara say?", "check my Instagram messages", "read my DMs"). Only works for Instagram, and only when their Instagram account is connected. Does NOT work for WhatsApp: there is no way to read a personal WhatsApp account, so if they ask about WhatsApp messages say so plainly.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'Whose conversation to open, if they named someone ("what did Sara say"). Leave empty for the whole inbox.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_message',
+      description: 'Send a DM on Instagram, or type a WhatsApp message ready to send. Use for "DM Sara that I am running late", "reply to Ahmed saying yes", "message Sara on Instagram". On Instagram it is SENT for real, so only call it when the user clearly dictated the message. On WhatsApp it is only typed into the chat for them to press send — never say it was sent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          platform: { type: 'string', enum: ['instagram', 'whatsapp'], description: 'instagram sends for real; whatsapp only composes' },
+          to: { type: 'string', description: 'Who to send it to — the Instagram username or name as it appears in their inbox, or the phone number for WhatsApp' },
+          message: { type: 'string', description: 'Exactly what to say, in the user\'s own words' },
+        },
+        required: ['platform', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'make_call',
       description: 'Call a PERSON (friend, family, colleague) through a calling app — WhatsApp, FaceTime, etc. Use when the user names a platform ("call Ahmed on WhatsApp") or clearly means a personal contact ("call mum"). Do NOT use this for businesses — restaurants, shops, clinics, salons, hotels or any place name; those are place_phone_call. Pass the contact name exactly as the user said it.',
       parameters: {
@@ -722,6 +751,14 @@ OPENING APPS RULES:
 - Same for all messaging apps: always prefer open_chat over open_url so the desktop app is used when available.
 - "Send a WhatsApp to X saying Y" / "text Ahmed that I'm late": call open_chat with platform whatsapp, the contact, and message set to what they dictated. It opens that chat with the words typed in, ready for them to press send. Say that it's ready to send — never claim it was sent, because Callisto does not press send.
 
+MESSAGES (reading and sending DMs):
+- Instagram DMs can be READ and SENT for real. WhatsApp can only be COMPOSED — there is no way to read a personal WhatsApp account, and Callisto never presses send.
+- "any new messages?", "check my DMs", "what did Sara say?", "read my Instagram messages" → read_messages. Pass "from" only when they named a person.
+- "DM Sara that I'm running late", "reply to Ahmed saying yes", "message Sara on Instagram" → send_message with platform instagram. It shows the user the message for approval before it goes, so say it's ready to send, not that it's sent.
+- If they ask to read WhatsApp messages ("what did Ahmed say on WhatsApp?", "check my WhatsApp"), do NOT call read_messages. Tell them plainly that WhatsApp doesn't allow any app to read a personal account's messages, and offer to open the chat instead.
+- Instagram DMs need their Instagram account connected and only work for Professional/Creator accounts. If it isn't connected, say so and point them at Connectors.
+- Never invent the contents of a message. Only report what read_messages actually returned.
+
 CURRENT KNOWLEDGE RULES (CRITICAL — never break these):
 - When REAL-TIME DATA is provided above, that is always the ground truth. Use ONLY that. Do not contradict it or add details not in it.
 - For "who is" questions about a person: when PERSON CARD data appears above, read that card's info aloud and do NOT open Google. If no card data was provided, answer normally from your own knowledge without referring to any card. Only open Google if the question is about a current political appointment and no card data was provided.
@@ -1006,6 +1043,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
           else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
           else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
+          else if (fnName === 'read_messages') action = { type: 'read_messages', payload: { from: args.from || '' } };
+          else if (fnName === 'send_message')  action = { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
           else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
           else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
           else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
@@ -1072,6 +1111,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
     else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
     else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
+    else if (fnName === 'read_messages') action = { type: 'read_messages', payload: { from: args.from || '' } };
+    else if (fnName === 'send_message')  action = { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
     else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
     else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
     else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };

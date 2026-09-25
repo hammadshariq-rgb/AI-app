@@ -369,6 +369,141 @@ async function getInstagramToken() {
   return tokens.access_token;
 }
 
+// ── Instagram direct messages ─────────────────────────────────────────────────
+// DMs go through the Facebook Page the Instagram account is attached to, with
+// the Page's own token rather than the user token, so the Page is looked up
+// once and kept. Only Professional/Creator accounts have this at all.
+
+let _igPage = null;   // { pageId, pageToken, igId, igUsername }
+
+async function getInstagramPage(force = false) {
+  if (_igPage && !force) return _igPage;
+  const token = await getInstagramToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=access_token,name,instagram_business_account{id,username}&access_token=${token}`);
+    const data = await res.json();
+    const page = (data.data || []).find((p) => p.instagram_business_account);
+    if (!page) return null;
+    _igPage = {
+      pageId: page.id,
+      pageToken: page.access_token || token,
+      igId: page.instagram_business_account.id,
+      igUsername: page.instagram_business_account.username || null,
+    };
+    return _igPage;
+  } catch (err) {
+    console.error('Instagram page lookup failed:', err.message);
+    return null;
+  }
+}
+
+// The people in a conversation, minus our own account.
+function _igOther(participants, igId, pageId) {
+  const list = participants?.data || [];
+  const them = list.find((p) => p.id !== igId && p.id !== pageId) || list[0] || {};
+  return { id: them.id || null, name: them.username || them.name || 'Unknown' };
+}
+
+// Recent conversations, newest first, each with the last message shown.
+async function getInstagramInbox(limit = 20) {
+  const page = await getInstagramPage();
+  if (!page) return { ok: false, error: 'not_connected' };
+  try {
+    const fields = 'participants,updated_time,unread_count,messages.limit(1){message,from,created_time}';
+    const res = await fetch(`https://graph.facebook.com/v23.0/${page.pageId}/conversations?platform=instagram&fields=${fields}&limit=${Math.min(limit, 50)}&access_token=${page.pageToken}`);
+    const data = await res.json();
+    if (data.error) return { ok: false, error: data.error.message, code: data.error.code };
+    const threads = (data.data || []).map((c) => {
+      const who = _igOther(c.participants, page.igId, page.pageId);
+      const last = c.messages?.data?.[0] || {};
+      return {
+        id: c.id,
+        contactId: who.id,
+        name: who.name,
+        unread: c.unread_count || 0,
+        updated: c.updated_time || null,
+        lastMessage: last.message || '',
+        lastFromMe: last.from?.id === page.igId || last.from?.id === page.pageId,
+        lastAt: last.created_time || null,
+      };
+    });
+    return { ok: true, username: page.igUsername, threads };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Full back-and-forth for one conversation, oldest first so it reads top-down.
+async function getInstagramThread(conversationId, limit = 30) {
+  const page = await getInstagramPage();
+  if (!page) return { ok: false, error: 'not_connected' };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v23.0/${conversationId}?fields=participants,messages.limit(${Math.min(limit, 50)}){message,from,created_time}&access_token=${page.pageToken}`);
+    const data = await res.json();
+    if (data.error) return { ok: false, error: data.error.message, code: data.error.code };
+    const who = _igOther(data.participants, page.igId, page.pageId);
+    const messages = (data.messages?.data || [])
+      .map((m) => ({
+        id: m.id,
+        text: m.message || '',
+        fromMe: m.from?.id === page.igId || m.from?.id === page.pageId,
+        at: m.created_time || null,
+      }))
+      .reverse();
+    return { ok: true, id: conversationId, name: who.name, contactId: who.id, messages };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Instagram only allows a free-form reply within 24 hours of their last
+// message, so that failure is reported in words the user can act on.
+async function sendInstagramMessage(recipientId, text) {
+  const page = await getInstagramPage();
+  if (!page) return { ok: false, error: 'Instagram isn\'t connected yet.' };
+  const body = String(text || '').trim();
+  if (!recipientId) return { ok: false, error: 'No one to send that to.' };
+  if (!body) return { ok: false, error: 'There was no message to send.' };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v23.0/${page.pageId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: { text: body.slice(0, 1000) },
+        messaging_type: 'RESPONSE',
+        access_token: page.pageToken,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      const m = data.error.message || 'Instagram refused the message.';
+      if (/24|outside.*window|policy/i.test(m)) {
+        return { ok: false, error: 'Instagram only allows a reply within 24 hours of their last message, and that window has closed.' };
+      }
+      return { ok: false, error: m };
+    }
+    return { ok: true, messageId: data.message_id || null };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// "send a dm to sara" — find the conversation by name so the user never has to
+// know Instagram's internal ids.
+async function findInstagramContact(name) {
+  const inbox = await getInstagramInbox(50);
+  if (!inbox.ok) return null;
+  const want = String(name || '').toLowerCase().replace(/^@/, '').trim();
+  if (!want) return null;
+  const threads = inbox.threads || [];
+  return threads.find((t) => t.name.toLowerCase() === want)
+      || threads.find((t) => t.name.toLowerCase().replace(/^@/, '') === want)
+      || threads.find((t) => t.name.toLowerCase().includes(want))
+      || null;
+}
+
 async function getInstagramStats() {
   const token = await getInstagramToken();
   if (!token) return null;
@@ -931,6 +1066,9 @@ module.exports = {
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeToken, getInstagramToken, getTikTokToken,
+  // Instagram direct messages
+  getInstagramPage, getInstagramInbox, getInstagramThread, sendInstagramMessage,
+  findInstagramContact,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
   getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
   getAllAnalytics, formatAnalyticsForAI,

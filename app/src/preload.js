@@ -50,6 +50,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   connectorStatus: () => ipcRenderer.invoke('connector:status'),
   connectorConnect: (service) => ipcRenderer.invoke('connector:connect', service),
   connectorDisconnect: (service) => ipcRenderer.invoke('connector:disconnect', service),
+  // Direct messages
+  dmInbox:  (platform)                   => ipcRenderer.invoke('dm:inbox', platform),
+  dmThread: (platform, id)               => ipcRenderer.invoke('dm:thread', { platform, id }),
+  dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),
