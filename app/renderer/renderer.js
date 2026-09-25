@@ -3848,6 +3848,29 @@ if (window.jarvis && window.jarvis.onCallEvent) {
 }
 
 // "2h", "Tue", "14:05" — whichever reads best for how old the message is.
+// A reel, photo or voice note inside a bubble: show it, and let it open in
+// Instagram proper. Videos can't be played from the CDN link, so they get
+// their thumbnail with a play badge.
+function dmKindLabel(kind) {
+  return { image: 'PHOTO', video: 'VIDEO', audio: 'VOICE', share: 'REEL', file: 'FILE' }[kind] || '';
+}
+
+function dmAttachments(m) {
+  const list = m.attachments || [];
+  if (!list.length) return '';
+  return list.map((a) => {
+    const open = a.url ? ` data-dm-open="${esc(a.url)}"` : '';
+    if (a.kind === 'image' && (a.thumb || a.url)) {
+      return `<img class="dm-media" src="${esc(a.thumb || a.url)}" alt="Photo"${open} />`;
+    }
+    if (a.kind === 'video' && a.thumb) {
+      return `<div class="dm-media-wrap"${open}><img class="dm-media" src="${esc(a.thumb)}" alt="Video" /><span class="dm-play">▶</span></div>`;
+    }
+    const label = a.kind === 'share' ? 'Shared a reel' : a.kind === 'audio' ? 'Voice message' : (a.name || 'Attachment');
+    return `<div class="dm-attach"${open}><span class="dm-attach-icon">${a.kind === 'audio' ? '🎤' : '🎬'}</span>${esc(label)}${a.url ? '<span class="dm-attach-open">OPEN</span>' : ''}</div>`;
+  }).join('');
+}
+
 function dmWhen(iso) {
   if (!iso) return '';
   const t = new Date(iso);
@@ -4470,7 +4493,7 @@ function showCard(card) {
         <div class="dm-avatar">${esc((t.name || '?').replace(/^@/, '').charAt(0).toUpperCase())}</div>
         <div class="dm-row-main">
           <div class="dm-row-top"><span class="dm-name">${esc(t.name)}</span><span class="dm-time">${esc(dmWhen(t.lastAt))}</span></div>
-          <div class="dm-preview">${t.lastFromMe ? '<span class="dm-you">You:</span> ' : ''}${esc(t.lastMessage || '—')}</div>
+          <div class="dm-preview">${t.lastFromMe ? '<span class="dm-you">You:</span> ' : ''}${t.lastKind && t.lastKind !== 'text' ? `<span class="dm-kind">${esc(dmKindLabel(t.lastKind))}</span> ` : ''}${esc(t.lastMessage || '—')}</div>
         </div>
         ${t.unread ? `<span class="dm-badge">${t.unread}</span>` : ''}
       </div>`).join('');
@@ -4490,7 +4513,8 @@ function showCard(card) {
   } else if (card.type === 'dm-thread') {
     const bubbles = (card.messages || []).map((m) => `
       <div class="dm-bubble ${m.fromMe ? 'dm-mine' : 'dm-theirs'}">
-        <div class="dm-bubble-text">${esc(m.text || '')}</div>
+        ${dmAttachments(m)}
+        ${m.text ? `<div class="dm-bubble-text">${esc(m.text)}</div>` : ''}
         <div class="dm-bubble-time">${esc(dmWhen(m.at))}</div>
       </div>`).join('');
     cardContent.innerHTML = `
@@ -4528,19 +4552,28 @@ function showCard(card) {
       };
       btn?.addEventListener('click', send);
       input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+      cardContent.querySelectorAll('[data-dm-open]').forEach((el) => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => window.jarvis.openUrl(el.dataset.dmOpen));
+      });
     }, 50);
   } else if (card.type === 'dm-send') {
     // Instagram really sends, so nothing goes out until this is approved.
+    // WhatsApp can't be sent to at all — the button hands it over with the
+    // words typed in, and the user presses send in WhatsApp itself.
+    const isWa = card.platform === 'whatsapp';
     cardContent.innerHTML = `
-      <div class="card-dm">
-        <div class="dm-head">SEND ON INSTAGRAM</div>
-        <div class="dm-to">To <strong>${esc(card.to || '')}</strong></div>
+      <div class="card-dm${isWa ? ' card-dm-wa' : ''}">
+        <div class="dm-head">${isWa ? 'SEND ON WHATSAPP' : 'SEND ON INSTAGRAM'}</div>
+        <div class="dm-to">To <strong>${esc(card.to || 'whoever you pick')}</strong></div>
         <div class="dm-draft" id="dmDraft" contenteditable="true">${esc(card.message || '')}</div>
         <div class="dm-actions">
-          <button class="dm-send" id="dmConfirm">SEND</button>
+          <button class="dm-send" id="dmConfirm">${isWa ? 'OPEN IN WHATSAPP' : 'SEND'}</button>
           <button class="dm-cancel" id="dmCancel">CANCEL</button>
         </div>
-        <div class="dm-note" id="dmSendNote">Edit the text above if you want to change it before sending.</div>
+        <div class="dm-note" id="dmSendNote">${isWa
+          ? 'Edit it here first. WhatsApp opens with this typed in — you press send there, because WhatsApp does not let any app send for you.'
+          : 'Edit the text above if you want to change it before sending.'}</div>
       </div>`;
     setTimeout(() => {
       const note = document.getElementById('dmSendNote');
@@ -4549,6 +4582,14 @@ function showCard(card) {
       btn?.addEventListener('click', async () => {
         const text = (document.getElementById('dmDraft')?.innerText || '').trim();
         if (!text) { note.textContent = '⚠ Nothing to send.'; return; }
+        if (isWa) {
+          await window.jarvis.dmSend('whatsapp', card.to, text);
+          btn.textContent = '✓ OPENED';
+          btn.disabled = true;
+          note.textContent = 'WhatsApp is open with your message typed in — press send there.';
+          addMessage('assistant', `Typed into WhatsApp${card.to ? ` for ${card.to}` : ''}: "${text}" — press send in WhatsApp.`);
+          return;
+        }
         btn.disabled = true; btn.textContent = 'SENDING…';
         const r = await window.jarvis.dmSend('instagram', card.to, text, card.contactId)
           .catch((e) => ({ ok: false, error: e.message }));

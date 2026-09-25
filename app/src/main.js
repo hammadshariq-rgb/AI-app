@@ -1987,9 +1987,19 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
       }
       const thread = await connectors.getInstagramThread(match.id, 30);
       const theirLast = [...(thread.messages || [])].reverse().find((m) => !m.fromMe);
-      const spoken = theirLast
-        ? `${match.name} said: ${theirLast.text}`
-        : `You and ${match.name} have a conversation, but they haven't sent anything yet.`;
+      let spoken;
+      if (!theirLast) {
+        spoken = `You and ${match.name} have a conversation, but they haven't sent anything yet.`;
+      } else if (theirLast.text) {
+        spoken = `${match.name} said: ${theirLast.text}`;
+      } else {
+        // No words — say what it is, and describe the picture if we can see it.
+        const shot = theirLast.attachments?.[0]?.thumb || theirLast.attachments?.[0]?.url;
+        const seen = await describeInstagramMedia(shot);
+        spoken = seen
+          ? `${match.name} sent ${theirLast.described}. ${seen}`
+          : `${match.name} sent ${theirLast.described}.`;
+      }
       _sendTTS(_e.sender, spoken);
       return {
         text: spoken, audio: null, hasAction: false,
@@ -2011,12 +2021,16 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   if (finalAction?.type === 'send_message') {
     const p = finalAction.payload || {};
     if (p.platform === 'whatsapp') {
-      await commands.openChat('whatsapp', p.to || '', p.message || '');
+      // WhatsApp can't be sent to from here, so the draft is checked in the app
+      // first and only then handed to WhatsApp with the words already typed.
       const spoken = p.to
-        ? `I've typed that into your WhatsApp chat with ${p.to} — press send when you're happy with it.`
-        : 'I\'ve opened WhatsApp with that typed in — press send when you\'re happy with it.';
+        ? `Ready for ${p.to}. Check it, then press Open in WhatsApp and hit send there.`
+        : 'Ready. Check it, then press Open in WhatsApp and hit send there.';
       _sendTTS(_e.sender, spoken);
-      return { text: spoken, audio: null, hasAction: true };
+      return {
+        text: spoken, audio: null, hasAction: false,
+        card: { type: 'dm-send', platform: 'whatsapp', to: p.to || '', message: p.message || '' },
+      };
     }
     const status = await connectors.getConnectorStatus();
     if (!status.instagram) {
@@ -3478,6 +3492,32 @@ ipcMain.handle('shopify:connect', async (_e, { shop, access_token }) => {
 });
 
 // ── Messages: Instagram DMs (read + send) and WhatsApp (compose) ─────────────
+
+// "What did she send me?" — a reel or photo has no words, so the picture is
+// fetched and put through the same vision endpoint the magic cursor uses.
+async function describeInstagramMedia(url) {
+  if (!url) return null;
+  try {
+    const token = loadAuthToken();
+    if (!token) return null;
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return null;
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    if (buf.length > 6 * 1024 * 1024) return null;       // too big to be worth it
+    const mime = imgRes.headers.get('content-type') || 'image/jpeg';
+    if (!/^image\//.test(mime)) return null;              // video frames aren't fetchable
+    const res = await fetch(`${_serverBase()}/ai/vision`, {
+      method: 'POST',
+      headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: `data:${mime};base64,${buf.toString('base64')}` }),
+    });
+    if (!res.ok) return null;
+    const { text } = await res.json();
+    return text || null;
+  } catch (_) { return null; }
+}
+ipcMain.handle('dm:describe', (_e, url) => describeInstagramMedia(url));
+
 ipcMain.handle('dm:inbox', async (_e, platform) => {
   if (platform === 'instagram') return connectors.getInstagramInbox(25);
   // WhatsApp has no API for a personal account, so there's nothing to read.

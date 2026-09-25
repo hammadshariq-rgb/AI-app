@@ -405,27 +405,83 @@ function _igOther(participants, igId, pageId) {
   return { id: them.id || null, name: them.username || them.name || 'Unknown' };
 }
 
+// Reels, photos, voice notes and story replies arrive with no text at all —
+// just an attachment — so each one is turned into something describable.
+const IG_MSG_FIELDS = 'message,from,created_time,attachments{image_data,video_data,file_url,name,mime_type},shares{link,name}';
+
+function _igAttachments(m) {
+  const out = [];
+  for (const a of (m.attachments?.data || [])) {
+    const img = a.image_data || {};
+    const vid = a.video_data || {};
+    const url = vid.url || img.url || a.file_url || null;
+    const thumb = vid.preview_url || img.preview_url || img.url || null;
+    const mime = a.mime_type || '';
+    let kind = 'file';
+    if (vid.url || /^video\//.test(mime)) kind = 'video';
+    else if (img.url || /^image\//.test(mime)) kind = 'image';
+    else if (/^audio\//.test(mime)) kind = 'audio';
+    out.push({ kind, url, thumb, name: a.name || null });
+  }
+  for (const s of (m.shares?.data || [])) {
+    // A shared reel or post comes through here as a link.
+    out.push({ kind: 'share', url: s.link || null, thumb: null, name: s.name || null });
+  }
+  return out;
+}
+
+// What to say when there are no words — "Sara sent a reel".
+function _igDescribe(attachments) {
+  if (!attachments.length) return '';
+  const a = attachments[0];
+  const more = attachments.length > 1 ? ` (+${attachments.length - 1} more)` : '';
+  const isReel = a.kind === 'share' || /(\/reel\/|\/p\/)/.test(a.url || '');
+  if (a.kind === 'share') return `${isReel ? 'a reel' : 'a post'}${more}`;
+  if (a.kind === 'video') return `a video${more}`;
+  if (a.kind === 'image') return `a photo${more}`;
+  if (a.kind === 'audio') return `a voice message${more}`;
+  return `an attachment${more}`;
+}
+
+function _igMessage(m, page) {
+  const attachments = _igAttachments(m);
+  const described = _igDescribe(attachments);
+  return {
+    id: m.id,
+    text: m.message || '',
+    attachments,
+    // Used wherever a one-line summary is needed, text or not.
+    summary: m.message || (described ? `Sent ${described}` : ''),
+    described,
+    fromMe: m.from?.id === page.igId || m.from?.id === page.pageId,
+    at: m.created_time || null,
+  };
+}
+
 // Recent conversations, newest first, each with the last message shown.
 async function getInstagramInbox(limit = 20) {
   const page = await getInstagramPage();
   if (!page) return { ok: false, error: 'not_connected' };
   try {
-    const fields = 'participants,updated_time,unread_count,messages.limit(1){message,from,created_time}';
+    const fields = `participants,updated_time,unread_count,messages.limit(1){${IG_MSG_FIELDS}}`;
     const res = await fetch(`https://graph.facebook.com/v23.0/${page.pageId}/conversations?platform=instagram&fields=${fields}&limit=${Math.min(limit, 50)}&access_token=${page.pageToken}`);
     const data = await res.json();
     if (data.error) return { ok: false, error: data.error.message, code: data.error.code };
     const threads = (data.data || []).map((c) => {
       const who = _igOther(c.participants, page.igId, page.pageId);
-      const last = c.messages?.data?.[0] || {};
+      const raw = c.messages?.data?.[0];
+      const last = raw ? _igMessage(raw, page) : null;
       return {
         id: c.id,
         contactId: who.id,
         name: who.name,
         unread: c.unread_count || 0,
         updated: c.updated_time || null,
-        lastMessage: last.message || '',
-        lastFromMe: last.from?.id === page.igId || last.from?.id === page.pageId,
-        lastAt: last.created_time || null,
+        lastMessage: last?.summary || '',
+        lastKind: last?.attachments?.[0]?.kind || 'text',
+        lastThumb: last?.attachments?.[0]?.thumb || null,
+        lastFromMe: !!last?.fromMe,
+        lastAt: last?.at || null,
       };
     });
     return { ok: true, username: page.igUsername, threads };
@@ -439,18 +495,11 @@ async function getInstagramThread(conversationId, limit = 30) {
   const page = await getInstagramPage();
   if (!page) return { ok: false, error: 'not_connected' };
   try {
-    const res = await fetch(`https://graph.facebook.com/v23.0/${conversationId}?fields=participants,messages.limit(${Math.min(limit, 50)}){message,from,created_time}&access_token=${page.pageToken}`);
+    const res = await fetch(`https://graph.facebook.com/v23.0/${conversationId}?fields=participants,messages.limit(${Math.min(limit, 50)}){${IG_MSG_FIELDS}}&access_token=${page.pageToken}`);
     const data = await res.json();
     if (data.error) return { ok: false, error: data.error.message, code: data.error.code };
     const who = _igOther(data.participants, page.igId, page.pageId);
-    const messages = (data.messages?.data || [])
-      .map((m) => ({
-        id: m.id,
-        text: m.message || '',
-        fromMe: m.from?.id === page.igId || m.from?.id === page.pageId,
-        at: m.created_time || null,
-      }))
-      .reverse();
+    const messages = (data.messages?.data || []).map((m) => _igMessage(m, page)).reverse();
     return { ok: true, id: conversationId, name: who.name, contactId: who.id, messages };
   } catch (err) {
     return { ok: false, error: err.message };

@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   dmInbox:  (platform)                   => ipcRenderer.invoke('dm:inbox', platform),
   dmThread: (platform, id)               => ipcRenderer.invoke('dm:thread', { platform, id }),
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
+  dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),

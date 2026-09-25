@@ -8975,3 +8975,22 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .dm-send:disabled { opacity: 0.55; cursor: default; }
 .dm-note { font-size: 11px; color: rgba(155,175,212,0.65); line-height: 1.4; }
 .dm-note.dm-note-bad { color: #ffb0b0; }
+
+/* Attachments inside a DM bubble */
+.dm-media { display: block; max-width: 200px; max-height: 220px; border-radius: 9px;
+  margin-bottom: 5px; object-fit: cover; }
+.dm-media-wrap { position: relative; display: inline-block; }
+.dm-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.6); pointer-events: none; }
+.dm-attach { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  font-size: 12.5px; color: rgba(215,230,255,0.9); margin-bottom: 5px; }
+.dm-attach-icon { font-size: 15px; }
+.dm-attach-open { margin-left: auto; font-size: 10px; letter-spacing: 1.2px; font-weight: 700;
+  color: rgba(0,200,255,0.85); }
+.dm-kind { font-size: 9.5px; font-weight: 700; letter-spacing: 1px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(225,48,108,0.2); color: #ff8ab5; margin-right: 3px; }
+/* WhatsApp drafts are green, so the card can't be mistaken for the Instagram one */
+.card-dm-wa .dm-head { color: rgba(120,230,160,0.9); }
+.card-dm-wa .dm-send { background: rgba(37,211,102,0.18); border-color: rgba(37,211,102,0.45); color: #7ee8a6; }
+.card-dm-wa .dm-draft:focus { border-color: rgba(37,211,102,0.5); }
