@@ -8908,3 +8908,15 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); font-size: 12px;
   font-family: ui-monospace, Consolas, monospace; color: rgba(205,222,250,0.9); white-space: pre-wrap; }
 .cmd-output.cmd-failed { border-color: rgba(255,120,120,0.35); color: #ffd7d7; }
+
+/* ── Connectors that aren't available yet ─────────────────────────────────── */
+/* Dimmed and inert: no hover lift, no Connect button, so the row reads as a
+   preview of what's coming rather than something that failed to connect. */
+.connector-row.connector-soon { opacity: 0.55; cursor: default; }
+.connector-row.connector-soon:hover { transform: none; background: rgba(255,255,255,0.03); }
+.connector-row.connector-soon:hover .connector-icon { transform: none; }
+.connector-soon-tag {
+  font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1.6px;
+  color: rgba(180,200,240,0.75); background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 4px 9px; white-space: nowrap;
+}
