@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   screenGrab: ()              => ipcRenderer.invoke('screen:grab'),
   onScreenWatched: (cb)       => ipcRenderer.on('screen:watched', (_e, d) => cb(d)),
   onScreenSuggest: (cb)       => ipcRenderer.on('screen:suggest', (_e, d) => cb(d)),
+  // Custom hand gestures the customer recorded
+  gesturesList:   ()   => ipcRenderer.invoke('gestures:list'),
+  gesturesSave:   (g)  => ipcRenderer.invoke('gestures:save', g),
+  gesturesDelete: (id) => ipcRenderer.invoke('gestures:delete', id),
   // Artifacts: the panel refreshes live, and a finished creation announces itself
   onArtifactsChanged: (cb) => ipcRenderer.on('artifacts:changed', (_e, d) => cb(d)),
   onArtifactReady:    (cb) => ipcRenderer.on('artifacts:ready', (_e, d) => cb(d)),

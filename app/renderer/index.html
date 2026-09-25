@@ -2172,7 +2172,42 @@
           <div class="gp-label">GESTURE CONTROL</div>
           <div class="gp-gesture" id="gpGestureIcon">–</div>
           <div class="gp-action" id="gpActionText">Show your hand to begin</div>
-          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · 🤚 mode · 👏 clear</div>
+          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next</div>
+          <button id="gpMyGesturesBtn" class="gp-mine-btn">✋ MY GESTURES</button>
+        </div>
+      </div>
+
+      <!-- ── Your own gestures ── -->
+      <div id="gestureStudio" class="hidden">
+        <div class="gs-head">
+          <div class="gs-title">YOUR GESTURES</div>
+          <button class="gs-x" id="gsClose" aria-label="Close">✕</button>
+        </div>
+        <div class="gs-list" id="gsList"></div>
+        <button class="gs-add" id="gsAdd">+ RECORD A NEW GESTURE</button>
+
+        <!-- Recording -->
+        <div class="gs-rec hidden" id="gsRec">
+          <div class="gs-rec-step" id="gsRecStep">Hold the pose you want to use</div>
+          <div class="gs-rec-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"/><circle cx="40" cy="40" r="34" id="gsRecArc"/></svg><span id="gsRecNum">3</span></div>
+          <div class="gs-rec-hint">Keep your hand still in front of the camera</div>
+          <button class="gs-cancel" id="gsCancel">CANCEL</button>
+        </div>
+
+        <!-- Naming and choosing what it does -->
+        <div class="gs-save hidden" id="gsSave">
+          <input class="gs-input" id="gsName" maxlength="40" placeholder="Name it — e.g. Thumbs up">
+          <div class="gs-tabs">
+            <button class="gs-tab gs-tab-on" data-mode="builtin">PICK AN ACTION</button>
+            <button class="gs-tab" data-mode="prompt">OR SAY IT IN WORDS</button>
+          </div>
+          <select class="gs-select" id="gsAction"></select>
+          <input class="gs-input hidden" id="gsPrompt" maxlength="300" placeholder='Anything you could ask out loud — "open my markets and read them to me"'>
+          <div class="gs-warn hidden" id="gsWarn"></div>
+          <div class="gs-save-row">
+            <button class="gs-btn gs-btn-go" id="gsSaveBtn">SAVE GESTURE</button>
+            <button class="gs-btn" id="gsRetry">RECORD AGAIN</button>
+          </div>
         </div>
       </div>
 
@@ -2796,6 +2831,7 @@
   <script src="model-viewer.js?v=5"></script>
   <script src="video-viewer.js?v=1"></script>
   <script src="renderer.js?v=74"></script>
+  <script src="gestures.js"></script>
   <script src="tour.js"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
@@ -3098,6 +3134,32 @@
       }
 
       // ── State machine ────────────────────────────────────────────────────────
+      // Run whatever the customer attached to one of their own poses. Built-in
+      // actions call straight into the app; anything written in words goes to
+      // Callisto exactly as if it had been spoken.
+      function runCustomGesture(g) {
+        showGesture('✋', g.name);
+        const a = g.action || {};
+        if (a.kind === 'prompt') { window._runGesturePrompt?.(a.text); return; }
+        switch (a.id) {
+          case 'start_listening':  doStartListening(); break;
+          case 'stop_listening':   doStopListening(); break;
+          case 'conversation':     window._convoToggle?.(); break;
+          case 'circle_capture':   window.jarvis?.startCircleCapture?.(); break;
+          case 'magic_edit':       window.jarvis?.startMagicEdit?.(); break;
+          case 'open_markets':     window.showMarketsOverlay?.(); break;
+          case 'open_calendar':    window._runGesturePrompt?.('show me my calendar'); break;
+          case 'open_artifacts':   document.querySelector('[data-section="artifacts"]')?.click(); break;
+          case 'close_nav':        window._navClose?.(); break;
+          case 'next_app':         window.jarvis?.switchApp?.().catch?.(() => {}); break;
+          case 'toggle_theme':     doToggleTheme(); break;
+          case 'play_pause':       window._runGesturePrompt?.('play or pause my music'); break;
+          case 'screenshot':       window.jarvis?.startCircleCapture?.(); break;
+          default:                 window._runGesturePrompt?.(g.name); break;
+        }
+      }
+
+
       const handState = {};
 
       // ── One finger (index clearly highest, others below it) — hold 300ms → start listening ─
@@ -3392,6 +3454,20 @@
         // Turning the right hand over — palm to back of hand — means "next".
         // What that means depends on what is on screen, so it is routed below.
         if (gestureIdx >= 0) checkHandSwap(lms[gestureIdx], hands[gestureIdx]?.label);
+
+        // -- The customer's own poses -----------------------------------------
+        // Recording takes the frame first; otherwise a saved pose can fire.
+        // These run after the built-ins, so nothing recorded can break the
+        // cursor or the swap.
+        if (gestureIdx >= 0 && window.CallistoGestures) {
+          const lmG = lms[gestureIdx];
+          if (window.CallistoGestures.isRecording()) {
+            window.CallistoGestures.feedRecorder(lmG);
+          } else {
+            const hit = window.CallistoGestures.check(lmG);
+            if (hit) runCustomGesture(hit);
+          }
+        }
 
         // ── 3D studio mode ────────────────────────────────────
         // A separate control scheme: the RIGHT hand steers the model (open palm

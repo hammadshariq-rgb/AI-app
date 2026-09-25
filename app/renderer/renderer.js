@@ -8933,9 +8933,18 @@ function convoStop(spoken) {
   document.getElementById('screenSuggest')?.remove();
 }
 
-// ââ Screen awareness ââââââââââââââââââââââââââââââââââââââââââ
+// A custom gesture whose action was written in words runs exactly as if the
+// customer had said it out loud, so every skill Callisto has is available to it.
+window._runGesturePrompt = function (text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  addMessage('user', t);
+  sendToJarvis(t);
+};
+
+// ── Screen awareness ─────────────────────────────────────────────
 // Every watched frame is a paid call, so the badge says plainly that the screen
-// is being read and how many frames have gone out â nobody should be surprised
+// is being read and how many frames have gone out — nobody should be surprised
 // by either the privacy or the bill.
 function screenWatchBadge(on, frames = 0, seconds = 5) {
   let el = document.getElementById('screenWatchBadge');
@@ -8978,7 +8987,7 @@ function screenSuggest(sug) {
       ${sug.detail ? `<div class="sw-sug-detail">${esc(sug.detail)}</div>` : ''}
     </div>
     <button class="sw-sug-yes" id="swYes">Yes</button>
-    <button class="sw-sug-x" id="swNo" aria-label="Dismiss">â</button>
+    <button class="sw-sug-x" id="swNo" aria-label="Dismiss">✕</button>
     <div class="sw-sug-bar"><i></i></div>`;
   document.body.appendChild(el);
   requestAnimationFrame(() => el.classList.add('sw-in'));
@@ -8992,7 +9001,7 @@ function screenSuggest(sug) {
     const make = SCREEN_ACTION_PROMPTS[sug.action];
     if (make) { addMessage('user', make(sug.detail || '')); sendToJarvis(make(sug.detail || '')); }
   });
-  // Hovering means they are reading it â don't snatch it away.
+  // Hovering means they are reading it — don't snatch it away.
   el.addEventListener('mouseenter', () => { clearTimeout(timer); el.querySelector('.sw-sug-bar')?.classList.add('sw-paused'); });
 }
 
@@ -9012,6 +9021,8 @@ setInterval(() => {
 
 if (window.jarvis.onConvoToggle) {
   window.jarvis.onConvoToggle(() => (window._convoMode ? convoStop(false) : convoStart()));
+  // A custom gesture can toggle conversation mode too.
+  window._convoToggle = () => (window._convoMode ? convoStop(false) : convoStart());
 }
 
 // ===================== RECORDING =====================
@@ -10164,3 +10175,134 @@ if (window.jarvis.onMacNeedsAutomation) {
     el.appendChild(row);
   });
 }
+
+// ── Your own gestures: record, name, assign ───────────────────────────────────
+// The recording loop lives in gestures.js; this is the panel around it.
+(function () {
+  const G = () => window.CallistoGestures;
+  const studio = document.getElementById('gestureStudio');
+  if (!studio) return;
+  const listEl = document.getElementById('gsList');
+  const recEl  = document.getElementById('gsRec');
+  const saveEl = document.getElementById('gsSave');
+  const arc    = document.getElementById('gsRecArc');
+  const num    = document.getElementById('gsRecNum');
+  const nameIn = document.getElementById('gsName');
+  const actSel = document.getElementById('gsAction');
+  const promptIn = document.getElementById('gsPrompt');
+  const warnEl = document.getElementById('gsWarn');
+  const ARC_LEN = 2 * Math.PI * 34;
+
+  let pending = null;       // the pose just recorded, waiting to be named
+  let mode = 'builtin';     // which half of the "what should it do" choice
+
+  function open() { studio.classList.remove('hidden'); render(); }
+  function close() { studio.classList.add('hidden'); G()?.cancelRecording(); showPane(null); }
+
+  function showPane(which) {
+    recEl.classList.toggle('hidden', which !== 'rec');
+    saveEl.classList.toggle('hidden', which !== 'save');
+    listEl.classList.toggle('hidden', which === 'rec' || which === 'save');
+    document.getElementById('gsAdd').classList.toggle('hidden', which === 'rec' || which === 'save');
+  }
+
+  function actionLabel(a) {
+    if (!a) return '';
+    if (a.kind === 'prompt') return `"${a.text}"`;
+    return (G()?.BUILTIN.find((b) => b.id === a.id) || {}).label || a.id;
+  }
+
+  function render() {
+    const items = G()?.list() || [];
+    listEl.innerHTML = items.length
+      ? items.map((g) => `
+        <div class="gs-row" data-id="${g.id}">
+          <span class="gs-row-name">${g.name.replace(/[<>&]/g, '')}</span>
+          <span class="gs-row-act">${actionLabel(g.action).replace(/[<>&]/g, '')}</span>
+          <button class="gs-row-del" data-del="${g.id}" aria-label="Delete">✕</button>
+        </div>`).join('')
+      : '<div class="gs-empty">No gestures yet. Record one and it will work every time Callisto is running.</div>';
+    listEl.querySelectorAll('[data-del]').forEach((b) => {
+      b.addEventListener('click', async () => { await G().remove(b.dataset.del); render(); });
+    });
+  }
+
+  // ── Recording ──────────────────────────────────────────────────────────────
+  function record() {
+    // The camera has to be on, or there is nothing to read.
+    if (!window._gestureActive) {
+      window._gestureToggle?.();
+    }
+    showPane('rec');
+    arc.style.strokeDasharray = ARC_LEN;
+    arc.style.strokeDashoffset = ARC_LEN;
+    G().startRecording(
+      (pct) => {
+        arc.style.strokeDashoffset = String(ARC_LEN * (1 - pct));
+        num.textContent = String(Math.max(1, Math.ceil((1 - pct) * 3)));
+      },
+      (result) => {
+        if (!result) { showPane(null); return; }
+        pending = result;
+        nameIn.value = '';
+        promptIn.value = '';
+        warnEl.classList.add('hidden');
+        // Held badly, or too close to one they already have — say so now,
+        // rather than letting two gestures fight each other later.
+        const clash = G().clashesWith(result.sig);
+        if (clash) warn(`That looks a lot like "${clash.name}". Callisto may confuse the two.`);
+        else if (result.spread > G().MATCH_THRESHOLD * 0.7) warn('Your hand moved a fair bit. This may not fire reliably — consider recording again.');
+        showPane('save');
+        nameIn.focus();
+      }
+    );
+  }
+
+  function warn(text) { warnEl.textContent = '⚠ ' + text; warnEl.classList.remove('hidden'); }
+
+  async function save() {
+    if (!pending) return;
+    const name = nameIn.value.trim();
+    if (!name) { warn('Give it a name first.'); return; }
+    const action = mode === 'prompt'
+      ? { kind: 'prompt', text: promptIn.value.trim() }
+      : { kind: 'builtin', id: actSel.value };
+    if (mode === 'prompt' && !action.text) { warn('Say what it should do.'); return; }
+    const r = await G().save({ name, sig: pending.sig, spread: pending.spread, action });
+    if (!r?.ok) { warn(r?.error || 'Could not save that.'); return; }
+    pending = null;
+    showPane(null);
+    render();
+  }
+
+  // ── Wiring ─────────────────────────────────────────────────────────────────
+  document.getElementById('gpMyGesturesBtn')?.addEventListener('click', open);
+  document.getElementById('gsClose')?.addEventListener('click', close);
+  document.getElementById('gsAdd')?.addEventListener('click', record);
+  document.getElementById('gsCancel')?.addEventListener('click', () => { G().cancelRecording(); showPane(null); });
+  document.getElementById('gsRetry')?.addEventListener('click', record);
+  document.getElementById('gsSaveBtn')?.addEventListener('click', save);
+  nameIn?.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  promptIn?.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+
+  studio.querySelectorAll('.gs-tab').forEach((t) => {
+    t.addEventListener('click', () => {
+      mode = t.dataset.mode;
+      studio.querySelectorAll('.gs-tab').forEach((x) => x.classList.toggle('gs-tab-on', x === t));
+      actSel.classList.toggle('hidden', mode !== 'builtin');
+      promptIn.classList.toggle('hidden', mode !== 'prompt');
+      if (mode === 'prompt') promptIn.focus();
+    });
+  });
+
+  // Fill the action list and load what they already have.
+  (async () => {
+    await G()?.load();
+    if (actSel && G()) {
+      actSel.innerHTML = G().BUILTIN.map((b) => `<option value="${b.id}">${b.label}</option>`).join('');
+    }
+    render();
+  })();
+
+  window._openGestureStudio = open;
+})();

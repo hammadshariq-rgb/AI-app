@@ -20,6 +20,11 @@
   const KEY = (k) => `<span class="tour-kbd">${k}</span>`;
   // Mac shows Cmd wherever Windows shows Ctrl.
   const MOD = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl');
+  // Conversation mode is the one shortcut that differs in shape, not just in
+  // the modifier key's name.
+  const CONVO = (window.jarvis && window.jarvis.platform) === 'darwin'
+    ? `${KEY('⌃ Ctrl')}${KEY('⌥ Alt')}${KEY('C')}`
+    : `${KEY('Win')}${KEY('Alt')}${KEY('C')}`;
 
   // Each step names what to light up (one or more selectors, joined into one
   // highlight) and what to say about it.
@@ -39,10 +44,33 @@
       foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen — a photo, a chart, a paragraph — and Callisto tells you what it is.`,
     },
     {
+      targets: ['#micWrap'],
+      title: 'Never stop talking',
+      body: `Press ${CONVO} for conversation mode. No shortcut each time, no button — just talk, and Callisto answers whenever you pause. It keeps going until you say <em>"stop listening"</em>.`,
+      foot: 'While it is on, Callisto can see your screen too — so <em>"combine these two PDFs"</em> or <em>"what is this?"</em> work without you sending anything.',
+    },
+    {
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
       body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point and curl your finger to press things, turn your hand over to move on.`,
       foot: 'Nothing leaves your computer — the camera is read on your machine only.',
+    },
+    {
+      targets: ['#gestureToggleBtn'],
+      title: 'Teach it your own gestures',
+      body: 'Open <b>My gestures</b> while the camera is on, hold any pose for three seconds, and say what it should do — pick a Callisto action, or write your own instruction in plain words.',
+      foot: 'Your poses stay on this computer, and they work every time Callisto starts.',
+    },
+    {
+      targets: ['#attachWrap'],
+      title: 'Make things',
+      body: 'Ask for a <em>picture</em>, a <em>video</em> or a <em>3D model</em> and Callisto makes it — five of each, every day. Everything you make lands in <b>Creations</b>, and 3D models open in a studio you can spin, recolour and edit by voice.',
+    },
+    {
+      targets: ['#historyBtn', '#navToggleBtn'],
+      title: 'Connect your accounts',
+      body: 'Link Instagram, TikTok, YouTube, Spotify, your shop or your calendar in <b>Connectors</b>. Then ask how your posts are doing, or tell Callisto to post something — it always shows you exactly what will go out before anything is published.',
+      pad: 10,
     },
     {
       targets: ['#typeModeToggle'],

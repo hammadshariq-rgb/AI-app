@@ -3683,6 +3683,49 @@ ipcMain.handle('screen:setInterval', (_e, seconds) => {
 
 // A full-resolution grab, for when the user asks something about the screen
 // and the low-detail watch frame is not enough.
+// ── Custom hand gestures ───────────────────────────────────────────
+// Poses the customer recorded themselves, kept on their machine so they are
+// there every time Callisto starts — nothing about a hand shape goes online.
+const GESTURE_LIMIT = 20;
+
+function gestureList() {
+  const list = store.get('customGestures');
+  return Array.isArray(list) ? list : [];
+}
+
+ipcMain.handle('gestures:list', () => ({ ok: true, items: gestureList() }));
+
+ipcMain.handle('gestures:save', (_e, g) => {
+  if (!g || !Array.isArray(g.sig) || g.sig.length !== 42) return { ok: false, error: 'That pose did not record properly. Try again.' };
+  const list = gestureList();
+  const entry = {
+    id: g.id || `g${Date.now().toString(36)}`,
+    name: String(g.name || 'Untitled').slice(0, 40),
+    sig: g.sig.map(Number),
+    spread: Number(g.spread) || 0,
+    action: g.action?.kind === 'prompt'
+      ? { kind: 'prompt', text: String(g.action.text || '').slice(0, 300) }
+      : { kind: 'builtin', id: String(g.action?.id || '').slice(0, 40) },
+    createdAt: g.createdAt || Date.now(),
+  };
+  if (entry.action.kind === 'prompt' && !entry.action.text) return { ok: false, error: 'Say what the gesture should do.' };
+  if (entry.action.kind === 'builtin' && !entry.action.id) return { ok: false, error: 'Pick what the gesture should do.' };
+  const i = list.findIndex((x) => x.id === entry.id);
+  if (i >= 0) list[i] = entry;
+  else {
+    if (list.length >= GESTURE_LIMIT) return { ok: false, error: `That's the most gestures Callisto can tell apart (${GESTURE_LIMIT}). Delete one first.` };
+    list.push(entry);
+  }
+  store.set('customGestures', list);
+  return { ok: true, items: list };
+});
+
+ipcMain.handle('gestures:delete', (_e, id) => {
+  const list = gestureList().filter((g) => g.id !== id);
+  store.set('customGestures', list);
+  return { ok: true, items: list };
+});
+
 ipcMain.handle('screen:grab', async () => {
   try { return { ok: true, imageBase64: await grabScreen(1920) }; }
   catch (err) { return { ok: false, error: err.message }; }
