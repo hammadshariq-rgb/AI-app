@@ -456,6 +456,14 @@ function buildCallUrl(platform) {
     case 'messenger':
     case 'facebook':      return 'https://www.messenger.com/';
     case 'facetime':      return 'facetime:';
+    // A normal phone call. On a Mac tel: rings through the user's iPhone over
+    // Continuity; on Windows it opens Phone Link.
+    case 'phone':
+    case 'mobile':
+    case 'cell':
+    case 'tel':           return 'tel:';
+    case 'facetime audio':
+    case 'facetime-audio': return 'facetime-audio:';
     case 'imessage':
     case 'messages':      return 'imessage:';
     case 'teams':
@@ -497,8 +505,10 @@ function openChat(platform, contact, message) {
   });
 }
 
+const DIALLABLE = ['whatsapp', 'viber', 'facetime', 'facetime-audio', 'phone', 'mobile', 'cell', 'tel'];
+
 async function makeCall(platform, contactName) {
-  if ((platform === 'whatsapp' || platform === 'viber' || platform === 'facetime') && contactName) {
+  if (DIALLABLE.includes(platform) && contactName) {
     const number = await lookupSystemContact(contactName);
     if (number) {
       const clean = number.replace(/[^+\d]/g, '');
@@ -506,6 +516,13 @@ async function makeCall(platform, contactName) {
         whatsapp: `whatsapp://call?phone=${clean}`,
         viber:    `viber://call?number=${clean}`,
         facetime: `facetime:${clean}`,
+        'facetime-audio': `facetime-audio:${clean}`,
+        // tel: is the normal dialler on both platforms — the user's iPhone via
+        // Continuity on a Mac, Phone Link on Windows.
+        phone:  `tel:${clean}`,
+        mobile: `tel:${clean}`,
+        cell:   `tel:${clean}`,
+        tel:    `tel:${clean}`,
       };
       return new Promise((resolve) => shell.openExternal(urlMap[platform]).then(resolve).catch(resolve));
     }

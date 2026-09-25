@@ -1880,12 +1880,15 @@
               <!-- Personal accounts have no Instagram API at all, so say this
                    before they connect rather than leaving them with an empty
                    inbox and no idea why. -->
-              <p class="connector-note">Instagram needs a <strong>Professional account</strong> (Business or Creator) linked to a Facebook Page — posting, insights and DMs don't work on a personal account. You can switch for free in Instagram → Settings → Account type.</p>
+              <p class="connector-note"><strong>Requires a Professional account.</strong> Instagram must be a Business or Creator account linked to a Facebook Page — <em>every</em> Instagram feature needs it: uploading posts and reels, followers and insights, and reading or sending DMs. None of them work on a personal account. Switching is free: Instagram → Settings → Account type → Switch to professional account.</p>
               <div class="connector-row" id="facebookRow">
                 <div class="connector-icon facebook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></div>
                 <div class="connector-info"><div class="connector-name">FACEBOOK PAGE</div><div class="connector-status" id="facebookStatus">Not connected</div></div>
                 <button class="connector-btn" id="facebookBtn">CONNECT</button>
               </div>
+              <!-- Facebook posting goes to a Page, never to a personal profile
+                   — Meta has no API for posting to your own timeline. -->
+              <p class="connector-note"><strong>Requires a Facebook Page.</strong> Posting goes to a Page you manage, not your personal profile — Facebook allows no app to post to a personal timeline. It's the same Page your Instagram Professional account is linked to, so connecting Instagram usually covers this too.</p>
               <div class="connector-row" id="tiktokRow">
                 <div class="connector-icon tiktok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></div>
                 <div class="connector-info"><div class="connector-name">TIKTOK STUDIO</div><div class="connector-status" id="tiktokStatus">Not connected</div></div>

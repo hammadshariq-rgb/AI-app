@@ -153,11 +153,11 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'make_call',
-      description: 'Call a PERSON (friend, family, colleague) through a calling app — WhatsApp, FaceTime, etc. Use when the user names a platform ("call Ahmed on WhatsApp") or clearly means a personal contact ("call mum"). Do NOT use this for businesses — restaurants, shops, clinics, salons, hotels or any place name; those are place_phone_call. Pass the contact name exactly as the user said it.',
+      description: 'Call a PERSON (friend, family, colleague) — on a normal phone line or through a calling app. Use when the user names a platform ("call Ahmed on WhatsApp"), asks for an ordinary call ("call Balaj", "ring mum", "give dad a call"), or clearly means a personal contact. For a plain call with no app named, use platform "phone" — on a Mac that rings through their iPhone, on Windows through Phone Link. Do NOT use this for businesses — restaurants, shops, clinics, salons, hotels or any place name; those are place_phone_call. Pass the contact name exactly as the user said it.',
       parameters: {
         type: 'object',
         properties: {
-          platform: { type: 'string', description: 'Platform: whatsapp, instagram, telegram, discord, skype, signal, viber, messenger, facetime, teams, zoom, snapchat, line, facebook' },
+          platform: { type: 'string', description: 'Platform: phone (a normal call — the default when they do not name an app), facetime, facetime-audio, whatsapp, instagram, telegram, discord, skype, signal, viber, messenger, teams, zoom, snapchat, line, facebook' },
           contact_name: { type: 'string', description: 'The name of the person to call, exactly as the user said it (e.g. "Ahmed", "mum", "John Smith")' },
         },
         required: ['platform'],

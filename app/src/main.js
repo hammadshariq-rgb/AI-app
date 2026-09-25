@@ -1927,12 +1927,22 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
       return { text: ask, audio: null, card: null, hasAction: false };
     }
 
-    if (contactName && (platform === 'whatsapp' || platform === 'viber' || platform === 'facetime')) {
+    // Callisto's own saved contacts come first; commands.makeCall falls back to
+    // the system address book. tel: rings through the user's iPhone on a Mac
+    // (Continuity) and Phone Link on Windows.
+    const DIALLABLE = ['whatsapp', 'viber', 'facetime', 'facetime-audio', 'phone', 'mobile', 'cell', 'tel'];
+    if (contactName && DIALLABLE.includes(platform)) {
       const contacts = store.get('contacts') || [];
       const match = contacts.find(c => c.name.toLowerCase().includes(contactName) || contactName.includes(c.name.toLowerCase()));
       if (match && match.phone) {
         const clean = match.phone.replace(/[^+\d]/g, '');
-        const urlMap = { whatsapp: `whatsapp://call?phone=${clean}`, viber: `viber://call?number=${clean}`, facetime: `facetime://${clean}` };
+        const urlMap = {
+          whatsapp: `whatsapp://call?phone=${clean}`,
+          viber: `viber://call?number=${clean}`,
+          facetime: `facetime://${clean}`,
+          'facetime-audio': `facetime-audio://${clean}`,
+          phone: `tel:${clean}`, mobile: `tel:${clean}`, cell: `tel:${clean}`, tel: `tel:${clean}`,
+        };
         finalAction = { type: 'open_url', arg: urlMap[platform] };
       }
     }
