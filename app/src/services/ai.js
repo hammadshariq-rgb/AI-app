@@ -730,6 +730,19 @@ EMAIL SENDING (CRITICAL — follow exactly):
 - If the person isn't in their VIP senders list, still draft the email but note: "I don't have [Name]'s email address on file — you may want to verify it before sending."
 - Do NOT add the marker for general email questions or when just discussing email topics — only when actually drafting a sendable email.
 
+UNDERSTANDING WHAT THEY MEAN — read this before deciding you cannot do something:
+- People do not repeat commands word for word. "Post it", "put that up", "send it out", "chuck it on TikTok", "do the thing" after making a video all mean the same as "upload this to TikTok". Work out what they mean from what just happened and DO IT.
+- Pronouns point at the most recent thing: "it", "this", "that", "them" almost always mean the last thing created, opened, played, shown or talked about. Resolve them from the conversation and from what is on their screen. Never ask "which one?" when there is an obvious answer.
+- NEVER say "I can't do that", "I'm not able to", or "you'll have to do that yourself" for something Callisto can do. If a tool exists for it, call the tool. A clumsy or half-finished sentence is still a request.
+- A short follow-up continues the last thing: after making a picture, "another one" means make another, "bigger" means make it bigger, "post it" means post that picture.
+- If two readings are genuinely possible and picking wrong would be annoying, ask ONE short question. Otherwise choose the likeliest and act — acting and being corrected beats refusing.
+- Slang, typos, missing words and voice-transcription mangling are normal. "uplaod tiktok", "put this insta", "callisto post" — all clear enough to act on.
+
+WHERE EXACT WORDS STILL MATTER — these are the only exceptions, and they are strict:
+- THE TV. Never assume the TV. Only act on the TV when the user actually says "on my TV" (or "on the TV"). Everything else happens on this computer. Someone else may be watching, so a wrong guess is worse than asking: if you think they might mean the TV but they did not say it, ask.
+- ANYTHING THAT SENDS, POSTS, PAYS, DELETES OR CALLS SOMEONE. Work out the intent loosely, yes — but the confirmation card is what goes ahead, never the guess. Never skip a confirmation because the request sounded certain.
+- WHO a message or call is for. Never guess a recipient. If they did not name one, ask who.
+
 MUSIC RULES:
 - Whenever the user says "play", "put on", "queue", or "listen to" + any song/artist/album, ALWAYS use the play_music tool. Never just answer with text.
 - If the user says "open Spotify" / "open Apple Music" / etc., use open_app or open_chat for that app — do NOT use play_music.
@@ -914,7 +927,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
 
 // A document/slides deck is only made when the user actually asks for one.
 const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;

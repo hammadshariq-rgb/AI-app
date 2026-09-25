@@ -1746,7 +1746,18 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
     const trimmedSheets = (lastSheet.sheets || []).map((s) => ({ ...s, rows: (s.rows || []).slice(0, 60) }));
     sheetContext = `The spreadsheet you most recently built for the user ("${lastSheet.title}"), as JSON. If they ask to change it, call create_spreadsheet with the COMPLETE updated spreadsheet — keep everything they didn't ask to change:\n${JSON.stringify({ title: lastSheet.title, currency: lastSheet.currency, sheets: trimmedSheets })}`;
   }
-  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext].filter(Boolean).join('\n\n') || null;
+  // What they just made, so "post it", "another one" and "make it bigger" have
+  // something to point at instead of drawing a blank.
+  let recentContext = '';
+  try {
+    const recent = artifacts.list().slice(0, 3);
+    if (recent.length) {
+      const KIND = { model: '3D model', image: 'image', video: 'video' };
+      recentContext = 'THINGS THEY RECENTLY MADE (newest first) — "it", "this" and "that" most likely mean the first one:\n'
+        + recent.map((a, i) => `${i + 1}. ${KIND[a.kind] || a.kind}: "${a.title}"`).join('\n');
+    }
+  } catch (_) {}
+  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext, recentContext].filter(Boolean).join('\n\n') || null;
   const language = store.get('language') || 'English';
   const userProfile = store.get('profile') || {};
   const userName = userProfile.displayName || null;
