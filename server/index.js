@@ -1662,6 +1662,65 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
 // ── Vision: identify a screen-captured image ──────────────────────────────────
 // Called by the Electron desktop app when user does Ctrl+Shift+Y circle capture.
 // Accepts { imageBase64: "data:image/png;base64,..." } and returns { text, card }
+// ── Continuous screen watching ──────────────────────────────────────
+// Conversation mode sends the screen here on a timer so Callisto knows what
+// the user is looking at without them taking a screenshot. It answers with a
+// one-line description, and at most one thing worth offering to do about it.
+// Deliberately a small, cheap model with a short cap — this runs all day.
+const SCREEN_ACTIONS = [
+  'add_to_calendar', 'summarise_document', 'combine_pdfs', 'reply_to_message',
+  'explain_selection', 'translate', 'extract_table', 'none',
+];
+
+app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const { imageBase64, previous } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      max_tokens: 220,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You watch the screen and report what is on it, briefly and factually.',
+            'Reply as JSON: {"what": string, "app": string, "suggestion": {"action": string, "label": string, "detail": string} | null}.',
+            '"what" is one sentence describing what the user is doing, under 20 words.',
+            '"app" is the program or site they appear to be in, or "" if unclear.',
+            'Offer a suggestion ONLY when something concrete and obviously useful can be done right now.',
+            `Valid actions: ${SCREEN_ACTIONS.join(', ')}.`,
+            'Examples: they are arranging a time in a chat -> add_to_calendar with the date and time in detail.',
+            'A long document or PDF is open -> summarise_document. Two PDFs open -> combine_pdfs.',
+            '"label" is the offer, under 8 words, written as a question to the user, e.g. "Add Friday 6pm to your calendar?".',
+            'Return suggestion: null most of the time. Do not suggest the same thing twice in a row.',
+            'Never describe passwords, card numbers or anything in a password field — set "what" to "A password or payment field is on screen" and stop.',
+            previous ? `The previous description was: "${previous}". If nothing meaningful changed, keep "what" the same and return suggestion: null.` : '',
+          ].filter(Boolean).join('\n'),
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is on my screen?' },
+            { type: 'image_url', image_url: { url: imageBase64, detail: 'low' } },
+          ],
+        },
+      ],
+    });
+
+    let out = {};
+    try { out = JSON.parse(r.choices[0].message.content || '{}'); } catch (_) {}
+    const sug = out.suggestion && SCREEN_ACTIONS.includes(out.suggestion.action) && out.suggestion.action !== 'none'
+      ? { action: out.suggestion.action, label: String(out.suggestion.label || '').slice(0, 80), detail: String(out.suggestion.detail || '').slice(0, 300) }
+      : null;
+    res.json({ what: String(out.what || '').slice(0, 200), app: String(out.app || '').slice(0, 60), suggestion: sug });
+  } catch (err) {
+    console.error('[screen-watch]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { imageBase64 } = req.body;

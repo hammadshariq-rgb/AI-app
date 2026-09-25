@@ -56,6 +56,14 @@ contextBridge.exposeInMainWorld('jarvis', {
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
   dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
   switchApp: ()                          => ipcRenderer.invoke('window:switchApp'),
+  // Continuous screen awareness (conversation mode)
+  screenWatchStart: ()        => ipcRenderer.invoke('screen:watchStart'),
+  screenWatchStop:  ()        => ipcRenderer.invoke('screen:watchStop'),
+  screenWatchStats: ()        => ipcRenderer.invoke('screen:watchStats'),
+  screenSetInterval: (s)      => ipcRenderer.invoke('screen:setInterval', s),
+  screenGrab: ()              => ipcRenderer.invoke('screen:grab'),
+  onScreenWatched: (cb)       => ipcRenderer.on('screen:watched', (_e, d) => cb(d)),
+  onScreenSuggest: (cb)       => ipcRenderer.on('screen:suggest', (_e, d) => cb(d)),
   // Artifacts: the panel refreshes live, and a finished creation announces itself
   onArtifactsChanged: (cb) => ipcRenderer.on('artifacts:changed', (_e, d) => cb(d)),
   onArtifactReady:    (cb) => ipcRenderer.on('artifacts:ready', (_e, d) => cb(d)),

@@ -8912,6 +8912,10 @@ function convoListen() {
 function convoStart() {
   window._convoMode = true;
   convoBanner(true);
+  // Screen watching runs with conversation mode, never on its own.
+  window.jarvis.screenWatchStart?.().then((r) => {
+    if (r?.ok) screenWatchBadge(true, 0, r.seconds || 5);
+  }).catch(() => {});
   addMessage('assistant', `🎙 Conversation mode is on — talk to me normally, I'll answer each time you pause. Say "stop listening", or press ${keys('Win+Alt+C')} again, to end it.`);
   if (!isRecording) convoListen();
 }
@@ -8924,7 +8928,79 @@ function convoStop(spoken) {
   if (isRecording) { window._discardRecording = true; stopRecording(); }
   addMessage('assistant', '🎙 Conversation mode off.');
   if (spoken) window.jarvis.speak('Okay, I\'ve stopped listening.');
+  window.jarvis.screenWatchStop?.().catch(() => {});
+  screenWatchBadge(false);
+  document.getElementById('screenSuggest')?.remove();
 }
+
+// ââ Screen awareness ââââââââââââââââââââââââââââââââââââââââââ
+// Every watched frame is a paid call, so the badge says plainly that the screen
+// is being read and how many frames have gone out â nobody should be surprised
+// by either the privacy or the bill.
+function screenWatchBadge(on, frames = 0, seconds = 5) {
+  let el = document.getElementById('screenWatchBadge');
+  if (!on) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'screenWatchBadge';
+    el.className = 'sw-badge';
+    el.title = 'Callisto is reading your screen while conversation mode is on';
+    el.innerHTML = '<span class="sw-dot"></span> Watching your screen <span class="sw-count"></span>';
+    document.body.appendChild(el);
+  }
+  const c = el.querySelector('.sw-count');
+  if (c) c.textContent = `${frames} frame${frames === 1 ? '' : 's'} Â· every ${seconds}s`;
+}
+
+// What each offer does when accepted. Everything runs through the normal chat
+// path, so it behaves exactly as if the user had asked out loud.
+const SCREEN_ACTION_PROMPTS = {
+  add_to_calendar:    (d) => `Add this to my calendar: ${d}`,
+  summarise_document: () => 'Summarise the document on my screen.',
+  combine_pdfs:       () => 'Combine the two PDFs on my screen into one.',
+  reply_to_message:   (d) => `Draft a reply to the message on my screen${d ? `: ${d}` : ''}.`,
+  explain_selection:  () => 'Explain what is on my screen.',
+  translate:          () => 'Translate what is on my screen into English.',
+  extract_table:      () => 'Pull the table on my screen out into a spreadsheet.',
+};
+
+// A quiet offer at the side with a four-second countdown. It never covers what
+// the user is doing, and it always has a way out.
+function screenSuggest(sug) {
+  if (!sug || !sug.label) return;
+  document.getElementById('screenSuggest')?.remove();
+  const el = document.createElement('div');
+  el.id = 'screenSuggest';
+  el.className = 'sw-suggest';
+  el.innerHTML = `
+    <div class="sw-sug-body">
+      <div class="sw-sug-label">${esc(sug.label)}</div>
+      ${sug.detail ? `<div class="sw-sug-detail">${esc(sug.detail)}</div>` : ''}
+    </div>
+    <button class="sw-sug-yes" id="swYes">Yes</button>
+    <button class="sw-sug-x" id="swNo" aria-label="Dismiss">â</button>
+    <div class="sw-sug-bar"><i></i></div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('sw-in'));
+
+  const close = () => { el.classList.remove('sw-in'); setTimeout(() => el.remove(), 260); };
+  let timer = setTimeout(close, 4000);
+  el.querySelector('#swNo').addEventListener('click', () => { clearTimeout(timer); close(); });
+  el.querySelector('#swYes').addEventListener('click', () => {
+    clearTimeout(timer);
+    close();
+    const make = SCREEN_ACTION_PROMPTS[sug.action];
+    if (make) { addMessage('user', make(sug.detail || '')); sendToJarvis(make(sug.detail || '')); }
+  });
+  // Hovering means they are reading it â don't snatch it away.
+  el.addEventListener('mouseenter', () => { clearTimeout(timer); el.querySelector('.sw-sug-bar')?.classList.add('sw-paused'); });
+}
+
+window.jarvis.onScreenWatched?.((d) => {
+  const c = document.getElementById('screenWatchBadge')?.querySelector('.sw-count');
+  if (c) c.textContent = `${d.frames} frame${d.frames === 1 ? '' : 's'}${d.minutes ? ` Â· ${d.minutes} min` : ''}`;
+});
+window.jarvis.onScreenSuggest?.((sug) => { if (window._convoMode) screenSuggest(sug); });
 
 // Between turns: pick the listening back up once Callisto has finished speaking
 // and the answer is in. Mic stays off while it talks, so it can't hear itself.

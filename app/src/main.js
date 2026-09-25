@@ -1768,7 +1768,16 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message) && !ai.isKnowledgeQuestion(message);
 
   const trimmedHistory = needsAction ? history.slice(-5) : history.slice(-30);
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: combinedContext, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
+  // While the screen is being watched, what the user is looking at is part of
+  // the conversation — "combine these two PDFs" needs no screenshot, because
+  // Callisto already knows what is on screen.
+  let _screenNote = '';
+  if (lastScreenContext && Date.now() - lastScreenContext.at < 60000) {
+    _screenNote = `
+
+ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" — do not ask them to send a screenshot.`;
+  }
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
@@ -3563,6 +3572,121 @@ async function describeInstagramMedia(url) {
   } catch (_) { return null; }
 }
 ipcMain.handle('dm:describe', (_e, url) => describeInstagramMedia(url));
+
+// ── Continuous screen awareness (conversation mode) ───────────────────────
+// While conversation mode is running, Callisto watches the screen so the user
+// never has to screenshot anything: "combine these two PDFs" just works. Every
+// frame goes to the model, which is what makes it feel instant — and what makes
+// it cost money, so the interval is adjustable and the count is reported back.
+const SCREEN_WATCH = {
+  timer: null,
+  last: '',            // previous description, for change detection
+  lastApp: '',
+  lastSuggestion: '',  // don't offer the same thing twice running
+  frames: 0,           // sent this session, shown to the user
+  startedAt: 0,
+  busy: false,
+};
+
+function screenWatchIntervalMs() {
+  const s = Number(store.get('screenWatch.seconds'));
+  return Math.max(2, Number.isFinite(s) && s > 0 ? s : 5) * 1000;
+}
+
+async function grabScreen(maxWidth = 1280) {
+  const { desktopCapturer, screen: eScreen } = require('electron');
+  const d = eScreen.getPrimaryDisplay().size;
+  const w = Math.min(maxWidth, d.width);
+  const h = Math.round(w * (d.height / d.width));
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
+  const src = sources[0];
+  if (!src || src.thumbnail.isEmpty()) return null;
+  return src.thumbnail.toDataURL();
+}
+
+// The most recent reading, so an ordinary chat turn can use it as context.
+let lastScreenContext = null;
+
+async function screenWatchTick() {
+  if (SCREEN_WATCH.busy) return;
+  SCREEN_WATCH.busy = true;
+  try {
+    const token = loadAuthToken();
+    if (!token) return;
+    const imageBase64 = await grabScreen();
+    if (!imageBase64) return;
+    const res = await fetch(`${_serverBase()}/ai/screen-watch`, {
+      method: 'POST',
+      headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, previous: SCREEN_WATCH.last }),
+    });
+    if (!res.ok) return;
+    const out = await res.json();
+    SCREEN_WATCH.frames++;
+    if (out.what) {
+      SCREEN_WATCH.last = out.what;
+      SCREEN_WATCH.lastApp = out.app || '';
+      lastScreenContext = { what: out.what, app: out.app || '', at: Date.now() };
+    }
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('screen:watched', {
+        what: out.what || '', app: out.app || '', frames: SCREEN_WATCH.frames,
+        minutes: Math.round((Date.now() - SCREEN_WATCH.startedAt) / 60000),
+      });
+      // One offer at a time, and never the same one twice in a row.
+      const sug = out.suggestion;
+      if (sug && sug.label && sug.label !== SCREEN_WATCH.lastSuggestion) {
+        SCREEN_WATCH.lastSuggestion = sug.label;
+        overlayWindow.webContents.send('screen:suggest', sug);
+      }
+    }
+  } catch (_) {
+    /* a dropped frame is not worth reporting — the next one is seconds away */
+  } finally {
+    SCREEN_WATCH.busy = false;
+  }
+}
+
+ipcMain.handle('screen:watchStart', () => {
+  if (SCREEN_WATCH.timer) return { ok: true, already: true };
+  SCREEN_WATCH.startedAt = Date.now();
+  SCREEN_WATCH.frames = 0;
+  SCREEN_WATCH.last = '';
+  SCREEN_WATCH.lastSuggestion = '';
+  screenWatchTick();
+  SCREEN_WATCH.timer = setInterval(screenWatchTick, screenWatchIntervalMs());
+  return { ok: true, seconds: screenWatchIntervalMs() / 1000 };
+});
+
+ipcMain.handle('screen:watchStop', () => {
+  if (SCREEN_WATCH.timer) clearInterval(SCREEN_WATCH.timer);
+  SCREEN_WATCH.timer = null;
+  lastScreenContext = null;
+  return { ok: true, frames: SCREEN_WATCH.frames };
+});
+
+ipcMain.handle('screen:watchStats', () => ({
+  on: !!SCREEN_WATCH.timer,
+  frames: SCREEN_WATCH.frames,
+  seconds: screenWatchIntervalMs() / 1000,
+  minutes: SCREEN_WATCH.startedAt ? Math.round((Date.now() - SCREEN_WATCH.startedAt) / 60000) : 0,
+}));
+
+ipcMain.handle('screen:setInterval', (_e, seconds) => {
+  store.set('screenWatch.seconds', Math.max(2, Number(seconds) || 5));
+  if (SCREEN_WATCH.timer) {
+    clearInterval(SCREEN_WATCH.timer);
+    SCREEN_WATCH.timer = setInterval(screenWatchTick, screenWatchIntervalMs());
+  }
+  return { ok: true, seconds: screenWatchIntervalMs() / 1000 };
+});
+
+// A full-resolution grab, for when the user asks something about the screen
+// and the low-detail watch frame is not enough.
+ipcMain.handle('screen:grab', async () => {
+  try { return { ok: true, imageBase64: await grabScreen(1920) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 
 // ── Hand swap on the home screen: move to the next open window ────────────
 // Only windows the user actually has open, in a stable order, so repeating the

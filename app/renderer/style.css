@@ -9048,3 +9048,59 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   border-color: rgba(61,255,180,0.95);
   box-shadow: 0 0 18px rgba(61,255,180,0.45);
 }
+
+/* ── Screen awareness ─────────────────────────────────────────────────────── */
+/* A standing badge while the screen is being read: this is a privacy state and
+   a running cost, so it is always visible, never a hidden background task. */
+.sw-badge {
+  position: fixed; left: 14px; bottom: 14px; z-index: 9998;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 20px;
+  background: rgba(14, 20, 34, 0.94); border: 1px solid rgba(255, 170, 60, 0.35);
+  font-size: 11.5px; color: rgba(225, 235, 255, 0.85); pointer-events: none;
+}
+.sw-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #ffaa3c;
+  animation: swPulse 1.6s ease-in-out infinite;
+}
+@keyframes swPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.sw-count { color: rgba(160, 180, 215, 0.6); }
+
+/* The offer: pinned to the right edge, clear of the middle of the screen. */
+.sw-suggest {
+  position: fixed; right: 18px; top: 50%; z-index: 9999;
+  transform: translate(28px, -50%); opacity: 0;
+  width: 274px; overflow: hidden;
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px 15px; border-radius: 14px;
+  background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(0, 200, 255, 0.3);
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sw-suggest.sw-in { opacity: 1; transform: translate(0, -50%); }
+.sw-sug-body { flex: 1; min-width: 0; }
+.sw-sug-label { font-size: 13px; font-weight: 600; color: rgba(230, 240, 255, 0.95); line-height: 1.35; }
+.sw-sug-detail {
+  font-size: 11.5px; color: rgba(160, 182, 218, 0.75); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sw-sug-yes {
+  flex: none; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px;
+  letter-spacing: 1.2px; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  background: rgba(0, 200, 255, 0.18); border: 1px solid rgba(0, 200, 255, 0.45); color: #7fdcff;
+}
+.sw-sug-x {
+  flex: none; width: 22px; height: 22px; border-radius: 6px; cursor: pointer;
+  background: transparent; border: 0; color: rgba(170, 190, 225, 0.55); font-size: 13px;
+}
+.sw-sug-x:hover { color: rgba(230, 240, 255, 0.9); background: rgba(255, 255, 255, 0.07); }
+/* The four seconds, drawn */
+.sw-sug-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255,255,255,0.06); }
+.sw-sug-bar i { display: block; height: 100%; width: 100%; background: rgba(0, 200, 255, 0.6);
+  transform-origin: left center; animation: swCount 4s linear forwards; }
+.sw-sug-bar.sw-paused i { animation-play-state: paused; }
+@keyframes swCount { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .sw-dot, .sw-sug-bar i { animation: none; }
+  .sw-suggest { transition: opacity 0.2s ease; }
+}
