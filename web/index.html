@@ -544,6 +544,15 @@
     .dl-btn { display: inline-flex; align-items: center; gap: 9px; background: var(--accent); color: #fff; font-family: var(--body); font-size: 15px; font-weight: 700; border: none; border-radius: 13px; padding: 15px 30px; cursor: pointer; text-decoration: none; box-shadow: 0 0 30px rgba(61,92,255,0.4); transition: all 0.2s; }
     .dl-btn:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(61,92,255,0.6); }
     .dl-hint { font-size: 12px; color: var(--text2); margin-top: 11px; }
+    /* Said up front, so a first-run Windows warning doesn't read as danger. */
+    .dl-note {
+      max-width: 520px; margin: 14px auto 0; padding: 11px 14px;
+      font-size: 12.5px; line-height: 1.55; text-align: left;
+      color: var(--text2); border-radius: 10px;
+      background: rgba(255, 190, 80, 0.07); border-left: 2px solid rgba(255, 190, 80, 0.45);
+    }
+    .dl-note strong { color: var(--text); }
+    .dl-note em { font-style: normal; color: var(--text); }
 
     /* ═══ FOOTER ═══ */
     footer { position: relative; z-index: 1; border-top: 1px solid var(--border); padding: 36px 24px; text-align: center; }
@@ -1319,7 +1328,7 @@
           <div class="pd-row" id="dropYearly"><span>Yearly <span class="pd-save">Save 17%</span></span><span class="pd-price">CA$200/yr</span></div>
         </div>
       </div>
-      <a class="btn-nav blue" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-Setup-1.3.0.exe" data-dl="win">⬇ Download App</a>
+      <a class="btn-nav blue" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your-Own-Personal-AI-Setup-1.3.13.exe" data-dl="win">⬇ Download App</a>
     </div>
   </nav>
 
@@ -1667,10 +1676,14 @@
     <div class="sec-eyebrow">DOWNLOAD</div>
     <h2 class="sec-title">Get the full experience</h2>
     <p class="sec-sub">Download Callisto for Windows for the full desktop experience — magic screen cursor, system-wide shortcuts, Shopify, Google Analytics, Squarespace and more.</p>
-    <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-Setup-1.3.0.exe" data-dl="win">⬇ Download for Windows — Free</a>
-    <p class="dl-hint">Windows 10/11 · <span data-dl-version>v1.3.0</span> · Free to download</p>
-    <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-1.3.0-arm64.dmg" data-dl="mac" style="margin-top:14px;"> Download for macOS — Free</a>
-    <p class="dl-hint">macOS 10.15+ · Apple silicon &amp; Intel · <span data-dl-version>v1.3.0</span> · Right-click → Open on first launch</p>
+    <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your-Own-Personal-AI-Setup-1.3.13.exe" data-dl="win">⬇ Download for Windows — Free</a>
+    <p class="dl-hint">Windows 10/11 · <span data-dl-version>v1.3.13</span> · Free to download</p>
+    <!-- Callisto is not code-signed yet, so Windows shows a blue warning on the
+         first run. Saying so here stops people assuming the download is unsafe
+         and abandoning it. -->
+    <p class="dl-note">Windows may show <em>"Windows protected your PC"</em> the first time you run it. That is Microsoft telling you the app is new, not that anything is wrong — click <strong>More info</strong>, then <strong>Run anyway</strong>. It only happens once.</p>
+    <a class="dl-btn" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your.Own.Personal.AI-1.3.13-arm64.dmg" data-dl="mac" style="margin-top:14px;"> Download for macOS — Free</a>
+    <p class="dl-hint">macOS 10.15+ · Apple silicon &amp; Intel · <span data-dl-version>v1.3.13</span> · Right-click → Open on first launch</p>
     <p class="dl-hint" style="margin-top:6px"><a href="https://github.com/hammadshariq-rgb/AI-app/releases/latest" style="color:inherit;text-decoration:underline" data-dl-intel>Intel Mac? Choose your download here</a></p>
   </div>
 
@@ -1805,7 +1818,7 @@
           <div class="pd-row" id="cnDropYr"><span>Yearly <span class="pd-save">Save 17%</span></span><span class="pd-price">CA$200/yr</span></div>
         </div>
       </div>
-      <a class="cn-btn dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-Setup-1.3.0.exe" data-dl="win">⬇ Download App</a>
+      <a class="cn-btn dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your-Own-Personal-AI-Setup-1.3.13.exe" data-dl="win">⬇ Download App</a>
       <div class="cn-user" id="cnUser">
         <div class="cn-avatar" id="cnAvatar">?</div>
         <span class="cn-uname" id="cnUname"></span>
@@ -2175,8 +2188,8 @@
     <div class="prem-icon">🎉</div>
     <div class="prem-title">You're on Premium!</div>
     <div class="prem-sub">Unlimited messages are now active.<br><br>Download the Callisto desktop app for the full experience — Shopify, Google Analytics, Squarespace integrations and more.</div>
-    <a class="prem-dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-Setup-1.3.0.exe" data-dl="win">⬇ Download for Windows</a>
-    <a class="prem-dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.0/Your-Own-Personal-AI-1.3.0-arm64.dmg" data-dl="mac" style="margin-top:8px;background:rgba(255,255,255,0.06);">⬇ Download for macOS</a>
+    <a class="prem-dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your-Own-Personal-AI-Setup-1.3.13.exe" data-dl="win">⬇ Download for Windows</a>
+    <a class="prem-dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.13/Your.Own.Personal.AI-1.3.13-arm64.dmg" data-dl="mac" style="margin-top:8px;background:rgba(255,255,255,0.06);">⬇ Download for macOS</a>
     <button class="prem-cont" id="premCont">Continue chatting on web</button>
   </div>
 </div>
