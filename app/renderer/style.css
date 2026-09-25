@@ -9042,3 +9042,9 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   padding: 6px 13px; border-radius: 7px; cursor: pointer;
   background: rgba(0, 200, 255, 0.16); border: 1px solid rgba(0, 200, 255, 0.45); color: #7fdcff;
 }
+
+/* Magic cursor, armed: the pointing finger is out and ready to be curled */
+#magicCursor.armed .mc-ring {
+  border-color: rgba(61,255,180,0.95);
+  box-shadow: 0 0 18px rgba(61,255,180,0.45);
+}

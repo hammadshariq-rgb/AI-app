@@ -2907,10 +2907,10 @@
       // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
       const CLICK_COOLDOWN = 450;  // ms between distinct clicks
-      let isPinching = false;
-      let pinchFired = false;      // must RELEASE pinch before next click fires
-      let pinchHeldSince = 0;
-      const PINCH_HOLD_MS = 100;   // ms hold before click fires — snappier
+      // Trigger-pull state: the finger must be extended (armed) before a curl
+      // counts as a press, so a resting closed hand never clicks anything.
+      let triggerArmed = false;
+      let triggerFired = false;
       let cursorX = -9999, cursorY = -9999;
       let smoothX = -9999, smoothY = -9999; // display position (double-smoothed)
       let lastLeftLm = null;
@@ -2942,7 +2942,7 @@
           window.CallistoModelViewer.handInput({
             x: smoothX / window.innerWidth,
             y: smoothY / window.innerHeight,
-            pinching: isPinching,
+            pinching: triggerFired,
           });
         }
 
@@ -2985,34 +2985,39 @@
           if (elUnder) elUnder.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: smoothX, clientY: smoothY }));
         }
 
-        // ── Pinch detection — use index+thumb distance normalised by hand scale ─
-        // Normalise by wrist-to-middle-MCP distance so detection is scale-invariant
+        // ── Trigger pull ─────────────────────────────────────────────
+        // You point at what you want and curl that finger like pulling a
+        // trigger — the thing under the cursor is pressed. Pinch used to do
+        // this, but curling is steadier and reads as "press" to people.
+        // Normalise by wrist-to-middle-MCP so it works at any distance.
         const handScale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.15;
-        const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / handScale;
-        const pinching = pinchDist < 0.38; // normalised threshold — consistent at any hand distance
+        // Index tip vs its own knuckle: extended = tip far from MCP, curled = close.
+        const indexReach = Math.hypot(lm[8].x - lm[5].x, lm[8].y - lm[5].y) / handScale;
+        const armed   = indexReach > 0.95;     // finger out straight — ready
+        const pulled  = indexReach < 0.62;     // finger curled in — fires
 
-        if (pinching) {
-          if (!isPinching) {
-            isPinching = true;
-            pinchFired = false;
-            pinchHeldSince = Date.now();
-            magicCursor.classList.add('pinch');
+        if (armed && !triggerArmed) {
+          triggerArmed = true;
+          triggerFired = false;
+          magicCursor.classList.add('armed');
+        }
+        if (pulled && triggerArmed && !triggerFired) {
+          const now = Date.now();
+          if (now - lastClickTime > CLICK_COOLDOWN) {
+            triggerFired = true;
+            triggerArmed = false;
+            lastClickTime = now;
+            magicCursor.classList.remove('armed');
+            magicCursor.classList.add('pinch');          // reuse the press flash
+            setTimeout(() => magicCursor.classList.remove('pinch'), 200);
+            const el = document.elementFromPoint(smoothX, smoothY);
+            if (el) el.click();
           }
-          // Fire once per gesture — must release to click again (no phantom repeats)
-          if (!pinchFired) {
-            const now = Date.now();
-            if (now - pinchHeldSince >= PINCH_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
-              pinchFired = true;
-              lastClickTime = now;
-              const el = document.elementFromPoint(smoothX, smoothY);
-              if (el) el.click();
-            }
-          }
-        } else if (isPinching) {
-          isPinching = false;
-          pinchFired = false;
-          pinchHeldSince = 0;
-          magicCursor.classList.remove('pinch');
+        }
+        if (!pulled && !armed) {
+          // Half-way — neither armed nor pulled. Reset so the next full
+          // extend-then-curl counts as one clean press.
+          triggerFired = false;
         }
       }
 
@@ -3036,6 +3041,61 @@
       // ── Finger helpers ───────────────────────────────────────────────────────
       // Strict threshold: tip must be clearly above PIP (reduces false positives)
       function fingerUp(lm, tip, pip) { return lm[tip].y < lm[pip].y - 0.06; }
+
+      // ── Hand swap: palm ↔ back of hand ─────────────────────────────────────
+      // Which way the hand faces is read from the order of the index and pinky
+      // knuckles across the screen. Flipping that order means the hand turned
+      // over. A swap must hold briefly so a hand waving about does not fire it.
+      const swap = { facing: null, since: 0, lastFired: 0 };
+      const SWAP_HOLD_MS = 180;
+      const SWAP_COOLDOWN = 900;
+
+      function palmFacing(lm, label) {
+        const d = lm[17].x - lm[5].x;           // pinky knuckle vs index knuckle
+        if (Math.abs(d) < 0.02) return null;    // edge-on — can't tell
+        // Mirrored preview, so flip for a left hand to keep the meaning the same.
+        return (label === 'Left' ? -d : d) > 0 ? 'palm' : 'back';
+      }
+
+      function checkHandSwap(lm, label) {
+        const f = palmFacing(lm, label);
+        if (!f) return;
+        const now = Date.now();
+        if (swap.facing === null) { swap.facing = f; swap.since = now; return; }
+        if (f === swap.facing) { swap.since = now; return; }
+        // Facing changed — hold it briefly, then fire once.
+        if (now - swap.since < SWAP_HOLD_MS) return;
+        if (now - swap.lastFired < SWAP_COOLDOWN) { swap.facing = f; return; }
+        swap.facing = f;
+        swap.since = now;
+        swap.lastFired = now;
+        doHandSwap();
+      }
+
+      // One gesture, four meanings — whichever fits what the user is looking at.
+      function doHandSwap() {
+        // 1. A 3D model is open → spin it a quarter turn.
+        if (window.CallistoModelViewer?.isOpen?.()) {
+          showGesture('↻', 'Swap — rotating the model');
+          window.CallistoModelViewer.nudgeRotate?.();
+          return;
+        }
+        // 2. Markets expanded → step to the next holding.
+        if (typeof window._marketsCycleNext === 'function' && window._marketsExpanded?.()) {
+          showGesture('⇄', 'Swap — next holding');
+          window._marketsCycleNext();
+          return;
+        }
+        // 3. Navigation open → close it.
+        if (typeof window._navIsOpen === 'function' && window._navIsOpen()) {
+          showGesture('✕', 'Swap — closing navigation');
+          window._navClose?.();
+          return;
+        }
+        // 4. Otherwise → next open app, like Alt+Tab.
+        showGesture('❐', 'Swap — next app');
+        window.jarvis?.switchApp?.().catch?.(() => {});
+      }
 
       // ── State machine ────────────────────────────────────────────────────────
       const handState = {};
@@ -3157,7 +3217,12 @@
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
       const TIPS = [4, 8, 12, 16, 20];
       function drawHand(ctx, lm, W, H, isLeft) {
-        const col = isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(0,210,255,0.85)';
+        // Green everywhere, red inside the 3D studio — the two modes have
+        // different controls, so the skeleton says which one you are in.
+        const studio = !!window.CallistoModelViewer?.isOpen?.();
+        const col = studio
+          ? (isLeft ? 'rgba(255,90,90,0.9)' : 'rgba(255,140,60,0.9)')
+          : (isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(0,210,255,0.85)');
         // Pass 1: all bone lines in one stroke
         ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
         ctx.beginPath();
@@ -3236,7 +3301,7 @@
           if (clapLanded && canFire('clap') && !studioOpen) { doClapAction(); return; }
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-          isPinching = false; pinchFired = false; lastLeftLm = null;
+          triggerArmed = false; triggerFired = false; lastLeftLm = null;
           cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
           velX = 0; velY = 0; _hoverEl = null;
           overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -3318,15 +3383,20 @@
           updateCursorLandmarks(lms[cursorIdx]);
         } else {
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-          isPinching = false; pinchFired = false; pinchHeldSince = 0;
+          triggerArmed = false; triggerFired = false;
           cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
           velX = 0; velY = 0; lastLeftLm = null; _hoverEl = null;
         }
 
-        // ── 3D studio mode ─────────────────────────────────────────────────
+        // ── Hand swap ───────────────────────────────────────────────
+        // Turning the right hand over — palm to back of hand — means "next".
+        // What that means depends on what is on screen, so it is routed below.
+        if (gestureIdx >= 0) checkHandSwap(lms[gestureIdx], hands[gestureIdx]?.label);
+
+        // ── 3D studio mode ────────────────────────────────────
         // A separate control scheme: the RIGHT hand steers the model (open palm
-        // moves it, pinch + up/down zooms); the LEFT hand stays the cursor for
-        // selecting areas. None of the main-page gestures fire here.
+        // moves it, palm nearer/further zooms); the LEFT hand stays the cursor
+        // for selecting areas. None of the main-page gestures fire here.
         if (window.CallistoModelViewer && window.CallistoModelViewer.isOpen()) {
           window.CallistoModelViewer.rightHand(gestureIdx >= 0 ? lms[gestureIdx] : null, performance.now());
           return;
@@ -3497,7 +3567,7 @@
         video.srcObject = null;
         clapSamples = []; clapArmedAt = 0; waveHist[0] = []; waveHist[1] = [];
         if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
-        isPinching = false; pinchFired = false; pinchHeldSince = 0; lastLeftLm = null;
+        triggerArmed = false; triggerFired = false; lastLeftLm = null;
         cursorX = -9999; cursorY = -9999; smoothX = -9999; smoothY = -9999;
         velX = 0; velY = 0; _hoverEl = null;
         _canvasSized = false; overlayCtx = null;

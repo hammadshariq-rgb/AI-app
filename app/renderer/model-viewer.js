@@ -244,6 +244,16 @@
     bindPointer();
   }
 
+  // A hand swap spins the model a quarter turn — the gesture layer calls this.
+  function nudgeRotate() {
+    if (!open) return;
+    autoSpin = false;
+    syncSpinButton();
+    const w = canvas.clientWidth || window.innerWidth;
+    orbitBy(w * 0.25, 0);
+    notify('Rotated');
+  }
+
   // Reflect whether hand control is running, so the button and the two hand
   // chips agree with what the camera is actually doing.
   function setHandsActive(on) {
@@ -372,19 +382,31 @@
     steer.lostAt = 0;
     setHandChip('right', true);
 
+    // How big the hand looks tells us how far away it is: bigger = nearer the
+    // camera. An open palm pushed towards the screen zooms out, pulled back
+    // towards you zooms in.
     const scale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.15;
-    const pinch = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / scale < 0.38;
     const fingers = extendedFingers(lm);
-    const mode = pinch ? 'zoom' : fingers >= 3 ? 'rotate' : 'hold';
+    const openPalm = fingers >= 4;
     const c = palmCentre(lm);
+
+    // An open palm held still is a zoom; an open palm that moves is a rotate.
+    let mode = fingers >= 3 ? 'rotate' : 'hold';
+    if (openPalm && steer.has) {
+      const moved = Math.hypot(c.x - steer.x, c.y - steer.y);
+      const depthChange = Math.abs(scale - (steer.scale || scale)) / (steer.scale || scale);
+      if (depthChange > 0.035 && moved < 0.02) mode = 'zoom';
+    }
 
     // Re-anchor whenever the hand appears or changes mode, so nothing jumps
     if (!steer.has || mode !== steer.mode) {
       steer.x = c.x; steer.y = c.y; steer.has = true; steer.mode = mode;
       steer.zoomY = c.y; steer.zoomBase = cam.targetRadius;
+      steer.scale = scale; steer.scaleBase = scale;
       setSteerState(mode);
       return;
     }
+    steer.scale = steer.scale + (scale - steer.scale) * 0.4;   // smooth the depth
 
     // Light smoothing on the palm, then use the frame-to-frame movement
     const sx = steer.x + (c.x - steer.x) * 0.6;
@@ -401,8 +423,9 @@
       orbitBy(dx * w * 1.6, dy * h * 1.6);
     } else if (mode === 'zoom') {
       autoSpin = false;
-      const travel = sy - steer.zoomY;                   // hand up (negative) = closer
-      cam.targetRadius = clamp(steer.zoomBase * Math.exp(travel * 4.5), 0.7, 9);
+      // Hand nearer the camera (larger) = pushed towards the model = zoom out.
+      const ratio = steer.scale / (steer.scaleBase || steer.scale);
+      cam.targetRadius = clamp(steer.zoomBase * ratio, 0.7, 9);
     }
   }
 
@@ -1127,6 +1150,7 @@
     handInput,
     rightHand,
     setHandsActive,
+    nudgeRotate,
     onCommand: (fn) => { commandHandler = fn; },
     setBusy,
     info: () => ({ title: current.title, taskId: current.taskId, prompt: current.prompt, loaded: !!modelRoot }),

@@ -209,7 +209,7 @@ const TOOLS = [
     function: {
       name: 'generate_3d_model',
       description:
-        'Generate a real, interactive 3D model the user can rotate and inspect. Use whenever they ask for a "3D model", "3D print", "mesh", or to "model" a physical object — e.g. "make me a 3D model of an Iron Man suit", "3D model a dragon". Do NOT use this for flat pictures; that is generate_image.',
+        'Generate a real, interactive 3D model the user can rotate and inspect. ONLY use this when the user explicitly says "3D", "3D model", "3D print", "mesh", or "sculpt" — e.g. "make me a 3D model of an Iron Man suit", "3D model a dragon". If they say picture, image, photo, drawing, illustration, art or logo, that is generate_image, NEVER this. If they say video, clip or animation, that is a video, NEVER this. When in doubt between a picture and a 3D model, choose generate_image.',
       parameters: {
         type: 'object',
         properties: {
@@ -261,7 +261,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'generate_image',
-      description: 'Generate or create an image using AI. Use whenever the user asks to create, generate, draw, make, or design an image, picture, photo, illustration, artwork, logo, or anything visual.',
+      description: 'Generate a flat picture with AI. Use whenever the user asks to create, generate, draw, make or design an image, picture, photo, illustration, artwork, drawing, logo, poster or wallpaper — this is the DEFAULT for anything visual. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
       parameters: {
         type: 'object',
         properties: {
@@ -750,6 +750,14 @@ OPENING APPS RULES:
 - When the user asks to open WhatsApp or Instagram, always use open_chat (not open_url) — this tries the desktop app first and only falls back to the browser if the app isn't installed.
 - Same for all messaging apps: always prefer open_chat over open_url so the desktop app is used when available.
 - "Send a WhatsApp to X saying Y" / "text Ahmed that I'm late": call open_chat with platform whatsapp, the contact, and message set to what they dictated. It opens that chat with the words typed in, ready for them to press send. Say that it's ready to send — never claim it was sent, because Callisto does not press send.
+
+CREATING THINGS (picture vs video vs 3D) — these get mixed up, so be strict:
+- "image", "picture", "photo", "drawing", "illustration", "art", "logo", "poster", "wallpaper", "draw me", "design me" -> generate_image. This is the default for anything visual.
+- "video", "clip", "animation", "reel", "animate this", "make it move" -> video generation.
+- ONLY the words "3D", "3D model", "3D print", "mesh" or "sculpt" -> generate_3d_model.
+- Never substitute one for another. "Make me an image of a dragon" is a picture, not a 3D model, even if a 3D model is already open on screen.
+- If a 3D model is open and the user asks for a NEW picture or video, create the new thing — do not treat it as an edit of the model.
+- If it is genuinely ambiguous ("make me a dragon"), ask one short question: "Picture, video or 3D model?"
 
 MESSAGES (reading and sending DMs):
 - Instagram DMs can be READ and SENT for real. WhatsApp cannot: Callisto can open a WhatsApp chat and place WhatsApp calls, but it cannot read or send WhatsApp messages at all.

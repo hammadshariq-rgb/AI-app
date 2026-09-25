@@ -3564,6 +3564,55 @@ async function describeInstagramMedia(url) {
 }
 ipcMain.handle('dm:describe', (_e, url) => describeInstagramMedia(url));
 
+// ── Hand swap on the home screen: move to the next open window ────────────
+// Only windows the user actually has open, in a stable order, so repeating the
+// gesture walks the list instead of bouncing between two apps.
+ipcMain.handle('window:switchApp', async () => {
+  try {
+    if (process.platform === 'win32') {
+      // Alt+Tab is awkward to synthesise; walking the visible top-level windows
+      // and activating the next one is steadier and gives us the same result.
+      const ps = [
+        'Add-Type @"',
+        'using System;using System.Runtime.InteropServices;using System.Text;',
+        'public class W{',
+        '[DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f,IntPtr l);',
+        '[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);',
+        '[DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);',
+        '[DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h,StringBuilder s,int c);',
+        '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);',
+        '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int n);',
+        '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+        'public delegate bool EnumProc(IntPtr h,IntPtr l);}',
+        '"@',
+        '$list=New-Object System.Collections.ArrayList',
+        '$cb=[W+EnumProc]{param($h,$l) if([W]::IsWindowVisible($h)){$n=[W]::GetWindowTextLength($h); if($n -gt 0){$sb=New-Object System.Text.StringBuilder($n+1);[void][W]::GetWindowText($h,$sb,$n+1);[void]$list.Add(@{h=$h;t=$sb.ToString()})}} return $true}',
+        '[void][W]::EnumWindows($cb,[IntPtr]::Zero)',
+        '$cur=[W]::GetForegroundWindow()',
+        '$i=0; for($k=0;$k -lt $list.Count;$k++){ if($list[$k].h -eq $cur){$i=$k;break} }',
+        'if($list.Count -gt 1){ $n=$list[($i+1)%$list.Count]; [void][W]::ShowWindow($n.h,9); [void][W]::SetForegroundWindow($n.h); $n.t }',
+      ].join('\n');
+      return await new Promise((resolve) => {
+        require('child_process').execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: 6000 }, (err, out) => {
+          resolve({ ok: !err, app: String(out || '').trim() || null });
+        });
+      });
+    }
+    if (process.platform === 'darwin') {
+      // Cmd+Tab through System Events — the normal Mac app switcher.
+      const script = 'tell application "System Events" to key code 48 using command down';
+      return await new Promise((resolve) => {
+        require('child_process').execFile('osascript', ['-e', script], { timeout: 6000 }, (err) => {
+          resolve({ ok: !err });
+        });
+      });
+    }
+    return { ok: false, error: 'unsupported' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('dm:inbox', async (_e, platform) => {
   if (platform === 'instagram') return connectors.getInstagramInbox(25);
   // WhatsApp has no API for a personal account, so there's nothing to read.

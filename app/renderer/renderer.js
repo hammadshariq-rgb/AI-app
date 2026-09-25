@@ -3576,9 +3576,16 @@ window._handleModelCommand = function (text) {
   return true;
 };
 
+// Asking for something NEW is never an edit of the model that happens to be
+// open. Without this, "make me an image of a gold lion" was swallowed as a
+// repaint because MODEL_EDIT_RE saw "gold".
+const NEW_CREATION_RE = /(?:make|create|generate|draw|design|paint me|give me|i want|can you (?:make|create|draw|generate))[^.?!]{0,40}(?:image|picture|photo|photograph|illustration|artwork|art|drawing|logo|poster|wallpaper|render(?:ing)?|video|clip|animation|reel|3d model|3-d model|3d print|mesh|model of)/i;
+
 window._checkModelCommand = function (text) {
   const V = window.CallistoModelViewer;
-  if (!V || !V.isOpen() || !V.info().loaded || !MODEL_EDIT_RE.test(text)) return false;
+  if (!V || !V.isOpen() || !V.info().loaded) return false;
+  if (NEW_CREATION_RE.test(text)) return false;      // a new creation, not an edit
+  if (!MODEL_EDIT_RE.test(text)) return false;
   return window._handleModelCommand(text);
 };
 
@@ -4732,6 +4739,17 @@ async function openLeftNavSection(section) {
   if (section === 'artifacts' && typeof window._renderArtifacts === 'function') await window._renderArtifacts();
   if (section === 'settings') await loadSettingsPane();
 }
+
+// ── Hooks for the hand-swap gesture ─────────────────────────────────
+// Turning the hand over means "next", and these say what is on screen so the
+// gesture can pick the right meaning.
+window._navIsOpen = () => !historySidebar.classList.contains('hidden');
+window._navClose = () => {
+  historySidebar.classList.add('hidden');
+  document.querySelectorAll('#lnavTabs .lnav-tab').forEach(b => b.classList.remove('active'));
+};
+window._marketsExpanded = () => !!window.marketsOverlayOpen;
+window._marketsCycleNext = () => { if (window._cfNudge) window._cfNudge(1); };
 
 // Tab switching inside sidebar
 document.querySelectorAll('#lnavTabs .lnav-tab').forEach(tab => {
