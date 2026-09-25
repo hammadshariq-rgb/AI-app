@@ -140,6 +140,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   shopOpen:      (url, fallbackUrl)    => ipcRenderer.invoke('shop:open', { url, fallbackUrl }),
+  runCommand:    (command, folder)     => ipcRenderer.invoke('command:run', { command, folder }),
+  pickProjectFolder: ()                => ipcRenderer.invoke('command:pickFolder'),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
   callStart:     (payload) => ipcRenderer.invoke('call:start', payload),
   callRespond:   (callId, approved, note) => ipcRenderer.invoke('call:respond', { callId, approved, note }),

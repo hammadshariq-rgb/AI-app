@@ -138,6 +138,23 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'run_command',
+      description:
+        "Propose a terminal command for the user's own project — git (status, add, commit, push, pull, branch, log, diff), npm/yarn/pnpm, build and test commands, and deploy tools like netlify, vercel or railway. Use when they ask to commit, push, deploy, install a package, run tests or build. Callisto shows the exact command and folder on a card and runs it only when the user presses Run, so proposing one is safe. One command per call; propose the next one after seeing the output. Never propose anything that deletes work or rewrites history unless the user asked for exactly that.",
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'The command exactly as it should run, e.g. git commit -m "fix login" or npm test.' },
+          folder: { type: 'string', description: "The project folder to run it in. Leave empty to use the folder they're already working in." },
+          why: { type: 'string', description: 'One short line saying what this does, in plain words — shown on the card above the command.' },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'upload_media',
       description:
         "Post a video or photo to the user's own connected social account — YouTube, Instagram, their Facebook Page or TikTok. Use when they say things like \"upload this to YouTube\", \"post that video on TikTok\", \"put this on Instagram\", \"post it on Facebook\", \"upload my last video\". Callisto always shows a confirmation card before anything is posted, so it is safe to call. Never invent a title or caption the user didn't ask for — leave those empty.",
@@ -996,6 +1013,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
           else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
           else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
           else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
+          else if (fnName === 'run_command') action = { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
           else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
           else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
           else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
@@ -1061,6 +1079,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
     else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
           else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
           else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
+          else if (fnName === 'run_command') action = { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
     else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
     else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
     else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };

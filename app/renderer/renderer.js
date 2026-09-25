@@ -4451,6 +4451,48 @@ function showCard(card) {
     _activeCallCard = card;
     cardContent.innerHTML = renderCallCard(card);
     wireCallCard();
+  } else if (card.type === 'command') {
+    // Proposed, not run: the exact command and folder are shown, and it only
+    // runs when the user presses Run.
+    cardContent.innerHTML = `
+      <div class="card-command">
+        <div class="cmd-label">TERMINAL COMMAND</div>
+        ${card.why ? `<div class="cmd-why">${esc(card.why)}</div>` : ''}
+        <pre class="cmd-line" id="cmdLine">${esc(card.command)}</pre>
+        <div class="cmd-folder">in <span id="cmdFolder">${esc(card.folder || '')}</span>
+          <button id="cmdPickFolder" class="cmd-folder-btn">change</button></div>
+        <div class="cmd-actions">
+          <button class="cmd-run" id="cmdRun">▶ RUN</button>
+          <button class="cmd-copy" id="cmdCopy">COPY</button>
+        </div>
+        <pre class="cmd-output" id="cmdOutput" hidden></pre>
+      </div>`;
+    setTimeout(() => {
+      const runBtn = document.getElementById('cmdRun');
+      const out = document.getElementById('cmdOutput');
+      document.getElementById('cmdCopy')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(card.command).catch(() => {});
+        document.getElementById('cmdCopy').textContent = 'COPIED';
+      });
+      document.getElementById('cmdPickFolder')?.addEventListener('click', async () => {
+        const r = await window.jarvis.pickProjectFolder().catch(() => null);
+        if (r?.ok) { card.folder = r.folder; document.getElementById('cmdFolder').textContent = r.folder; }
+      });
+      runBtn?.addEventListener('click', async () => {
+        runBtn.disabled = true;
+        runBtn.textContent = 'RUNNING…';
+        out.hidden = false;
+        out.textContent = '…';
+        const res = await window.jarvis.runCommand(card.command, card.folder).catch((e) => ({ ok: false, error: e.message }));
+        out.textContent = res.output || res.error || (res.ok ? 'Done — no output.' : 'Failed.');
+        out.classList.toggle('cmd-failed', !res.ok);
+        runBtn.textContent = res.ok ? '✓ RAN' : '⚠ FAILED — RUN AGAIN';
+        runBtn.disabled = !!res.ok;
+        addMessage('assistant', res.ok
+          ? `✅ Ran \`${card.command}\`${res.output ? `\n\n\`\`\`\n${String(res.output).slice(-1200)}\n\`\`\`` : ''}`
+          : `⚠️ \`${card.command}\` failed${res.output || res.error ? `\n\n\`\`\`\n${String(res.output || res.error).slice(-1200)}\n\`\`\`` : ''}`);
+      });
+    }, 50);
   } else if (card.type === 'publish') {
     cardContent.innerHTML = renderPublishCard(card);
     wirePublishCard(card);
@@ -5678,8 +5720,44 @@ if (window.jarvis.onSentenceText) {
   meClose?.addEventListener('click', closeMagicEdit);
 
   // Called from voice pipeline when recording is done (magic-edit mode)
+  // "Is this any good?" is a question about the selection, not an instruction to
+  // change it — answer it and leave their text alone. "Rephrase this" edits.
+  function _meIsQuestion(t) {
+    const s = String(t || '').trim().toLowerCase().replace(/[.!]+$/, '');
+    if (/^(?:please\s+)?(?:can|could|would)\s+you\s+(?:make|rewrite|rephrase|fix|change|shorten|lengthen|translate|correct|improve|tidy|clean)/.test(s)) return false;
+    if (/\?$/.test(s)) return true;
+    return /^(?:is|are|was|were|does|do|did|has|have|can|could|should|would|will|why|what|which|who|whose|how|any)\b/.test(s)
+      || /\b(?:what do you think|your thoughts|any (?:mistakes|errors|bugs|issues|problems)|is (?:this|it) (?:ok|okay|good|fine|right|correct|clear)|does (?:this|it) (?:work|make sense|look right)|review (?:this|it)|check (?:this|it)|explain (?:this|it)|how (?:does|do) (?:this|it) work)\b/.test(s);
+  }
+
+  // Answer about the selection: spoken, and on the card over whatever app they're
+  // in — the same place a Ctrl+Shift+C answer appears. Nothing is pasted.
+  async function _meAnswerQuestion(question) {
+    setMeState('thinking', 'Reading it…');
+    const looksLikeCode = /[;{}()=><]|\bfunction\b|\bconst\b|\bdef\b|\bclass\b|\bimport\b|^\s{2,}\S/m.test(_meText);
+    const prompt = `The user highlighted this ${looksLikeCode ? 'code' : 'text'} on their screen and asked: "${question}"\n\n`
+      + `Answer their question about it directly, in two or three sentences. Don't rewrite it unless they asked.\n\n`
+      + `--- selection ---\n${_meText.slice(0, 6000)}\n--- end ---`;
+    try {
+      const res = await window.jarvis.chat(prompt, [], []);
+      const answer = (res && (res.text || res.userMsg)) || "I couldn't read that.";
+      addMessage('assistant', answer);
+      _maybeForwardToHud(answer, null);
+      window.jarvis.hudForward?.(answer, null);   // show it over their app either way
+      const audio = await window.jarvis.speak(answer.slice(0, 600));
+      if (audio) playAudioChunks([audio]);
+      setMeState('done', '✓ Answered — your text is untouched.');
+      setTimeout(closeMagicEdit, 2600);
+    } catch (_) {
+      setMeState('error', 'Something went wrong.');
+      setTimeout(closeMagicEdit, 3000);
+    }
+    return true;
+  }
+
   window._magicEditHandleTranscript = async function(instruction) {
     if (!_meActive || !_meText) return false;
+    if (_meIsQuestion(instruction)) return _meAnswerQuestion(instruction);
     setMeState('thinking', 'Editing with AI…');
     try {
       const res = await window.jarvis.magicEdit(_meText, instruction);
@@ -6352,7 +6430,7 @@ function initWelcomeScroll() {
     { emoji: '⬢', title: '3D MODELS',          sub: 'Say it, and watch it built in 3D',           kbd: null,           colorA: '#22d3ee', colorB: '#083344' },
     { emoji: '▣', title: 'CAST TO TV',         sub: 'Send anything to your television',           kbd: null,           colorA: '#f87171', colorB: '#450a0a' },
     { emoji: '❖', title: 'GOOGLE FLOW',        sub: 'Cinematic video, made from a sentence',      kbd: null,           colorA: '#818cf8', colorB: '#1e1b4b' },
-    { emoji: '◐', title: 'HIGGSFIELD VIDEO',   sub: 'Generate video clips on command',            kbd: null,           colorA: '#facc15', colorB: '#422006' },
+    { emoji: '◐', title: 'AI VIDEO',           sub: 'Generate video clips on command',            kbd: null,           colorA: '#facc15', colorB: '#422006' },
     { emoji: '☑', title: 'TASKS & REMINDERS',  sub: 'Your day, read back to you each morning',    kbd: null,           colorA: '#2dd4bf', colorB: '#042f2e' },
   ];
 

@@ -1183,6 +1183,10 @@ const WHISPER_PROMPT = 'Callisto AI assistant.';
 
 // ── Daily message limit (15/day for free users) ───────────────────────────────
 const FREE_DAILY_LIMIT = 15;
+// AI pictures: five a day on the paid plan, one on the trial.
+const usage = require('./usage');
+const IMAGE_USES_PER_DAY = Number(process.env.IMAGE_USES_PER_DAY) || 5;
+const TRIAL_IMAGE_USES_PER_DAY = Number(process.env.TRIAL_IMAGE_USES_PER_DAY) || 1;
 
 async function checkGuestOrUserLimit(req, res, next) {
   if (!req.userId) {
@@ -1584,6 +1588,22 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
     const { prompt, size } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
 
+    // Five pictures a day on the paid plan, one on the free trial — same shape
+    // as the video and 3D allowances.
+    const imgAllow = await usage.allowance(req.userId, {
+      paidPerDay: IMAGE_USES_PER_DAY, trialPerDay: TRIAL_IMAGE_USES_PER_DAY,
+    });
+    const imgSlot = await usage.reserve('image', req.userId, imgAllow.limit, imgAllow.period);
+    if (!imgSlot.ok) {
+      return res.status(429).json({
+        error: imgAllow.plan === 'trial'
+          ? `The free trial includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
+          : `You've used all ${imgAllow.limit} of today's images. Try again tomorrow.`,
+        upgrade: imgAllow.plan === 'trial',
+      });
+    }
+    const refundImage = () => usage.release('image', req.userId, imgAllow.period).catch(() => {});
+
     // Sanitise prompt — strip phrases that trigger content policy rejections
     const safePrompt = prompt
       .replace(/\b(naked|nude|explicit|nsfw|sexual|porn|gore|blood|violent|kill|murder|terrorist)\b/gi, '')
@@ -1626,11 +1646,13 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
 
     const img = result.data[0];
     const url = img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null);
-    if (!url) return res.status(500).json({ error: 'No image URL returned from OpenAI' });
+    if (!url) { refundImage(); return res.status(500).json({ error: 'No image URL returned from OpenAI' }); }
     console.log('[image] generated successfully for prompt:', safePrompt.slice(0, 60));
-    res.json({ url });
+    res.json({ url, imagesLeft: Math.max(0, imgAllow.limit - imgSlot.used) });
   } catch (err) {
     console.error('[image] generation failed:', err.message, err.status);
+    // Nothing was produced, so the day's allowance shouldn't be spent.
+    if (typeof refundImage === 'function') refundImage();
     res.status(500).json({ error: err.message });
   }
 });
@@ -1915,6 +1937,13 @@ Edit ONLY the text you are given — it is exactly what the user selected, wheth
 Preserve the original formatting (line breaks, paragraphs) unless the instruction asks to change it.
 If the instruction asks you to ADD something, integrate it naturally.
 If the instruction is unclear, make the most sensible improvement possible.
+
+When the selection is code, it is being edited in place in the user's editor:
+keep the language, the indentation style and width, and the surrounding style
+exactly as they are; keep it valid and complete, so it can be pasted straight
+back over the selection; never wrap it in markdown fences and never add
+explanation around it — put anything you want to say in the summary line.
+Only add comments if the instruction asks for them.
 
 Reply with the edited text, then on the very last line a summary of what you
 changed, prefixed with [SUMMARY]. The summary is one short spoken sentence, e.g.

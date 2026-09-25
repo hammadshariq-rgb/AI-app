@@ -1952,6 +1952,21 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
 
   // Posting to a social account — never done straight away. The renderer shows a
   // confirm card with what will be posted and where, and only posts on approval.
+  // A terminal command is only ever proposed: the card shows exactly what would
+  // run and where, and it runs when the user presses Run — never before.
+  if (finalAction?.type === 'run_command') {
+    const p = finalAction.payload || {};
+    const folder = p.folder || store.get('project.folder') || app.getPath('home');
+    const spokenText = 'Here\'s the command — press Run when you\'re ready.';
+    _sendTTS(_e.sender, spokenText);
+    return {
+      text: finalText && finalText.length > 4 ? finalText : spokenText,
+      audio: null,
+      card: { type: 'command', command: p.command || '', folder, why: p.why || '' },
+      hasAction: false,
+    };
+  }
+
   if (finalAction?.type === 'upload_media') {
     const p = finalAction.payload || {};
     const status = await connectors.getConnectorStatus();
@@ -2801,6 +2816,38 @@ ipcMain.handle('shop:open', async (_e, { url, fallbackUrl }) => {
   const target = reachable || !allowed(fallbackUrl) ? url : fallbackUrl;
   await shell.openExternal(target);
   return { ok: true, usedFallback: target !== url };
+});
+
+// Runs a command the user pressed Run on. Nothing runs without that press, and
+// a handful of patterns that wipe a machine are refused outright.
+const COMMAND_NEVER = /(^|[\s;&|])(rm\s+-rf\s+\/(?!\w)|rmdir\s+\/s\s+\/q\s+[a-z]:\\?\s*$|format\s+[a-z]:|mkfs|dd\s+if=.*of=\/dev\/|shutdown|:\(\)\s*\{|del\s+\/f\s+\/s\s+\/q\s+[a-z]:\\\*)/i;
+
+ipcMain.handle('command:run', async (_e, { command, folder }) => {
+  const cmd = String(command || '').trim();
+  if (!cmd) return { ok: false, error: 'No command.' };
+  if (COMMAND_NEVER.test(cmd)) return { ok: false, error: 'That command would wipe the machine, so I won\'t run it.' };
+  const cwd = folder && require('fs').existsSync(folder) ? folder : app.getPath('home');
+  store.set('project.folder', cwd);
+  return new Promise((resolve) => {
+    const { exec } = require('child_process');
+    exec(cmd, { cwd, timeout: 180000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+      resolve({
+        ok: !err,
+        code: err ? (err.code ?? 1) : 0,
+        cwd,
+        output: [stdout, stderr].filter(Boolean).join('\n').trim().slice(-8000),
+        error: err && !stdout && !stderr ? err.message : null,
+      });
+    });
+  });
+});
+
+// The folder commands run in — picked once, remembered after.
+ipcMain.handle('command:pickFolder', async () => {
+  const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openDirectory'], title: 'Choose your project folder' });
+  if (res.canceled || !res.filePaths[0]) return { ok: false };
+  store.set('project.folder', res.filePaths[0]);
+  return { ok: true, folder: res.filePaths[0] };
 });
 
 ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);

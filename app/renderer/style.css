@@ -8882,3 +8882,29 @@ body.light-mode .sheet-title { color: #0e3b22; }
 body.light-mode .sheet-sub, body.light-mode .sheet-ideas-label { color: #4c6b5a; }
 body.light-mode .sheet-preview td { color: #1e2b24; }
 body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); border-color: rgba(0, 0, 0, 0.1); }
+
+/* ── Terminal command card ───────────────────────────────────────────────── */
+/* Proposed commands: the text is the point, so it gets the space and the
+   monospace, and Run is the only thing that acts. */
+.card-command { padding: 2px 0; }
+.cmd-label { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; color: rgba(120,220,170,0.85); margin-bottom: 8px; }
+.cmd-why { font-size: 13px; color: rgba(210,225,255,0.85); line-height: 1.45; margin-bottom: 10px; }
+.cmd-line { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 13px;
+  color: #d8ffe9; background: rgba(0,0,0,0.35); border: 1px solid rgba(120,220,170,0.22);
+  border-radius: 9px; padding: 11px 13px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+.cmd-folder { font-size: 11.5px; color: rgba(160,180,215,0.7); margin: 8px 0 12px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cmd-folder span { font-family: ui-monospace, Consolas, monospace; color: rgba(190,210,245,0.85); }
+.cmd-folder-btn { background: none; border: none; color: rgba(0,200,255,0.8); font-size: 11.5px;
+  cursor: pointer; text-decoration: underline; padding: 0; }
+.cmd-actions { display: flex; gap: 8px; }
+.cmd-run, .cmd-copy { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 1.4px;
+  font-size: 12.5px; padding: 9px 16px; border-radius: 8px; cursor: pointer; transition: opacity 0.15s; }
+.cmd-run { background: rgba(120,220,170,0.16); border: 1px solid rgba(120,220,170,0.45); color: #8ff0c0; }
+.cmd-copy { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); color: rgba(210,225,255,0.8); }
+.cmd-run:disabled { opacity: 0.55; cursor: default; }
+.cmd-output { margin: 12px 0 0; padding: 10px 12px; border-radius: 9px; max-height: 260px; overflow: auto;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace; color: rgba(205,222,250,0.9); white-space: pre-wrap; }
+.cmd-output.cmd-failed { border-color: rgba(255,120,120,0.35); color: #ffd7d7; }

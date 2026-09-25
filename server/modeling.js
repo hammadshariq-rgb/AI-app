@@ -15,7 +15,7 @@ const MESHY_API_KEY = process.env.MESHY_API_KEY || '';
 // paying customers (monthly or yearly) get a daily allowance, free-trial
 // customers a smaller daily one.
 const envInt = (v, d) => (v === undefined || v === '' || isNaN(Number(v)) ? d : Math.max(0, Math.floor(Number(v))));
-const MESHY_USES_PER_DAY = envInt(process.env.MESHY_USES_PER_DAY, 4);
+const MESHY_USES_PER_DAY = envInt(process.env.MESHY_USES_PER_DAY, 5);
 const TRIAL_MESHY_USES_PER_DAY = envInt(process.env.TRIAL_MESHY_USES_PER_DAY, 1);
 const usage = require('./usage');
 const refineJobs = new Map();  // preview task id -> refine (texture) task id
