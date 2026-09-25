@@ -18,6 +18,8 @@
   }
 
   const KEY = (k) => `<span class="tour-kbd">${k}</span>`;
+  // Mac shows Cmd wherever Windows shows Ctrl.
+  const MOD = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl');
 
   // Each step names what to light up (one or more selectors, joined into one
   // highlight) and what to say about it.
@@ -25,8 +27,22 @@
     {
       targets: ['#attachWrap', '#micWrap', '#clearWrap'],
       title: 'Talk to Callisto',
-      body: `Tap the mic and just speak. Or press ${KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl')}${KEY('Shift')}${KEY('C')} to talk from any app — even when Callisto is minimised.`,
+      body: `Tap the mic and just speak. Or press ${MOD}${KEY('Shift')}${KEY('C')} to talk from any app — even when Callisto is minimised.`,
       foot: '<b>+</b> attaches a photo or file &nbsp;·&nbsp; the bin clears the conversation',
+    },
+    {
+      // Shown right after the talk step, because these two are the shortcuts
+      // people never find on their own.
+      targets: ['#attachWrap', '#micWrap'],
+      title: 'Work on anything, anywhere',
+      body: `Highlight any text — in a document, an email, code — and press ${MOD}${KEY('Shift')}${KEY('E')}. Tell Callisto to rewrite it, or just ask <em>"is this any good?"</em> and it answers without touching your words.`,
+      foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen — a photo, a chart, a paragraph — and Callisto tells you what it is.`,
+    },
+    {
+      targets: ['#gestureToggleBtn'],
+      title: 'Hands-free control',
+      body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point and curl your finger to press things, turn your hand over to move on.`,
+      foot: 'Nothing leaves your computer — the camera is read on your machine only.',
     },
     {
       targets: ['#typeModeToggle'],
