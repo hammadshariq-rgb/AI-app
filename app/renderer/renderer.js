@@ -8912,6 +8912,7 @@ function convoListen() {
 function convoStart() {
   window._convoMode = true;
   convoBanner(true);
+  window._refreshGestureHint?.();
   // Screen watching runs with conversation mode, never on its own.
   window.jarvis.screenWatchStart?.().then((r) => {
     if (r?.ok) screenWatchBadge(true, 0, r.seconds || 5);
@@ -8929,6 +8930,7 @@ function convoStop(spoken) {
   addMessage('assistant', '🎙 Conversation mode off.');
   if (spoken) window.jarvis.speak('Okay, I\'ve stopped listening.');
   window.jarvis.screenWatchStop?.().catch(() => {});
+  window._refreshGestureHint?.();
   screenWatchBadge(false);
   document.getElementById('screenSuggest')?.remove();
 }

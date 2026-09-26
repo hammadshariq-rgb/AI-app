@@ -3138,8 +3138,21 @@
       // actions call straight into the app; anything written in words goes to
       // Callisto exactly as if it had been spoken.
       function runCustomGesture(g) {
-        showGesture('✋', g.name);
         const a = g.action || {};
+        // In conversation mode the mic never closes, so a pose the customer
+        // assigned to start or stop listening would only interrupt them.
+        // Their own gestures are held back for the same reason the built-in
+        // ones are. Toggling conversation mode itself still works, so there
+        // is always a way out.
+        const convo = !!window._convoMode;
+        const listeningAction = a.kind === 'prompt'
+          ? /(start|stop|begin|end)[^.]{0,20}(listen|listening|recording|mic)/i.test(a.text || '')
+          : (a.id === 'start_listening' || a.id === 'stop_listening');
+        if (convo && listeningAction) {
+          showGesture('🎙', 'Already listening');
+          return;
+        }
+        showGesture('✋', g.name);
         if (a.kind === 'prompt') { window._runGesturePrompt?.(a.text); return; }
         switch (a.id) {
           case 'start_listening':  doStartListening(); break;
@@ -3483,8 +3496,13 @@
           const lm = lms[i];
           if (i !== gestureIdx) continue; // cursor hand is cursor-only
 
+          // In conversation mode the mic is already open and stays open, so
+          // "point to speak" and "fist to stop" have nothing to do — and
+          // would cut the user off mid-sentence. Everything else still works.
+          const convo = !!window._convoMode;
+
           // ── 2. ONE FINGER POINT — index only up, hold 300ms → start listening ─
-          if (isOneFingerPoint(lm)) {
+          if (!convo && isOneFingerPoint(lm)) {
             if (!handState[i] || handState[i].g !== 'point') handState[i] = { g:'point', since: Date.now() };
             if (Date.now() - handState[i].since > 300 && canFire('snap')) {
               showGesture('☝️', 'One finger — starting to listen');
@@ -3495,7 +3513,7 @@
           }
 
           // ── 3. FIST — all 4 fingers closed, hold 250ms → stop ──────────
-          if (isFist(lm)) {
+          if (!convo && isFist(lm)) {
             if (!handState[i] || handState[i].g !== 'fist') handState[i] = { g:'fist', since: Date.now() };
             if (Date.now() - handState[i].since > 250 && canFire('fist')) {
               showGesture('✊', 'Fist — stopped listening');
@@ -3660,9 +3678,21 @@
         });
       }
 
+      // The hint line has to match reality: in conversation mode two of the
+      // gestures are deliberately off, and saying otherwise just confuses people.
+      function refreshGestureHint() {
+        const hint = document.querySelector('#gesturePanel .gp-hint');
+        if (!hint) return;
+        hint.innerHTML = window._convoMode
+          ? 'LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
+          : 'LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
+      }
+      window._refreshGestureHint = refreshGestureHint;
+
       function toggleGesture() {
         gestureEnabled = !gestureEnabled;
         updateEngageBtns(gestureEnabled);
+        refreshGestureHint();
         // The 3D studio has its own Hands button; keep it in step with this.
         window._gestureActive = gestureEnabled;
         try { window.CallistoModelViewer?.setHandsActive?.(gestureEnabled); } catch (_) {}

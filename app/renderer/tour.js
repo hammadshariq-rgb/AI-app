@@ -47,13 +47,13 @@
       targets: ['#micWrap'],
       title: 'Never stop talking',
       body: `Press ${CONVO} for conversation mode. No shortcut each time, no button — just talk, and Callisto answers whenever you pause. It keeps going until you say <em>"stop listening"</em>.`,
-      foot: 'While it is on, Callisto can see your screen too — so <em>"combine these two PDFs"</em> or <em>"what is this?"</em> work without you sending anything.',
+      foot: `While it is on, Callisto can see your screen too — so <em>"combine these two PDFs"</em> or <em>"what is this?"</em> work without you sending anything. ${MOD}${KEY('Shift')}${KEY('G')} adds your hands on top.`,
     },
     {
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
-      body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point and curl your finger to press things, turn your hand over to move on.`,
-      foot: 'Nothing leaves your computer — the camera is read on your machine only.',
+      body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point and curl your finger to press things, turn your hand over to move on. Point with one finger to speak, make a fist to stop.`,
+      foot: 'It works in conversation mode too — there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
     },
     {
       targets: ['#gestureToggleBtn'],
