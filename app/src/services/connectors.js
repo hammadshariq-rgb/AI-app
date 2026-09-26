@@ -1033,6 +1033,57 @@ async function getAllAnalytics() {
   return { youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe };
 }
 
+// A short spoken round-up for the morning greeting: followers, views and how
+// many people were on the site. Only connected services appear, and it stays
+// to a few sentences — this is a greeting, not a report.
+function formatAnalyticsForBriefing(a) {
+  const n = (v) => Number(v || 0).toLocaleString();
+  const parts = [];
+
+  if (a.youtube) {
+    const y = a.youtube;
+    let line = `On YouTube you're at ${n(y.subscribers)} subscriber${y.subscribers === 1 ? '' : 's'}`;
+    if (y.views28 != null) line += `, with ${n(y.views28)} views in the last 28 days`;
+    parts.push(line + '.');
+  }
+
+  if (a.instagram) {
+    const i = a.instagram;
+    let line = `Instagram is on ${n(i.followers)} follower${i.followers === 1 ? '' : 's'}`;
+    if (i.views30 != null) line += `, ${n(i.views30)} views this month`;
+    parts.push(line + '.');
+  }
+
+  if (a.tiktok) {
+    const t = a.tiktok;
+    parts.push(`TikTok has ${n(t.followers)} follower${t.followers === 1 ? '' : 's'}${t.likes != null ? ` and ${n(t.likes)} likes` : ''}.`);
+  }
+
+  // The website: whichever of the three is connected, said the same way.
+  const ga = a.googleAnalytics;
+  if (ga && (ga.users != null || ga.sessions != null)) {
+    const who = ga.users != null ? ga.users : ga.sessions;
+    parts.push(`${n(who)} people visited your website${ga.period ? ` ${ga.period}` : ' this week'}.`);
+  }
+  if (a.shopify) {
+    const sh = a.shopify;
+    const bits = [];
+    if (sh.orders != null) bits.push(`${n(sh.orders)} order${sh.orders === 1 ? '' : 's'}`);
+    if (sh.revenue != null) bits.push(`${sh.currency || ''}${n(Math.round(sh.revenue))} in sales`);
+    if (bits.length) parts.push(`Your shop has ${bits.join(' and ')}.`);
+  }
+  if (a.squarespace && a.squarespace.orders != null) {
+    parts.push(`Squarespace shows ${n(a.squarespace.orders)} order${a.squarespace.orders === 1 ? '' : 's'}.`);
+  }
+  if (a.stripe && a.stripe.revenue != null) {
+    parts.push(`Payments are at ${a.stripe.currency || ''}${n(Math.round(a.stripe.revenue))}.`);
+  }
+
+  if (!parts.length) return null;
+  // Four sentences is the most anyone wants read at them before coffee.
+  return parts.slice(0, 4).join(' ');
+}
+
 function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe }) {
   const lines = [];
   if (youtube) {
@@ -1120,6 +1171,6 @@ module.exports = {
   findInstagramContact,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
   getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
-  getAllAnalytics, formatAnalyticsForAI,
+  getAllAnalytics, formatAnalyticsForAI, formatAnalyticsForBriefing,
   listAnalyticsProperties, saveAnalyticsPropertyId, loadAnalyticsPropertyId,
 };

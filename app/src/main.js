@@ -3860,6 +3860,23 @@ ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
   return { ok: false, error: 'unsupported' };
 });
 
+// The morning round-up of the numbers: followers, views, and how many people
+// were on the site. Cached for the day so opening the app twice doesn't hammer
+// five APIs, and it returns null when nothing is connected.
+let _briefCache = { day: '', text: null };
+ipcMain.handle('connector:statsBriefing', async () => {
+  const today = new Date().toDateString();
+  if (_briefCache.day === today) return _briefCache.text;
+  try {
+    const all = await connectors.getAllAnalytics();
+    const text = connectors.formatAnalyticsForBriefing(all);
+    _briefCache = { day: today, text };
+    return text;
+  } catch (_) {
+    return null;
+  }
+});
+
 ipcMain.handle('connector:getVip', () => connectors.getVipSenders());
 ipcMain.handle('connector:addVip', (_e, v) => connectors.addVipSender(v));
 ipcMain.handle('connector:removeVip', (_e, v) => connectors.removeVipSender(v));

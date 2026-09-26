@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onArtifactsChanged: (cb) => ipcRenderer.on('artifacts:changed', (_e, d) => cb(d)),
   onArtifactReady:    (cb) => ipcRenderer.on('artifacts:ready', (_e, d) => cb(d)),
   onArtifactOpen:     (cb) => ipcRenderer.on('artifacts:open', (_e, id) => cb(id)),
+  connectorStatsBriefing: () => ipcRenderer.invoke('connector:statsBriefing'),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),

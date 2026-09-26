@@ -6838,6 +6838,7 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const audio = await window.jarvis.speak(greeting);
         if (audio) playAudioChunks([audio]);
         await speakTaskBriefing();
+        await speakStatsBriefing();
         await speakNewsBriefing();
       } catch (e) { console.error('[GREET]', e); }
     }
@@ -6846,6 +6847,23 @@ async function enterMain(skipWelcome = false, returningUser = false) {
 
 // 'maam' is how the old sign-up stored it; say it the way a person would.
 function spokenTitle(t) { return String(t || '').toLowerCase() === 'maam' ? "ma'am" : t; }
+
+// The numbers, once a day, after the tasks: followers, views and who has been
+// on the website. Spoken only, and silent when nothing is connected - someone
+// with no accounts linked should never hear an awkward pause.
+async function speakStatsBriefing() {
+  try {
+    if (!window.jarvis?.speak || !window.jarvis.connectorStatsBriefing) return;
+    const todayKey = new Date().toDateString();
+    if (localStorage.getItem('callisto_stats_briefing') === todayKey) return;
+    const text = await window.jarvis.connectorStatsBriefing().catch(() => null);
+    if (!text) return;
+    localStorage.setItem('callisto_stats_briefing', todayKey);
+    addMessage('assistant', text);
+    const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
+    if (audio) playAudioChunks([audio]);
+  } catch (e) { console.error('[STATS BRIEF]', e); }
+}
 
 // Read the top headlines aloud after the greeting. Spoken only — they're
 // already scrolling across the top, so nothing goes in the chat.
