@@ -10308,3 +10308,66 @@ if (window.jarvis.onMacNeedsAutomation) {
 
   window._openGestureStudio = open;
 })();
+
+// ── Drawing studio wiring ─────────────────────────────────────────────────────
+// The canvas lives in draw-studio.js; this connects it to Callisto — incoming
+// shapes from the AI, the state report that lets the next request build on what
+// is already drawn, and the hand-offs to the 3D and video generators.
+(function () {
+  const D = () => window.CallistoDraw;
+  if (!D()) return;
+
+  // Tell the main process what is on the canvas after every change, so
+  // "put a rocket on top" knows where the top is.
+  function report() {
+    try {
+      window.jarvis.drawState?.({ count: D().count(), describe: D().describe() });
+    } catch (_) {}
+  }
+
+  window.jarvis.onDrawApply?.((cmd) => {
+    if (!cmd) return;
+    if (cmd.op === 'show') { D().show(); return; }
+    // "replace" means wipe then draw, which is two operations to the canvas.
+    if (cmd.op === 'replace') D().apply({ op: 'clear' });
+    D().apply({ ...cmd, op: cmd.op === 'replace' ? 'add' : cmd.op });
+    report();
+  });
+
+  // Typing in the canvas's own box goes through the normal chat path, so every
+  // skill — and conversation mode — works there too.
+  D().onCommand((text) => {
+    addMessage('user', text);
+    sendToJarvis(text);
+  });
+
+  // Turning the drawing into something else, using the generators already here.
+  D().onHandOff(async ({ kind, title, description, png }) => {
+    const subject = title && title !== 'Untitled drawing' ? title : 'my drawing';
+    if (kind === 'model') {
+      addMessage('assistant', `Making a 3D model from ${subject}…`);
+      sendToJarvis(`Create a 3D model of this drawing. ${description}`);
+      return;
+    }
+    if (kind === 'video') {
+      addMessage('assistant', `Making a video from ${subject}…`);
+      // The video generator takes a picture, so the canvas goes with it.
+      if (typeof window._checkHiggsfield === 'function' && png) {
+        const handled = await window._checkHiggsfield(
+          `animate this drawing: ${subject}`,
+          [{ kind: 'image', type: 'image/png', dataUrl: png, name: 'drawing.png' }]
+        );
+        if (handled) return;
+      }
+      sendToJarvis(`Make a video of this: ${description}`);
+      return;
+    }
+    if (kind === 'image') {
+      addMessage('assistant', `Painting a polished version of ${subject}…`);
+      sendToJarvis(`Generate a polished image based on this sketch: ${description}`);
+    }
+  });
+
+  // "open the drawing page" / "let's draw" with nothing to draw yet.
+  window._openDrawing = () => { D().show(); report(); };
+})();

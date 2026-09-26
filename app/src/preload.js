@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
   dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
   switchApp: ()                          => ipcRenderer.invoke('window:switchApp'),
+  // Drawing studio
+  onDrawApply:  (cb) => ipcRenderer.on('draw:apply', (_e, d) => cb(d)),
+  drawState:    (st) => ipcRenderer.send('draw:state', st),
+  drawOpen:     ()   => ipcRenderer.invoke('draw:open'),
   // Continuous screen awareness (conversation mode)
   screenWatchStart: ()        => ipcRenderer.invoke('screen:watchStart'),
   screenWatchStop:  ()        => ipcRenderer.invoke('screen:watchStop'),

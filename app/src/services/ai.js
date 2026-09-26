@@ -123,6 +123,44 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'draw',
+      description: 'Draw on the Callisto drawing page using simple shapes. Use for "draw me a box", "draw a house", "sketch a rocket", "add two lines making a triangle", "put a rocket on top". Drawings are BUILT UP over several requests: use op "add" to add to what is already there, and only use "clear" when the user asks to start again. The canvas is 1000x1000 with (0,0) at the top left. If shapes are already on the canvas you will be told where they are — place new shapes relative to them so the picture makes sense.',
+      parameters: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['add', 'clear', 'replace'], description: 'add = keep what is there (default). clear = wipe first. replace = wipe and draw this instead.' },
+          title: { type: 'string', description: 'A short name for the drawing, only on the first request' },
+          shapes: {
+            type: 'array',
+            description: 'The shapes to draw',
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path', 'text'] },
+                x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' },
+                cx: { type: 'number' }, cy: { type: 'number' }, r: { type: 'number' },
+                rx: { type: 'number' }, ry: { type: 'number' },
+                x1: { type: 'number' }, y1: { type: 'number' }, x2: { type: 'number' }, y2: { type: 'number' },
+                points: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: 'For polygon/polyline: [[x,y],[x,y],...]' },
+                d: { type: 'string', description: 'For path: SVG path data' },
+                text: { type: 'string' }, size: { type: 'number' },
+                stroke: { type: 'string', description: 'Outline colour as a hex value, e.g. #00c8ff' },
+                fill: { type: 'string', description: 'Fill colour as hex, or "none"' },
+                width: { type: 'number', description: 'Line thickness, 1-24' },
+                radius: { type: 'number', description: 'Corner rounding on a rect' },
+                rotate: { type: 'number', description: 'Degrees' },
+              },
+              required: ['type'],
+            },
+          },
+        },
+        required: ['shapes'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'read_messages',
       description: 'Read the user\'s Instagram DMs — their inbox ("any new messages?", "what did Sara say?", "check my Instagram messages", "read my DMs"). Only works for Instagram, and only when their Instagram account is connected. Does NOT work for WhatsApp: there is no way to read a personal WhatsApp account, so if they ask about WhatsApp messages say so plainly.',
       parameters: {
@@ -764,6 +802,17 @@ OPENING APPS RULES:
 - Same for all messaging apps: always prefer open_chat over open_url so the desktop app is used when available.
 - "Send a WhatsApp to X saying Y" / "text Ahmed that I'm late": call open_chat with platform whatsapp, the contact, and message set to what they dictated. It opens that chat with the words typed in, ready for them to press send. Say that it's ready to send — never claim it was sent, because Callisto does not press send.
 
+DOING MORE THAN ONE THING AT ONCE:
+- People ask for several things in one breath: "open my markets and show me the weather", "play some music and tell me my schedule". Call a tool for EACH of them in the same reply. Every tool call runs.
+- Never do just the first one and ignore the rest, and never say you can only do one thing at a time.
+- If one part is a question and the other an action, do the action and answer the question in the same reply.
+
+DRAWING:
+- "draw me a box", "sketch a house", "draw a rocket" -> the draw tool. This is a simple shape drawing on a canvas the user can see and edit, NOT generate_image.
+- Drawings are built up over several messages. "Add two lines making a triangle", "put a rocket on top", "make the box bigger" all continue the SAME drawing: use op "add" and place things relative to what is already there.
+- Only use op "clear" when they say start again, wipe it, or start a new drawing.
+- generate_image is for a finished picture made by AI; draw is for a diagram or sketch the user builds with you and can edit shape by shape. If they say "draw" and mean a realistic picture ("draw me a photo of a lion"), use generate_image instead.
+
 CREATING THINGS (picture vs video vs 3D) — these get mixed up, so be strict:
 - "image", "picture", "photo", "drawing", "illustration", "art", "logo", "poster", "wallpaper", "draw me", "design me" -> generate_image. This is the default for anything visual.
 - "video", "clip", "animation", "reel", "animate this", "make it move" -> video generation.
@@ -1033,6 +1082,45 @@ const FAST_SYSTEM_PROMPT = (assistantName) => {
   return `You are ${assistantName}, an AI assistant. Today is ${dateStr}, ${timeStr}. Call the correct tool immediately. Reply in 1 short sentence only.`;
 };
 
+// Turns one tool call into an action. Extracted so that EVERY call in a
+// multi-tool reply can be mapped, not just the first one.
+function mapToolCall(fnName, args) {
+  if (fnName === 'draw') return { type: 'draw', payload: { op: args.op || 'add', title: args.title || '', shapes: args.shapes || [] } };
+      if (fnName === 'open_url')           return { type: 'open_url',      arg: args.url };
+      else if (fnName === 'open_folder')   return { type: 'open_folder',   arg: args.name };
+      else if (fnName === 'open_file')     return { type: 'open_file',     arg: args.name };
+      else if (fnName === 'open_app')      return { type: 'open_app',      arg: args.name };
+      else if (fnName === 'open_chat')     return { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
+      else if (fnName === 'read_messages') return { type: 'read_messages', payload: { from: args.from || '' } };
+      else if (fnName === 'send_message')  return { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
+      else if (fnName === 'make_call')     return { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
+      else if (fnName === 'place_phone_call') return { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
+      else if (fnName === 'play_music')    return { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
+      else if (fnName === 'notify')        return { type: 'notify',        arg: args.message };
+      else if (fnName === 'generate_image') return { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+            else if (fnName === 'generate_3d_model') return { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
+            else if (fnName === 'upload_media') return { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
+            else if (fnName === 'run_command') return { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
+      else if (fnName === 'get_events')    return { type: 'get_events',    arg: String(args.days || 7) };
+      else if (fnName === 'add_event')     return { type: 'add_event',     arg: JSON.stringify(args) };
+      else if (fnName === 'clear_schedule') return { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
+      else if (fnName === 'search_drive')  return { type: 'search_drive',   arg: args.filename };
+      else if (fnName === 'get_analytics') return { type: 'get_analytics',  arg: args.platform || 'all' };
+      else if (fnName === 'set_reminder')  return { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
+      else if (fnName === 'add_task')    return { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
+      else if (fnName === 'list_tasks')  return { type: 'list_tasks',    arg: args.when || 'today' };
+      else if (fnName === 'create_document') return { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
+      else if (fnName === 'create_slides')   return { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
+            else if (fnName === 'create_spreadsheet') return { type: 'create_spreadsheet', spec: args };
+      else if (fnName === 'mark_emails_read') return { type: 'mark_emails_read', arg: '' };
+      else if (fnName === 'set_volume')    return { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
+      else if (fnName === 'system_power')  return { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
+      else if (fnName === 'remember_fact') return { type: 'remember_fact', arg: args.fact };
+      else if (fnName === 'forget_fact')   return { type: 'forget_fact',   arg: args.query };
+      else if (fnName === 'get_briefing')  return { type: 'get_briefing',  arg: args.days || 1 };
+  return null;
+}
+
 async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, userLocation = null, fast = false }) {
   const local = tryLocalCommand(message);
   if (local) return { ...local, memory: null };
@@ -1122,43 +1210,22 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const choice = data.choices[0];
   let text = '';
   let action = null;
+  let extraActions = [];
 
   if (needsTools && choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
-    const call = choice.message.tool_calls[0];
+    // "Open my markets and show me the weather" is two requests in one breath.
+    // The model returns a tool call for each, and every one after the first
+    // used to be discarded — so only half of what was asked for happened.
+    const _calls = choice.message.tool_calls;
+    const call = _calls[0];
     const fnName = call.function.name;
     const args = JSON.parse(call.function.arguments);
-    if (fnName === 'open_url')           action = { type: 'open_url',      arg: args.url };
-    else if (fnName === 'open_folder')   action = { type: 'open_folder',   arg: args.name };
-    else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
-    else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
-    else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
-    else if (fnName === 'read_messages') action = { type: 'read_messages', payload: { from: args.from || '' } };
-    else if (fnName === 'send_message')  action = { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
-    else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
-    else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
-    else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
-    else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
-    else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
-          else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
-          else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
-          else if (fnName === 'run_command') action = { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
-    else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
-    else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
-    else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
-    else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename };
-    else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
-    else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
-    else if (fnName === 'add_task')    action = { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
-    else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
-    else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
-    else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
-          else if (fnName === 'create_spreadsheet') action = { type: 'create_spreadsheet', spec: args };
-    else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
-    else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
-    else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
-    else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
-    else if (fnName === 'forget_fact')   action = { type: 'forget_fact',   arg: args.query };
-    else if (fnName === 'get_briefing')  action = { type: 'get_briefing',  arg: args.days || 1 };
+    action = mapToolCall(fnName, args);
+    // Anything the model asked for beyond the first call runs too.
+    extraActions = _calls.slice(1).map((c) => {
+      try { return mapToolCall(c.function.name, JSON.parse(c.function.arguments)); }
+      catch (_) { return null; }
+    }).filter(Boolean);
     text = choice.message.content || 'On it.';
   } else {
     text = choice.message.content || '';
@@ -1167,7 +1234,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const rememberMatch = text.match(/\[\[REMEMBER:\s*(.+?)\]\]/i);
   const memory = rememberMatch ? rememberMatch[1].trim() : null;
   text = text.replace(/\[\[REMEMBER:[^\]]+\]\]/gi, '').trim();
-  return { text, memory, action };
+  return { text, memory, action, actions: [action, ...extraActions].filter(Boolean) };
 }
 
 // Stream response sentence-by-sentence via SSE

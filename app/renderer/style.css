@@ -9175,3 +9175,92 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   padding: 7px 9px; border-radius: 0 8px 8px 0; }
 .gs-save-row { display: flex; gap: 7px; }
 .gs-save-row .gs-btn { flex: 1; }
+
+/* ── Drawing studio ───────────────────────────────────────────────────────── */
+.ds {
+  position: fixed; inset: 0; z-index: 9990;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 50% 0%, #101a30 0%, #070b16 60%, #05070f 100%);
+  color: rgba(228, 238, 255, 0.95);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.ds.hidden { display: none !important; }
+
+.ds-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px; flex: none; }
+.ds-brand {
+  font-family: 'Share Tech Mono', monospace; font-size: 10.5px; letter-spacing: 2.4px;
+  color: rgba(0, 200, 255, 0.75); white-space: nowrap;
+}
+.ds-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-top-actions { display: flex; align-items: center; gap: 8px; }
+
+.ds-btn {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1.1px;
+  padding: 8px 14px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(214, 228, 255, 0.88); transition: background 0.15s, border-color 0.15s;
+}
+.ds-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.24); }
+.ds-btn-go { background: rgba(0, 200, 255, 0.15); border-color: rgba(0, 200, 255, 0.42); color: #86dcff; }
+.ds-btn-sm { padding: 7px 14px; }
+.ds-x { background: none; border: 0; color: rgba(170, 190, 225, 0.6); font-size: 15px; cursor: pointer; padding: 4px 8px; }
+.ds-x:hover { color: #fff; }
+
+.ds-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 18px; }
+.ds-stage svg { width: min(100%, 78vh); height: min(100%, 78vh); }
+/* Shapes are real DOM elements, so the Callisto cursor clicks them for free */
+.ds-shape { cursor: pointer; transition: filter 0.12s; }
+.ds-shape:hover { filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.55)); }
+.ds-shape.ds-selected { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.9)); }
+
+.ds-empty { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; pointer-events: none; text-align: center; }
+.ds-empty.hidden { display: none !important; }
+.ds-empty-mark { font-size: 46px; color: rgba(0, 200, 255, 0.3); }
+.ds-empty p { margin: 0; font-size: 14px; color: rgba(175, 196, 232, 0.75); }
+.ds-empty-eg { font-size: 12px !important; color: rgba(140, 165, 205, 0.55) !important; }
+
+.ds-insp {
+  position: absolute; right: 18px; top: 74px; width: 210px; z-index: 2;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  border-radius: 14px; background: rgba(10, 16, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ds-insp.hidden { display: none !important; }
+.ds-insp-name { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 1.8px; color: rgba(0, 200, 255, 0.8); }
+.ds-field { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: rgba(168, 188, 224, 0.8); }
+.ds-field input[type="color"] { width: 100%; height: 30px; border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 7px; background: none; cursor: pointer; padding: 2px; }
+.ds-field input[type="range"] { width: 100%; }
+
+.ds-command {
+  flex: none; display: flex; align-items: center; gap: 9px; margin: 0 auto 10px;
+  width: min(760px, calc(100% - 36px)); padding: 9px 10px 9px 14px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ds-spark { width: 17px; height: 17px; flex: none; fill: rgba(0, 200, 255, 0.8); }
+.ds-command input {
+  flex: 1; min-width: 0; height: 30px; background: none; border: 0; outline: none;
+  font-family: inherit; font-size: 13.5px; color: rgba(228, 238, 255, 0.95);
+}
+.ds-command input::placeholder { color: rgba(150, 172, 212, 0.6); }
+.ds-kbd {
+  flex: none; padding: 4px 8px; border-radius: 6px; font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 0.06em; color: rgba(160, 182, 218, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03);
+}
+
+.ds-make { flex: none; display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap; padding: 0 18px 8px; }
+.ds-make-label { font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 1.8px; color: rgba(150, 172, 212, 0.6); margin-right: 2px; }
+.ds-hint { flex: none; text-align: center; font-size: 10.5px; letter-spacing: 0.03em;
+  color: rgba(140, 165, 205, 0.55); padding-bottom: 12px; }
+
+@media (max-width: 720px) {
+  .ds-insp { position: static; width: auto; margin: 0 18px; }
+  .ds-kbd, .ds-hint { display: none; }
+}

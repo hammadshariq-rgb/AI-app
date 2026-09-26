@@ -1748,6 +1748,12 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   }
   // What they just made, so "post it", "another one" and "make it bigger" have
   // something to point at instead of drawing a blank.
+  // What is already on the drawing canvas, so "put a rocket on top" knows what
+  // it is on top of.
+  let drawContext = '';
+  if (_drawState && _drawState.count > 0 && Date.now() - _drawState.at < 10 * 60 * 1000) {
+    drawContext = `THE DRAWING PAGE IS OPEN. ${_drawState.describe}`;
+  }
   let recentContext = '';
   try {
     const recent = artifacts.list().slice(0, 3);
@@ -1757,7 +1763,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
         + recent.map((a, i) => `${i + 1}. ${KIND[a.kind] || a.kind}: "${a.title}"`).join('\n');
     }
   } catch (_) {}
-  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext, recentContext].filter(Boolean).join('\n\n') || null;
+  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext, recentContext, drawContext].filter(Boolean).join('\n\n') || null;
   const language = store.get('language') || 'English';
   const userProfile = store.get('profile') || {};
   const userName = userProfile.displayName || null;
@@ -2116,6 +2122,20 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       text: spoken, audio: null, hasAction: false,
       card: { type: 'dm-send', platform: 'instagram', to: match?.name || p.to, contactId: match?.contactId || null, message: p.message || '' },
     };
+  }
+
+  // Drawing: the renderer owns the canvas, so the shapes are sent straight to it.
+  if (finalAction?.type === 'draw') {
+    const p = finalAction.payload || {};
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('draw:apply', p);
+    }
+    const n = (p.shapes || []).length;
+    const spoken = finalText && finalText.length > 4
+      ? finalText
+      : (p.op === 'clear' ? 'Cleared it.' : `Done — ${n} shape${n === 1 ? '' : 's'} added.`);
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken, audio: null, hasAction: true };
   }
 
   if (finalAction?.type === 'upload_media') {
@@ -2501,6 +2521,24 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
+
+  // "Open my markets and show me the weather" is two asks. The model returns a
+  // tool call for each; the first is handled above and the rest run here, so
+  // nothing the user asked for is silently dropped.
+  const _extra = (result.actions || []).slice(1);
+  for (const act of _extra) {
+    if (!act || act === finalAction) continue;
+    try {
+      if (act.type === 'draw') {
+        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('draw:apply', act.payload || {});
+      } else if (act.arg !== undefined) {
+        await commands.run(act.type, act.arg).catch(() => null);
+      } else {
+        // Panel-style actions the renderer owns (markets, calendar, weather…).
+        _e.sender.send('jarvis:action-fired', act);
+      }
+    } catch (_) { /* one failed extra must not sink the rest */ }
+  }
 
   // For open_app: make sure nothing is pinning Callisto on top, so the launched
   // app comes to the front — every time, not just the first. The window's default
@@ -3583,6 +3621,15 @@ async function describeInstagramMedia(url) {
   } catch (_) { return null; }
 }
 ipcMain.handle('dm:describe', (_e, url) => describeInstagramMedia(url));
+
+// The renderer tells us what is on the drawing canvas after every change, so the
+// next request can be placed relative to what is already drawn.
+let _drawState = null;
+ipcMain.on('draw:state', (_e, st) => { _drawState = { ...st, at: Date.now() }; });
+ipcMain.handle('draw:open', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('draw:apply', { op: 'show', shapes: [] });
+  return { ok: true };
+});
 
 // ── Continuous screen awareness (conversation mode) ───────────────────────
 // While conversation mode is running, Callisto watches the screen so the user
