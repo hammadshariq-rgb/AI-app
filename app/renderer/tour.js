@@ -69,8 +69,22 @@
     {
       targets: ['#historyBtn', '#navToggleBtn'],
       title: 'Connect your accounts',
-      body: 'Link Instagram, TikTok, YouTube, Spotify, your shop or your calendar in <b>Connectors</b>. Then ask how your posts are doing, or tell Callisto to post something — it always shows you exactly what will go out before anything is published.',
+      body: 'Open <b>Connectors</b> and link what you use — Instagram, TikTok, YouTube, Spotify, Google Calendar, your shop, and Stripe for payments. <em>Connect these for the full experience:</em> the more Callisto can see, the more it can actually answer.',
+      foot: 'Then just ask — <em>how are my videos doing?</em>, <em>how much money came in this week?</em>, <em>post this to Instagram</em>. Nothing is published without showing you first.',
       pad: 10,
+    },
+    {
+      targets: ['#profileNameInput', '#profileNameSaveBtn'],
+      title: 'Call it what you like',
+      body: 'Callisto is only the name it came with. Rename it in <b>Settings</b> and it answers to whatever you pick — and it uses your name back.',
+      whenMissing: 'Open the side panel, go to <b>Settings</b>, and you can rename Callisto to anything you like.',
+    },
+    {
+      targets: ['#orbColorPicker'],
+      title: 'Pick your colour',
+      body: 'The orb sets the mood of the whole app. Choose a colour in <b>Settings</b> and the rest follows it.',
+      whenMissing: 'In <b>Settings</b> you can change the orb colour, and the rest of the app follows it.',
+      pad: 8,
     },
     {
       targets: ['#typeModeToggle'],
