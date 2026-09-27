@@ -79,6 +79,11 @@ contextBridge.exposeInMainWorld('jarvis', {
   onArtifactReady:    (cb) => ipcRenderer.on('artifacts:ready', (_e, d) => cb(d)),
   onArtifactOpen:     (cb) => ipcRenderer.on('artifacts:open', (_e, id) => cb(id)),
   connectorStatsBriefing: () => ipcRenderer.invoke('connector:statsBriefing'),
+  // Outlook
+  outlookInbox:   ()    => ipcRenderer.invoke('outlook:inbox'),
+  outlookAccount: ()    => ipcRenderer.invoke('outlook:account'),
+  outlookMarkRead:(id)  => ipcRenderer.invoke('outlook:markRead', id),
+  outlookSend:    (msg) => ipcRenderer.invoke('outlook:send', msg),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),

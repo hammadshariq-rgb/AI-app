@@ -1,6 +1,6 @@
 {
   "name": "jarvis-desktop",
-  "version": "1.3.32",
+  "version": "1.3.33",
   "description": "Your Own Personal AI — a voice-powered desktop assistant",
   "keywords": [
     "AI",
@@ -123,6 +123,7 @@
     "@devicefarmer/adbkit": "^3.3.9",
     "adm-zip": "^0.5.16",
     "castv2-client": "^1.2.0",
+    "docx": "^8.5.0",
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",

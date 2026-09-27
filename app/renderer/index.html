@@ -1800,6 +1800,13 @@
               <!-- Gmail and Meet are built but waiting on Google's security
                    review for restricted scopes, so they show as coming soon
                    rather than offering a Connect button that can't work yet. -->
+              <!-- Outlook: ordinary delegated scopes, no security assessment, so
+                   this one can actually be connected today. -->
+              <div class="connector-row" id="outlookRow">
+                <div class="connector-icon" style="background:rgba(0,120,212,0.14);color:#3b9ae1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg></div>
+                <div class="connector-info"><div class="connector-name">OUTLOOK</div><div class="connector-status" id="outlookStatus">Not connected · Read your mail and send from it</div></div>
+                <button class="connector-btn" id="outlookBtn">CONNECT</button>
+              </div>
               <div class="connector-row connector-soon" id="gmailRow">
                 <div class="connector-icon" style="background:rgba(234,67,53,0.13);color:#EA4335"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg></div>
                 <div class="connector-info"><div class="connector-name">GMAIL</div><div class="connector-status">Coming soon · Read &amp; draft your email by voice</div></div>

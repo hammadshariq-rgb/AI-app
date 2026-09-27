@@ -14,6 +14,7 @@ const realtime = require('./services/realtime');
 const stt = require('./services/stt');
 const tts = require('./services/tts');
 const commands = require('./services/commands');
+const documents = require('./services/documents');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
 const calling = require('./services/calling');
@@ -1323,14 +1324,23 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
 });
 
 ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
-  const fs = require('fs');
-  const safe = (title || 'Document').replace(/[<>:"/\\|?*]/g, '_');
   const dir = app.getPath('documents');
-  const filePath = path.join(dir, `${safe}.rtf`);
-  const rtfContent = buildRTF(title || 'Document', content || '');
-  fs.writeFileSync(filePath, rtfContent, 'utf8');
-  await shell.openPath(filePath);
-  return { ok: true, path: filePath };
+  try {
+    // A real .docx, so headings, bullets and tables survive into Word. This
+    // used to write RTF with a Word icon on it, which opened but looked wrong.
+    const filePath = await documents.writeWord(title || 'Document', content || '', dir);
+    await shell.openPath(filePath);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    // A document that opens beats an error, so fall back to the old format.
+    console.error('[docx] falling back to RTF:', err.message);
+    const fs2 = require('fs');
+    const safe = (title || 'Document').replace(/[<>:"/\|?*]/g, '_');
+    const filePath = path.join(dir, safe + '.rtf');
+    fs2.writeFileSync(filePath, buildRTF(title || 'Document', content || ''), 'utf8');
+    await shell.openPath(filePath);
+    return { ok: true, path: filePath, fallback: true };
+  }
 });
 
 // ── Open external apps / URLs ──────────────────────────────────────────────
@@ -3902,12 +3912,21 @@ ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
 // were on the site. Cached for the day so opening the app twice doesn't hammer
 // five APIs, and it returns null when nothing is connected.
 let _briefCache = { day: '', text: null };
+// ── Outlook mail ──────────────────────────────────────────────────
+ipcMain.handle('outlook:inbox', () => connectors.getOutlookInbox(20));
+ipcMain.handle('outlook:account', () => connectors.getOutlookAccount());
+ipcMain.handle('outlook:markRead', (_e, id) => connectors.markOutlookRead(id));
+ipcMain.handle('outlook:send', (_e, msg) => connectors.sendOutlookEmail(msg || {}));
+
 ipcMain.handle('connector:statsBriefing', async () => {
   const today = new Date().toDateString();
   if (_briefCache.day === today) return _briefCache.text;
   try {
     const all = await connectors.getAllAnalytics();
-    const text = connectors.formatAnalyticsForBriefing(all);
+    let text = connectors.formatAnalyticsForBriefing(all);
+    // Mail belongs in the same breath as the numbers, not a separate interruption.
+    const mail = await connectors.getOutlookSummary().catch(() => null);
+    if (mail) text = text ? `${text} You also have ${mail}` : `You have ${mail}`;
     _briefCache = { day: today, text };
     return text;
   } catch (_) {

@@ -44,31 +44,17 @@ const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 // ── Email (Gmail + Outlook) — removed pending ADA-CASA verification ───────────
 // These functions will be restored when Gmail/Outlook connectors are re-enabled.
 
-async function getEmailUpdate() { return { gmail: null, outlook: null }; }
-function formatEmailUpdateForAI() { return null; }
-
-// ── Status ────────────────────────────────────────────────────────────────────
-
-function getConnectorStatus() {
-  return {
-    gmail: !!store.get('connector.gmail.access_token'),
-    outlook: !!store.get('connector.outlook.access_token'),
-    spotify: !!store.get('connector.spotify.access_token'),
-    calendar: !!store.get('connector.calendar.access_token'),
-    drive: !!store.get('connector.drive.access_token'),
-    youtube: !!store.get('connector.youtube.access_token'),
-    instagram: !!store.get('connector.instagram.access_token'),
-    // The Instagram login is a Meta login, so it covers the Facebook Page too.
-    facebook: !!store.get('connector.instagram.access_token'),
-    tiktok: !!store.get('connector.tiktok.access_token'),
-    shopify: !!store.get('connector.shopify.access_token'),
-    squarespace: !!store.get('connector.squarespace.api_key'),
-    analytics: !!store.get('connector.analytics.access_token'),
-    stripe: !!(store.get('connector.stripe.access_token') || store.get('connector.stripe.secret_key')),
-    vipSenders: store.get('connector.vipSenders') || [],
-    googleAccount: !!store.get('googleAccountEmail'),
-    googleAccountEmail: store.get('googleAccountEmail') || null,
-  };
+async function getEmailUpdate() {
+  const outlook = await getOutlookInbox(20).catch(() => null);
+  return { gmail: null, outlook };
+}
+function formatEmailUpdateForAI(update) {
+  const mail = update && update.outlook;
+  if (!Array.isArray(mail) || !mail.length) return null;
+  const unread = mail.filter((m) => m.unread);
+  const lines = (unread.length ? unread : mail).slice(0, 8).map((m) =>
+    `• ${m.from}: "${m.subject}"${m.preview ? ` — ${m.preview.slice(0, 120)}` : ''}`);
+  return 'OUTLOOK INBOX (' + unread.length + ' unread of ' + mail.length + ' recent):' + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
 }
 
 // Stripe Connect hands back a token scoped to the customer's own account,
@@ -89,7 +75,7 @@ function getGoogleAccountEmail() { return store.get('googleAccountEmail') || nul
 function disconnectGoogleAccount() { store.delete('googleAccountEmail'); }
 
 function saveGmailTokens(_tokens) { /* Gmail removed — pending ADA-CASA */ }
-function saveOutlookTokens(_tokens) { /* Outlook removed — pending setup */ }
+function saveOutlookTokens(tokens) { saveTokens('outlook', tokens); }
 function saveSpotifyTokens(tokens) { saveTokens('spotify', tokens); }
 
 async function refreshSpotifyToken() {
@@ -1207,10 +1193,167 @@ async function pollForToken(service, state) {
   return false;
 }
 
+
+// ── Outlook ───────────────────────────────────────────────────────────────────
+// Microsoft Graph, on the tokens the OAuth flow already collects. Unlike Gmail,
+// this needs no third-party security assessment: Mail.Read and Mail.Send are
+// ordinary delegated scopes a personal account consents to itself.
+
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+
+// Access tokens last an hour. The refresh token is used quietly rather than
+// making someone sign in again mid-sentence.
+async function getOutlookToken() {
+  const t = loadTokens('outlook');
+  if (!t?.access_token) return null;
+  const fresh = !t.expires_at || Date.now() < t.expires_at - 60000;
+  if (fresh) return t.access_token;
+  if (!t.refresh_token) return t.access_token;      // stale, but worth a try
+
+  try {
+    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.MICROSOFT_CLIENT_ID || '',
+        refresh_token: t.refresh_token,
+        grant_type: 'refresh_token',
+        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+      }),
+    });
+    const data = await res.json();
+    if (!data.access_token) return t.access_token;
+    saveTokens('outlook', {
+      ...t,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || t.refresh_token,
+      expires_at: Date.now() + (Number(data.expires_in) || 3600) * 1000,
+    });
+    return data.access_token;
+  } catch (_) {
+    return t.access_token;
+  }
+}
+
+async function graph(path, options = {}) {
+  const token = await getOutlookToken();
+  if (!token) return null;
+  const res = await fetch(`${GRAPH}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 204) return { ok: true };
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || `Graph ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+// The inbox as a person would describe it: who it's from, what it's about,
+// and whether it still needs them.
+async function getOutlookInbox(limit = 15) {
+  try {
+    const select = 'subject,from,receivedDateTime,isRead,bodyPreview,importance,hasAttachments,webLink';
+    const data = await graph(`/me/mailFolders/inbox/messages?$top=${Math.min(limit, 50)}&$select=${select}&$orderby=receivedDateTime desc`);
+    if (!data) return null;
+    return (data.value || []).map((m) => ({
+      id: m.id,
+      subject: m.subject || '(no subject)',
+      from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown',
+      fromEmail: m.from?.emailAddress?.address || '',
+      at: m.receivedDateTime,
+      unread: !m.isRead,
+      preview: (m.bodyPreview || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      important: m.importance === 'high',
+      hasAttachments: !!m.hasAttachments,
+      link: m.webLink || null,
+    }));
+  } catch (err) {
+    console.error('Outlook inbox error:', err.message);
+    return null;
+  }
+}
+
+// A short spoken summary for the briefing. Silent when there is nothing
+// waiting, because "you have no unread email" is not worth saying aloud.
+async function getOutlookSummary() {
+  const mail = await getOutlookInbox(25);
+  if (!mail) return null;
+  const unread = mail.filter((m) => m.unread);
+  if (!unread.length) return null;
+
+  const vips = getVipSenders().map((v) => String(v).toLowerCase());
+  const important = unread.filter((m) =>
+    m.important || vips.some((v) => m.fromEmail.toLowerCase().includes(v) || m.from.toLowerCase().includes(v)));
+
+  const who = [...new Set((important.length ? important : unread).map((m) => m.from))].slice(0, 3);
+  let line = `${unread.length} unread email${unread.length === 1 ? '' : 's'}`;
+  if (who.length) line += `, from ${who.join(', ')}`;
+  if (important.length) line += ` — ${important.length} worth a look`;
+  return line + '.';
+}
+
+async function sendOutlookEmail({ to, subject, body }) {
+  if (!to) return { ok: false, error: 'No one to send that to.' };
+  try {
+    await graph('/me/sendMail', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: {
+          subject: subject || '(no subject)',
+          body: { contentType: 'Text', content: body || '' },
+          toRecipients: String(to).split(/[,;]/).map((addr) => ({
+            emailAddress: { address: addr.trim() },
+          })).filter((r) => r.emailAddress.address),
+        },
+        saveToSentItems: true,
+      }),
+    });
+    return { ok: true, service: 'Outlook' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function markOutlookRead(id) {
+  try {
+    await graph(`/me/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ isRead: true }) });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Whose mailbox this is, for the connector row.
+async function getOutlookAccount() {
+  try {
+    const me = await graph('/me?$select=displayName,mail,userPrincipalName');
+    if (!me) return null;
+    return { name: me.displayName || null, email: me.mail || me.userPrincipalName || null };
+  } catch (_) {
+    return null;
+  }
+}
+
 // ── Email send — removed pending ADA-CASA verification ───────────────────────
 
-async function sendEmail() {
-  return { ok: false, error: 'Email sending is not available in this version.' };
+// Outlook is the one mailbox Callisto can send from — Gmail still waits on
+// Google's CASA assessment, so it is named rather than failing vaguely.
+async function sendEmail(opts) {
+  const outlook = await getOutlookToken();
+  if (outlook) return sendOutlookEmail(opts || {});
+  const status = getConnectorStatus();
+  if (status.gmail) {
+    return { ok: false, error: 'Sending from Gmail is not available yet. It needs Google security review. Connect Outlook and Callisto can send from there.' };
+  }
+  return { ok: false, error: 'No mailbox is connected. Open Connectors and link Outlook.' };
 }
 async function markAllEmailsRead() {
   return { ok: false, error: 'Email not available in this version.' };
@@ -1231,6 +1374,9 @@ module.exports = {
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeToken, getInstagramToken, getTikTokToken,
+  // Outlook mail
+  getOutlookToken, getOutlookInbox, getOutlookSummary, sendOutlookEmail,
+  markOutlookRead, getOutlookAccount,
   // Instagram direct messages
   getInstagramPage, getInstagramInbox, getInstagramThread, sendInstagramMessage,
   findInstagramContact,

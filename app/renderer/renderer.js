@@ -7644,6 +7644,7 @@ function renderAnalyticsConnectors(status) {
   setRow('shopify', document.getElementById('shopifyStatus'), document.getElementById('shopifyBtn'));
   setRow('squarespace', document.getElementById('squarespaceStatus'), document.getElementById('squarespaceBtn'));
   setRow('analytics', document.getElementById('ganalyticsStatus'), document.getElementById('ganalyticsBtn'));
+  setRow('outlook', document.getElementById('outlookStatus'), document.getElementById('outlookBtn'));
   setRow('stripe', document.getElementById('stripeStatus'), document.getElementById('stripeBtn'));
 
   // An expand button on every analytics row that has something to show, and
