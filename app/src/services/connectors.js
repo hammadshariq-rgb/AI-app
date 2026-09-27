@@ -64,11 +64,24 @@ function getConnectorStatus() {
     shopify: !!store.get('connector.shopify.access_token'),
     squarespace: !!store.get('connector.squarespace.api_key'),
     analytics: !!store.get('connector.analytics.access_token'),
-    stripe: !!store.get('connector.stripe.secret_key'),
+    stripe: !!(store.get('connector.stripe.access_token') || store.get('connector.stripe.secret_key')),
     vipSenders: store.get('connector.vipSenders') || [],
     googleAccount: !!store.get('googleAccountEmail'),
     googleAccountEmail: store.get('googleAccountEmail') || null,
   };
+}
+
+// Stripe Connect hands back a token scoped to the customer's own account,
+// read-only. Nothing here can move money, which is the point: the old flow
+// asked people to paste an sk_live_ key that could.
+function saveStripeTokens(data) {
+  if (!data || !data.access_token) return;
+  store.set('connector.stripe', {
+    access_token: data.access_token,
+    stripe_user_id: data.stripe_user_id || null,
+    scope: data.scope || 'read_only',
+    connectedAt: Date.now(),
+  });
 }
 
 function saveGoogleAccountEmail(email) { store.set('googleAccountEmail', email); }
@@ -973,8 +986,12 @@ function saveStripeCredentials(secretKey) {
 
 async function getStripeStats() {
   const creds = store.get('connector.stripe');
-  if (!creds?.secret_key) return null;
-  const auth = { Authorization: `Bearer ${decryptSecret(creds.secret_key)}` };
+  if (!creds) return null;
+  // A Connect token is already scoped to their account; a pasted key is the
+  // old way in and still works for anyone who set it up that way.
+  const bearer = creds.access_token || (creds.secret_key ? decryptSecret(creds.secret_key) : null);
+  if (!bearer) return null;
+  const auth = { Authorization: `Bearer ${bearer}` };
 
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -1006,9 +1023,41 @@ async function getStripeStats() {
       date: new Date(c.created * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
     }));
 
+    // Today, for the morning briefing. Midnight local, not a rolling 24 hours,
+    // because "how much did I make today" means since you woke up.
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const startOfDay = Math.floor(midnight.getTime() / 1000);
+    const chargesToday = charges.filter((c) => c.created >= startOfDay);
+    const revenueToday = chargesToday.reduce((n, c) => n + c.amount, 0) / 100;
+
+    // Yesterday's takings over the same hours, so "today" has something to be
+    // up or down against rather than a bare number.
+    const yesterdayStart = startOfDay - 86400;
+    const sameTimeYesterday = yesterdayStart + (now - startOfDay);
+    const revenueYesterday = charges
+      .filter((c) => c.created >= yesterdayStart && c.created < sameTimeYesterday)
+      .reduce((n, c) => n + c.amount, 0) / 100;
+
+    // A day-by-day series for the chart. Days with no takings are zero rather
+    // than missing, so the line doesn't jump over quiet days.
+    const byDay = new Map();
+    for (let d = 29; d >= 0; d--) {
+      const key = new Date(startOfDay * 1000 - d * 86400000).toISOString().slice(0, 10);
+      byDay.set(key, 0);
+    }
+    for (const c of charges) {
+      const key = new Date(c.created * 1000).toISOString().slice(0, 10);
+      if (byDay.has(key)) byDay.set(key, byDay.get(key) + c.amount / 100);
+    }
+    const series = [...byDay.entries()].map(([date, value]) => ({ date, value: Number(value.toFixed(2)) }));
+
     return {
       last30Days: { revenue: revenue30.toFixed(2), orders: charges.length, currency },
       last7Days:  { revenue: revenue7.toFixed(2),  orders: charges7.length },
+      today: { revenue: revenueToday.toFixed(2), orders: chargesToday.length, currency },
+      yesterday: { revenue: revenueYesterday.toFixed(2) },
+      series,
+      currency,
       totalCustomers: custData.url ? (custData.has_more ? '100+' : String(custData.data?.length || 0)) : '—',
       recentPayments: recent,
     };
@@ -1075,8 +1124,23 @@ function formatAnalyticsForBriefing(a) {
   if (a.squarespace && a.squarespace.orders != null) {
     parts.push(`Squarespace shows ${n(a.squarespace.orders)} order${a.squarespace.orders === 1 ? '' : 's'}.`);
   }
-  if (a.stripe && a.stripe.revenue != null) {
-    parts.push(`Payments are at ${a.stripe.currency || ''}${n(Math.round(a.stripe.revenue))}.`);
+  if (a.stripe && a.stripe.today) {
+    const t = a.stripe.today;
+    const cur = t.currency || a.stripe.currency || '';
+    const money = Number(t.revenue) || 0;
+    if (money > 0) {
+      const yest = Number(a.stripe.yesterday && a.stripe.yesterday.revenue) || 0;
+      let line = `You’ve taken ${cur} ${n(money)} today`;
+      if (t.orders) line += ` across ${n(t.orders)} payment${t.orders === 1 ? '' : 's'}`;
+      // Only compare when there is something to compare against.
+      if (yest > 0) {
+        const pct = Math.round(((money - yest) / yest) * 100);
+        if (Math.abs(pct) >= 5) line += `, ${Math.abs(pct)}% ${pct > 0 ? 'up on' : 'down on'} this time yesterday`;
+      }
+      parts.push(line + '.');
+    } else if (a.stripe.last7Days && Number(a.stripe.last7Days.revenue) > 0) {
+      parts.push(`Nothing in yet today — ${cur} ${n(Math.round(Number(a.stripe.last7Days.revenue)))} over the last week.`);
+    }
   }
 
   if (!parts.length) return null;
@@ -1135,6 +1199,7 @@ async function pollForToken(service, state) {
         else if (service === 'instagram') saveInstagramTokens(data);
         else if (service === 'tiktok') saveTikTokTokens(data);
         else if (service === 'analytics') saveAnalyticsTokens(data);
+        else if (service === 'stripe') saveStripeTokens(data);
         return true;
       }
     } catch (_) {}
@@ -1161,7 +1226,7 @@ module.exports = {
   getConnectorStatus, saveGoogleAccountEmail, getGoogleAccountEmail, disconnectGoogleAccount,
   saveSpotifyTokens, saveCalendarTokens,
   saveYouTubeTokens, saveInstagramTokens, saveTikTokTokens, saveShopifyCredentials,
-  saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials,
+  saveSquarespaceCredentials, saveAnalyticsTokens, saveStripeCredentials, saveStripeTokens,
   playOnSpotify, searchSpotifyTrack, getSpotifyToken, loadTokens,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,

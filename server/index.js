@@ -540,6 +540,63 @@ setInterval(() => {
 }, 60000).unref();
 
 // ── Spotify connector OAuth ───────────────────────────────────────────────────
+// ── Stripe Connect ───────────────────────────────────────────────
+// The customer authorises on Stripe's own page and we get a read-only token
+// for their account. Nobody pastes a secret key anywhere — an sk_live_ key can
+// move money, and no app should ever ask for one.
+//
+// Needs STRIPE_CONNECT_CLIENT_ID (the ca_... from Stripe Dashboard → Settings
+// → Connect → Platform settings) alongside the existing STRIPE_SECRET_KEY,
+// which is used only to exchange the code.
+app.get('/connect/stripe', (req, res) => {
+  const clientId = process.env.STRIPE_CONNECT_CLIENT_ID;
+  if (!clientId) return res.status(500).send('Stripe Connect is not set up on this server yet.');
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    scope: 'read_only',                       // never write: Callisto only reports
+    redirect_uri: `${PUBLIC_URL}/connect/stripe/callback`,
+    'stripe_user[country]': req.query.country || 'US',
+  });
+  res.redirect(`https://connect.stripe.com/oauth/authorize?${params}`);
+});
+
+app.get('/connect/stripe/callback', async (req, res) => {
+  const { code, error_description } = req.query;
+  if (error_description) return res.send(`<p>Stripe connection failed: ${String(error_description).slice(0, 200)}</p>`);
+  if (!code) return res.status(400).send('No code.');
+  try {
+    const tokenRes = await fetch('https://connect.stripe.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_secret: process.env.STRIPE_SECRET_KEY,
+        code,
+        grant_type: 'authorization_code',
+      }),
+    });
+    const t = await tokenRes.json();
+    if (!t.access_token) throw new Error(t.error_description || 'Stripe refused the connection.');
+    // stripe_user_id is the connected account; the access token is scoped to it.
+    if (!stashTokens(req, 'stripe', {
+      access_token: t.access_token,
+      stripe_user_id: t.stripe_user_id,
+      scope: t.scope || 'read_only',
+    })) {
+      return res.status(400).send('This connection link has expired. Please start the connection again from the Callisto app.');
+    }
+    res.send(connectedPage('Stripe'));
+  } catch (err) {
+    res.send(`<p>Stripe connection failed: ${err.message}</p>`);
+  }
+});
+
+app.get('/connect/stripe/poll', (req, res) => {
+  const t = takeTokens(req, 'stripe');
+  if (t) return res.json({ ok: true, ...t });
+  res.json({ ok: false });
+});
+
 app.get('/connect/spotify', (req, res) => {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) return res.status(500).send('Spotify not configured. Add SPOTIFY_CLIENT_ID to server .env');

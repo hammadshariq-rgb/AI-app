@@ -7646,6 +7646,28 @@ function renderAnalyticsConnectors(status) {
   setRow('analytics', document.getElementById('ganalyticsStatus'), document.getElementById('ganalyticsBtn'));
   setRow('stripe', document.getElementById('stripeStatus'), document.getElementById('stripeBtn'));
 
+  // An expand button on every analytics row that has something to show, and
+  // only once it is connected  an empty chart helps nobody.
+  [['youtube', 'youtubeRow'], ['instagram', 'instagramRow'], ['facebook', 'facebookRow'],
+   ['tiktok', 'tiktokRow'], ['stripe', 'stripeRow']].forEach(function ([key, rowId]) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    let btn = row.querySelector('.connector-expand');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.className = 'connector-expand';
+      btn.title = 'Expand';
+      btn.setAttribute('aria-label', 'Expand ' + key + ' analytics');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>';
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.CallistoAnalyticsOverlay?.show(key);
+      });
+      row.appendChild(btn);
+    }
+    btn.hidden = !status?.[key];
+  });
+
   // Show dashboard button if any platform connected
   const viewBtn = document.getElementById('analyticsViewBtn');
   if (viewBtn) {
@@ -8170,16 +8192,18 @@ const CONNECT_STEPS = {
     action: () => document.getElementById('squarespaceModal').classList.remove('hidden'),
   },
   stripe: {
-    icon: '💳', title: 'CONNECT REVENUE & PAYMENTS', subtitle: 'Works with any website that uses Stripe',
+    // Stripe's own sign-in, not a pasted key. An sk_live_ key can move money;
+    // nothing should ever ask a customer for one. Connect gives read-only
+    // access they can revoke from their own Stripe dashboard at any time.
+    icon: '💳', title: 'CONNECT STRIPE', subtitle: 'See what your website or app is earning',
     steps: [
-      'Log into your <strong>Stripe Dashboard</strong> at dashboard.stripe.com',
-      'Click <strong>Developers</strong> in the top-right menu',
-      'Click <strong>API Keys</strong> in the left sidebar',
-      'Under <em>Secret key</em>, click <strong>Reveal live key</strong>',
-      'Copy the key (starts with <em>sk_live_</em>) and paste it in the next screen',
+      'You will be taken to <strong>the Stripe sign-in page</strong>',
+      'Sign in and pick the account you want Callisto to read',
+      'Callisto asks for <strong>read-only</strong> access — it can see your takings and never move money',
+      'You can revoke it any time from Stripe → Settings → Connected apps',
     ],
-    continueLabel: 'I Have My Key →',
-    action: () => document.getElementById('stripeConnectModal').classList.remove('hidden'),
+    continueLabel: 'Continue to Stripe →',
+    action: () => window.jarvis.connectorConnect('stripe'),
   },
 };
 
