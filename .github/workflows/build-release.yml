@@ -53,11 +53,13 @@ jobs:
         working-directory: app
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
         shell: bash
         run: |
           echo "LICENSE_SERVER_URL=https://ai-app-production-9224.up.railway.app" >> .env
           echo "ASSISTANT_NAME=Jarvis" >> .env
           echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
+          echo "MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}" >> .env
 
       # --publish always uploads the installer AND latest.yml, the file the
       # installed app reads to discover updates. Without it auto-update can't work.
@@ -125,10 +127,12 @@ jobs:
         working-directory: app
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
         run: |
           echo "LICENSE_SERVER_URL=https://ai-app-production-9224.up.railway.app" >> .env
           echo "ASSISTANT_NAME=Jarvis" >> .env
           echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
+          echo "MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}" >> .env
 
       # Signs and notarises with a Developer ID when the secrets are present,
       # otherwise falls back to the ad-hoc signature (build/adhoc-sign.js), which
