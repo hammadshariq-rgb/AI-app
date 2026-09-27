@@ -21,6 +21,53 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
   }
 
+  // ── Hand gestures the customer recorded ────────────────────────────────────
+  // Kept in this browser only, the same way the desktop app keeps them on the
+  // machine. A hand shape never leaves the device.
+  var GKEY = 'callisto_web_gestures';
+  var GLIMIT = 20;
+
+  function gesturesList() { return Promise.resolve({ ok: true, items: read(GKEY, []) }); }
+
+  function gesturesSave(g) {
+    if (!g || !Array.isArray(g.sig) || g.sig.length !== 42) {
+      return Promise.resolve({ ok: false, error: 'That pose did not record properly. Try again.' });
+    }
+    var list = read(GKEY, []);
+    var entry = {
+      id: g.id || ('g' + Date.now().toString(36)),
+      name: String(g.name || 'Untitled').slice(0, 40),
+      sig: g.sig.map(Number),
+      spread: Number(g.spread) || 0,
+      action: (g.action && g.action.kind === 'prompt')
+        ? { kind: 'prompt', text: String(g.action.text || '').slice(0, 300) }
+        : { kind: 'builtin', id: String((g.action && g.action.id) || '').slice(0, 40) },
+      createdAt: g.createdAt || Date.now(),
+    };
+    if (entry.action.kind === 'prompt' && !entry.action.text) {
+      return Promise.resolve({ ok: false, error: 'Say what the gesture should do.' });
+    }
+    if (entry.action.kind === 'builtin' && !entry.action.id) {
+      return Promise.resolve({ ok: false, error: 'Pick what the gesture should do.' });
+    }
+    var i = list.findIndex(function (x) { return x.id === entry.id; });
+    if (i >= 0) list[i] = entry;
+    else {
+      if (list.length >= GLIMIT) {
+        return Promise.resolve({ ok: false, error: 'That is the most gestures Callisto can tell apart (' + GLIMIT + '). Delete one first.' });
+      }
+      list.push(entry);
+    }
+    write(GKEY, list);
+    return Promise.resolve({ ok: true, items: list });
+  }
+
+  function gesturesDelete(id) {
+    var list = read(GKEY, []).filter(function (g) { return g.id !== id; });
+    write(GKEY, list);
+    return Promise.resolve({ ok: true, items: list });
+  }
+
   // ── Reminders ──────────────────────────────────────────────────────────────
   var reminderListeners = [];
   function reminderList() { return Promise.resolve(read(KEYS.reminders, [])); }
@@ -138,6 +185,7 @@
 
   window.jarvis = {
     isWeb: true,
+    gesturesList: gesturesList, gesturesSave: gesturesSave, gesturesDelete: gesturesDelete,
     reminderList: reminderList, reminderAdd: reminderAdd, reminderDelete: reminderDelete,
     onReminder: function (cb) { reminderListeners.push(cb); },
     taskList: taskList, taskAdd: taskAdd, taskSetDone: taskSetDone, taskDelete: taskDelete,

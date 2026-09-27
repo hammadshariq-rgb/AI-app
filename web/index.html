@@ -3474,6 +3474,38 @@
 <script src="/panels/bridge.js?v=1"></script>
 <script src="/panels/panels.js?v=1"></script>
 <script src="/panels/portfolio.js?v=1"></script>
+<script src="/gestures.js?v=1"></script>
+<script src="/gestures-web.js?v=1"></script>
+<script src="/gestures-ui.js?v=1"></script>
 <script src="/panels/calendar-overlay.js?v=1"></script>
+
+<!-- Hand control. Hidden until the browser proves it can do it: the camera API
+     needs a secure origin, and MediaPipe needs a reasonably modern browser. -->
+<button id="gwToggle" class="gw-toggle" title="Hand control" aria-label="Turn on hand control" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11"></path>
+    <path d="M11 10.5V4a1.5 1.5 0 0 1 3 0v7"></path>
+    <path d="M14 11V6a1.5 1.5 0 0 1 3 0v7"></path>
+    <path d="M8 12v-1a1.5 1.5 0 0 0-3 0v4a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"></path>
+  </svg>
+</button>
+<script>
+  (function () {
+    var btn = document.getElementById('gwToggle');
+    if (!btn) return;
+    var canDoIt = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
+                  (window.isSecureContext || location.hostname === 'localhost');
+    if (!canDoIt) return;            // no camera access here, so don't offer it
+    btn.hidden = false;
+    btn.addEventListener('click', function () {
+      if (!window.CallistoHandControl) return;
+      window.CallistoHandControl.toggle();
+      btn.classList.toggle('gw-on', window.CallistoHandControl.isOn());
+      btn.setAttribute('aria-label',
+        window.CallistoHandControl.isOn() ? 'Turn off hand control' : 'Turn on hand control');
+    });
+  })();
+</script>
 </body>
 </html>

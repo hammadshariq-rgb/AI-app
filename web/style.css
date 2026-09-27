@@ -527,3 +527,124 @@ body {
 
 /* ── Utility ──────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── Hand control ─────────────────────────────────────────────────────────── */
+.gw-hidden { display: none !important; }
+
+.gw-toggle {
+  position: fixed; right: 18px; bottom: 18px; z-index: 900;
+  width: 46px; height: 46px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 16, 30, 0.9); color: rgba(190, 210, 245, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s, border-color 0.15s, color 0.15s, background 0.15s;
+}
+.gw-toggle svg { width: 21px; height: 21px; }
+.gw-toggle:hover { transform: scale(1.06); color: #fff; }
+.gw-toggle.gw-on {
+  background: rgba(61, 255, 180, 0.14); border-color: rgba(61, 255, 180, 0.5);
+  color: #7cf5c4; box-shadow: 0 0 22px rgba(61, 255, 180, 0.22);
+}
+
+/* The camera preview. Small, cornered, and always visible while it is reading,
+   so nobody can forget the camera is on. */
+.gw-panel {
+  position: fixed; right: 18px; bottom: 76px; z-index: 900;
+  display: flex; gap: 12px; padding: 12px;
+  width: min(370px, calc(100vw - 36px));
+  border-radius: 14px; background: rgba(10, 16, 30, 0.97);
+  border: 1px solid rgba(61, 255, 180, 0.28);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
+  color: rgba(226, 238, 255, 0.95);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.gw-cam { position: relative; width: 132px; flex: none; border-radius: 9px; overflow: hidden; background: #05070f; }
+.gw-cam video, .gw-cam canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  transform: scaleX(-1);              /* mirrored, so moving right moves right */
+}
+.gw-cam video { object-fit: cover; }
+.gw-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gw-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: rgba(120, 255, 205, 0.9); }
+.gw-status { font-size: 13px; font-weight: 600; }
+.gw-hint { font-size: 11px; color: rgba(160, 182, 218, 0.72); line-height: 1.4; }
+.gw-privacy { font-size: 10.5px; color: rgba(140, 165, 205, 0.6); line-height: 1.4; margin-top: 2px; }
+
+.gw-btn {
+  font-family: inherit; font-weight: 600; font-size: 12px;
+  padding: 7px 11px; border-radius: 8px; cursor: pointer; text-align: center;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(214, 228, 255, 0.9);
+}
+.gw-btn:hover { background: rgba(255, 255, 255, 0.11); }
+.gw-btn-go { background: rgba(61, 255, 180, 0.14); border-color: rgba(61, 255, 180, 0.42); color: #8ff0c6; }
+.gw-btn-off { color: rgba(255, 160, 160, 0.85); }
+
+/* The cursor itself */
+.gw-cursor { position: fixed; left: 0; top: 0; width: 44px; height: 44px; z-index: 9999;
+  pointer-events: none; transform: translate(-9999px, -9999px); }
+.gw-ring { position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid rgba(0, 200, 255, 0.7); transition: border-color 0.12s, box-shadow 0.12s; }
+.gw-dot { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%; background: rgba(0, 200, 255, 0.9); }
+.gw-cursor.gw-armed .gw-ring { border-color: rgba(61, 255, 180, 0.95); box-shadow: 0 0 16px rgba(61, 255, 180, 0.4); }
+.gw-cursor.gw-press .gw-ring { transform: scale(0.8); border-color: #fff; box-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
+
+/* My gestures */
+.gws {
+  position: fixed; right: 18px; bottom: 76px; z-index: 950;
+  width: min(320px, calc(100vw - 36px));
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  border-radius: 14px; background: rgba(10, 16, 30, 0.98);
+  border: 1px solid rgba(61, 255, 180, 0.28);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+  color: rgba(226, 238, 255, 0.95); font-family: 'Inter', system-ui, sans-serif;
+}
+.gws-head { display: flex; align-items: center; justify-content: space-between; }
+.gws-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: rgba(120, 255, 205, 0.9); }
+.gws-x { background: none; border: 0; color: rgba(170, 190, 225, 0.6); cursor: pointer; font-size: 13px; }
+.gws-list { display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow-y: auto; }
+.gws-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05); }
+.gws-name { font-size: 12.5px; font-weight: 600; flex: none; max-width: 40%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gws-act { flex: 1; min-width: 0; font-size: 11px; color: rgba(160, 182, 218, 0.72);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gws-del { background: none; border: 0; color: rgba(170, 190, 225, 0.45); cursor: pointer; font-size: 11px; }
+.gws-del:hover { color: #ff9b9b; }
+.gws-empty { font-size: 11.5px; line-height: 1.5; color: rgba(160, 180, 215, 0.65); padding: 10px 2px; }
+.gws-rec { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 6px 0 2px; }
+.gws-step { font-size: 13px; font-weight: 600; }
+.gws-ring { position: relative; width: 80px; height: 80px; }
+.gws-ring svg { width: 80px; height: 80px; transform: rotate(-90deg); }
+.gws-ring circle { fill: none; stroke-width: 4; stroke: rgba(255, 255, 255, 0.08); }
+.gws-ring #gwsArc { stroke: #3dffb4; stroke-linecap: round; transition: stroke-dashoffset 0.1s linear; }
+.gws-ring span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 700; }
+.gws-hint { font-size: 11px; color: rgba(160, 182, 218, 0.7); }
+.gws-save { display: flex; flex-direction: column; gap: 9px; }
+.gws-input { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 9px; outline: none;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.13);
+  color: rgba(222, 236, 255, 0.95); font-size: 12.5px; font-family: inherit; }
+.gws-input:focus { border-color: rgba(61, 255, 180, 0.5); }
+.gws-input option { background: #0b1220; }
+.gws-tabs { display: flex; gap: 6px; }
+.gws-tab { flex: 1; font-family: inherit; font-weight: 600; font-size: 11px;
+  padding: 7px 6px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(170, 190, 225, 0.7); }
+.gws-tab-on { background: rgba(61, 255, 180, 0.13); border-color: rgba(61, 255, 180, 0.4); color: #8ff0c6; }
+.gws-warn { font-size: 11px; line-height: 1.45; color: #ffcf8a;
+  background: rgba(255, 190, 80, 0.08); border-left: 2px solid rgba(255, 190, 80, 0.4);
+  padding: 7px 9px; border-radius: 0 8px 8px 0; }
+.gws-row { display: flex; gap: 7px; }
+.gws-row .gw-btn { flex: 1; }
+
+@media (max-width: 560px) {
+  .gw-panel { flex-direction: column; }
+  .gw-cam { width: 100%; height: 130px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-toggle, .gw-ring, .gws-ring #gwsArc { transition: none; }
+}
