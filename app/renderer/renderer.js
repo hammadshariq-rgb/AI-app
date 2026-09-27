@@ -9091,6 +9091,16 @@ window.jarvis.onScreenWatched?.((d) => {
   const c = document.getElementById('screenWatchBadge')?.querySelector('.sw-count');
   if (c) c.textContent = `${d.frames} frame${d.frames === 1 ? '' : 's'}${d.minutes ? ` Â· ${d.minutes} min` : ''}`;
 });
+// Circled something and said what to do with it. The files were already
+// resolved to real paths, so the AI is handed those and picks its own tool
+// rather than us guessing which one the words meant.
+window.jarvis.onCaptureAct?.((d) => {
+  if (!d || !d.instruction) return;
+  addMessage('user', d.instruction);
+  window._captureContext = d.context || null;
+  sendToJarvis(d.instruction);
+});
+
 window.jarvis.onScreenSuggest?.((sug) => { if (window._convoMode) screenSuggest(sug); });
 
 // Between turns: pick the listening back up once Callisto has finished speaking

@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
   dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
   switchApp: ()                          => ipcRenderer.invoke('window:switchApp'),
+  // Circling with something said: the AI acts on the real files, not the picture
+  onCaptureAct: (cb) => ipcRenderer.on('capture:act', (_e, d) => cb(d)),
   // Drawing studio
   onDrawApply:  (cb) => ipcRenderer.on('draw:apply', (_e, d) => cb(d)),
   drawState:    (st) => ipcRenderer.send('draw:state', st),

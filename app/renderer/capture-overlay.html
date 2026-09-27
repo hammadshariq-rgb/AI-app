@@ -78,6 +78,34 @@
 
 <div id="hint">Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span></div>
 
+<!-- After circling, they can say what to do with it. Left empty it just
+     identifies what is there, which is the old behaviour. -->
+<div id="askWrap">
+  <input id="askInput" placeholder="What should I do with this? (optional)" autocomplete="off" />
+  <button id="askGo">Go</button>
+</div>
+
+<style>
+  #askWrap {
+    position: fixed; left: 50%; bottom: 14%; transform: translate(-50%, 10px);
+    display: none; align-items: center; gap: 8px; z-index: 50;
+    padding: 9px 10px 9px 15px; border-radius: 14px;
+    background: rgba(10, 16, 30, 0.96); border: 1px solid rgba(0, 200, 255, 0.35);
+    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5); opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  #askWrap.show { display: flex; opacity: 1; transform: translate(-50%, 0); }
+  #askInput {
+    width: min(380px, 60vw); background: none; border: 0; outline: none;
+    color: rgba(226, 238, 255, 0.96); font-family: 'Inter', system-ui, sans-serif; font-size: 14px;
+  }
+  #askInput::placeholder { color: rgba(150, 175, 215, 0.6); }
+  #askGo {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12.5px; letter-spacing: 1px;
+    padding: 8px 16px; border-radius: 9px; cursor: pointer;
+    background: rgba(0, 200, 255, 0.18); border: 1px solid rgba(0, 200, 255, 0.45); color: #7fdcff;
+  }
+</style>
 <canvas id="tubeCanvas"></canvas>
 <canvas id="lassoCanvas"></canvas>
 
@@ -302,10 +330,29 @@ async function finishSelection() {
   proc.style.display = 'flex';
 
   // Small delay so user sees the flash before overlay hides
+  // Offer the box before doing anything: what they say changes the job from
+  // "what is this" to "do this with it".
+  const askWrap = document.getElementById('askWrap');
+  const askInput = document.getElementById('askInput');
+  askWrap.classList.add('show');
+  askInput.focus();
+
+  const instruction = await new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; askWrap.classList.remove('show'); resolve(v); };
+    document.getElementById('askGo').addEventListener('click', () => finish(askInput.value.trim()));
+    askInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finish(askInput.value.trim());
+      if (e.key === 'Escape') finish('');
+    });
+    // Nothing typed within a few seconds means they just wanted to know what it is.
+    setTimeout(() => finish(askInput.value.trim()), 6000);
+  });
+
   setTimeout(async () => {
     try {
       // Ask main process to screenshot + crop + call AI vision
-      const result = await ipcRenderer.invoke('capture:identify', bounds);
+      const result = await ipcRenderer.invoke('capture:identify', bounds, instruction);
       // Main process handles TTS + HUD card and then closes this window
       ipcRenderer.send('capture:done');
     } catch (err) {

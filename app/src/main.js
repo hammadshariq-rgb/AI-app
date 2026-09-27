@@ -363,7 +363,10 @@ ipcMain.on('capture:done', () => closeCaptureOverlay());
 ipcMain.on('capture:cancel', () => closeCaptureOverlay());
 
 // IPC: overlay sends selection bounds → screenshot → crop → vision API → HUD + TTS
-ipcMain.handle('capture:identify', async (_e, bounds) => {
+let _pendingCircleContext = null;
+const nlJoin = (t) => String.fromCharCode(10,10) + t;
+
+ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
   try {
     // 1. Briefly hide capture window so it doesn't appear in the screenshot
     if (captureWindow && !captureWindow.isDestroyed()) captureWindow.hide();
@@ -402,10 +405,41 @@ ipcMain.handle('capture:identify', async (_e, bounds) => {
     const res = await fetch(`${_serverBase()}/ai/vision`, {
       method: 'POST',
       headers: { ..._authHeader(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64 }),
+      body: JSON.stringify({ imageBase64, instruction: instruction || undefined }),
     });
     if (!res.ok) throw new Error(`Vision API error: ${res.status}`);
-    const { text, card } = await res.json();
+    const visionOut = await res.json();
+    const { text, card } = visionOut;
+
+    // They said something while circling. Whatever it was, the useful move is
+    // to hand the AI the real files it named plus what they asked for, and let
+    // it choose the tool — summarise, merge, compress, convert. Hard-coding one
+    // of those would only ever cover one of them.
+    if (instruction) {
+      const named = Array.isArray(visionOut.files) ? visionOut.files.slice(0, 6) : [];
+      const found = [];
+      for (const name of named) {
+        try {
+          const hit = await commands.findFile(String(name));
+          if (hit && hit.path) found.push(hit.path);
+        } catch (_) {}
+      }
+      const seen = visionOut.subject || visionOut.answer || '';
+      const context = [
+        `The user circled part of their screen and said: "${instruction}".`,
+        seen ? `On screen: ${seen}` : '',
+        found.length
+          ? ['These are the real paths of the files they circled:'].concat(found).concat([
+              'Use them directly. If the job needs a tool that is not built in (merging PDFs, shrinking a file, converting a format), propose the command with run_command and let them press Run.'
+            ]).join(String.fromCharCode(10))
+          : (named.length ? `They referred to ${named.join(', ')}, but those files could not be found on this computer. Say so and ask where they are.` : ''),
+      ].filter(Boolean).join(String.fromCharCode(10));
+
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        _pendingCircleContext = context;
+        overlayWindow.webContents.send('capture:act', { instruction, context, files: found });
+      }
+    }
 
     // 5. Speak the result
     const audio = await tts.synthesize(text).catch(() => null);
@@ -1788,13 +1822,17 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // While the screen is being watched, what the user is looking at is part of
   // the conversation — "combine these two PDFs" needs no screenshot, because
   // Callisto already knows what is on screen.
+    // Set when the user circled something and said what to do with it. Used
+  // once, for the turn it belongs to, then cleared.
+  let _circleNote = '';
+  if (_pendingCircleContext) { _circleNote = nlJoin(_pendingCircleContext); _pendingCircleContext = null; }
   let _screenNote = '';
   if (lastScreenContext && Date.now() - lastScreenContext.at < 60000) {
     _screenNote = `
 
 ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" — do not ask them to send a screenshot.`;
   }
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order

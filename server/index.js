@@ -1780,8 +1780,29 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
 
 app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
   try {
-    const { imageBase64 } = req.body;
+    const { imageBase64, instruction } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+
+    // When the user said something while circling ("summarise these", "get
+    // these under 1MB"), answer that instead of describing the picture. Files
+    // on screen are named back so the app can find them on disk and act.
+    const askPrompt = instruction ? `
+The user circled part of their screen and said: "${String(instruction).slice(0, 400)}"
+
+Work out what they want from what you can see, and do not take the wording
+literally — "make these smaller" about documents means compress, about a photo
+means resize. Answer as JSON, no fences:
+{
+  "subject": "<2-5 words>",
+  "category": "task",
+  "answer": "<what you will do, or the answer if it is a question — two sentences>",
+  "files": ["<any filename visible in the circled area, exactly as shown>"],
+  "intent": "<one of: summarise|combine|compress|convert|extract|rename|explain|answer|other>",
+  "detail": "<anything specific that matters, e.g. a target size, a format, a page range>",
+  "steps": [], "formula": null, "fact": null
+}
+Only list files you can actually read on screen. If none, use an empty array.
+` : null;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4.1',
@@ -1795,7 +1816,7 @@ app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
           },
           {
             type: 'text',
-            text: `You are Callisto AI — a brilliant, all-knowing assistant. The user has circled something on their screen. Study the image carefully and give a COMPLETE, EXPERT answer based on what you see.
+            text: askPrompt || `You are Callisto AI — a brilliant, all-knowing assistant. The user has circled something on their screen. Study the image carefully and give a COMPLETE, EXPERT answer based on what you see.
 
 Respond in this exact JSON format (no markdown fences, just raw JSON):
 {
