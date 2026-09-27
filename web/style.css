@@ -697,32 +697,3 @@ body {
 /* Keep the ticker clear of the hand-control button */
 .gw-toggle { bottom: 46px; }
 .gw-panel, .gws { bottom: 104px; }
-
-/* Link from the download section to the full feature comparison */
-.dl-compare {
-  display: flex; flex-direction: column; gap: 3px; position: relative;
-  max-width: 520px; margin: 22px auto 0; padding: 15px 46px 15px 18px;
-  border-radius: 14px; text-decoration: none; text-align: left;
-  background: rgba(0, 200, 255, 0.06);
-  border: 1px solid rgba(0, 200, 255, 0.22);
-  transition: background 0.18s, border-color 0.18s, transform 0.18s;
-}
-.dl-compare:hover {
-  background: rgba(0, 200, 255, 0.11);
-  border-color: rgba(0, 200, 255, 0.4);
-  transform: translateY(-1px);
-}
-.dl-compare-main {
-  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 16px;
-  letter-spacing: 0.3px; color: rgba(225, 240, 255, 0.95);
-}
-.dl-compare-sub { font-size: 12.5px; color: rgba(170, 195, 230, 0.7); line-height: 1.45; }
-.dl-compare-go {
-  position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
-  font-size: 20px; color: #00c8ff; transition: transform 0.18s;
-}
-.dl-compare:hover .dl-compare-go { transform: translateY(-50%) translateX(3px); }
-@media (prefers-reduced-motion: reduce) {
-  .dl-compare, .dl-compare-go { transition: none; }
-  .dl-compare:hover { transform: none; }
-}
