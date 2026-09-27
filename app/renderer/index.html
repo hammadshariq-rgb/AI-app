@@ -2508,12 +2508,14 @@
           <div class="conn-steps">
             <div class="conn-step"><span class="conn-step-num">1</span><span>Go to <strong>dashboard.stripe.com</strong></span></div>
             <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Developers → API Keys</strong></span></div>
-            <div class="conn-step"><span class="conn-step-num">3</span><span>Copy your <strong>Secret key</strong> — starts with <code style="color:rgba(140,180,255,0.8);font-size:10.5px">sk_live_</code></span></div>
+            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Create restricted key</strong> — not a secret key</span></div>
+            <div class="conn-step"><span class="conn-step-num">4</span><span>Set <strong>Charges</strong>, <strong>Customers</strong> and <strong>Balance</strong> to <strong>Read</strong>, everything else <em>None</em></span></div>
+            <div class="conn-step"><span class="conn-step-num">5</span><span>Copy the key — starts with <code style="color:rgba(140,180,255,0.8);font-size:10.5px">rk_live_</code></span></div>
           </div>
           <div class="conn-field">
-            <label>STRIPE SECRET KEY</label>
+            <label>STRIPE RESTRICTED KEY</label>
             <div class="conn-input-wrap">
-              <input id="stripeKeyInput" placeholder="sk_live_..." autocomplete="off" type="password" />
+              <input id="stripeKeyInput" placeholder="rk_live_..." autocomplete="off" type="password" />
               <button class="conn-pw-toggle" id="stripePwToggle" type="button" tabindex="-1" title="Show/hide key">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
