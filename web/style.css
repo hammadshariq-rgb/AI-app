@@ -748,3 +748,27 @@ body {
   .cg-go { margin-left: 47px; }
 }
 @media (prefers-reduced-motion: reduce) { .cg { transition: opacity 0.2s ease; } }
+
+/* ── Making things on the web ─────────────────────────────────────────────── */
+.cw-card {
+  width: min(460px, 100%); padding: 14px 16px 16px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.cw-card.cw-failed { border-color: rgba(255, 120, 120, 0.3); }
+.cw-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.cw-kind { font-family: 'Rajdhani', sans-serif; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 2px; color: rgba(0, 200, 255, 0.85); }
+.cw-state { font-size: 11.5px; color: rgba(170, 195, 230, 0.7); }
+.cw-bar { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.cw-bar i { display: block; height: 100%; width: 3%; border-radius: 3px;
+  background: linear-gradient(90deg, #00c8ff, #7ee8ff); transition: width 0.5s ease; }
+.cw-out { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; align-items: flex-start; }
+.cw-out:empty { display: none; }
+.cw-img, .cw-video { width: 100%; border-radius: 11px; display: block; }
+.cw-dl {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px;
+  padding: 8px 14px; border-radius: 9px; text-decoration: none;
+  background: rgba(0, 200, 255, 0.14); border: 1px solid rgba(0, 200, 255, 0.4); color: #7fdcff;
+}
+.cw-dl:hover { filter: brightness(1.12); }
+.cw-left, .cw-note { font-size: 11.5px; color: rgba(160, 185, 220, 0.65); line-height: 1.45; }

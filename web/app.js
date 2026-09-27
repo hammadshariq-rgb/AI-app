@@ -254,6 +254,9 @@ stopBtn.addEventListener('click', () => {
   setThinking(false);
 });
 
+// draw-web.js reports back through the chat when a drawing fails.
+window.addMessage = addMessage;
+
 /* ── Send message ─────────────────────────────────────────────────────────── */
 async function sendMessage() {
   const text = messageInput.value.trim();
@@ -270,6 +273,27 @@ async function sendMessage() {
   }
   if (!token) { window.CallistoGate?.show('signin', { feature: 'talk to Callisto' }); return; }
   lastUserMessage = text;
+
+  // Making a picture, video or 3D model doesn't go through the chat model:
+  // it calls the generator directly and streams progress into its own card.
+  if (window.CallistoCreate && window.CallistoCreate.wanted(text)) {
+    addMessage('user', text);
+    messageInput.value = '';
+    messageInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    emptyState.classList.add('hidden');
+    window.CallistoCreate.handle(text);
+    return;
+  }
+
+  // "Draw me a box" opens the canvas instead, where it can be built up.
+  if (window.CallistoDraw && /(draw|sketch)/i.test(text) && !/(picture|photo|image|realistic)/i.test(text)) {
+    addMessage('user', text);
+    messageInput.value = '';
+    sendBtn.disabled = true;
+    window._webDraw ? window._webDraw(text) : window.CallistoDraw.show();
+    return;
+  }
 
   // Clear input
   messageInput.value = '';
