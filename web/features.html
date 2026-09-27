@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Everything Callisto Does — Callisto AI</title>
+<meta name="description" content="Every Callisto feature, in the desktop app and in your browser — voice, hand control, creating, connected accounts, TV and more." />
+<link rel="icon" href="/favicon-32.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Inter:wght@400;500;600&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0d1a;
+    --bg2:       #0f1221;
+    --surface:   rgba(255,255,255,0.035);
+    --surface-h: rgba(255,255,255,0.065);
+    --border:    rgba(255,255,255,0.075);
+    --accent:    #00c8ff;
+    --text:      rgba(220,235,255,0.93);
+    --text2:     rgba(180,200,230,0.58);
+    --text3:     rgba(140,165,200,0.38);
+    --live:      #3ddba4;
+    --live-bg:   rgba(61,219,164,0.12);
+    --wait:      #f5b544;
+    --wait-bg:   rgba(245,181,68,0.12);
+    --plan:      #9d8cf7;
+    --plan-bg:   rgba(157,140,247,0.12);
+    --never:     #e08a9a;
+    --never-bg:  rgba(224,138,154,0.10);
+    --font:      'Inter', system-ui, sans-serif;
+    --brand:     'Rajdhani', sans-serif;
+    --mono:      'Share Tech Mono', ui-monospace, monospace;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* A faint starfield, the same feel as the landing page */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(1px 1px at 12% 22%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1px 1px at 68% 14%, rgba(255,255,255,0.25), transparent),
+      radial-gradient(1px 1px at 82% 62%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 28% 78%, rgba(255,255,255,0.22), transparent),
+      radial-gradient(900px 500px at 50% -10%, rgba(0,200,255,0.07), transparent 70%);
+  }
+  .wrap { position: relative; z-index: 1; max-width: 1060px; margin: 0 auto;
+          padding-inline: 20px; padding-block: 0 80px; }
+
+  /* ── Top bar ─────────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 0; margin-bottom: 8px;
+    background: rgba(10,13,26,0.82); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text); }
+  .brand-mark {
+    width: 26px; height: 26px; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 32% 30%, #6fe3ff, #0077b6 62%, #052a3d);
+    box-shadow: 0 0 16px rgba(0,200,255,0.45);
+  }
+  .brand-name { font-family: 'Orbitron', var(--brand); font-weight: 700;
+                font-size: 15px; letter-spacing: 1.6px; }
+  .nav-cta {
+    font-family: var(--brand); font-weight: 700; font-size: 13px; letter-spacing: 0.8px;
+    padding: 9px 18px; border-radius: 10px; text-decoration: none; white-space: nowrap;
+    background: var(--accent); color: #041018;
+    box-shadow: 0 5px 20px rgba(0,200,255,0.3);
+  }
+  .nav-cta:hover { filter: brightness(1.08); }
+
+  /* ── Hero ────────────────────────────────────────────────────────────── */
+  header { padding: 46px 0 30px; text-align: center; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 3.6px;
+    color: var(--accent); margin-bottom: 14px;
+  }
+  h1 {
+    font-family: var(--brand); font-weight: 700;
+    font-size: clamp(34px, 6vw, 56px); line-height: 1.04; letter-spacing: -0.5px;
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { color: var(--text2); max-width: 60ch; margin: 0 auto; font-size: 16px; }
+
+  .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    min-width: 118px; padding: 14px 20px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .stat b { font-family: var(--brand); font-size: 27px; font-weight: 700; line-height: 1;
+            font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11.5px; color: var(--text2); letter-spacing: 0.3px; }
+
+  /* ── Key: what the colours mean ──────────────────────────────────────── */
+  .key {
+    display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: center;
+    margin: 34px 0 6px; font-size: 12.5px; color: var(--text2);
+  }
+  .key div { display: flex; align-items: center; gap: 7px; }
+
+  /* ── Groups ──────────────────────────────────────────────────────────── */
+  section { margin-top: 42px; }
+  .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .sec-ico {
+    width: 34px; height: 34px; border-radius: 10px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,200,255,0.1); border: 1px solid rgba(0,200,255,0.22); color: var(--accent);
+  }
+  .sec-ico svg { width: 17px; height: 17px; }
+  h2 { font-family: var(--brand); font-size: 20px; font-weight: 700; letter-spacing: 0.3px; margin: 0; }
+  .sec-count { margin-left: auto; font-size: 12px; color: var(--text3); font-family: var(--mono); }
+
+  .rows { display: flex; flex-direction: column; gap: 1px;
+          background: var(--border); border: 1px solid var(--border);
+          border-radius: var(--radius, 14px); overflow: hidden; }
+  .row {
+    display: grid; grid-template-columns: 1fr 176px 176px; gap: 14px;
+    padding: 13px 16px; background: var(--bg2); align-items: start;
+    transition: background 0.15s;
+  }
+  .row:hover { background: #131730; }
+  .row-head {
+    display: grid; grid-template-columns: 1fr 176px 176px; gap: 14px;
+    padding: 9px 16px; background: #0c1020;
+    font-family: var(--brand); font-size: 11.5px; font-weight: 700;
+    letter-spacing: 1.7px; text-transform: uppercase; color: var(--text3);
+  }
+  .feat { font-weight: 500; }
+  .feat kbd {
+    font-family: var(--mono); font-size: 10.5px; margin-left: 7px;
+    padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+    background: rgba(0,200,255,0.1); color: var(--accent);
+    border: 1px solid rgba(0,200,255,0.24);
+  }
+  .note { display: block; font-size: 12px; color: var(--text3); margin-top: 3px; line-height: 1.45; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 7px; white-space: nowrap;
+  }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .p-live  { background: var(--live-bg);  color: var(--live); }
+  .p-wait  { background: var(--wait-bg);  color: var(--wait); }
+  .p-plan  { background: var(--plan-bg);  color: var(--plan); }
+  .p-never { background: var(--never-bg); color: var(--never); }
+  .p-none  { color: var(--text3); font-size: 12px; }
+
+  /* ── Closing call to action ──────────────────────────────────────────── */
+  .close {
+    margin-top: 56px; padding: 36px 28px; border-radius: 20px; text-align: center;
+    background: linear-gradient(180deg, rgba(0,200,255,0.08), rgba(0,200,255,0.02));
+    border: 1px solid rgba(0,200,255,0.2);
+  }
+  .close h3 { font-family: var(--brand); font-size: 25px; font-weight: 700; margin: 0 0 8px; }
+  .close p { color: var(--text2); max-width: 54ch; margin: 0 auto 22px; }
+  .close-btns { display: flex; gap: 11px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--brand); font-weight: 700; font-size: 14px; letter-spacing: 0.6px;
+    padding: 12px 26px; border-radius: 11px; text-decoration: none; white-space: nowrap;
+  }
+  .btn-a { background: var(--accent); color: #041018; box-shadow: 0 6px 24px rgba(0,200,255,0.3); }
+  .btn-b { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn:hover { filter: brightness(1.1); }
+  .why { margin-top: 26px; font-size: 13px; color: var(--text3); line-height: 1.6;
+         max-width: 72ch; margin-inline: auto; }
+  .why strong { color: var(--text2); font-weight: 600; }
+
+  footer { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--border);
+           display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  footer a { font-size: 12.5px; color: var(--text3); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 720px) {
+    .row, .row-head { grid-template-columns: 1fr; gap: 7px; }
+    .row-head { display: none; }
+    .cell::before {
+      content: attr(data-for); display: block;
+      font-family: var(--brand); font-size: 10px; font-weight: 700;
+      letter-spacing: 1.4px; text-transform: uppercase; color: var(--text3); margin-bottom: 3px;
+    }
+    .cell { padding-left: 2px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav>
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">CALLISTO</span>
+    </a>
+    <a class="nav-cta" href="/#download">Download free</a>
+  </nav>
+
+  <header>
+    <div class="eyebrow">FEATURES</div>
+    <h1>Everything Callisto does</h1>
+    <p class="lede">Callisto runs in your browser and as a desktop app. The browser gives you the assistant; the app gives you the assistant plus your whole computer.</p>
+    <div class="stats" id="stats"></div>
+    <div class="key">
+      <div><span class="pill p-live">Live</span> working today</div>
+      <div><span class="pill p-wait">Waiting</span> built, pending a platform review</div>
+      <div><span class="pill p-plan">Planned</span> agreed, not started</div>
+      <div><span class="pill p-never">Not possible</span> the platform forbids it</div>
+    </div>
+  </header>
+
+  <main id="matrix"></main>
+
+  <div class="close">
+    <h3>The app is where it all works</h3>
+    <p>Free to download, works with the same account, and everything you make syncs back to your browser.</p>
+    <div class="close-btns">
+      <a class="btn btn-a" href="/#download">Download for Windows</a>
+      <a class="btn btn-b" href="/#download">Download for macOS</a>
+    </div>
+    <p class="why"><strong>Why so much is app-only:</strong> a web page can't take a keyboard shortcut while you're in another program, watch your screen, read files off your disk, or reach devices on your Wi-Fi. Those aren't gaps waiting to be closed — they're the reason the desktop app exists.</p>
+  </div>
+
+  <footer>
+    <a href="/">Home</a>
+    <a href="/#download">Download</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </footer>
+</div>
+
+<script>
+  var ICONS = {
+    voice:  '<path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/>',
+    make:   '<path d="M12 3l2.2 6.2L21 11l-6.8 1.8L12 19l-2.2-6.2L3 11l6.8-1.8z"/>',
+    day:    '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    link:   '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+    post:   '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+    call:   '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+    tv:     '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>',
+    money:  '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h7v7"/>',
+    core:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  };
+
+  var F = [
+    ['Talking and hands', 'voice', [
+      ['Talk from any app', 'Ctrl+Shift+C', 'live', '', 'never', 'A browser can’t take a global shortcut'],
+      ['Conversation mode', 'Win+Alt+C', 'live', 'Keeps listening, answers when you pause', 'never', ''],
+      ['Sees your screen while you talk', '', 'live', 'So “combine these two PDFs” just works', 'never', ''],
+      ['Edit highlighted text, or ask about it', 'Ctrl+Shift+E', 'live', '', 'never', ''],
+      ['Circle anything on screen', 'Ctrl+Shift+X', 'live', '', 'never', ''],
+      ['Hand control through the camera', 'Ctrl+Shift+G', 'live', '', 'live', 'Read on your machine only'],
+      ['Callisto cursor — point and curl to press', '', 'live', '', 'live', ''],
+      ['Turn your hand over for “next”', '', 'live', 'Closes panels, cycles holdings, spins a model', 'live', 'Closes the sidebar, cycles holdings'],
+      ['Record your own gestures', '', 'live', 'Up to 20', 'live', 'Kept in this browser'],
+      ['Type instead of talk', '', 'live', '', 'live', '']
+    ]],
+
+    ['Making things', 'make', [
+      ['AI pictures', '', 'live', '5 a day', 'plan', 'Sign in · 1 a day'],
+      ['AI video', '', 'live', '5 a day', 'plan', 'Sign in · 1 a day'],
+      ['3D models', '', 'live', '5 a day', 'plan', 'Sign in · 1 a day'],
+      ['3D studio — spin, recolour, edit by voice', '', 'live', 'Hands work here too', 'plan', ''],
+      ['Drawing page', '', 'live', 'Built up a sentence at a time; becomes a 3D model or video', 'plan', ''],
+      ['Word, PowerPoint, Excel and PDF files', '', 'live', '', 'live', 'Built here, downloads straight away'],
+      ['This week’s creations', '', 'live', 'Clears weekly', 'plan', '']
+    ]],
+
+    ['Your day', 'day', [
+      ['Reminders', '', 'live', '', 'live', ''],
+      ['Tasks', '', 'live', '', 'live', ''],
+      ['Calendar', '', 'live', '', 'live', ''],
+      ['Morning briefing', '', 'live', 'Weather, tasks, your numbers, then the news', 'plan', 'Sign in'],
+      ['Headlines', '', 'live', 'Read aloud each morning', 'live', 'Ticker along the bottom'],
+      ['Open a file or folder by name', '', 'live', 'Windows Search and Spotlight', 'never', 'No access to your disk'],
+      ['Run terminal commands', '', 'live', 'Shown on a card, runs only when you press Run', 'never', ''],
+      ['Several things in one sentence', '', 'live', 'Does each one', 'live', 'Answers each part']
+    ]],
+
+    ['Connected accounts', 'link', [
+      ['Google account and Calendar', '', 'live', '', 'plan', 'Sign in and connect'],
+      ['YouTube Studio', '', 'live', 'Subscribers, views, recent videos', 'plan', 'Sign in and connect'],
+      ['Instagram', '', 'live', 'Professional account linked to a Page', 'plan', 'Sign in · Professional account'],
+      ['Facebook Page', '', 'live', 'Posts to a Page, not a personal timeline', 'plan', 'Sign in and connect'],
+      ['TikTok', '', 'wait', 'Production review outstanding', 'plan', 'Sign in and connect'],
+      ['Shopify, Squarespace, Analytics, Stripe', '', 'live', '', 'plan', 'Sign in and connect'],
+      ['Spotify', '', 'live', '', 'never', ''],
+      ['Gmail', '', 'wait', 'Needs Google’s CASA security assessment', 'plan', 'Sign in and connect'],
+      ['Outlook mail', '', 'plan', 'No CASA equivalent, far quicker than Gmail', 'plan', 'Sign in and connect'],
+      ['Google Meet', '', 'plan', '', 'plan', 'Sign in and connect']
+    ]],
+
+    ['Posting and messages', 'post', [
+      ['Post to Instagram, Facebook, YouTube', '', 'live', 'Shows you the post before it goes', 'plan', 'Sign in · Professional account'],
+      ['Post to TikTok', '', 'wait', 'Waiting on production review', 'plan', 'Sign in and connect'],
+      ['Read Instagram DMs', '', 'live', 'Professional account · Meta review pending for other people', 'plan', 'Sign in · Professional account'],
+      ['Send Instagram DMs', '', 'live', 'Professional account · Meta review pending for other people', 'plan', 'Sign in · Professional account'],
+      ['See reels and photos sent to you', '', 'live', 'Describes the picture', 'plan', 'Sign in · Professional account'],
+      ['Open a WhatsApp chat', '', 'live', '', 'never', ''],
+      ['Send a WhatsApp message', '', 'never', 'WhatsApp lets no app send for a personal account', 'never', '']
+    ]],
+
+    ['Calls', 'call', [
+      ['Call a person', '', 'live', 'WhatsApp, FaceTime, or a normal call through your iPhone or Phone Link', 'never', ''],
+      ['Callisto rings a business for you', '', 'wait', 'Built — waiting on a phone number', 'never', '']
+    ]],
+
+    ['Television', 'tv', [
+      ['Cast Netflix, YouTube, Prime, USB', '', 'live', 'Say “on my TV”', 'never', 'A browser can’t reach devices on your Wi-Fi'],
+      ['Remote — pause, skip, volume, power', '', 'live', '', 'never', ''],
+      ['Wake it, skip to a time, pick a profile', '', 'live', '', 'never', '']
+    ]],
+
+    ['Money and shopping', 'money', [
+      ['Portfolio with live prices', '', 'live', '', 'live', ''],
+      ['Stock cards and graphs', '', 'live', '', 'live', ''],
+      ['Shopping — Amazon, eBay, AliExpress, Temu', '', 'live', '', 'never', '']
+    ]],
+
+    ['The product', 'core', [
+      ['Signed on Windows and Mac', '', 'live', 'No security warning on install', '', ''],
+      ['Automatic updates', '', 'live', '', '', ''],
+      ['Sign in, chat, history', '', 'live', '', 'live', '']
+    ]]
+  ];
+
+  var LABEL = { live: 'Live', wait: 'Waiting', plan: 'Planned', never: 'Not possible' };
+
+  function cell(state, note, forWhat) {
+    var inner = state
+      ? '<span class="pill p-' + state + '">' + LABEL[state] + '</span>' +
+        (note ? '<span class="note">' + note + '</span>' : '')
+      : '<span class="p-none">—</span>';
+    return '<div class="cell" data-for="' + forWhat + '">' + inner + '</div>';
+  }
+
+  var appLive = 0, appTotal = 0, webLive = 0;
+
+  document.getElementById('matrix').innerHTML = F.map(function (g) {
+    var name = g[0], icon = g[1], rows = g[2];
+    var body = rows.map(function (r) {
+      if (r[2]) { appTotal++; if (r[2] === 'live') appLive++; }
+      if (r[4] === 'live') webLive++;
+      return '<div class="row">' +
+        '<div class="feat">' + r[0] + (r[1] ? ' <kbd>' + r[1] + '</kbd>' : '') + '</div>' +
+        cell(r[2], r[3], 'Desktop app') +
+        cell(r[4], r[5], 'In your browser') +
+      '</div>';
+    }).join('');
+    return '<section>' +
+      '<div class="sec-head">' +
+        '<span class="sec-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + ICONS[icon] + '</svg></span>' +
+        '<h2>' + name + '</h2>' +
+        '<span class="sec-count">' + rows.length + '</span>' +
+      '</div>' +
+      '<div class="rows">' +
+        '<div class="row-head"><div>Feature</div><div>Desktop app</div><div>In your browser</div></div>' +
+        body +
+      '</div></section>';
+  }).join('');
+
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><b>' + appLive + '</b><span>working in the app</span></div>' +
+    '<div class="stat"><b>' + webLive + '</b><span>working in your browser</span></div>' +
+    '<div class="stat"><b>' + (appLive - webLive) + '</b><span>you only get by downloading</span></div>';
+</script>
+</body>
+</html>
