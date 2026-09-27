@@ -7,6 +7,7 @@ let profile  = JSON.parse(localStorage.getItem('cai_profile') || 'null');
 let history  = [];
 let sessions = JSON.parse(localStorage.getItem('cai_sessions') || '[]');
 let aborted  = false;
+let lastUserMessage = '';   // what they just asked, so a reply can offer the right file
 
 /* ── DOM refs ────────────────────────────────────────────────────────────── */
 const authOverlay   = document.getElementById('authOverlay');
@@ -257,6 +258,7 @@ stopBtn.addEventListener('click', () => {
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || !token) return;
+  lastUserMessage = text;
 
   // Clear input
   messageInput.value = '';
@@ -351,6 +353,34 @@ function appendMessage(role, text, animate = true) {
       });
     });
     actions.appendChild(copyBtn);
+
+    // Turning the answer into a file. If they asked for one kind ("make me a
+    // Word document"), that button leads and the rest follow quietly.
+    if (window.CallistoDocs) {
+      const asked = window.CallistoDocs.wanted(lastUserMessage);
+      const kinds = asked
+        ? [asked].concat(window.CallistoDocs.KINDS.filter((k) => k !== asked))
+        : window.CallistoDocs.KINDS;
+
+      kinds.forEach((kind, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'msg-action-btn' + (asked && i === 0 ? ' msg-action-primary' : '');
+        btn.textContent = '⬇ ' + window.CallistoDocs.LABEL[kind];
+        btn.title = 'Download this answer as a ' + window.CallistoDocs.LABEL[kind] + ' file';
+        btn.addEventListener('click', async () => {
+          const was = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Building…';
+          const r = await window.CallistoDocs.make(kind, text);
+          btn.disabled = false;
+          btn.textContent = r.ok ? '✓ Saved' : '⚠ Failed';
+          if (!r.ok) console.error('[docs]', r.error);
+          setTimeout(() => { btn.textContent = was; }, 2200);
+        });
+        actions.appendChild(btn);
+      });
+    }
+
     content.appendChild(actions);
   }
 
