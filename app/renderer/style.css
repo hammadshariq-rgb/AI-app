@@ -9264,3 +9264,63 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   .ds-insp { position: static; width: auto; margin: 0 18px; }
   .ds-kbd, .ds-hint { display: none; }
 }
+.news-dot { padding: 0 14px; color: rgba(0, 200, 255, 0.5); }
+@keyframes newsRoll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .news-track { animation: none; }
+  .news-win { overflow-x: auto; }
+}
+/* Keep the ticker clear of the hand-control button */
+.gw-toggle { bottom: 46px; }
+.gw-panel, .gws { bottom: 104px; }
+
+/* ── Gates: why something can't happen yet, and the one button that fixes it ── */
+.cg {
+  position: fixed; left: 50%; bottom: 58px; z-index: 9998;
+  transform: translate(-50%, 16px); opacity: 0;
+  display: flex; align-items: center; gap: 13px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 13px 14px 13px 16px; border-radius: 14px;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cg.cg-in { opacity: 1; transform: translate(-50%, 0); }
+.cg-blue { border-color: rgba(0, 200, 255, 0.32); }
+.cg-gold { border-color: rgba(245, 190, 80, 0.36); }
+
+.cg-ico {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cg-ico svg { width: 17px; height: 17px; }
+.cg-blue .cg-ico { background: rgba(0, 200, 255, 0.13); color: #4cc6ff; }
+.cg-gold .cg-ico { background: rgba(245, 190, 80, 0.14); color: #f5be50; }
+
+.cg-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cg-text b { font-size: 13.5px; font-weight: 600; color: rgba(232, 242, 255, 0.96); }
+.cg-text span { font-size: 12px; line-height: 1.45; color: rgba(165, 186, 220, 0.78); }
+
+.cg-go {
+  flex: none; font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 12.5px; letter-spacing: 0.9px; white-space: nowrap;
+  padding: 9px 16px; border-radius: 9px; cursor: pointer; border: 1px solid;
+}
+.cg-blue .cg-go { background: rgba(0, 200, 255, 0.16); border-color: rgba(0, 200, 255, 0.45); color: #7fdcff; }
+.cg-gold .cg-go { background: rgba(245, 190, 80, 0.16); border-color: rgba(245, 190, 80, 0.48); color: #ffd487; }
+.cg-go:hover { filter: brightness(1.15); }
+
+.cg-x {
+  flex: none; width: 24px; height: 24px; border: 0; background: none; cursor: pointer;
+  color: rgba(165, 186, 220, 0.5); font-size: 13px; border-radius: 6px;
+}
+.cg-x:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+
+@media (max-width: 560px) {
+  .cg { flex-wrap: wrap; bottom: 52px; }
+  .cg-text { flex-basis: calc(100% - 100px); }
+  .cg-go { margin-left: 47px; }
+}
+@media (prefers-reduced-motion: reduce) { .cg { transition: opacity 0.2s ease; } }

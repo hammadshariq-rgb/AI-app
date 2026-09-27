@@ -3462,6 +3462,8 @@ if (window.jarvis && window.jarvis.onModelStart) {
     const onScreen = V.isOpen() && V.loadingJobKey() === jobKey;
 
     if (!res?.ok || !res.url) {
+      // Out of models for today is not an error, it is a gate.
+      if (window.CallistoGate?.fromServerError(res, "3D models")) { _modelJobs.delete(jobKey); if (onScreen) V.close(); return; }
       const msg = res?.error || "Couldn't build that model.";
       if (onScreen) V.fail(msg);
       else _modelTell('Model failed', `${title}: ${msg}`);
@@ -5211,7 +5213,25 @@ function normaliseCommand(text) {
     .replace(/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:t\.?v\.?|tele|telly)(?=[\s.!?,]|$)/gi, (m) => m.replace(/t\.?v\.?|tele|telly/i, 'TV'));
 }
 
+// Keep a picture of what is connected, so a gate can say which account is
+// missing without waiting on a round trip mid-sentence.
+window._appConnected = {};
+(async function () {
+  try { window._appConnected = await window.jarvis.connectorStatus() || {}; } catch (_) {}
+})();
+window.jarvis.onConnectorConnected?.(async () => {
+  try { window._appConnected = await window.jarvis.connectorStatus() || {}; } catch (_) {}
+});
+
 async function sendToJarvis(text) {
+  // Before anything is sent: is an account missing that this needs?
+  if (window.CallistoGate) {
+    const need = window.CallistoGate.needsService(text);
+    if (need && window._appConnected && !window._appConnected[need.key]) {
+      window.CallistoGate.show('connect', { feature: need.name, service: need.key });
+      return;
+    }
+  }
   text = normaliseCommand(text);
   // Guard: don't even attempt if we know we're offline
   if (!navigator.onLine) {
@@ -5662,6 +5682,7 @@ if (window.jarvis.onSentenceText) {
       res = { error: e.message };
     }
     const onScreen = VV && VV.isOpen() && VV.loadingJobKey() === jobKey;
+    if (window.CallistoGate?.fromServerError(res, "videos")) { if (onScreen && VV.close) VV.close(); return; }
 
     if (res && res.videoUrl) {
       const video = { url: res.videoUrl, title };

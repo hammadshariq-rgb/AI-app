@@ -257,7 +257,18 @@ stopBtn.addEventListener('click', () => {
 /* ── Send message ─────────────────────────────────────────────────────────── */
 async function sendMessage() {
   const text = messageInput.value.trim();
-  if (!text || !token) return;
+  if (!text) return;
+
+  // Say why before trying: app-only features, a missing sign-in, or an account
+  // that isn't linked yet. Each one names what they just asked for.
+  if (window.CallistoGate) {
+    const stopped = window.CallistoGate.check(text, {
+      signedIn: !!token,
+      connected: window._webConnected || {},
+    });
+    if (stopped) { messageInput.value = ''; sendBtn.disabled = true; return; }
+  }
+  if (!token) { window.CallistoGate?.show('signin', { feature: 'talk to Callisto' }); return; }
   lastUserMessage = text;
 
   // Clear input
