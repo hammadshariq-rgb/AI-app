@@ -82,11 +82,13 @@ jobs:
         run: |
           if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGN_ACCOUNT" ] && [ -n "$AZURE_CERT_PROFILE" ]; then
             echo "Signing with Azure Trusted Signing."
+            # publisherName is deliberately not passed: the TrustedSigning
+            # PowerShell module has no such parameter and rejects the whole
+            # command. The publisher comes from the certificate anyway.
             npx electron-builder --win --publish always \
               --config.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" \
               --config.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" \
-              --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE" \
-              --config.win.azureSignOptions.publisherName="$AZURE_PUBLISHER_NAME"
+              --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE"
           else
             echo "No Azure signing secrets set — building unsigned."
             unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
