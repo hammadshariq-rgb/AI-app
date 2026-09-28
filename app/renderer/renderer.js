@@ -5251,6 +5251,9 @@ async function sendToJarvis(text) {
   // The document studio takes paging and small edits first, so "next slide"
   // does not go off to the model as a question.
   if (typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
+  // Asking about their own numbers: answer it and open the panel, rather than
+  // sending it off to the model which has no access to these figures.
+  if (typeof window._checkAnalyticsRequest === 'function' && window._checkAnalyticsRequest(text)) return;
   if (typeof window._checkModelCommand === 'function' && window._checkModelCommand(text)) {
     if (window._hudVoiceActive && typeof _maybeForwardToHud === 'function') _maybeForwardToHud('Updating your 3D model…', null);
     return;
@@ -10516,5 +10519,92 @@ if (window.jarvis.onMacNeedsAutomation) {
   // Anything Callisto generates comes through here.
   window._openInDocStudio = function (payload) {
     S().show(payload);
+  };
+})();
+
+// ── Asking about your numbers ─────────────────────────────────────────────────
+// "How much did I make this week", "show my revenue", "open Stripe", "how's
+// Instagram doing" — each says the headline out loud, puts it in the chat, and
+// opens the expandable panel so the detail is there without asking twice.
+(function () {
+  const PLATFORMS = [
+    { key: 'stripe', name: 'Revenue',
+      re: /\b(revenue|takings|earnings|income|sales|stripe|paid me|money (?:made|coming in|in))\b|\bhow much (?:money |cash )?(?:did|have|has|do|are)\s+(?:i|we|the (?:app|website|site|business|shop|store|company))\b/i },
+    { key: 'instagram', name: 'Instagram', re: /\b(instagram|insta|\big\b)\b/i },
+    { key: 'facebook',  name: 'Facebook',  re: /\bfacebook\b/i },
+    { key: 'tiktok',    name: 'TikTok',    re: /\b(tiktok|tik tok)\b/i },
+  ];
+
+  // It has to be about *their* numbers. "How does Stripe work" is a question.
+  const MINE = /\b(my|mine|i|me|we|our|us)\b/i;
+  const ASKING = /\b(how much|how many|how(?:'?s| is| are)?|what(?:'?s| is| are)?|show|open|check|give me|tell me|doing|going|look|see)\b/i;
+  const NOT_STATS = /\b(explain|what does|how does|who (?:owns|made)|history of|compare|versus|vs\b|tutorial|learn)\b/i;
+
+  const n = (v) => Number(v || 0).toLocaleString();
+
+  function headline(key, d) {
+    if (!d) return null;
+    if (key === 'stripe') {
+      const cur = d.currency ? d.currency + ' ' : '';
+      const today = Number(d.today && d.today.revenue) || 0;
+      const week = Number(d.last7Days && d.last7Days.revenue) || 0;
+      const month = Number(d.last30Days && d.last30Days.revenue) || 0;
+      if (today > 0) {
+        return `You've taken ${cur}${n(today)} today, ${cur}${n(Math.round(week))} this week and ${cur}${n(Math.round(month))} over the last thirty days.`;
+      }
+      if (week > 0) return `Nothing in yet today. ${cur}${n(Math.round(week))} this week, ${cur}${n(Math.round(month))} over thirty days.`;
+      if (month > 0) return `Nothing this week. ${cur}${n(Math.round(month))} over the last thirty days.`;
+      return 'No payments have come through yet.';
+    }
+    if (key === 'instagram') {
+      return `Instagram is on ${n(d.followers)} followers` +
+        (d.views30 != null ? `, with ${n(d.views30)} views this month.` : '.');
+    }
+    if (key === 'facebook') {
+      return `Your Facebook Page has ${n(d.followers)} followers` +
+        (d.reach != null ? `, reaching ${n(d.reach)} people.` : '.');
+    }
+    if (key === 'tiktok') {
+      return `TikTok has ${n(d.followers)} followers and ${n(d.likes)} likes.`;
+    }
+    return null;
+  }
+
+  window._checkAnalyticsRequest = function (text) {
+    const t = String(text || '').trim();
+    if (!t || NOT_STATS.test(t)) return false;
+    if (!ASKING.test(t) && !/\b(stripe|revenue|takings)\b/i.test(t)) return false;
+
+    const hit = PLATFORMS.find((p) => p.re.test(t));
+    if (!hit) return false;
+    // Revenue words are personal enough on their own; the others need "my".
+    if (hit.key !== 'stripe' && !MINE.test(t)) return false;
+
+    (async () => {
+      try {
+        const all = await window.jarvis.analyticsGet('all');
+        const d = all && all[hit.key];
+
+        if (!d) {
+          const label = hit.key === 'stripe' ? 'Stripe' : hit.name;
+          window.CallistoGate?.show('connect', { feature: label, service: hit.key });
+          addMessage('assistant', `${label} isn't connected yet. Open **Connectors** to link it.`);
+          return;
+        }
+
+        const line = headline(hit.key, d);
+        if (line) {
+          addMessage('assistant', line);
+          const audio = await window.jarvis.speak(line);
+          if (audio) playAudioChunks([audio]);
+        }
+        // The detail lives in the panel, so open it rather than reading a list out.
+        window.CallistoAnalyticsOverlay?.show(hit.key);
+      } catch (err) {
+        console.error('[analytics voice]', err);
+        addMessage('assistant', 'I could not reach those numbers just now.');
+      }
+    })();
+    return true;
   };
 })();
