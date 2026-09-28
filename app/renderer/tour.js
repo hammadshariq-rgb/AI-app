@@ -62,27 +62,34 @@
       foot: 'Your poses stay on this computer, and they work every time Callisto starts.',
     },
     {
-      targets: ['#attachWrap'],
+      // Pointing at the + button while talking about Creations taught nothing.
+      // The tour opens the panel itself and lights up the real thing.
+      open: 'artifacts',
+      targets: ['#lnavPaneArtifacts'],
       title: 'Make things',
-      body: 'Ask for a <em>picture</em>, a <em>video</em> or a <em>3D model</em> and Callisto makes it — five of each, every day. Everything you make lands in <b>Creations</b>, and 3D models open in a studio you can spin, recolour and edit by voice.',
+      body: 'Ask for a <em>picture</em>, a <em>video</em> or a <em>3D model</em> and Callisto makes it — five of each, every day. Everything you make lands here in <b>Creations</b>, and 3D models open in a studio you can spin, recolour and edit by voice.',
+      pad: 8,
     },
     {
-      targets: ['#historyBtn', '#navToggleBtn'],
+      open: 'connectors',
+      targets: ['#lnavPaneConnectors'],
       title: 'Connect your accounts',
       body: 'Open <b>Connectors</b> and link what you use — Instagram, TikTok, YouTube, Spotify, Google Calendar, your shop, and Stripe for payments. <em>Connect these for the full experience:</em> the more Callisto can see, the more it can actually answer.',
       foot: 'Then just ask — <em>how are my videos doing?</em>, <em>how much money came in this week?</em>, <em>post this to Instagram</em>. Nothing is published without showing you first.',
-      pad: 10,
+      pad: 8,
     },
     {
+      open: 'settings',
       targets: ['#profileNameInput', '#profileNameSaveBtn'],
       title: 'Call it what you like',
-      body: 'Callisto is only the name it came with. Rename it in <b>Settings</b> and it answers to whatever you pick — and it uses your name back.',
+      body: 'Callisto is only the name it came with. Type a new one here and it answers to whatever you pick — and it uses your name back.',
       whenMissing: 'Open the side panel, go to <b>Settings</b>, and you can rename Callisto to anything you like.',
     },
     {
+      open: 'settings',
       targets: ['#orbColorPicker'],
       title: 'Pick your colour',
-      body: 'The orb sets the mood of the whole app. Choose a colour in <b>Settings</b> and the rest follows it.',
+      body: 'The orb sets the mood of the whole app. Pick a colour here and the rest of it follows.',
       whenMissing: 'In <b>Settings</b> you can change the orb colour, and the rest of the app follows it.',
       pad: 8,
     },
@@ -98,6 +105,7 @@
       pad: 10,
     },
     {
+      close: true,
       targets: ['#remindersPanel .rp-header:not(.rp-header-tasks)', '#rpList'],
       title: 'Reminders',
       body: 'Say <em>"remind me to call mum at 7"</em> and Callisto will speak up at exactly the right time.',
@@ -225,8 +233,26 @@
     card.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
-  function render() {
+  // Opening a pane is asynchronous (it loads what it shows), and the highlight
+  // has to wait for the layout to settle or it measures an element that is not
+  // on screen yet.
+  async function prepare(step) {
+    if (step.close) {
+      try { window._navClose?.(); } catch (_) {}
+      return;
+    }
+    if (!step.open) return;
+    try {
+      if (typeof openLeftNavSection === 'function') await openLeftNavSection(step.open);
+      else document.querySelector(`[data-section="${step.open}"]`)?.click();
+    } catch (_) {}
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+
+  async function render() {
     const step = STEPS[idx];
+    await prepare(step);
+    if (STEPS[idx] !== step) return;   // they moved on while the pane was opening
     const rect = rectFor(step);
 
     if (rect) {
@@ -280,6 +306,7 @@
     if (!active) return;
     active = false;
     markDone();
+    try { window._navClose?.(); } catch (_) {}
     document.removeEventListener('keydown', onKey, true);
     removeEventListener('resize', onResize);
     layer.classList.remove('tour-on');

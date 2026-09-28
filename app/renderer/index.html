@@ -2931,6 +2931,18 @@
     @keyframes toastIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
     @keyframes toastOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(8px)} }
   
+    /* The welcome hero is meant to be the only thing on screen. The side panels
+       sit in the main view underneath and were showing through it, so the first
+       thing anyone saw was a half-built desk instead of the introduction. They
+       come back the moment ENTER is pressed. */
+    body.welcome-active #remindersPanel,
+    body.welcome-active #glassCalendar,
+    body.welcome-active #finPanel {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.45s ease;
+    }
+
     /* Stop: the one control that interrupts, so it reads warm, not neutral. */
     #stopWrap #stopBtn { color: #ff6b6b; }
     #stopWrap .glow-ring { box-shadow: 0 0 18px rgba(255,107,107,0.45); border-color: rgba(255,107,107,0.5); }

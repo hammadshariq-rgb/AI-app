@@ -6878,11 +6878,15 @@ async function enterMain(skipWelcome = false, returningUser = false) {
   if (!skipWelcome && !hasSeenWelcome) {
     // First-ever login — show scroll-locked welcome hero
     welcomeScreen.classList.remove('hidden');
+    // Keep the reminders, tasks, calendar and portfolio out of sight until the
+    // introduction is over; they were showing through behind the hero.
+    document.body.classList.add('welcome-active');
     initSpikySphere();
     initWelcomeScroll();
     document.getElementById('enterBtn').addEventListener('click', async () => {
       if (!document.getElementById('enterBtn').classList.contains('enter-unlocked')) return;
       localStorage.setItem(welcomeKey, '1');
+      document.body.classList.remove('welcome-active');
       welcomeScreen.classList.add('fade-out');
       setTimeout(() => {
         welcomeScreen.classList.add('hidden');
