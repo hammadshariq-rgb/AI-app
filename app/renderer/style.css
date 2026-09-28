@@ -9507,3 +9507,10 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   .dsx-hint { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .dsx { transition: none; } }
+
+/* Manual key entry is now the fallback, so say so above it */
+.conn-fallback-note {
+  margin: 0 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 11.5px; line-height: 1.5;
+  color: rgba(170, 195, 230, 0.8);
+  background: rgba(255, 255, 255, 0.04); border-left: 2px solid rgba(0, 200, 255, 0.35);
+}

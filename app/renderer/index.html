@@ -2512,6 +2512,7 @@
             </div>
           </div>
           <div class="conn-divider"></div>
+          <p class="conn-fallback-note">Only needed if the Stripe sign-in page didn’t open. Signing in is easier and needs no key.</p>
           <div class="conn-steps">
             <div class="conn-step"><span class="conn-step-num">1</span><span>Go to <strong>dashboard.stripe.com</strong></span></div>
             <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Developers → API Keys</strong></span></div>
@@ -3125,7 +3126,7 @@
       // One gesture, four meanings — whichever fits what the user is looking at.
       function doHandSwap() {
         // A document open on screen is what the gesture most likely means.
-        if (window._docStudioNext && window._docStudioNext()) { showGesture('�', 'Swap  next page'); return; }
+        if (window._docStudioNext && window._docStudioNext()) { showGesture('⇄', 'Swap — next page'); return; }
         // 1. A 3D model is open → spin it a quarter turn.
         if (window.CallistoModelViewer?.isOpen?.()) {
           showGesture('↻', 'Swap — rotating the model');

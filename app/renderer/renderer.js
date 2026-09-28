@@ -8202,20 +8202,19 @@ const CONNECT_STEPS = {
     // Stripe's own sign-in, not a pasted key. An sk_live_ key can move money;
     // nothing should ever ask a customer for one. Connect gives read-only
     // access they can revoke from their own Stripe dashboard at any time.
-    // A RESTRICTED key, never a secret key. An sk_live_ key can create charges
-    // and issue refunds; a restricted key with read permissions can only look.
-    // Nobody should be asked to hand over the former.
+    // Stripe's own sign-in. Nobody hands over a key: the token that comes back
+    // is read_only and scoped to their account, and they can revoke it
+    // themselves. Pasting a key is still available underneath if OAuth fails.
     icon: '💳', title: 'CONNECT STRIPE', subtitle: 'See what your website or app is earning',
     steps: [
-      'In your <strong>Stripe Dashboard</strong>, go to <strong>Developers → API keys</strong>',
-      'Click <strong>Create restricted key</strong> — not the secret key',
-      'Name it <em>Callisto</em>, and set <strong>Charges</strong>, <strong>Customers</strong> and <strong>Balance</strong> to <strong>Read</strong>',
-      'Leave everything else as <em>None</em>, then create the key',
-      'Copy it (it starts with <em>rk_</em>) and paste it on the next screen',
+      'You will be taken to the <strong>Stripe sign-in page</strong>',
+      'Sign in and choose the account you want Callisto to read',
+      'Callisto asks for <strong>read-only</strong> access — it can see your takings and can never move money',
+      'You can revoke it any time from Stripe → Settings → Connected apps',
     ],
-    footNote: 'A restricted key can only read. It cannot take payments, issue refunds or move money, and you can revoke it from Stripe at any time.',
-    continueLabel: 'I have my key →',
-    action: () => document.getElementById('stripeConnectModal').classList.remove('hidden'),
+    footNote: 'No keys to copy. If the Stripe page does not open, you can paste a read-only restricted key instead.',
+    continueLabel: 'Continue to Stripe →',
+    action: () => window.jarvis.connectorConnect('stripe'),
   },
 };
 
