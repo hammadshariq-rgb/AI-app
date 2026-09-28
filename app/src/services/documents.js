@@ -123,4 +123,54 @@ async function writeWord(title, content, dir) {
   return file;
 }
 
-module.exports = { writeWord, parse };
+/* ── PowerPoint ──────────────────────────────────────────────────────────────
+   One slide per heading, its bullets underneath. Deliberately plain: a deck
+   someone will edit is more useful than one that fights their template. */
+async function writeSlides(title, slides, dir) {
+  const PptxGenJS = require('pptxgenjs');
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_16x9';
+  pptx.title = title || 'Presentation';
+
+  const INK = '16324F';
+  const BODY = '32415A';
+
+  // A title slide, so the deck opens on something rather than mid-argument.
+  if (title) {
+    const cover = pptx.addSlide();
+    cover.addText(title, {
+      x: 0.7, y: 2.1, w: 8.6, h: 1.2,
+      fontSize: 40, bold: true, color: INK, align: 'left',
+    });
+    cover.addText(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }), {
+      x: 0.7, y: 3.35, w: 8.6, h: 0.4, fontSize: 14, color: '8894A8',
+    });
+  }
+
+  for (const s of (slides || [])) {
+    const slide = pptx.addSlide();
+    slide.addText(String(s.heading || ''), {
+      x: 0.6, y: 0.45, w: 8.8, h: 0.9, fontSize: 30, bold: true, color: INK,
+    });
+    const bullets = (s.bullets || []).filter(Boolean).map((b) => ({
+      text: String(b), options: { bullet: true },
+    }));
+    if (bullets.length) {
+      slide.addText(bullets, {
+        x: 0.75, y: 1.55, w: 8.6, h: 3.6,
+        fontSize: bullets.length > 5 ? 15 : 17, color: BODY, lineSpacing: 28,
+      });
+    }
+  }
+
+  // An empty deck would be confusing, so say something rather than nothing.
+  if (!(slides || []).length && !title) {
+    pptx.addSlide().addText('Empty presentation', { x: 1, y: 2.4, fontSize: 28, color: BODY });
+  }
+
+  const file = path.join(dir, `${safeName(title || 'Presentation')}.pptx`);
+  await pptx.writeFile({ fileName: file });
+  return file;
+}
+
+module.exports = { writeWord, writeSlides, parse };

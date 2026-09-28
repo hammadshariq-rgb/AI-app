@@ -624,7 +624,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'create_slides',
-      description: 'Create a Google Slides presentation for the user. Use when the user says "make me a presentation", "create slides about X", "make a slideshow on X", or similar. Generate 6-10 slides with meaningful content.',
+      description: 'Make a PowerPoint presentation. Use when the user says "make me a presentation", "create slides about X", "make a slideshow on X", "build me a deck", or similar. It is saved as a .pptx in their Documents folder and opened. Generate 6-10 slides with meaningful content.',
       parameters: {
         type: 'object',
         properties: {

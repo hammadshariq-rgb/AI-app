@@ -1323,6 +1323,32 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
   }
 });
 
+// A real .pptx saved to Documents and opened. This used to route to a Google
+// Slides handler that did not exist, so asking for a presentation errored.
+ipcMain.handle('jarvis:savePresentation', async (_e, { title, slides }) => {
+  try {
+    const file = await documents.writeSlides(title || 'Presentation', slides || [], app.getPath('documents'));
+    await shell.openPath(file);
+    return { ok: true, path: file };
+  } catch (err) {
+    console.error('[pptx]', err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
+// Kept so the old call still resolves rather than throwing; it makes a real
+// deck now instead of opening Google Slides.
+ipcMain.handle('jarvis:openGoogleSlides', async (_e, d) => {
+  const payload = d || {};
+  try {
+    const file = await documents.writeSlides(payload.title || 'Presentation', payload.slides || [], app.getPath('documents'));
+    await shell.openPath(file);
+    return { ok: true, path: file };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
   const dir = app.getPath('documents');
   try {

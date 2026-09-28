@@ -5434,12 +5434,12 @@ async function sendToJarvis(text) {
     slidesRow.className = 'doc-action-row';
     const slidesBtn = document.createElement('button');
     slidesBtn.className = 'doc-btn doc-btn-gdoc';
-    slidesBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Open in Google Slides`;
+    slidesBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Save as PowerPoint`;
     slidesBtn.addEventListener('click', async () => {
       slidesBtn.disabled = true;
       slidesBtn.textContent = 'Creating presentation…';
       try {
-        const result = await window.jarvis.openGoogleSlides({ title: res.slidesTitle, slides: slidesData });
+        const result = await window.jarvis.savePresentation({ title: res.slidesTitle, slides: slidesData });
         if (result && result.error) {
           slidesBtn.textContent = 'Error — try again';
           slidesBtn.disabled = false;
