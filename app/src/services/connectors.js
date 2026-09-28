@@ -57,6 +57,30 @@ function formatEmailUpdateForAI(update) {
   return 'OUTLOOK INBOX (' + unread.length + ' unread of ' + mail.length + ' recent):' + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
 }
 
+// ── Status ────────────────────────────────────────────────────────────────────
+
+function getConnectorStatus() {
+  return {
+    gmail: !!store.get('connector.gmail.access_token'),
+    outlook: !!store.get('connector.outlook.access_token'),
+    spotify: !!store.get('connector.spotify.access_token'),
+    calendar: !!store.get('connector.calendar.access_token'),
+    drive: !!store.get('connector.drive.access_token'),
+    youtube: !!store.get('connector.youtube.access_token'),
+    instagram: !!store.get('connector.instagram.access_token'),
+    // The Instagram login is a Meta login, so it covers the Facebook Page too.
+    facebook: !!store.get('connector.instagram.access_token'),
+    tiktok: !!store.get('connector.tiktok.access_token'),
+    shopify: !!store.get('connector.shopify.access_token'),
+    squarespace: !!store.get('connector.squarespace.api_key'),
+    analytics: !!store.get('connector.analytics.access_token'),
+    stripe: !!(store.get('connector.stripe.access_token') || store.get('connector.stripe.secret_key')),
+    vipSenders: store.get('connector.vipSenders') || [],
+    googleAccount: !!store.get('googleAccountEmail'),
+    googleAccountEmail: store.get('googleAccountEmail') || null,
+  };
+}
+
 // Stripe Connect hands back a token scoped to the customer's own account,
 // read-only. Nothing here can move money, which is the point: the old flow
 // asked people to paste an sk_live_ key that could.
