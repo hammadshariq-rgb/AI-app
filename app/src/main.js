@@ -255,6 +255,9 @@ function createOverlayWindow() {
     overlayWindow.focus();
     const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
     overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
+    // A sign-in that finished while the app was closed has been waiting for a
+    // window to hand its token to. This is the first moment there is one.
+    flushPendingDeepLink();
   });
   // The X button should park the app in the tray, not tear the window down.
   // Destroying it left nothing to re-show, which is why reopening needed a force-quit.
@@ -511,7 +514,14 @@ function toggleOverlay() {
 }
 
 // Handle jarvis:// deep link from Google OAuth
+// A link can arrive before there is a window to tell — on a cold start the URL
+// is in argv before anything is ready, and on a Mac open-url fires early. So it
+// is held until the window exists rather than dropped, which is what made
+// signing in appear to do nothing.
+let _pendingDeepLink = null;
+
 function handleDeepLink(url) {
+  if (!overlayWindow || overlayWindow.isDestroyed()) { _pendingDeepLink = url; return; }
   try {
     const parsed = new URL(url);
     if (parsed.hostname === 'auth') {
@@ -548,12 +558,42 @@ function handleDeepLink(url) {
     }
   } catch (_) {}
 }
+// Only one Callisto at a time. Without this lock a jarvis:// link launched a
+// whole second copy of the app: the second-instance event never fired, the new
+// copy registered its own shortcuts, and the token went to an instance the user
+// never saw — so signing in appeared to do nothing at all.
+const IS_PRIMARY_INSTANCE = app.requestSingleInstanceLock();
+if (!IS_PRIMARY_INSTANCE) app.quit();
+
 // Windows: second instance sends the URL as argv
 app.on('second-instance', (_e, argv) => {
   const url = argv.find(a => a.startsWith('jarvis://'));
   if (url) handleDeepLink(url);
   showOverlay();
 });
+
+// macOS sends deep links through this event, never through argv. Without it,
+// signing in with Google never worked on a Mac at all.
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+  showOverlay();
+});
+
+// Windows cold start: the app was launched *by* the link, so it is sitting in
+// argv and no second-instance event will ever fire for it.
+function consumeStartupDeepLink() {
+  const url = process.argv.find((a) => typeof a === 'string' && a.startsWith('jarvis://'));
+  if (url) handleDeepLink(url);
+}
+
+// Whatever arrived early gets delivered as soon as there is somewhere to put it.
+function flushPendingDeepLink() {
+  if (!_pendingDeepLink) return;
+  const url = _pendingDeepLink;
+  _pendingDeepLink = null;
+  handleDeepLink(url);
+}
 
 function createTray() {
   tray = new Tray(path.join(__dirname, '..', 'assets', 'icon.png'));
@@ -633,7 +673,12 @@ ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
 });
 
 app.whenReady().then(async () => {
+  if (!IS_PRIMARY_INSTANCE) return;   // this copy is on its way out; it hands over above
   app.setName('Your Own Personal AI');
+
+  // If Windows launched us *because* of a jarvis:// link, it is in argv and no
+  // second-instance event will ever arrive. Pick it up before anything else.
+  consumeStartupDeepLink();
 
   // ── Sleep / wake ──────────────────────────────────────────────────────────
   // Closing and reopening a laptop makes the audio device "pop", which the
