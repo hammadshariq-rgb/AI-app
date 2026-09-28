@@ -34,6 +34,16 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient('jarvis');
 }
 
+// The product is called Callisto now, but Electron derives the data folder from
+// the product name — so without pinning it here, every existing customer would
+// lose their settings, tokens and connections the moment they updated. Packaged
+// builds keep reading the folder they always have.
+if (app.isPackaged) {
+  try {
+    app.setPath('userData', path.join(app.getPath('appData'), 'Your Own Personal AI'));
+  } catch (_) { /* first run on a fresh machine — the default is fine */ }
+}
+
 const store = new Store();
 // The panel refreshes itself whenever something is created, and a finished
 // creation says so out loud — the user often closes the progress window and

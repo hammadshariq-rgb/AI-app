@@ -1,7 +1,7 @@
 {
   "name": "jarvis-desktop",
-  "version": "1.3.37",
-  "description": "Your Own Personal AI — a voice-powered desktop assistant",
+  "version": "1.3.38",
+  "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
     "assistant",
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.hammadshariq.yourpersonalai",
-    "productName": "Your Own Personal AI",
+    "productName": "Callisto",
     "copyright": "Copyright © 2025 Hammad Shariq",
     "publish": [
       {
@@ -49,6 +49,7 @@
       }
     ],
     "win": {
+      "artifactName": "Callisto-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -62,6 +63,7 @@
       "publisherName": "Hammad Shariq"
     },
     "mac": {
+      "artifactName": "Callisto-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",
