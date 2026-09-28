@@ -9,7 +9,9 @@ const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
 function keys(combo) {
   if (!IS_MAC) return combo;
   if (combo === 'Ctrl+Space') return 'Control+Space';
-  if (combo === 'Win+Alt+C') return 'Ctrl+Option+C';   // conversation mode
+  // Alt IS the Option key on a Mac, and every other Ctrl here becomes Cmd, so
+  // spell this one out: "Ctrl" next to a row of Cmd shortcuts reads as Command.
+  if (combo === 'Win+Alt+C') return 'Control+Option+C';   // conversation mode
   return combo.replace(/\bCtrl\+/g, 'Cmd+');
 }
 window.keys = keys;
@@ -876,6 +878,9 @@ function setState(state) {
   // Signal gesture loop to pause MediaPipe processing while AI is working
   // (prevents WASM blocking from causing AI response glitches)
   window._aiThinking = (state === 'thinking' || state === 'speaking');
+  // Show the stop control the moment work starts, not only once audio plays.
+  try { if (state === 'thinking' || state === 'speaking') setSpeakingUI(true); } catch (_) {}
+  try { if (state === 'idle' && !audioPlaying) setSpeakingUI(false); } catch (_) {}
   if (state === 'idle') {
     orbLabel.textContent = 'STANDBY';
     micBtn.classList.remove('active');
@@ -6152,11 +6157,34 @@ function playAudioChunks(chunks) {
   if (!audioPlaying) drainAudioQueue();
 }
 
+// Held so the stop button has something to actually stop; without a handle on
+// the clip that is playing, clearing the queue only takes effect at the end of
+// the current sentence.
+let _currentAudio = null;
+
+function stopSpeaking() {
+  audioQueue = [];
+  if (_currentAudio) {
+    try { _currentAudio.pause(); _currentAudio.currentTime = 0; } catch (_) {}
+    // Its own handlers would start the next clip, which is the opposite of stop.
+    _currentAudio.onended = null;
+    _currentAudio.onerror = null;
+    _currentAudio = null;
+  }
+  audioPlaying = false;
+  // Sentences still being synthesized would otherwise arrive and start talking
+  // again seconds after the user asked for silence.
+  try { window.jarvis.stopSpeaking?.(); } catch (_) {}
+  setSpeakingUI(false);
+}
+
 function drainAudioQueue() {
-  if (!audioQueue.length) { audioPlaying = false; return; }
+  if (!audioQueue.length) { audioPlaying = false; _currentAudio = null; setSpeakingUI(false); return; }
   audioPlaying = true;
+  setSpeakingUI(true);
   const chunk = audioQueue.shift();
   const audio = new Audio(`data:audio/mp3;base64,${chunk}`);
+  _currentAudio = audio;
   // Apply pitch (playbackRate) — lower = deeper voice
   if (voicePitch < 0.99) audio.playbackRate = voicePitch;
   // Use Web Audio API to boost volume beyond 100%
@@ -6172,6 +6200,31 @@ function drainAudioQueue() {
   audio.onerror = () => drainAudioQueue();
   audio.play().catch(() => drainAudioQueue());
 }
+
+// The stop control is only meaningful while Callisto is talking or working, so
+// it appears then and stays out of the way the rest of the time.
+function setSpeakingUI(on) {
+  const wrap = document.getElementById('stopWrap');
+  if (wrap) wrap.classList.toggle('hidden', !on);
+}
+
+(function wireStopButton() {
+  const btn = document.getElementById('stopBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    stopSpeaking();
+    try { window._cancelInFlightReply?.(); } catch (_) {}
+    setState('idle');
+  });
+  // Escape is what people already press to stop something.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!audioPlaying && !window._aiThinking) return;
+    stopSpeaking();
+    try { window._cancelInFlightReply?.(); } catch (_) {}
+    setState('idle');
+  });
+})();
 
 // ===================== AUTH =====================
 let pendingAssistantName = null;
@@ -6485,6 +6538,13 @@ function promptUserCallName(googleName) {
     const box = document.getElementById('setupBox');
     const existing = document.getElementById('callNamePrompt');
     if (existing) { resolve(googleName); return; }
+    // This box lives inside the setup view, which is hidden while the splash
+    // runs. Without showing it the question is invisible and this promise never
+    // settles, which left the app sitting on the splash screen after signing in
+    // with Google, looking like nothing had happened at all.
+    try { splash.classList.add('hidden'); } catch (_) {}
+    try { setupView.classList.remove('hidden'); } catch (_) {}
+    if (!box) { resolve(googleName); return; }
 
     const div = document.createElement('div');
     div.id = 'callNamePrompt';
@@ -8899,7 +8959,9 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
       showReloginStep('You\'ve been away for a while. Please log in to continue.');
     } else {
       showAuthStep();
-      setAuthMode('signup');
+      // Anyone we already know is coming back, not starting over. Dropping them
+      // on the sign-up form made an expired session look like a lost account.
+      setAuthMode(storedProfile && storedProfile.email ? 'login' : 'signup');
     }
     return;
   }

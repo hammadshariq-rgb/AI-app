@@ -1495,9 +1495,32 @@ function buildRTF(title, content) {
   return `{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}\n\\widowctrl\\wpaper12240\\wpaperh15840\\margl1800\\margr1800\\margt1440\\margb1440\n\\pard\\f0\\fs28\\b ${esc(title)}\\b0\\par\\par\n\\fs24 ${esc(content)}\\par\n}`;
 }
 
-// Helper: send TTS audio to renderer without blocking the return value
+// Helper: send TTS audio to renderer without blocking the return value.
+//
+// Every sentence is synthesized straight away, in parallel, because waiting for
+// one before starting the next would leave long gaps. But they are DELIVERED in
+// the order they were asked for: sending each one the moment it came back meant
+// a slow sentence arrived after the queue had already drained, so an answer
+// would stop halfway and then start talking again minutes later.
+//
+// The generation counter is the other half of that. When a new answer begins,
+// or the user presses stop, anything still in flight belongs to a reply nobody
+// is waiting for any more, and is thrown away rather than spoken over the top.
+let _ttsChain = Promise.resolve();
+let _ttsGeneration = 0;
+
+function resetTTS() {
+  _ttsGeneration += 1;
+  _ttsChain = Promise.resolve();
+}
+
 function _sendTTS(sender, text) {
-  tts.synthesize(text).then(audio => {
+  if (!text || !String(text).trim()) return;
+  const gen = _ttsGeneration;
+  const job = tts.synthesize(text).catch(() => null);
+  _ttsChain = _ttsChain.then(async () => {
+    const audio = await job;
+    if (gen !== _ttsGeneration) return;
     if (audio && sender && !sender.isDestroyed()) {
       sender.send('jarvis:sentence-audio', { audio });
     }
@@ -2749,8 +2772,10 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   // Only send TTS here on the action path — streaming path already sent audio sentence-by-sentence
   if (needsAction && finalText) {
-    const sentences = finalText.match(/[^.!?]+[.!?]+/g) || [finalText];
-    sentences.forEach(s => _sendTTS(_e.sender, s.trim()));
+    const sentences = (finalText.match(/[^.!?]+[.!?]*/g) || [finalText])
+      .map((s) => s.trim())
+      .filter(Boolean);
+    sentences.forEach((s) => _sendTTS(_e.sender, s));
   }
 
   // Parse email draft — first try hidden marker, then auto-detect from text
@@ -2819,6 +2844,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 // app — including the quick ones (a person's card, a picture, a score) that return
 // before the end of the handler, where the forwarding used to live alone.
 ipcMain.handle('jarvis:chat', async (_e, args) => {
+  resetTTS();
   const wasHud = hudVoiceMode;
   const res = await _chatHandler(_e, args);
   if (wasHud && hudVoiceMode && res && (res.text || res.card || res.userMsg)) {
@@ -3216,6 +3242,11 @@ ipcMain.handle('voice:setSpeed', (_e, speed) => {
   store.set('voiceSpeed', speed);
   tts.setSpeed(speed);
   cloudPushPrefs({ voiceSpeed: speed }).catch(() => {});
+  return true;
+});
+
+ipcMain.handle('jarvis:stopSpeaking', () => {
+  resetTTS();
   return true;
 });
 

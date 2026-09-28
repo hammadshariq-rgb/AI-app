@@ -565,7 +565,10 @@ app.get('/connect/stripe', (req, res) => {
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'code',
-    scope: 'read_only',                       // never write: Callisto only reports
+    // Stripe now refuses read_only connections unless the platform is approved
+    // for them, answering the authorize call with "Please use the `read_write`
+    // scope". read_write is what it will grant; Callisto still only ever reads.
+    scope: 'read_write',
     redirect_uri: `${PUBLIC_URL}/connect/stripe/callback`,
     'stripe_user[country]': req.query.country || 'US',
   });
@@ -592,7 +595,7 @@ app.get('/connect/stripe/callback', async (req, res) => {
     if (!stashTokens(req, 'stripe', {
       access_token: t.access_token,
       stripe_user_id: t.stripe_user_id,
-      scope: t.scope || 'read_only',
+      scope: t.scope || 'read_write',
     })) {
       return res.status(400).send('This connection link has expired. Please start the connection again from the Callisto app.');
     }

@@ -19,12 +19,23 @@
   const COOLDOWN_MS = 1400; // ...and can't fire again for this long
   const RECORD_MS = 3000;   // how long the user holds a pose while recording
 
-  // ── Signature ──────────────────────────────────────────────────────────────
+  // MediaPipe normalises x against the frame's WIDTH and y against its HEIGHT,
+  // so on a 16:9 camera one x-unit is wider than one y-unit and every pose comes
+  // out horizontally stretched. Undoing that here makes a gesture recorded on a
+  // 4:3 webcam still match on a 16:9 Mac camera, and is what made hand control
+  // usable on a Mac at all.
+  let ASPECT = 1;
+  function setAspect(a) {
+    const v = Number(a);
+    if (v > 0.2 && v < 5) ASPECT = v;
+  }
+
+  // ── Signature ───────────────────────────────────────────────────────────────────
   function signature(lm) {
     if (!lm || lm.length < 21) return null;
     const wrist = lm[0];
-    // Move the wrist to the origin.
-    const pts = lm.map((p) => ({ x: p.x - wrist.x, y: p.y - wrist.y }));
+    // Move the wrist to the origin, putting both axes in the same unit first.
+    const pts = lm.map((p) => ({ x: (p.x - wrist.x) * ASPECT, y: p.y - wrist.y }));
     // Scale by the wrist→middle-knuckle span, which barely changes as fingers move.
     const span = Math.hypot(pts[9].x, pts[9].y) || 0.0001;
     // Turn so that knuckle points straight up, cancelling any tilt of the hand.
@@ -179,6 +190,7 @@
   }
 
   window.CallistoGestures = {
+    setAspect,
     BUILTIN,
     load, save, remove,
     list: () => gestures,

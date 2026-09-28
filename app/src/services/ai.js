@@ -124,7 +124,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'draw',
-      description: 'Draw on the Callisto drawing page using simple shapes. Use for "draw me a box", "draw a house", "sketch a rocket", "add two lines making a triangle", "put a rocket on top". Drawings are BUILT UP over several requests: use op "add" to add to what is already there, and only use "clear" when the user asks to start again. The canvas is 1000x1000 with (0,0) at the top left. If shapes are already on the canvas you will be told where they are — place new shapes relative to them so the picture makes sense.',
+      description: 'Draw on the Callisto drawing page using simple shapes. THE VERB DECIDES: if the user said draw, sketch, paint or doodle, it is ALWAYS this tool and never generate_image. Use for "draw me a box", "paint me a house", "sketch a rocket", "add two lines making a triangle", "put a rocket on top". Drawings are BUILT UP over several requests: use op "add" to add to what is already there, and only use "clear" when the user asks to start again. The canvas is 1000x1000 with (0,0) at the top left. If shapes are already on the canvas you will be told where they are — place new shapes relative to them so the picture makes sense.',
       parameters: {
         type: 'object',
         properties: {
@@ -299,7 +299,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'generate_image',
-      description: 'Generate a flat picture with AI. Use whenever the user asks to create, generate, draw, make or design an image, picture, photo, illustration, artwork, drawing, logo, poster or wallpaper — this is the DEFAULT for anything visual. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
+      description: 'Generate a flat picture with AI. Use when the user asks to create, generate, make or design an image, picture, photo, illustration, artwork, logo, poster or wallpaper. Do NOT use this when they said draw, sketch or paint — those words mean the canvas, so call the draw tool instead. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
       parameters: {
         type: 'object',
         properties: {
@@ -807,14 +807,16 @@ DOING MORE THAN ONE THING AT ONCE:
 - Never do just the first one and ignore the rest, and never say you can only do one thing at a time.
 - If one part is a question and the other an action, do the action and answer the question in the same reply.
 
-DRAWING:
-- "draw me a box", "sketch a house", "draw a rocket" -> the draw tool. This is a simple shape drawing on a canvas the user can see and edit, NOT generate_image.
+DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
+- DRAW, SKETCH, PAINT or DOODLE -> the draw tool, every single time. "Draw me a box", "sketch a house", "paint me a rocket" all open the canvas. Never answer one of these with generate_image.
+- MAKE, GENERATE, CREATE or DESIGN (an image, picture, photo, illustration, logo, poster) -> generate_image. "Make me an image of a box", "generate a picture of a lion".
+- So "draw me a box" and "make me an image of a box" are two DIFFERENT tools. The noun does not matter; the verb does.
+- The only exception: an explicit photo or realistic request that still uses the word draw ("draw me a photorealistic lion") is generate_image, because a shape canvas cannot do it.
 - Drawings are built up over several messages. "Add two lines making a triangle", "put a rocket on top", "make the box bigger" all continue the SAME drawing: use op "add" and place things relative to what is already there.
 - Only use op "clear" when they say start again, wipe it, or start a new drawing.
-- generate_image is for a finished picture made by AI; draw is for a diagram or sketch the user builds with you and can edit shape by shape. If they say "draw" and mean a realistic picture ("draw me a photo of a lion"), use generate_image instead.
 
 CREATING THINGS (picture vs video vs 3D) — these get mixed up, so be strict:
-- "image", "picture", "photo", "drawing", "illustration", "art", "logo", "poster", "wallpaper", "draw me", "design me" -> generate_image. This is the default for anything visual.
+- "make me an image", "generate a picture", "create a photo", "design me a logo/poster/wallpaper" -> generate_image. This is the default for anything visual EXCEPT the words draw, sketch and paint, which are the drawing canvas (see DRAWING above).
 - "video", "clip", "animation", "reel", "animate this", "make it move" -> video generation.
 - ONLY the words "3D", "3D model", "3D print", "mesh" or "sculpt" -> generate_3d_model.
 - Never substitute one for another. "Make me an image of a dragon" is a picture, not a 3D model, even if a 3D model is already open on screen.
