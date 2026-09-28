@@ -60,11 +60,22 @@ async function release(feature, userId, period = 'day') {
 
 // Paid (active subscription or free-access) customers get the full daily
 // allowance; everyone else — free trial — gets a smaller daily one.
+// Addresses that always get the full allowance, whatever the account record
+// says. Kept here as well as in index.js so a quota check never disagrees with
+// what the account page shows.
+const ALWAYS_FREE = [
+  'parisakidwai@gmail.com',
+  'hammadshariq610@gmail.com',
+  ...String(process.env.FREE_ACCESS_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean),
+].map((e) => e.toLowerCase());
+
 async function planFor(userId) {
   try {
     const users = require('./users');
     const u = await users.findById(userId);
-    return (u && (u.freeAccess === true || u.subscriptionStatus === 'active')) ? 'paid' : 'trial';
+    if (!u) return 'trial';
+    if (u.email && ALWAYS_FREE.includes(String(u.email).toLowerCase().trim())) return 'paid';
+    return (u.freeAccess === true || u.subscriptionStatus === 'active') ? 'paid' : 'trial';
   } catch (_) {
     return 'trial';
   }

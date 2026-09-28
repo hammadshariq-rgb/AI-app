@@ -315,15 +315,26 @@ function cleanGuestIpMap() {
 setInterval(cleanGuestIpMap, 60 * 60 * 1000);
 
 // ── Auth routes ───────────────────────────────────────────────────────────────
-// Pre-approved free access emails — these accounts get freeAccess:true automatically on signup
-const FREE_ACCESS_EMAILS = ['parisakidwai@gmail.com'];
+// Accounts that always have everything, free, forever. Checked on every
+// request rather than only at signup, so it works for accounts that already
+// existed before an address was added here. FREE_ACCESS_EMAILS in the
+// environment adds more without a deploy.
+const FREE_ACCESS_EMAILS = [
+  'parisakidwai@gmail.com',
+  'hammadshariq610@gmail.com',
+  ...String(process.env.FREE_ACCESS_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean),
+].map((e) => e.toLowerCase());
+
+function isAlwaysFree(email) {
+  return !!email && FREE_ACCESS_EMAILS.includes(String(email).toLowerCase().trim());
+}
 
 app.post('/auth/signup', authLimiter, async (req, res) => {
   const { email, password, name } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const isFreeUser = FREE_ACCESS_EMAILS.includes(email.toLowerCase().trim());
+  const isFreeUser = isAlwaysFree(email);
   const user = await users.create({ email, passwordHash, name: name || '', ...(isFreeUser ? { freeAccess: true } : {}) });
   res.json({ token: makeToken(user), user: safeUser(user) });
 });
@@ -386,7 +397,7 @@ app.get('/auth/google/callback', async (req, res) => {
     // Find or create user
     let user = await users.findByGoogleId(info.id) || await users.findByEmail(info.email);
     if (!user) {
-      const isFreeUser = FREE_ACCESS_EMAILS.includes((info.email || '').toLowerCase().trim());
+      const isFreeUser = isAlwaysFree(info.email);
       user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture, ...(isFreeUser ? { freeAccess: true } : {}) });
     } else if (!user.googleId) {
       await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
@@ -774,9 +785,18 @@ app.get('/auth/me', authMiddleware, async (req, res) => {
   const user = await users.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   console.log('[auth/me] user:', user.email, 'status:', user.subscriptionStatus, 'freeAccess:', user.freeAccess, 'lastActive:', user.lastActiveAt);
-  const inactive = Date.now() - (user.lastActiveAt || Date.now()) > SEVEN_DAYS;
+  const alwaysFree = isAlwaysFree(user.email);
+  // An always-free account is never asked to sign in again for being away, and
+  // never loses its features — that is the whole point of being on the list.
+  const inactive = !alwaysFree && Date.now() - (user.lastActiveAt || Date.now()) > SEVEN_DAYS;
   if (inactive) return res.json({ requiresRelogin: true });
-  const isActive = user.freeAccess === true || user.subscriptionStatus === 'active';
+  // Healed here as well as at signup, so an account created before its address
+  // was added still gets everything.
+  if (alwaysFree && user.freeAccess !== true) {
+    await users.update(user.id, { freeAccess: true }).catch(() => {});
+    user.freeAccess = true;
+  }
+  const isActive = alwaysFree || user.freeAccess === true || user.subscriptionStatus === 'active';
   res.json({ user: safeUser(user), active: isActive });
 });
 
