@@ -5248,6 +5248,9 @@ async function sendToJarvis(text) {
   history.push({ role: 'user', content: text });
   // While a 3D model is open, "make it black and silver" etc. edits the model
   // (typed, or spoken through Ctrl+Shift+C).
+  // The document studio takes paging and small edits first, so "next slide"
+  // does not go off to the model as a question.
+  if (typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
   if (typeof window._checkModelCommand === 'function' && window._checkModelCommand(text)) {
     if (window._hudVoiceActive && typeof _maybeForwardToHud === 'function') _maybeForwardToHud('Updating your 3D model…', null);
     return;
@@ -10461,4 +10464,57 @@ if (window.jarvis.onMacNeedsAutomation) {
 
   // "open the drawing page" / "let's draw" with nothing to draw yet.
   window._openDrawing = () => { D().show(); report(); };
+})();
+
+// ── Document studio wiring ────────────────────────────────────────────────────
+// Everything Callisto writes opens here first so it can be read, paged through
+// and edited before it becomes a file.
+(function () {
+  const S = () => window.CallistoDocStudio;
+  if (!S()) return;
+
+  // Voice, in flow mode or through Ctrl+Shift+C. Paging and small edits are
+  // handled here; anything else falls through to the normal chat.
+  window._checkDocStudio = function (text) {
+    if (!S().isOpen()) return false;
+    const t = String(text || '').toLowerCase().trim();
+
+    if (/^(next|next (slide|page|sheet|one)|forward|go forward)\b/.test(t)) { S().next(); return true; }
+    if (/^(back|previous|previous (slide|page|sheet|one)|go back|last (slide|page))\b/.test(t)) { S().prev(); return true; }
+    if (/^(close|close (it|this|the) ?(document|deck|presentation)?|done|finish)\b/.test(t)) { S().close(); return true; }
+    if (/\b(save|export|make the file|download)\b/.test(t) && t.length < 40) {
+      document.getElementById('dsxSave')?.click();
+      return true;
+    }
+    if (/^(add (a )?(slide|page|sheet|another)|new (slide|page|sheet))\b/.test(t)) {
+      document.getElementById('dsxAdd')?.click();
+      return true;
+    }
+
+    // "call it X" / "title it X" renames without leaving the studio.
+    const rename = t.match(/^(?:call it|title it|rename it to|name it)\s+(.+)$/);
+    if (rename) {
+      const input = document.getElementById('dsxTitle');
+      if (input) {
+        input.value = rename[1].replace(/[.?!]$/, '').trim();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // Turning your hand over pages through it, the same gesture as everywhere else.
+  window._docStudioNext = () => { if (S().isOpen()) { S().next(); return true; } return false; };
+
+  // Once saved, offer it in the conversation as well as on disk.
+  S().onSaved((doc) => {
+    const kindWord = doc.kind === 'slides' ? 'presentation' : doc.kind === 'sheet' ? 'spreadsheet' : 'document';
+    addMessage('assistant', `\u2705 Saved your ${kindWord} \u2014 "${doc.title}" \u2014 to Documents, and opened it.`);
+  });
+
+  // Anything Callisto generates comes through here.
+  window._openInDocStudio = function (payload) {
+    S().show(payload);
+  };
 })();

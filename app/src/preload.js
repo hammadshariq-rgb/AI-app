@@ -142,6 +142,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   addCalendarEvent: (d) => ipcRenderer.invoke('jarvis:addCalendarEvent', d),
   openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),
   savePresentation: (d) => ipcRenderer.invoke('jarvis:savePresentation', d),
+  docSave: (d) => ipcRenderer.invoke('doc:save', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
   // Tubes cursor: fetch a CDN script via main process (bypasses sandbox restriction)

@@ -9414,3 +9414,96 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 @media (prefers-reduced-motion: reduce) {
   .ao, .ao-sheet { transition: none; }
 }
+
+/* ── Document studio ──────────────────────────────────────────────────────── */
+.dsx {
+  position: fixed; inset: 0; z-index: 9993;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 50% 0%, #101a30 0%, #070b16 60%, #05070f 100%);
+  color: rgba(228, 238, 255, 0.95); font-family: 'Inter', system-ui, sans-serif;
+  opacity: 0; transition: opacity 0.22s ease;
+}
+.dsx.hidden { display: none !important; }
+.dsx.dsx-in { opacity: 1; }
+
+.dsx-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px; flex: none; }
+.dsx-brand { font-family: 'Share Tech Mono', monospace; font-size: 10.5px;
+  letter-spacing: 2.4px; color: rgba(0, 200, 255, 0.78); white-space: nowrap; }
+.dsx-title {
+  flex: 1; min-width: 0; background: none; border: 0; outline: none;
+  font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700;
+  color: #fff; border-bottom: 1px solid transparent; padding: 2px 0;
+}
+.dsx-title:focus { border-bottom-color: rgba(0, 200, 255, 0.4); }
+.dsx-actions { display: flex; align-items: center; gap: 8px; }
+.dsx-saved { font-size: 11.5px; color: rgba(150, 175, 215, 0.7); white-space: nowrap; }
+.dsx-btn {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px;
+  padding: 8px 15px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(214, 228, 255, 0.9);
+}
+.dsx-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.dsx-btn-go { background: rgba(0, 200, 255, 0.15); border-color: rgba(0, 200, 255, 0.42); color: #86dcff; }
+.dsx-btn:disabled { opacity: 0.55; cursor: default; }
+.dsx-x { width: 30px; height: 30px; border: 0; border-radius: 8px; cursor: pointer;
+  background: rgba(255,255,255,0.05); color: rgba(180,200,235,0.7); font-size: 13px; }
+.dsx-x:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+.dsx-stage { flex: 1; min-height: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+.dsx-nav {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(200,220,255,0.85); font-size: 24px; line-height: 1;
+}
+.dsx-nav:hover:not(:disabled) { background: rgba(0,200,255,0.14); border-color: rgba(0,200,255,0.4); color: #7fdcff; }
+.dsx-nav:disabled { opacity: 0.25; cursor: default; }
+
+/* The page itself. Light, because a document is a document. */
+.dsx-page {
+  flex: 1; min-width: 0; max-width: 900px; margin: 0 auto; height: min(78vh, 620px);
+  overflow-y: auto; padding: 42px 46px; border-radius: 14px;
+  background: #f7f9fc; color: #16233a;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+.dsx-slide { display: flex; flex-direction: column; justify-content: center; }
+.dsx-h {
+  font-family: 'Rajdhani', sans-serif; font-size: 32px; font-weight: 700;
+  margin: 0 0 18px; outline: none; color: #16324f;
+}
+.dsx-h:focus, .dsx-body:focus, .dsx-bullets li:focus, .dsx-grid td:focus {
+  background: rgba(0, 140, 220, 0.07); border-radius: 5px;
+}
+.dsx-bullets { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 11px; }
+.dsx-bullets li { font-size: 17px; line-height: 1.5; outline: none; color: #32415a; }
+.dsx-body { font-size: 15.5px; line-height: 1.75; outline: none; color: #2c3a52; min-height: 120px; }
+.dsx-add-line {
+  align-self: flex-start; margin-top: 16px; font-size: 12px; cursor: pointer;
+  padding: 6px 12px; border-radius: 7px;
+  background: rgba(0, 120, 200, 0.08); border: 1px solid rgba(0, 120, 200, 0.22); color: #10639e;
+}
+.dsx-grid-wrap { overflow-x: auto; }
+.dsx-grid { border-collapse: collapse; width: 100%; font-size: 14px; }
+.dsx-grid td { border: 1px solid #d7dfea; padding: 8px 11px; min-width: 90px; outline: none; }
+.dsx-grid td.dsx-th { background: #eef3f9; font-weight: 600; color: #16324f; }
+.dsx-grid-add { display: flex; gap: 8px; }
+.dsx-empty { text-align: center; padding: 60px 0; color: #8494ab; }
+
+.dsx-foot { flex: none; display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 14px 18px 18px; }
+.dsx-dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.dsx-dot {
+  min-width: 26px; height: 26px; border-radius: 7px; cursor: pointer; padding: 0 6px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(170,195,230,0.75); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}
+.dsx-dot.on { background: rgba(0,200,255,0.16); border-color: rgba(0,200,255,0.45); color: #86dcff; }
+.dsx-del { color: rgba(255,150,150,0.8); }
+.dsx-hint { font-size: 10.5px; color: rgba(140, 165, 205, 0.55); text-align: center; }
+
+@media (max-width: 720px) {
+  .dsx-page { padding: 26px 22px; height: 70vh; }
+  .dsx-h { font-size: 25px; }
+  .dsx-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .dsx { transition: none; } }

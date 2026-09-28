@@ -2843,6 +2843,7 @@
   <script src="renderer.js?v=74"></script>
   <script src="analytics-overlay.js"></script>
   <script src="gates.js"></script>
+  <script src="doc-studio.js"></script>
   <script src="draw-studio.js"></script>
   <script src="gestures.js"></script>
   <script src="tour.js"></script>
@@ -3123,6 +3124,8 @@
 
       // One gesture, four meanings — whichever fits what the user is looking at.
       function doHandSwap() {
+        // A document open on screen is what the gesture most likely means.
+        if (window._docStudioNext && window._docStudioNext()) { showGesture('�', 'Swap  next page'); return; }
         // 1. A 3D model is open → spin it a quarter turn.
         if (window.CallistoModelViewer?.isOpen?.()) {
           showGesture('↻', 'Swap — rotating the model');

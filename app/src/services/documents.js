@@ -173,4 +173,36 @@ async function writeSlides(title, slides, dir) {
   return file;
 }
 
-module.exports = { writeWord, writeSlides, parse };
+/* ── Spreadsheet ─────────────────────────────────────────────────────────── */
+async function writeSheet(title, sheets, dir) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  for (const sh of (sheets && sheets.length ? sheets : [{ name: 'Sheet1', rows: [['']] }])) {
+    const ws = wb.addWorksheet(String(sh.name || 'Sheet1').slice(0, 30));
+    (sh.rows || []).forEach((r) => ws.addRow(r));
+    // The first row reads as headings, so make it look like one.
+    if ((sh.rows || []).length) {
+      ws.getRow(1).font = { bold: true };
+      ws.columns.forEach((col, i) => {
+        const longest = (sh.rows || []).reduce((n, r) => Math.max(n, String(r[i] == null ? '' : r[i]).length), 10);
+        col.width = Math.min(60, longest + 2);
+      });
+    }
+  }
+  const file = path.join(dir, `${safeName(title || 'Spreadsheet')}.xlsx`);
+  await wb.xlsx.writeFile(file);
+  return file;
+}
+
+// One way in for the studio, whichever kind it is holding.
+async function writeAny({ kind, title, slides, sections, sheets }, dir) {
+  if (kind === 'slides') return writeSlides(title, slides || [], dir);
+  if (kind === 'sheet') return writeSheet(title, sheets || [], dir);
+  // A document is its sections run together as markdown, which writeWord parses.
+  const body = (sections || [])
+    .map((s) => (s.heading ? '## ' + s.heading + String.fromCharCode(10,10) : '') + (s.body || ''))
+    .join(String.fromCharCode(10,10));
+  return writeWord(title, body, dir);
+}
+
+module.exports = { writeWord, writeSlides, writeSheet, writeAny, parse };

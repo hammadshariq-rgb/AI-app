@@ -1325,6 +1325,39 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
 
 // A real .pptx saved to Documents and opened. This used to route to a Google
 // Slides handler that did not exist, so asking for a presentation errored.
+// The document studio saves whatever is on screen, whichever kind it is.
+// Put whatever just opened into the right half of the screen, so a file and
+// Callisto sit side by side rather than one hiding the other.
+function snapOtherHalf() {
+  if (process.platform !== 'win32') return;      // Windows only for now
+  const { width, height, x, y } = screen.getPrimaryDisplay().workArea;
+  const half = Math.floor(width / 2);
+  const ps = [
+    'Add-Type @"',
+    'using System;using System.Runtime.InteropServices;',
+    'public class Snap{',
+    '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+    '[DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int t,bool r);}',
+    '"@',
+    '$h=[Snap]::GetForegroundWindow()',
+    `[void][Snap]::MoveWindow($h, ${x + half}, ${y}, ${half}, ${height}, $true)`,
+  ].join(String.fromCharCode(10));
+  try {
+    require('child_process').execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: 5000 }, () => {});
+  } catch (_) {}
+}
+
+ipcMain.handle('doc:save', async (_e, d) => {
+  try {
+    const file = await documents.writeAny(d || {}, app.getPath('documents'));
+    await shell.openPath(file);
+    return { ok: true, path: file };
+  } catch (err) {
+    console.error('[doc:save]', err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('jarvis:savePresentation', async (_e, { title, slides }) => {
   try {
     const file = await documents.writeSlides(title || 'Presentation', slides || [], app.getPath('documents'));
@@ -2621,15 +2654,25 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     stopSpotifyFocusLock();
   }
 
-  // ── Split-screen: when HUD voice triggered an open_file or open_app, snap main app to left half ──
-  if (hudVoiceMode && finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_app')) {
+  // ── Opening a file: side by side. Opening an app: get out of the way ──────
+  // A file is something you read *with* Callisto, so both belong on screen. An
+  // app is somewhere you are going instead, so it takes the whole display.
+  if (finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_folder')) {
     try {
       const { width, height, x: sx, y: sy } = screen.getPrimaryDisplay().workArea;
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.setBounds({ x: sx, y: sy, width: Math.floor(width / 2), height }, { animate: false });
         overlayWindow.show();
         overlayWindow.focus();
+        // The file lands in the other half a moment later, once its own window
+        // exists — nothing to move before then.
+        setTimeout(() => snapOtherHalf(), 900);
       }
+    } catch (_) {}
+  } else if (finalAction && finalAction.type === 'open_app') {
+    // Nothing pinning Callisto on top, so the app they asked for is what they see.
+    try {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
     } catch (_) {}
   }
 
