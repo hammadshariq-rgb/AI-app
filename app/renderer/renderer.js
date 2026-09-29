@@ -841,6 +841,8 @@ function addMessage(role, text) {
     stopInlineBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
     stopInlineBtn.style.display = 'none';
     stopInlineBtn.addEventListener('click', () => {
+      // Stop means stop: the words being written and the voice reading them.
+      try { stopSpeaking(); } catch (_) {}
       document.getElementById('stopResponseBtn')?.click();
       stopInlineBtn.style.display = 'none';
     });
@@ -2512,7 +2514,30 @@ function _maybeForwardToHud(responseText, card) {
   }
 }
 
+// "Show me the news" opens the ticker out into the full stage. The ticker is
+// already holding the headlines, so this needs no fetch and appears at once.
+const NEWS_STAGE_RE = new RegExp(
+  '^(?:can you |could you |please )?(?:show|open|read|give|tell|bring)(?: me| us)?' +
+  '(?: the| my| some| todays?| latest)*' +
+  '(?: news| headlines| news headlines)(?: in detail| in full| properly)?[.!?]*$',
+  'i');
+
 window._checkQuickLaunch = async function(text) {
+  {
+    const _t = String(text || '').trim();
+    if (NEWS_STAGE_RE.test(_t) || /^(?:the )?news$/i.test(_t)) {
+      let list = (typeof NewsFlash !== 'undefined' && NewsFlash.headlines) ? NewsFlash.headlines() : [];
+      if (!list.length && typeof NewsFlash !== 'undefined' && NewsFlash.ready) {
+        try { list = await NewsFlash.ready(4000); } catch (_) { list = []; }
+      }
+      if (window.CallistoNewsStage && window.CallistoNewsStage.show(list)) {
+        addMessage('assistant', "Here's the news - " + list.length + " headlines. Arrow keys to move through them.");
+        window.jarvis.speak('Here is the news.');
+        setState('idle');
+        return true;
+      }
+    }
+  }
   // "on my laptop" is where these run anyway: "open Netflix on my laptop" opens Netflix.
   const t = text.trim().replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)\b/i, '').trim();
 
@@ -6256,24 +6281,19 @@ function drainAudioQueue() {
 // The stop control is only meaningful while Callisto is talking or working, so
 // it appears then and stays out of the way the rest of the time.
 function setSpeakingUI(on) {
-  const wrap = document.getElementById('stopWrap');
-  if (wrap) wrap.classList.toggle('hidden', !on);
+  // Speaking counts as responding, so the reply's own stop control is shown
+  // for it too - not just while the answer is still being written.
+  try { showStopBtn(!!on || !!window._aiThinking); } catch (_) {}
 }
 
-(function wireStopButton() {
-  const btn = document.getElementById('stopBtn');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    stopSpeaking();
-    try { window._cancelInFlightReply?.(); } catch (_) {}
-    setState('idle');
-  });
-  // Escape is what people already press to stop something.
+// Stopping lives on the reply itself - the small square inside the assistant's
+// bubble - rather than as another button by the microphone. Escape does the
+// same thing from anywhere.
+(function wireStopKey() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!audioPlaying && !window._aiThinking) return;
     stopSpeaking();
-    try { window._cancelInFlightReply?.(); } catch (_) {}
     setState('idle');
   });
 })();
@@ -9767,9 +9787,9 @@ micBtn.addEventListener('click', () => {
   // Stop response button
   const stopResponseBtn = document.getElementById('stopResponseBtn');
   stopResponseBtn?.addEventListener('click', () => {
+    try { stopSpeaking(); } catch (_) {}
     showStopBtn(false);
     setState('idle');
-    addMessage('assistant', 'Stopped.');
   });
   stopResponseBtn?.addEventListener('mouseenter', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(200,40,60,0.3)'; });
   stopResponseBtn?.addEventListener('mouseleave', () => { if (stopResponseBtn) stopResponseBtn.style.background = 'rgba(180,40,60,0.18)'; });

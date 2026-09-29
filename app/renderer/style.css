@@ -6309,45 +6309,6 @@ body.light-mode .news-item::before { color: rgba(30,40,100,0.3); }
 /* ─────────────────────────────────────────────
    CLEAR (trash) BUTTON  — small square, red glow
 ───────────────────────────────────────────── */
-/* ─────────────────────────────────────────────
-   STOP BUTTON - only on screen while Callisto is
-   thinking or talking. Amber rather than red: it
-   interrupts, it does not delete. The ring turns
-   the whole time it is visible, so the control
-   reads as live rather than as a stray square.
-───────────────────────────────────────────── */
-#stopWrap { border-radius: 11px; }
-#stopWrap::before {
-  background: radial-gradient(circle, rgba(255,170,40,0.38) 0%, transparent 70%);
-}
-#stopWrap .glow-ring { border-radius: 11px; opacity: 1; }
-#stopWrap .glow-ring::after {
-  background: conic-gradient(
-    #ffb020 0deg, #ff7a3c 90deg, transparent 150deg 210deg, #ffd060 290deg, #ffb020 360deg
-  );
-  animation: glowSpin 4s linear infinite;
-}
-
-#stopBtn {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  background: #1a1206;
-  color: rgba(255,190,90,0.92);
-  box-shadow:
-    0 0 0 1px rgba(255,170,40,0.26),
-    0 2px 12px rgba(200,120,20,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.05);
-}
-#stopBtn:hover {
-  background: #241906;
-  color: #ffd08a;
-  box-shadow:
-    0 0 0 1px rgba(255,190,60,0.55),
-    0 4px 18px rgba(220,140,30,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
 #clearWrap { border-radius: 11px; }
 #clearWrap::before {
   background: radial-gradient(circle, rgba(255,60,60,0.4) 0%, transparent 70%);
@@ -9552,4 +9513,192 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   margin: 0 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 11.5px; line-height: 1.5;
   color: rgba(170, 195, 230, 0.8);
   background: rgba(255, 255, 255, 0.04); border-left: 2px solid rgba(0, 200, 255, 0.35);
+}
+
+/* =============================================================
+   THE NEWS STAGE
+   The ticker opened out: one headline held in the middle, the
+   rest turned away in perspective. Same dark glass and cyan as
+   the rest of Callisto, so it reads as the app and not a widget
+   borrowed from somewhere else.
+============================================================= */
+.nst {
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0,60,110,0.42) 0%, rgba(3,6,14,0.97) 62%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  opacity: 0;
+  transition: opacity 0.26s ease;
+}
+.nst.nst-in { opacity: 1; }
+.nst.hidden { display: none !important; }
+
+.nst-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 28px 6px;
+  flex-shrink: 0;
+}
+.nst-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: rgba(120, 215, 255, 0.85);
+}
+.nst-live {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #ff4d5e;
+  box-shadow: 0 0 10px rgba(255,77,94,0.9);
+  animation: nstPulse 1.9s ease-in-out infinite;
+}
+@keyframes nstPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.32; } }
+
+.nst-count {
+  margin-left: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(150, 190, 225, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+.nst-x {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(200,225,255,0.75);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.nst-x:hover { background: rgba(255,255,255,0.09); color: #fff; }
+
+/* ── The carousel ── */
+.nst-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  perspective: 1600px;
+  overflow: hidden;
+}
+.nst-track {
+  position: relative;
+  width: min(560px, 68vw);
+  height: min(340px, 52vh);
+  transform-style: preserve-3d;
+}
+
+.nst-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 38px 40px;
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(10,20,40,0.94) 0%, rgba(6,11,24,0.96) 100%);
+  border: 1px solid rgba(90, 180, 255, 0.16);
+  box-shadow: 0 30px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: transform 0.45s cubic-bezier(0.22, 0.8, 0.3, 1),
+              opacity 0.45s ease,
+              border-color 0.35s ease,
+              box-shadow 0.35s ease;
+  will-change: transform, opacity;
+}
+.nst-card.on {
+  cursor: default;
+  border-color: rgba(0, 200, 255, 0.42);
+  box-shadow: 0 34px 90px rgba(0,0,0,0.7),
+              0 0 0 1px rgba(0,200,255,0.16),
+              0 0 60px rgba(0,140,255,0.16),
+              inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+.nst-cat {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: rgba(0, 210, 255, 0.82);
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 190, 255, 0.28);
+  background: rgba(0, 140, 220, 0.1);
+}
+.nst-headline {
+  margin: 0;
+  font-size: clamp(19px, 2.3vw, 27px);
+  line-height: 1.32;
+  font-weight: 650;
+  color: #eaf4ff;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.nst-foot {
+  margin-top: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(150, 190, 225, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Arrows ── */
+.nst-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px; height: 46px;
+  z-index: 60;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(8,14,28,0.72);
+  color: rgba(190, 225, 255, 0.85);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+.nst-prev { left: 5%; }
+.nst-next { right: 5%; }
+.nst-nav:hover:not(:disabled) { background: rgba(0,120,200,0.3); color: #fff; }
+.nst-nav:disabled { opacity: 0.22; cursor: default; }
+
+/* ── Dots ── */
+.nst-dots {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  padding: 10px 28px 26px;
+}
+.nst-dot {
+  width: 7px; height: 7px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.16);
+  cursor: pointer;
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+.nst-dot:hover { background: rgba(0,200,255,0.5); }
+.nst-dot.on { background: #00c8ff; transform: scale(1.5); box-shadow: 0 0 10px rgba(0,200,255,0.8); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nst, .nst-card { transition: none; }
+  .nst-live { animation: none; }
 }
