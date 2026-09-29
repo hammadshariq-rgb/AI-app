@@ -257,6 +257,21 @@ function createOverlayWindow() {
       console.log(`[renderer:${level}] ${message}  (${String(sourceId).split('/').pop()}:${line})`);
     });
     overlayWindow.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', JSON.stringify(d)));
+    // Say which screen is actually on display. "It shows the wrong screen" is
+    // impossible to act on from the outside; this makes it a fact.
+    overlayWindow.webContents.once('did-finish-load', () => setTimeout(() => {
+      overlayWindow.webContents.executeJavaScript(`(() => {
+        const ids = ['splash','setup','welcomeScreen','onboardView','main','tourLayer'];
+        return ids.map((id) => {
+          const el = document.getElementById(id);
+          if (!el) return id + '=absent';
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          const shown = cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && r.width > 1;
+          return id + '=' + (shown ? 'VISIBLE ' + Math.round(r.width) + 'x' + Math.round(r.height) : 'hidden');
+        }).join('  |  ');
+      })()`).then((v) => console.log('[views]', v)).catch((e) => console.log('[views] failed', e.message));
+    }, 7000));
   }
 
   overlayWindow.webContents.once('did-finish-load', () => {
@@ -1046,9 +1061,11 @@ ipcMain.handle('auth:google', () => {
 
   authService.pollGoogleAuth(server, state).then((result) => {
     if (!result || !result.token) return;
-    // The deep link may have beaten us to it, in which case there is nothing
-    // left to do and saying so twice would restart the setup questions.
-    if (loadAuthToken()) return;
+    // Always save the newest token and always tell the window, even if one was
+    // already stored. Skipping the message when a token existed meant that once
+    // the first sign-in landed, every later attempt did nothing whatsoever: no
+    // error, no movement, the same screen however many times it was tried. The
+    // renderer only acts on the first of these anyway.
     saveAuthToken(result.token);
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.show();
