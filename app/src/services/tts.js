@@ -43,8 +43,16 @@ function setSpeed(speed) {
   currentSpeed = Math.min(4.0, Math.max(0.25, Number(speed) || 0.88));
 }
 
-async function synthesize(text) {
-  if (!text || !text.trim()) return null;
+// Sentences are spoken in the order they were asked for, so one request that
+// never comes back holds up everything behind it. That is what a long silence
+// in the middle of an answer was: not a pause, a stuck request. Nothing here is
+// allowed to hang - it gets one quick retry and is then given up on, because a
+// missing sentence is far better than a minute of nothing.
+const TTS_TIMEOUT_MS = 20000;
+
+async function synthesizeOnce(text) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
   try {
     const res = await fetch(`${SERVER()}/ai/tts`, {
       method: 'POST',
@@ -54,13 +62,28 @@ async function synthesize(text) {
         ...getVoiceConfig(),
         speed: currentSpeed,
       }),
+      signal: controller.signal,
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     return data.audio; // base64
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function synthesize(text) {
+  if (!text || !text.trim()) return null;
+  try {
+    return await synthesizeOnce(text);
   } catch (err) {
-    console.error('[TTS] error:', err.message);
-    return null;
+    console.error('[TTS] error:', err.message, '- retrying once');
+    try {
+      return await synthesizeOnce(text);
+    } catch (err2) {
+      console.error('[TTS] gave up:', err2.message);
+      return null;
+    }
   }
 }
 

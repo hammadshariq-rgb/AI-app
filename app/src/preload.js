@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   chat: (message, history, attachments) => ipcRenderer.invoke('jarvis:chat', { message, history, attachments: attachments || [] }),
   speak: (text) => ipcRenderer.invoke('jarvis:speak', text),
   stopSpeaking: () => ipcRenderer.invoke('jarvis:stopSpeaking'),
+  isFocused: () => ipcRenderer.invoke('jarvis:isFocused'),
   openFile: () => ipcRenderer.invoke('jarvis:openFile'),
   notify: (title, body) => ipcRenderer.invoke('jarvis:notify', { title, body }),
   hide: () => ipcRenderer.invoke('jarvis:hide'),

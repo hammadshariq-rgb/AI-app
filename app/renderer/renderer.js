@@ -9585,8 +9585,16 @@ async function stopRecording() {
 
     const trimmed = (text || '').trim();
     const leakHits = new Set((trimmed.match(SYSTEM_PROMPT_LEAK) || []).map((s) => s.toLowerCase())).size;
+    // Conversation mode leaves the microphone open, so every cough, keystroke
+    // and passing voice gets transcribed into some short fragment. Answering
+    // those is what made Callisto introduce itself over and over to an empty
+    // room. A real instruction is longer than a stray word.
+    const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+    const tooSlightForConvo = window._convoMode && (wordCount < 2 || trimmed.length < 6);
+
     const isGarbage = !trimmed
       || trimmed.length < 2
+      || tooSlightForConvo
       || WHISPER_HALLUCINATIONS.test(trimmed)
       || leakHits >= 3;
 
@@ -9603,20 +9611,32 @@ async function stopRecording() {
         : false;
       if (!handled) {
         _convoBusy = true;
-        // Answer on the card over their app, like a Ctrl+Shift+C question does.
+        // Answer on the card over their app, like a Ctrl+Shift+C question does -
+        // but only when they are actually in another app. Routing the answer to
+        // the card while Callisto itself is in front sent the reply somewhere
+        // invisible, so it looked like the question had been ignored and the
+        // microphone had simply opened again.
         if (window._convoMode) {
-          window._hudVoiceActive = true;
-          window.jarvis.hudMicState?.(false, true);
+          let focused = false;
+          try { focused = await window.jarvis.isFocused?.(); } catch (_) {}
+          if (!focused) {
+            window._hudVoiceActive = true;
+            window.jarvis.hudMicState?.(false, true);
+          }
         }
         try { await sendToJarvis(trimmed); } finally { _convoBusy = false; }
       } else setState('idle');
     } else if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) {
       setState('idle');
     } else {
-      // Silence / noise — speak a short "didn't hear" response, no chat bubble
-      if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
-      _maybeForwardToHud(`I didn't hear that. Press ${keys('Ctrl+Shift+C')} and try again.`, null);
+      // Silence or noise. In conversation mode this happens constantly by
+      // design, and announcing it every time is worse than saying nothing.
+      if (!window._convoMode) {
+        if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
+        _maybeForwardToHud(`I didn't hear that. Press ${keys('Ctrl+Shift+C')} and try again.`, null);
+      }
       setState('idle');
+
     }
   } catch (err) {
     const raw = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');

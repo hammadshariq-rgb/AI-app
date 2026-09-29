@@ -362,7 +362,19 @@ function ensureHud() {
   }
 }
 
+// The HUD exists to answer over OTHER applications, when Callisto itself is
+// minimised or behind something. If its own window is up and focused, the reply
+// is already on screen there, and a HUD card on top of it is just a duplicate
+// stacking over the interface.
+function hudWouldDuplicate() {
+  try {
+    return !!(overlayWindow && !overlayWindow.isDestroyed()
+      && overlayWindow.isVisible() && overlayWindow.isFocused());
+  } catch (_) { return false; }
+}
+
 function sendToHud(channel, data) {
+  if (channel === 'hud:card' && hudWouldDuplicate()) return;
   ensureHud();
   // wait for load if freshly created
   if (hudWindow.webContents.isLoading()) {
@@ -1578,7 +1590,12 @@ function _sendTTS(sender, text) {
   const gen = _ttsGeneration;
   const job = tts.synthesize(text).catch(() => null);
   _ttsChain = _ttsChain.then(async () => {
-    const audio = await job;
+    // Ordered delivery means a straggler holds up everything behind it, so the
+    // queue refuses to wait forever for any one sentence.
+    const audio = await Promise.race([
+      job,
+      new Promise((r) => setTimeout(() => r(null), 25000)),
+    ]);
     if (gen !== _ttsGeneration) return;
     if (audio && sender && !sender.isDestroyed()) {
       sender.send('jarvis:sentence-audio', { audio });
@@ -3344,6 +3361,16 @@ ipcMain.handle('jarvis:openFile', async () => {
 ipcMain.handle('jarvis:notify', async (_e, { title, body }) => {
   new Notification({ title, body }).show();
   return true;
+});
+
+// Whether Callisto's own window is the one in front. The answer to a question
+// belongs on screen where the person is looking: in the app if they are in it,
+// on the card over their work if they are not.
+ipcMain.handle('jarvis:isFocused', () => {
+  try {
+    return !!(overlayWindow && !overlayWindow.isDestroyed()
+      && overlayWindow.isVisible() && overlayWindow.isFocused());
+  } catch (_) { return false; }
 });
 
 ipcMain.handle('jarvis:hide', () => {

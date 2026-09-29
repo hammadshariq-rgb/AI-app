@@ -6309,6 +6309,45 @@ body.light-mode .news-item::before { color: rgba(30,40,100,0.3); }
 /* ─────────────────────────────────────────────
    CLEAR (trash) BUTTON  — small square, red glow
 ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   STOP BUTTON - only on screen while Callisto is
+   thinking or talking. Amber rather than red: it
+   interrupts, it does not delete. The ring turns
+   the whole time it is visible, so the control
+   reads as live rather than as a stray square.
+───────────────────────────────────────────── */
+#stopWrap { border-radius: 11px; }
+#stopWrap::before {
+  background: radial-gradient(circle, rgba(255,170,40,0.38) 0%, transparent 70%);
+}
+#stopWrap .glow-ring { border-radius: 11px; opacity: 1; }
+#stopWrap .glow-ring::after {
+  background: conic-gradient(
+    #ffb020 0deg, #ff7a3c 90deg, transparent 150deg 210deg, #ffd060 290deg, #ffb020 360deg
+  );
+  animation: glowSpin 4s linear infinite;
+}
+
+#stopBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #1a1206;
+  color: rgba(255,190,90,0.92);
+  box-shadow:
+    0 0 0 1px rgba(255,170,40,0.26),
+    0 2px 12px rgba(200,120,20,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+#stopBtn:hover {
+  background: #241906;
+  color: #ffd08a;
+  box-shadow:
+    0 0 0 1px rgba(255,190,60,0.55),
+    0 4px 18px rgba(220,140,30,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
 #clearWrap { border-radius: 11px; }
 #clearWrap::before {
   background: radial-gradient(circle, rgba(255,60,60,0.4) 0%, transparent 70%);
