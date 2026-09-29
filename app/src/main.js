@@ -9,6 +9,24 @@ const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, s
 const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 
+// The product is called Callisto now, but Electron derives the data folder from
+// the product name — so without pinning it here, every existing customer would
+// lose their settings, tokens and connections the moment they updated. Packaged
+// builds keep reading the folder they always have.
+//
+// This MUST happen before the services below are required. Each of them builds
+// its own electron-store as it loads, and a store resolves its file once, from
+// wherever userData points at that moment. Pinning the path afterwards split
+// the app in two: tokens were written to this folder while stt, tts and the
+// connectors read an empty store under the new product name — so speaking
+// answered 401, the renderer took that for an expired session and signed the
+// user out, over and over.
+if (app.isPackaged) {
+  try {
+    app.setPath('userData', path.join(app.getPath('appData'), 'Your Own Personal AI'));
+  } catch (_) { /* first run on a fresh machine — the default is fine */ }
+}
+
 const ai = require('./services/ai');
 const realtime = require('./services/realtime');
 const stt = require('./services/stt');
@@ -32,16 +50,6 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient('jarvis', process.execPath, [path.resolve(process.argv[1])]);
 } else {
   app.setAsDefaultProtocolClient('jarvis');
-}
-
-// The product is called Callisto now, but Electron derives the data folder from
-// the product name — so without pinning it here, every existing customer would
-// lose their settings, tokens and connections the moment they updated. Packaged
-// builds keep reading the folder they always have.
-if (app.isPackaged) {
-  try {
-    app.setPath('userData', path.join(app.getPath('appData'), 'Your Own Personal AI'));
-  } catch (_) { /* first run on a fresh machine — the default is fine */ }
 }
 
 const store = new Store();
@@ -271,6 +279,10 @@ function createOverlayWindow() {
           return id + '=' + (shown ? 'VISIBLE ' + Math.round(r.width) + 'x' + Math.round(r.height) : 'hidden');
         }).join('  |  ');
       })()`).then((v) => console.log('[views]', v)).catch((e) => console.log('[views] failed', e.message));
+      // And what the server actually thinks of the token we are holding.
+      overlayWindow.webContents.executeJavaScript('window.jarvis.authVerify()')
+        .then((r) => console.log('[authVerify]', JSON.stringify(r)))
+        .catch((e) => console.log('[authVerify] failed', e.message));
     }, 7000));
   }
 

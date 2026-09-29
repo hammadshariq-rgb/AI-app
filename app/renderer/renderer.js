@@ -9598,11 +9598,25 @@ async function stopRecording() {
     const raw = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
     // 401 = expired JWT — show friendly message and force re-login
     if (raw.includes('STT 401') || raw.includes('401')) {
-      addMessage('assistant', 'Your session has expired. Please sign in again.');
-      setTimeout(async () => {
-        try { await window.jarvis.authLogout(); } catch {}
-        location.reload();
-      }, 2200);
+      // Ask the server before throwing the session away. A 401 from one
+      // endpoint does not prove the sign-in is dead, and signing the user out
+      // on the strength of it destroyed a perfectly good token every time, so
+      // the next attempt failed the same way, forever.
+      let stillValid = false;
+      try {
+        const check = await window.jarvis.authVerify();
+        stillValid = !!check && !check.needsLogin;
+      } catch (_) {}
+
+      if (stillValid) {
+        addMessage('assistant', "I couldn't reach the speech service just then. Try once more.");
+      } else {
+        addMessage('assistant', 'Your session has expired. Please sign in again.');
+        setTimeout(async () => {
+          try { await window.jarvis.authLogout(); } catch {}
+          location.reload();
+        }, 2200);
+      }
     } else {
       addMessage('assistant', raw || 'Could not understand audio. Please try again.');
     }
