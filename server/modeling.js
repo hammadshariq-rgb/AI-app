@@ -92,6 +92,77 @@ function mountModeling(app, { authMiddleware }) {
     }
   });
 
+  // Turn a picture into a model. Meshy takes the image by URL, so a picture
+  // Callisto has already made can be handed over as-is. Shares the same daily
+  // allowance as every other 3D creation.
+  app.post('/models/from-image', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) {
+        return res.status(503).json({ error: '3D generation is not configured on this server.' });
+      }
+      const imageUrl = String(req.body?.imageUrl || '').trim();
+      if (!/^https?:\/\//i.test(imageUrl)) {
+        return res.status(400).json({ error: 'That needs a picture to work from.' });
+      }
+
+      const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
+      const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
+      if (!slot.ok) return res.status(429).json({ error: limitMessage(allow), upgrade: allow.plan === 'trial' });
+
+      let job;
+      try {
+        job = await meshy('/image-to-3d', {
+          base: MESHY_BASE_V1,
+          method: 'POST',
+          body: JSON.stringify({
+            image_url: imageUrl,
+            enable_pbr: true,
+            should_remesh: true,
+            should_texture: true,
+          }),
+        });
+      } catch (err) {
+        await usage.release('meshy', req.userId, allow.period);
+        throw err;
+      }
+
+      const jobId = job?.result || job?.id || null;
+      if (!jobId) {
+        await usage.release('meshy', req.userId, allow.period);
+        return res.status(502).json({ error: "The generator didn't accept that picture." });
+      }
+      res.json({ ok: true, jobId, fromImage: true, remaining: allow.limit - slot.used });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
+  // Image-to-3D is a single pass, so it has its own poll rather than the
+  // two-stage shape-then-colour one that text generation uses.
+  app.get('/models/from-image/:id', authMiddleware, async (req, res) => {
+    try {
+      if (!configured) return res.status(503).json({ error: 'Not configured.' });
+      const task = await meshy(`/image-to-3d/${encodeURIComponent(req.params.id)}`, { base: MESHY_BASE_V1 });
+      const status = String(task?.status || '').toUpperCase();
+      if (status === 'SUCCEEDED') {
+        return res.json({
+          ok: true,
+          status: 'SUCCEEDED',
+          progress: 100,
+          url: task?.model_urls?.glb || task?.model_url || null,
+          taskId: req.params.id,
+        });
+      }
+      res.json({
+        ok: true,
+        status: (status === 'FAILED' || status === 'CANCELED') ? 'FAILED' : 'IN_PROGRESS',
+        progress: Math.round(task?.progress ?? 0),
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
   // Poll a job. Returns { status, progress, url } — url only once succeeded.
   // The client only knows the preview (shape) id. When the shape finishes we start
   // the refine (colour/texture) pass on it and keep polling that behind the same id,

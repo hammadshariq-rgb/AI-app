@@ -3448,7 +3448,7 @@ function _openFinishedModel(m) {
 }
 
 if (window.jarvis && window.jarvis.onModelStart) {
-  window._startModelGen = async ({ prompt, style }) => {
+  window._startModelGen = async ({ prompt, style, fromImageUrl }) => {
     const V = window.CallistoModelViewer;
     if (!V) return;
 
@@ -3459,7 +3459,11 @@ if (window.jarvis && window.jarvis.onModelStart) {
 
     let res;
     try {
-      res = await window.jarvis.modelGenerate(prompt, style, jobKey);
+      // Building from the actual picture gives a far closer likeness than
+      // describing the same thing over again in words.
+      res = fromImageUrl
+        ? await window.jarvis.modelFromImage(fromImageUrl, prompt, jobKey)
+        : await window.jarvis.modelGenerate(prompt, style, jobKey);
     } catch (err) {
       res = { ok: false, error: err.message };
     }
@@ -3586,7 +3590,7 @@ window._handleModelCommand = function (text) {
 // Asking for something NEW is never an edit of the model that happens to be
 // open. Without this, "make me an image of a gold lion" was swallowed as a
 // repaint because MODEL_EDIT_RE saw "gold".
-const NEW_CREATION_RE = /(?:make|create|generate|draw|design|paint me|give me|i want|can you (?:make|create|draw|generate))[^.?!]{0,40}(?:image|picture|photo|photograph|illustration|artwork|art|drawing|logo|poster|wallpaper|render(?:ing)?|video|clip|animation|reel|3d model|3-d model|3d print|mesh|model of)/i;
+const NEW_CREATION_RE = /\b(?:make|create|generate|draw|design|paint me|give me|i want|can you (?:make|create|draw|generate))\b[^.?!]{0,40}\b(?:image|picture|photo|photograph|illustration|artwork|art|drawing|logo|poster|wallpaper|render(?:ing)?|video|clip|animation|reel|3d model|3-d model|3d print|mesh|model of)\b/i;
 
 window._checkModelCommand = function (text) {
   const V = window.CallistoModelViewer;
@@ -5703,7 +5707,12 @@ if (window.jarvis.onSentenceText) {
 
     let res;
     try {
-      res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64 });
+      // "Now make a video of it" should animate the picture they are looking at,
+      // not a fresh interpretation of the same words. An attached file still wins.
+      const seedUrl = (!imageBase64 && /\b(it|this|that|the (?:image|picture|photo))\b/i.test(text))
+        ? (window._lastGeneratedImageUrl || null)
+        : null;
+      res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64, imageUrl: seedUrl });
     } catch (e) {
       res = { error: e.message };
     }
@@ -5770,6 +5779,8 @@ if (window.jarvis.onSentenceText) {
   // Matches any image/drawing request.  Group 1 = subject.  Group 2 = 3D paint / blender flag (may be undefined).
   const PAINT_RE = /\b(?:paint|draw|sketch|illustrate|(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:painting|picture|drawing|sketch|image|illustration)(?:\s+of)?)\s+(?:me\s+)?(?:a\s+|an\s+|of\s+)?(.+?)(?:\s+(?:on|in|using|with|through|via|on|in)\s+(3d\s+paint|paint\s+3d|blender|dall.?e|ai|image\s+gen(?:eration)?))?$/i;
   const MODEL3D_RE = /\b((?:make|create|generate|build)(?:\s+me)?\s+(?:an?\s+)?3d(?:\s*model)?|make it 3d|turn it (?:into a )?3d|create a 3d model|make a 3d model|open (?:in )?blender|build (?:a )?3d|3d model of|blender model|convert to 3d)/i;
+  // The verbs that mean "put it on the canvas" rather than "generate a picture".
+  const SKETCH_VERB_RE = /\b(draw|sketch|paint|doodle)\b/i;
   // Explicit 3D paint request (must mention 3d paint / paint 3d in the message)
   const PAINT3D_RE = /\b(3d\s*paint|paint\s*3d|paint\s+app)\b/i;
 
@@ -5797,21 +5808,33 @@ if (window.jarvis.onSentenceText) {
       // switched on; Blender scripting stays as the fallback.
       if (typeof window._startModelGen === 'function' && window.jarvis.modelEnabled && await window.jarvis.modelEnabled()) {
         const subject = asked || lastPaintSubject || 'a detailed object';
-        addMessage('assistant', `🧊 Building a 3D model of "${subject}" — this takes about 2–3 minutes.`);
-        window._startModelGen({ prompt: subject, style: 'realistic' });
+        // If a picture is already on screen and they did not name something
+        // else, build the model from that picture rather than from words.
+        const fromImageUrl = (!asked && window._lastGeneratedImageUrl) ? window._lastGeneratedImageUrl : null;
+        addMessage('assistant', fromImageUrl
+          ? `Building a 3D model from your picture of "${subject}" - this takes about 2-3 minutes.`
+          : `Building a 3D model of "${subject}" - this takes about 2-3 minutes.`);
+        window._startModelGen({ prompt: subject, style: 'realistic', fromImageUrl });
         return true;
       }
+
       const subject = lastPaintSubject || asked || 'the object';
-      addMessage('assistant', `🔧 Generating Blender 3D script for "${subject}" and opening Blender…`);
+      addMessage('assistant', `🔧 Building a 3D model of "${subject}" and opening the 3D studio…`);
       const r = await window.jarvis.openBlender(subject);
       if (r.ok) {
-        addMessage('assistant', `✅ Blender opened with a 3D model script for "${subject}". The model is building inside Blender now.`);
-        window.jarvis.speak(`Blender is now open with a 3D model of ${subject}.`);
+        addMessage('assistant', `✅ 3D studio is open with your model of "${subject}". It is building now.`);
+        window.jarvis.speak(`The 3D studio is now open with a model of ${subject}.`);
       } else {
-        addMessage('assistant', r.error || 'Could not open Blender.');
+        addMessage('assistant', r.error || 'Could not open the 3D studio.');
       }
       return true; // handled — skip normal AI call
     }
+
+    // "Draw", "sketch" and "paint" mean the drawing canvas, which Callisto opens
+    // through its draw tool. This intercept used to swallow those words and send
+    // them to the image generator instead, so no amount of instruction elsewhere
+    // could change what "sketch me a box" did. Let them through.
+    if (SKETCH_VERB_RE.test(text) && !PAINT3D_RE.test(text)) return false;
 
     // Painting / image generation request
     const paintResult = extractPaintSubject(text);
@@ -5841,9 +5864,10 @@ if (window.jarvis.onSentenceText) {
           const imgData = await window.jarvis.generateImage(`A beautiful, detailed artistic painting of ${subject}, vibrant colours, high quality digital art`);
           if (imgData.error) throw new Error(imgData.error);
           const imageUrl = imgData.url;
+          window._lastGeneratedImageUrl = imageUrl;
           showPaintingInSidebar(imageUrl, subject);
           window.jarvis.speak(`Here's your AI-generated image of ${subject}.`);
-          addMessage('assistant', `✨ Here's your AI image of **${subject}**! Shown in the side panel.\n\nSay **"make it 3D"** to open it in Blender.`);
+          addMessage('assistant', `✨ Here's your AI image of **${subject}**! Shown in the side panel.\n\nSay **"make it 3D"** to turn it into a 3D model.`);
         } catch (err) {
           addMessage('assistant', `Sorry, couldn't generate the image: ${err.message}`);
         }

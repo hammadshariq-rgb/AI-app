@@ -2084,7 +2084,7 @@
               <div class="profile-section account-ai-status">
                 <div class="profile-label">⚡ AI STATUS</div>
                 <div class="account-ai-grid">
-                  <span class="account-ai-key">MODEL</span><span class="account-ai-val" id="swModel">GPT-4o</span>
+                  <span class="account-ai-key">MODEL</span><span class="account-ai-val" id="swModel">Callisto 1</span>
                   <span class="account-ai-key">SPEED</span><span class="account-ai-val" id="swSpeed">Fast</span>
                   <span class="account-ai-key">SESSION</span><span class="account-ai-val" id="swSession">0 msgs</span>
                   <span class="account-ai-key">STATUS</span><span class="account-ai-val sw-online">Online</span>
@@ -3195,7 +3195,7 @@
         // is always a way out.
         const convo = !!window._convoMode;
         const listeningAction = a.kind === 'prompt'
-          ? /(start|stop|begin|end)[^.]{0,20}(listen|listening|recording|mic)/i.test(a.text || '')
+          ? /\b(start|stop|begin|end)\b[^.]{0,20}\b(listen|listening|recording|mic)\b/i.test(a.text || '')
           : (a.id === 'start_listening' || a.id === 'stop_listening');
         if (convo && listeningAction) {
           showGesture('🎙', 'Already listening');

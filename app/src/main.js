@@ -1115,11 +1115,13 @@ ipcMain.handle('higgsfield:saveKey', (_e, key) => {
 ipcMain.handle('higgsfield:getKey', () => store.get('higgsfield_api_key') || null);
 // Runs on the license server with Callisto's own Higgsfield account (daily limits
 // apply there), so customers no longer paste a key.
-ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64 }) => {
+ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl }) => {
   const token = loadAuthToken();
   if (!token) return { error: 'Please sign in first.' };
   try {
-    const r = await video.generate({ token, prompt, imageBase64 });
+    // A picture Callisto already made can be the video's opening frame, so the
+    // thing in the video is the thing they just looked at.
+    const r = await video.generate({ token, prompt, imageBase64, imageUrl });
     if (r.ok) artifacts.add({ kind: 'video', url: r.url, prompt, source: 'Higgsfield' });
     return r.ok ? { ok: true, videoUrl: r.url } : { error: r.error };
   } catch (err) {
@@ -3114,6 +3116,25 @@ ipcMain.handle('model:generate', async (_e, { prompt, style, jobKey }) => {
   try {
     const r = await modeling.generate({ token, prompt, style }, (p) => sendModelProgress(jobKey, p));
     if (r.ok) artifacts.add({ kind: 'model', url: r.url, prompt, title: String(prompt || '').split(',')[0], source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail });
+    return r;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Turn a picture Callisto made into a model of the same thing.
+ipcMain.handle('model:fromImage', async (_e, { imageUrl, prompt, jobKey }) => {
+  const token = loadAuthToken();
+  if (!token) return { ok: false, error: 'Please sign in first.' };
+  try {
+    const r = await modeling.generateFromImage({ token, imageUrl }, (p) => sendModelProgress(jobKey, p));
+    if (r.ok) {
+      artifacts.add({
+        kind: 'model', url: r.url, prompt: prompt || 'from a picture',
+        title: String(prompt || 'Model from picture').split(',')[0],
+        source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail || imageUrl,
+      });
+    }
     return r;
   } catch (err) {
     return { ok: false, error: err.message };

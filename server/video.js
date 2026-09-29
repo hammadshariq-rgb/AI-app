@@ -169,6 +169,12 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       // "…driving in Higgsfield" names the tool, not the scene.
       prompt = prompt.replace(/\s*\b(?:in|on|with|using|via|through)\s+h[io]c?k?g?g?s\s*field\b/ig, '').trim() || prompt;
 
+      // A picture Callisto just made already lives at a public URL, so it can be
+      // handed straight to the generator as the video's opening frame without
+      // being downloaded and re-uploaded.
+      const givenUrl = String(req.body?.imageUrl || '').trim();
+      if (givenUrl && /^https:\/\//i.test(givenUrl)) imageUrl = givenUrl;
+
       const imageBase64 = req.body?.imageBase64;
       if (imageBase64) {
         const match = /^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i.exec(imageBase64);

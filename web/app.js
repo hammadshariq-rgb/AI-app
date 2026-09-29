@@ -287,7 +287,7 @@ async function sendMessage() {
   }
 
   // "Draw me a box" opens the canvas instead, where it can be built up.
-  if (window.CallistoDraw && /(draw|sketch)/i.test(text) && !/(picture|photo|image|realistic)/i.test(text)) {
+  if (window.CallistoDraw && /\b(draw|sketch)\b/i.test(text) && !/\b(picture|photo|image|realistic)\b/i.test(text)) {
     addMessage('user', text);
     messageInput.value = '';
     sendBtn.disabled = true;

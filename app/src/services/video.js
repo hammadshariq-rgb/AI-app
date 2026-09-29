@@ -33,9 +33,9 @@ async function api(path, { token, method = 'GET', body, timeoutMs = 20000 } = {}
 }
 
 // Resolves to { ok, url } or { ok: false, error }.
-async function generate({ token, prompt, imageBase64 }, onProgress) {
+async function generate({ token, prompt, imageBase64, imageUrl }, onProgress) {
   const started = await api('/video/generate', {
-    token, method: 'POST', body: { prompt, imageBase64 }, timeoutMs: 60000,
+    token, method: 'POST', body: { prompt, imageBase64, imageUrl }, timeoutMs: 60000,
   });
   const jobId = started?.jobId;
   if (!jobId) return { ok: false, error: "The video generator didn't accept that request." };

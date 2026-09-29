@@ -49,6 +49,17 @@ async function generate({ token, prompt, style }, onProgress) {
   return poll(token, `/models/job/${encodeURIComponent(jobId)}`, onProgress, 'That took too long — try a simpler description.');
 }
 
+// Builds a model from a picture Callisto already made, rather than from words.
+// The likeness is far closer than describing the same thing again would give.
+async function generateFromImage({ token, imageUrl }, onProgress) {
+  const started = await api('/models/from-image', {
+    token, method: 'POST', body: { imageUrl }, timeoutMs: 30000,
+  });
+  const jobId = started?.jobId;
+  if (!jobId) return { ok: false, error: "The generator didn't accept that picture." };
+  return poll(token, `/models/from-image/${encodeURIComponent(jobId)}`, onProgress, 'That took too long to build.');
+}
+
 // Repaints an existing model (by its Meshy task id) from a description.
 async function retexture({ token, taskId, prompt }, onProgress) {
   const started = await api('/models/retexture', {
@@ -78,4 +89,4 @@ async function poll(token, path, onProgress, timeoutError) {
   return { ok: false, error: timeoutError };
 }
 
-module.exports = { isEnabled, generate, retexture };
+module.exports = { isEnabled, generate, generateFromImage, retexture };

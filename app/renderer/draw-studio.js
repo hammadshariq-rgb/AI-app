@@ -198,6 +198,9 @@
   function apply(cmd) {
     if (!cmd) return;
     build();
+    // Drawing into a canvas nobody can see is the same as not drawing at all.
+    // build() only created it; this is what puts it on screen.
+    if (!open) show();
     snapshot();
     const op = cmd.op || 'add';
     if (op === 'clear') shapes = [];
