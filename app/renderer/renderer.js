@@ -7650,25 +7650,6 @@ async function renderConnectors() {
     }
   }
 
-  // Outlook row (hidden — pending setup)
-  const outlookStatus = document.getElementById('outlookStatus');
-  const outlookBtn = document.getElementById('outlookBtn');
-  if (outlookStatus && outlookBtn) {
-    if (status.outlook) {
-      outlookStatus.textContent = 'Connected';
-      outlookStatus.className = 'connector-status connected';
-      outlookBtn.textContent = 'DISCONNECT';
-      outlookBtn.className = 'connector-btn disconnect';
-      outlookBtn.onclick = async () => { await window.jarvis.connectorDisconnect('outlook'); renderConnectors(); };
-    } else {
-      outlookStatus.textContent = 'Not connected';
-      outlookStatus.className = 'connector-status';
-      outlookBtn.textContent = 'CONNECT';
-      outlookBtn.className = 'connector-btn';
-      outlookBtn.onclick = () => showConnectSteps('outlook');
-    }
-  }
-
   // Google Account row
   const gaStatus = document.getElementById('googleAccountStatus');
   const gaBtn    = document.getElementById('googleAccountBtn');
@@ -7839,7 +7820,6 @@ function renderAnalyticsConnectors(status) {
   setRow('shopify', document.getElementById('shopifyStatus'), document.getElementById('shopifyBtn'));
   setRow('squarespace', document.getElementById('squarespaceStatus'), document.getElementById('squarespaceBtn'));
   setRow('analytics', document.getElementById('ganalyticsStatus'), document.getElementById('ganalyticsBtn'));
-  setRow('outlook', document.getElementById('outlookStatus'), document.getElementById('outlookBtn'));
   setRow('stripe', document.getElementById('stripeStatus'), document.getElementById('stripeBtn'));
 
   // An expand button on every analytics row that has something to show, and
@@ -8257,17 +8237,6 @@ const CONNECT_STEPS = {
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('gmail'),
-  },
-  outlook: {
-    icon: '📧', title: 'CONNECT OUTLOOK', subtitle: 'Microsoft account required',
-    steps: [
-      'A browser window will open',
-      'Sign in with your <strong>Microsoft account</strong>',
-      'Click <strong>Accept</strong> to grant email read access',
-      'The tab will close — you\'re connected',
-    ],
-    continueLabel: 'Open Microsoft Sign-In →',
-    action: () => window.jarvis.connectorConnect('outlook'),
   },
   calendar: {
     icon: '📅', title: 'CONNECT GOOGLE CALENDAR', subtitle: 'Google account required',
@@ -8735,7 +8704,6 @@ window.jarvis.onConnectorConnected(({ service }) => {
   renderConnectors();
   const connectedMessages = {
     gmail:         'Gmail connected. Say "give me an update" to check your emails.',
-    outlook:       'Outlook connected. Say "give me an update" to check your emails.',
     drive:         'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
     calendar:      'Google Calendar connected. Say "what\'s on my schedule" to see your events.',
     spotify:       'Spotify connected. Say "play some music" to get started.',
