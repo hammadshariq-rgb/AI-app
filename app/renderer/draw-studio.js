@@ -20,6 +20,10 @@
   let history = [];                  // snapshots, for undo
   let selectedId = null;
   let commandHandler = null;
+  // Editing by hand changes the picture just as much as Callisto drawing on it
+  // does, so the description it works from has to be refreshed either way.
+  let changeHandler = null;
+  function report() { try { changeHandler && changeHandler(); } catch (_) {} }
   let title = 'Untitled drawing';
 
   // ── Building the page ──────────────────────────────────────────────────────
@@ -170,6 +174,127 @@
     }
   }
 
+  // ── Direct manipulation ─────────────────────────────────────────────
+  // Every shape type is different underneath, so moving and resizing go through
+  // one box each: work out the box a shape occupies, then put it in a new one.
+  // Everything else - dragging, the corner handles, the Callisto cursor - is
+  // written once against those two.
+  function bboxOf(s) {
+    switch (s.type) {
+      case 'rect': return { x: s.x, y: s.y, w: s.w, h: s.h };
+      case 'circle': return { x: s.cx - s.r, y: s.cy - s.r, w: s.r * 2, h: s.r * 2 };
+      case 'ellipse': return { x: s.cx - s.rx, y: s.cy - s.ry, w: s.rx * 2, h: s.ry * 2 };
+      case 'line': {
+        const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2);
+        return { x, y, w: Math.abs(s.x2 - s.x1), h: Math.abs(s.y2 - s.y1) };
+      }
+      case 'polygon':
+      case 'polyline': {
+        const pts = s.points || [];
+        if (!pts.length) return { x: 0, y: 0, w: 0, h: 0 };
+        const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+        const x = Math.min(...xs), y = Math.min(...ys);
+        return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+      }
+      case 'text': {
+        const size = s.size || 48;
+        return { x: s.x, y: s.y - size, w: Math.max(40, (s.text || '').length * size * 0.55), h: size * 1.2 };
+      }
+      default: {
+        const [cx, cy] = centreOf(s);
+        return { x: cx - 50, y: cy - 50, w: 100, h: 100 };
+      }
+    }
+  }
+
+  // Put a shape into a new box, keeping its proportions relative to that box.
+  function setBox(s, box) {
+    const old = bboxOf(s);
+    const sx = old.w ? box.w / old.w : 1;
+    const sy = old.h ? box.h / old.h : 1;
+    const mapX = (v) => box.x + (v - old.x) * sx;
+    const mapY = (v) => box.y + (v - old.y) * sy;
+    switch (s.type) {
+      case 'rect': s.x = box.x; s.y = box.y; s.w = box.w; s.h = box.h; break;
+      case 'circle':
+        // A circle has one radius, so it follows the smaller side rather than
+        // silently turning into an ellipse behind the person's back.
+        s.r = Math.max(1, Math.min(box.w, box.h) / 2);
+        s.cx = box.x + box.w / 2; s.cy = box.y + box.h / 2;
+        break;
+      case 'ellipse':
+        s.cx = box.x + box.w / 2; s.cy = box.y + box.h / 2;
+        s.rx = Math.max(1, box.w / 2); s.ry = Math.max(1, box.h / 2);
+        break;
+      case 'line':
+        s.x1 = mapX(s.x1); s.y1 = mapY(s.y1); s.x2 = mapX(s.x2); s.y2 = mapY(s.y2);
+        break;
+      case 'polygon':
+      case 'polyline':
+        s.points = (s.points || []).map((p) => [mapX(p[0]), mapY(p[1])]);
+        break;
+      case 'text':
+        s.x = box.x; s.y = box.y + box.h;
+        s.size = Math.max(8, Math.round((s.size || 48) * sy));
+        break;
+      default: break;
+    }
+    return s;
+  }
+
+  function moveShape(s, dx, dy) {
+    const b = bboxOf(s);
+    return setBox(s, { x: b.x + dx, y: b.y + dy, w: b.w, h: b.h });
+  }
+
+  // Screen pixels into the canvas's own 1000x1000 space, so a drag lands where
+  // the finger or pointer actually is whatever size the window happens to be.
+  function toCanvas(evt) {
+    const r = svg.getBoundingClientRect();
+    // preserveAspectRatio="xMidYMid meet": the drawing is letterboxed inside
+    // whatever box the stage gives it, so the offsets have to come out again.
+    const scale = Math.min(r.width / W, r.height / H) || 1;
+    const offX = (r.width - W * scale) / 2;
+    const offY = (r.height - H * scale) / 2;
+    return {
+      x: (evt.clientX - r.left - offX) / scale,
+      y: (evt.clientY - r.top - offY) / scale,
+    };
+  }
+
+  const HANDLES = [['nw', 0, 0], ['ne', 1, 0], ['se', 1, 1], ['sw', 0, 1]];
+
+  // The dashed outline and its four corners. Drawn as part of the picture but
+  // stripped out again on export, so what is saved is the drawing alone.
+  function renderHandles() {
+    const existing = svg.querySelector('#dsHandles');
+    if (existing) existing.remove();
+    const sel = shapes.find((x) => x.id === selectedId);
+    if (!sel) return;
+    const b = bboxOf(sel);
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('id', 'dsHandles');
+    g.setAttribute('data-export-skip', '1');
+
+    const ring = document.createElementNS(NS, 'rect');
+    ring.setAttribute('x', b.x - 6); ring.setAttribute('y', b.y - 6);
+    ring.setAttribute('width', b.w + 12); ring.setAttribute('height', b.h + 12);
+    ring.setAttribute('class', 'ds-sel-ring');
+    g.appendChild(ring);
+
+    for (const [name, fx, fy] of HANDLES) {
+      const h = document.createElementNS(NS, 'rect');
+      const hx = b.x + b.w * fx, hy = b.y + b.h * fy;
+      h.setAttribute('x', hx - 11); h.setAttribute('y', hy - 11);
+      h.setAttribute('width', 22); h.setAttribute('height', 22);
+      h.setAttribute('rx', 5);
+      h.setAttribute('class', 'ds-handle');
+      h.setAttribute('data-handle', name);
+      g.appendChild(h);
+    }
+    svg.appendChild(g);
+  }
+
   function render() {
     if (!layer) return;
     layer.innerHTML = '';
@@ -185,6 +310,7 @@
       else selectedId = null;
     }
     root.querySelector('#dsInsp').classList.toggle('hidden', !selectedId);
+    renderHandles();
   }
 
   function snapshot() {
@@ -222,24 +348,30 @@
     if (!shapes.length) return 'The canvas is empty.';
     const lines = shapes.map((s) => {
       const [cx, cy] = centreOf(s).map(Math.round);
+      // Colours are part of the state: without them "make the box green" has
+      // nothing to reason about, and "make it darker" is guesswork.
+      const paint = `, outline ${s.stroke || '#e8f2ff'}${s.fill && s.fill !== 'none' ? `, filled ${s.fill}` : ', not filled'}`;
       const where = `at (${cx},${cy})`;
       switch (s.type) {
-        case 'rect':    return `${s.id}: rectangle ${where}, ${Math.round(s.w)} wide by ${Math.round(s.h)} tall`;
-        case 'circle':  return `${s.id}: circle ${where}, radius ${Math.round(s.r)}`;
-        case 'ellipse': return `${s.id}: ellipse ${where}, ${Math.round(s.rx)}x${Math.round(s.ry)}`;
-        case 'line':    return `${s.id}: line from (${Math.round(s.x1)},${Math.round(s.y1)}) to (${Math.round(s.x2)},${Math.round(s.y2)})`;
-        case 'polygon': return `${s.id}: polygon with ${(s.points || []).length} points ${where}`;
+        case 'rect':    return `${s.id}: rectangle ${where}, ${Math.round(s.w)} wide by ${Math.round(s.h)} tall${paint}`;
+        case 'circle':  return `${s.id}: circle ${where}, radius ${Math.round(s.r)}${paint}`;
+        case 'ellipse': return `${s.id}: ellipse ${where}, ${Math.round(s.rx)}x${Math.round(s.ry)}${paint}`;
+        case 'line':    return `${s.id}: line from (${Math.round(s.x1)},${Math.round(s.y1)}) to (${Math.round(s.x2)},${Math.round(s.y2)})${paint}`;
+        case 'polygon': return `${s.id}: polygon with ${(s.points || []).length} points ${where}${paint}`;
         case 'text':    return `${s.id}: the text "${s.text}" ${where}`;
-        default:        return `${s.id}: ${s.type} ${where}`;
+        default:        return `${s.id}: ${s.type} ${where}${paint}`;
       }
     });
-    return `Canvas is ${W}x${H}, origin top-left. On it right now:\n${lines.join('\n')}`;
+    return `Canvas is ${W}x${H}, origin top-left. Use these ids to change a shape. On it right now:\n${lines.join('\n')}`;
   }
 
   // ── Export ─────────────────────────────────────────────────────────────────
   function toSvgString() {
     const clone = svg.cloneNode(true);
     clone.querySelectorAll('.ds-selected').forEach((e) => e.classList.remove('ds-selected'));
+    // The selection ring and its corners are scaffolding, not part of the
+    // drawing, so they never reach a downloaded file or the generators.
+    clone.querySelectorAll('[data-export-skip]').forEach((e) => e.remove());
     // A background, so a downloaded drawing isn't transparent on white paper.
     const bg = document.createElementNS(NS, 'rect');
     bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#0a0f1e');
@@ -320,6 +452,93 @@
       if (e.target === svg) { selectedId = null; render(); }
     });
 
+    // ── Moving and resizing by hand ───────────────────────────────────
+    // Drag a shape to move it, drag a corner to resize it. Pointer events rather
+    // than mouse events, so a pen, a finger and the Callisto cursor all work the
+    // same way with no separate code path for each.
+    let drag = null;
+
+    svg.addEventListener('pointerdown', (e) => {
+      const handle = e.target?.getAttribute?.('data-handle');
+      const shapeId = e.target?.getAttribute?.('data-shape-id');
+      if (!handle && !shapeId) return;
+
+      const id = handle ? selectedId : shapeId;
+      const shape = shapes.find((x) => x.id === id);
+      if (!shape) return;
+
+      if (!handle) { selectedId = id; syncInspector(); }
+      // One snapshot for the whole gesture, so undo puts it back where it was
+      // rather than unwinding it a pixel at a time.
+      snapshot();
+      drag = { mode: handle ? 'resize' : 'move', handle, id, start: toCanvas(e), box: bboxOf(shape) };
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+      render();
+    });
+
+    svg.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const shape = shapes.find((x) => x.id === drag.id);
+      if (!shape) { drag = null; return; }
+      const at = toCanvas(e);
+      const dx = at.x - drag.start.x;
+      const dy = at.y - drag.start.y;
+
+      if (drag.mode === 'move') {
+        const b = bboxOf(shape);
+        moveShape(shape, (drag.box.x + dx) - b.x, (drag.box.y + dy) - b.y);
+      } else {
+        const b = { ...drag.box };
+        // Each corner moves its own two edges; the opposite corner stays put.
+        if (drag.handle.includes('w')) { b.x = drag.box.x + dx; b.w = drag.box.w - dx; }
+        if (drag.handle.includes('e')) { b.w = drag.box.w + dx; }
+        if (drag.handle.includes('n')) { b.y = drag.box.y + dy; b.h = drag.box.h - dy; }
+        if (drag.handle.includes('s')) { b.h = drag.box.h + dy; }
+        // Dragging a corner past its opposite would invert the shape, so it
+        // stops at a size you can still grab hold of.
+        if (b.w < 12) { b.w = 12; if (drag.handle.includes('w')) b.x = drag.box.x + drag.box.w - 12; }
+        if (b.h < 12) { b.h = 12; if (drag.handle.includes('n')) b.y = drag.box.y + drag.box.h - 12; }
+        setBox(shape, b);
+      }
+      render();
+    });
+
+    const endDrag = (e) => {
+      if (!drag) return;
+      drag = null;
+      try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+      report();
+    };
+    svg.addEventListener('pointerup', endDrag);
+    svg.addEventListener('pointercancel', endDrag);
+
+    // Nudge and delete from the keyboard once something is picked.
+    document.addEventListener('keydown', (e) => {
+      if (!open || !selectedId) return;
+      if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+      const shape = shapes.find((x) => x.id === selectedId);
+      if (!shape) return;
+      const step = e.shiftKey ? 20 : 4;
+      const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+      if (nudge) {
+        e.preventDefault();
+        snapshot();
+        moveShape(shape, nudge[0], nudge[1]);
+        render();
+        report();
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        snapshot();
+        shapes = shapes.filter((x) => x.id !== selectedId);
+        selectedId = null;
+        render();
+        report();
+      }
+    });
+
     root.querySelector('#dsDelete').addEventListener('click', () => {
       if (!selectedId) return;
       snapshot();
@@ -384,6 +603,7 @@
     count: () => shapes.length,
     setTitle: (t) => { title = t; if (root) root.querySelector('#dsTitle').textContent = t; },
     onCommand: (fn) => { commandHandler = fn; },
+    onChange: (fn) => { changeHandler = fn; },
     onHandOff: (fn) => { handOffHandler = fn; },
   };
 })();

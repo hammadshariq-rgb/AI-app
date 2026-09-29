@@ -128,7 +128,8 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          op: { type: 'string', enum: ['add', 'clear', 'replace'], description: 'add = keep what is there (default). clear = wipe first. replace = wipe and draw this instead.' },
+          op: { type: 'string', enum: ['add', 'clear', 'replace', 'remove'], description: 'add = keep what is there (default), and also how you CHANGE an existing shape - pass its id. clear = wipe first. replace = wipe and draw this instead. remove = delete the shapes whose ids are given.' },
+          ids: { type: 'array', items: { type: 'string' }, description: 'For op "remove": the ids of the shapes to delete.' },
           title: { type: 'string', description: 'A short name for the drawing, only on the first request' },
           shapes: {
             type: 'array',
@@ -136,6 +137,7 @@ const TOOLS = [
             items: {
               type: 'object',
               properties: {
+                id: { type: 'string', description: 'To CHANGE something already on the canvas, put its id here (the ids are listed in the canvas description, e.g. "s1"). Only the fields you include are changed, everything else about that shape is kept. Leave id out to add something new.' },
                 type: { type: 'string', enum: ['rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path', 'text'] },
                 x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' },
                 cx: { type: 'number' }, cy: { type: 'number' }, r: { type: 'number' },
@@ -812,6 +814,15 @@ DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
 - MAKE, GENERATE, CREATE or DESIGN (an image, picture, photo, illustration, logo, poster) -> generate_image. "Make me an image of a box", "generate a picture of a lion".
 - So "draw me a box" and "make me an image of a box" are two DIFFERENT tools. The noun does not matter; the verb does.
 - The only exception: an explicit photo or realistic request that still uses the word draw ("draw me a photorealistic lion") is generate_image, because a shape canvas cannot do it.
+- CHANGING WHAT IS ALREADY DRAWN is the same tool. The canvas description lists
+  every shape with its id and its current colours. "Make the box green" means
+  calling draw with op "add" and one shape: { id: "<that box's id>", stroke:
+  "#22c55e" }. Send ONLY the fields that change - the position, size and
+  everything else are kept. Never redraw the whole picture to change one colour,
+  and never answer a change with words alone.
+- "Make it bigger/smaller/wider" is the same thing with the size fields, and
+  "move it up/left" the same with the position fields.
+- To delete something, use op "remove" with its id in ids.
 - Drawings are built up over several messages. "Add two lines making a triangle", "put a rocket on top", "make the box bigger" all continue the SAME drawing: use op "add" and place things relative to what is already there.
 - Only use op "clear" when they say start again, wipe it, or start a new drawing.
 
@@ -1087,7 +1098,7 @@ const FAST_SYSTEM_PROMPT = (assistantName) => {
 // Turns one tool call into an action. Extracted so that EVERY call in a
 // multi-tool reply can be mapped, not just the first one.
 function mapToolCall(fnName, args) {
-  if (fnName === 'draw') return { type: 'draw', payload: { op: args.op || 'add', title: args.title || '', shapes: args.shapes || [] } };
+  if (fnName === 'draw') return { type: 'draw', payload: { op: args.op || 'add', title: args.title || '', shapes: args.shapes || [], ids: args.ids || [] } };
       if (fnName === 'open_url')           return { type: 'open_url',      arg: args.url };
       else if (fnName === 'open_folder')   return { type: 'open_folder',   arg: args.name };
       else if (fnName === 'open_file')     return { type: 'open_file',     arg: args.name };

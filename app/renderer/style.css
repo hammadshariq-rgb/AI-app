@@ -9214,6 +9214,28 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .ds-shape:hover { filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.55)); }
 .ds-shape.ds-selected { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.9)); }
 
+/* Selection scaffolding: the dashed box round whatever is picked, and the four
+   corners that resize it. Deliberately large - they are grabbed by a fingertip
+   through the camera as often as by a mouse. */
+.ds-sel-ring {
+  fill: none;
+  stroke: rgba(0, 200, 255, 0.85);
+  stroke-width: 2;
+  stroke-dasharray: 10 7;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+.ds-handle {
+  fill: #06101f;
+  stroke: #00c8ff;
+  stroke-width: 2.5;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+}
+.ds-handle:hover { fill: #00c8ff; }
+.ds-handle:active { cursor: grabbing; }
+.ds-shape { cursor: move; }
+
 .ds-empty { position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; pointer-events: none; text-align: center; }
 .ds-empty.hidden { display: none !important; }

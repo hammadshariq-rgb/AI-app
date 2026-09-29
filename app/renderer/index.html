@@ -2173,7 +2173,7 @@
           <div class="gp-label">GESTURE CONTROL</div>
           <div class="gp-gesture" id="gpGestureIcon">–</div>
           <div class="gp-action" id="gpActionText">Show your hand to begin</div>
-          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next</div>
+          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next</div>
           <button id="gpMyGesturesBtn" class="gp-mine-btn">✋ MY GESTURES</button>
         </div>
       </div>
@@ -2969,7 +2969,7 @@
       // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
       const CLICK_COOLDOWN = 450;  // ms between distinct clicks
-      // Trigger-pull state: the finger must be extended (armed) before a curl
+      // Press state: one finger arms the cursor, a second finger fires it
       // counts as a press, so a resting closed hand never clicks anything.
       let triggerArmed = false;
       let triggerFired = false;
@@ -3053,27 +3053,42 @@
         const _ga = (window.__gestureAspect || 1);
         const lmDist = (a, b) => Math.hypot((a.x - b.x) * _ga, a.y - b.y);
 
-        // ── Trigger pull ─────────────────────────────────────────────
-        // You point at what you want and curl that finger like pulling a
-        // trigger — the thing under the cursor is pressed. Pinch used to do
-        // this, but curling is steadier and reads as "press" to people.
-        // Normalise by wrist-to-middle-MCP so it works at any distance.
-        const handScale = lmDist(lm[0], lm[9]) || 0.15;
-        // Index tip vs its own knuckle: extended = tip far from MCP, curled = close.
-        const indexReach = lmDist(lm[8], lm[5]) / handScale;
-        const armed   = indexReach > 0.95;     // finger out straight — ready
-        const pulled  = indexReach < 0.62;     // finger curled in — fires
+        // ── One finger points, two fingers press ─────────────────
+        // Curling a finger like a trigger read badly: a curled finger hides its
+        // own tip from the camera, so the landmark it was measured by is the one
+        // the camera can no longer see, and the press either missed or fired on
+        // its own. Counting extended fingers instead is read from knuckles that
+        // stay in full view the whole time.
+        //
+        //   index alone        -> move the cursor
+        //   index + middle     -> press whatever it is over
+        //
+        // The press has to be held briefly, and the hand has to come back to one
+        // finger before it can fire again, so one deliberate gesture is one click.
+        const up = {
+          index:  fingerUp(lm, 8, 6),
+          middle: fingerUp(lm, 12, 10),
+          ring:   fingerUp(lm, 16, 14),
+          pinky:  fingerUp(lm, 20, 18),
+        };
+        const pointing = up.index && !up.middle && !up.ring && !up.pinky;
+        const pressing = up.index && up.middle && !up.ring && !up.pinky;
 
-        if (armed && !triggerArmed) {
+        if (pointing) {
+          // Ready, and the previous press is spent.
           triggerArmed = true;
           triggerFired = false;
+          pressHeldSince = 0;
           magicCursor.classList.add('armed');
         }
-        if (pulled && triggerArmed && !triggerFired) {
+
+        if (pressing && triggerArmed && !triggerFired) {
           const now = Date.now();
-          if (now - lastClickTime > CLICK_COOLDOWN) {
+          if (!pressHeldSince) pressHeldSince = now;
+          if (now - pressHeldSince >= PRESS_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
             triggerFired = true;
             triggerArmed = false;
+            pressHeldSince = 0;
             lastClickTime = now;
             magicCursor.classList.remove('armed');
             magicCursor.classList.add('pinch');          // reuse the press flash
@@ -3081,11 +3096,8 @@
             const el = document.elementFromPoint(smoothX, smoothY);
             if (el) el.click();
           }
-        }
-        if (!pulled && !armed) {
-          // Half-way — neither armed nor pulled. Reset so the next full
-          // extend-then-curl counts as one clean press.
-          triggerFired = false;
+        } else if (!pressing) {
+          pressHeldSince = 0;
         }
       }
 
@@ -3093,6 +3105,10 @@
       function updateCursorLandmarks(lm) {
         lastLeftLm = lm;
       }
+
+      // How long two fingers must be held before it counts as a press.
+      const PRESS_HOLD_MS = 90;
+      let pressHeldSince = 0;
 
       let gestureEnabled = false;
       let handsModel = null, rafId = null, stream = null;
@@ -3739,8 +3755,8 @@
         const hint = document.querySelector('#gesturePanel .gp-hint');
         if (!hint) return;
         hint.innerHTML = window._convoMode
-          ? 'LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
-          : 'LEFT: 🖱 Callisto Cursor · point &amp; curl to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
+          ? 'LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
+          : 'LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
       }
       window._refreshGestureHint = refreshGestureHint;
 

@@ -10614,6 +10614,10 @@ if (window.jarvis.onMacNeedsAutomation) {
     } catch (_) {}
   }
 
+  // Moving, resizing, recolouring or deleting by hand updates the description
+  // too, so "now make it green" still means the right shape afterwards.
+  D().onChange?.(report);
+
   window.jarvis.onDrawApply?.((cmd) => {
     if (!cmd) return;
     if (cmd.op === 'show') { D().show(); return; }

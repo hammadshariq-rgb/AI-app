@@ -52,7 +52,7 @@
     {
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
-      body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point and curl your finger to press things, turn your hand over to move on. Point with one finger to speak, make a fist to stop.`,
+      body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. One finger moves the cursor, a second finger presses what it is over, and turning your hand over moves on. On your other hand, point to speak and make a fist to stop.`,
       foot: 'It works in conversation mode too — there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
     },
     {
