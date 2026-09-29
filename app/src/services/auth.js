@@ -61,8 +61,26 @@ async function pingActivity(token) {
   } catch (_) {}
 }
 
-function getGoogleAuthUrl(serverUrl) {
-  return `${serverUrl}/auth/google`;
+function getGoogleAuthUrl(serverUrl, state) {
+  return state
+    ? `${serverUrl}/auth/google?state=${encodeURIComponent(state)}`
+    : `${serverUrl}/auth/google`;
 }
 
-module.exports = { signup, login, verifyToken, pingActivity, getGoogleAuthUrl };
+// Collect the result of a sign-in the browser may never hand back to us.
+// Returns the token once it exists, or null if the person gave up.
+async function pollGoogleAuth(serverUrl, state, { attempts = 90, everyMs = 2000 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    await new Promise((r) => setTimeout(r, everyMs));
+    try {
+      const res = await fetch(`${serverUrl}/auth/google/poll?state=${encodeURIComponent(state)}`);
+      const data = await res.json();
+      if (data && data.token) return data;
+    } catch (_) {
+      // Offline or a blip: keep waiting rather than abandoning the sign-in.
+    }
+  }
+  return null;
+}
+
+module.exports = { signup, login, verifyToken, pingActivity, getGoogleAuthUrl, pollGoogleAuth };

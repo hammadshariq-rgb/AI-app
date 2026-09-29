@@ -1027,8 +1027,26 @@ ipcMain.handle('auth:verify', async () => {
 });
 
 ipcMain.handle('auth:google', () => {
-  const url = authService.getGoogleAuthUrl(process.env.LICENSE_SERVER_URL || 'http://localhost:4000');
-  commands.openInChrome(url);
+  const server = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+  // The browser may never hand the jarvis:// link back — Chrome asks the person
+  // first, and a dismissed dialog leaves the token stranded there with the app
+  // waiting forever. So we also go and fetch the result ourselves.
+  const state = require('crypto').randomBytes(16).toString('hex');
+  commands.openInChrome(authService.getGoogleAuthUrl(server, state));
+
+  authService.pollGoogleAuth(server, state).then((result) => {
+    if (!result || !result.token) return;
+    // The deep link may have beaten us to it, in which case there is nothing
+    // left to do and saying so twice would restart the setup questions.
+    if (loadAuthToken()) return;
+    saveAuthToken(result.token);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.show();
+      overlayWindow.focus();
+      overlayWindow.webContents.send('auth:google-success', result);
+    }
+  }).catch(() => {});
+
   return true;
 });
 

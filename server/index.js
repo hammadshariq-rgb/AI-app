@@ -355,6 +355,26 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 
 // Google OAuth — server redirects to Google, then back to /auth/google/callback
 // which redirects to jarvis:// deep link so Electron can capture the token
+// Signing in depends on the browser handing a jarvis:// link back to the app,
+// and that hand-off is not guaranteed: Chrome asks permission first, and if the
+// person dismisses that dialog, or the browser suppresses it, the token is
+// stranded in the browser and the app waits for something that never arrives.
+//
+// So the app also gets a way to come and collect it. It sends a one-time state
+// with the sign-in, and polls for the result. Whichever route arrives first
+// wins; this one needs nothing from the browser at all.
+const pendingGoogleAuth = new Map();
+const PENDING_AUTH_TTL = 10 * 60 * 1000;
+
+function rememberGoogleAuth(state, payload) {
+  if (!state) return;
+  pendingGoogleAuth.set(String(state), { ...payload, at: Date.now() });
+  // Nothing here is worth keeping once it is stale, and it holds a token.
+  for (const [k, v] of pendingGoogleAuth) {
+    if (Date.now() - v.at > PENDING_AUTH_TTL) pendingGoogleAuth.delete(k);
+  }
+}
+
 app.get('/auth/google', (req, res) => {
   const base = getPublicUrl(req);
   const params = new URLSearchParams({
@@ -365,7 +385,20 @@ app.get('/auth/google', (req, res) => {
     access_type: 'offline',
     prompt: 'select_account',
   });
+  // Passed through Google untouched and handed back to us in the callback.
+  if (req.query.state) params.set('state', String(req.query.state).slice(0, 64));
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+// The app asks here for the result of its own sign-in. A state is good once:
+// handing the same token out twice would let anyone who saw it replay it.
+app.get('/auth/google/poll', (req, res) => {
+  const state = String(req.query.state || '');
+  if (!state) return res.status(400).json({ error: 'missing state' });
+  const hit = pendingGoogleAuth.get(state);
+  if (!hit) return res.json({ pending: true });
+  pendingGoogleAuth.delete(state);
+  res.json({ token: hit.token, name: hit.name, email: hit.email });
 });
 
 app.get('/auth/google/callback', async (req, res) => {
@@ -406,6 +439,8 @@ app.get('/auth/google/callback', async (req, res) => {
     await users.update(user.id, { lastActiveAt: Date.now() });
 
     const token = makeToken(user);
+    // Leave it where the app can fetch it, in case the deep link never lands.
+    rememberGoogleAuth(req.query.state, { token, name: user.name, email: user.email });
     // Return an HTML page that opens the jarvis:// deep link reliably.
     // Technique: hidden <a> tag that is auto-clicked — Chrome allows protocol
     // links opened via click() without a security interstitial, unlike

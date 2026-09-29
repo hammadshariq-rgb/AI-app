@@ -6558,8 +6558,12 @@ function promptUserCallName(googleName) {
       </div>
       <button id="callNameBtn" class="shine-btn">LET'S GO →</button>`;
 
-    // Hide all other steps, show this one
-    Array.from(box.querySelectorAll(':scope > div')).forEach(el => el.classList.add('hidden'));
+    // Hide all other steps, show this one. Remember exactly what we hid: every
+    // screen that comes after this one lives in one of these containers, and
+    // leaving them hidden leaves an empty card with no way forward.
+    const hidWhileAsking = Array.from(box.querySelectorAll(':scope > div'))
+      .filter((el) => !el.classList.contains('hidden'));
+    hidWhileAsking.forEach((el) => el.classList.add('hidden'));
     box.appendChild(div);
 
     const input = div.querySelector('#callNameInput');
@@ -6569,6 +6573,7 @@ function promptUserCallName(googleName) {
     const finish = () => {
       const val = input.value.trim();
       div.remove();
+      hidWhileAsking.forEach((el) => el.classList.remove('hidden'));
       resolve(val || googleName.split(' ')[0] || googleName);
     };
     btn.addEventListener('click', finish);
@@ -6577,7 +6582,23 @@ function promptUserCallName(googleName) {
 }
 
 async function checkSubscriptionAndEnter(name, email) {
-  const result = await window.jarvis.authVerify();
+  // Without a deadline a slow or unreachable server leaves the person looking
+  // at an empty card for as long as they are willing to wait.
+  const result = await Promise.race([
+    window.jarvis.authVerify(),
+    new Promise((r) => setTimeout(() => r({ timedOut: true }), 12000)),
+  ]).catch(() => ({ timedOut: true }));
+
+  if (result.timedOut) {
+    setupView.classList.remove('hidden');
+    showAuthStep();
+    const err = document.getElementById('authError');
+    if (err) {
+      err.textContent = "I couldn't reach the server to finish signing you in. Check your connection and try again.";
+      err.classList.remove('hidden');
+    }
+    return;
+  }
   if (result.needsLogin) {
     setupView.classList.remove('hidden');
     showAuthStep();
