@@ -4730,9 +4730,11 @@ function buildSparkline(values, positive) {
 }
 
 // ===================== LEFT NAV RAIL =====================
+let _lastNavSection = 'history';
 const leftNavTitle = null; // element removed
 
 async function openLeftNavSection(section) {
+  _lastNavSection = section;
   document.querySelectorAll('.lnav-pane').forEach(p => p.classList.add('hidden'));
   const pane = document.getElementById('lnavPane' + section.charAt(0).toUpperCase() + section.slice(1));
   if (pane) pane.classList.remove('hidden');
@@ -4750,6 +4752,19 @@ async function openLeftNavSection(section) {
 // ── Hooks for the hand-swap gesture ─────────────────────────────────
 // Turning the hand over means "next", and these say what is on screen so the
 // gesture can pick the right meaning.
+// The hamburger had no handler at all, so the side panel could only be opened
+// by voice or by a gesture. Clicking it now toggles the panel, opening on
+// whichever section was last used.
+(function wireNavToggle() {
+  const btn = document.getElementById('navToggleBtn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!historySidebar.classList.contains('hidden')) { window._navClose(); return; }
+    await openLeftNavSection(_lastNavSection);
+  });
+  document.getElementById('historyClose')?.addEventListener('click', () => window._navClose());
+})();
+
 window._navIsOpen = () => !historySidebar.classList.contains('hidden');
 window._navClose = () => {
   historySidebar.classList.add('hidden');
@@ -6187,15 +6202,28 @@ function drainAudioQueue() {
   _currentAudio = audio;
   // Apply pitch (playbackRate) — lower = deeper voice
   if (voicePitch < 0.99) audio.playbackRate = voicePitch;
-  // Use Web Audio API to boost volume beyond 100%
+  // Use Web Audio API to boost volume beyond 100%.
+  //
+  // One context, reused. This used to build a new AudioContext for every
+  // sentence and never close it: browsers cap how many a page may have, so
+  // after a handful the call throws, and a clip routed into a context that is
+  // suspended or discarded plays to nothing. Sentences going silent partway
+  // through an answer is exactly what that looks like.
   try {
-    const ctx = new AudioContext();
+    if (!window._sharedAudioCtx || window._sharedAudioCtx.state === 'closed') {
+      window._sharedAudioCtx = new AudioContext();
+    }
+    const ctx = window._sharedAudioCtx;
+    // A context can start suspended until the page has been interacted with.
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const source = ctx.createMediaElementSource(audio);
     const gain = ctx.createGain();
     gain.gain.value = voiceVolume;
     source.connect(gain);
     gain.connect(ctx.destination);
-  } catch (_) {}
+  } catch (_) {
+    // No boost available; the clip still plays through the element itself.
+  }
   audio.onended = () => drainAudioQueue();
   audio.onerror = () => drainAudioQueue();
   audio.play().catch(() => drainAudioQueue());
@@ -6799,17 +6827,7 @@ function initWelcomeScroll() {
     if (progressPct) progressPct.textContent = pct + '%';
 
     // Unlock when progress reaches 100%
-    if (progress >= 1 && !unlocked) {
-      unlocked = true;
-      enterBtn.classList.remove('enter-locked');
-      enterBtn.classList.add('enter-unlocked');
-      lockHint.classList.add('lh-hidden');
-      // Reveal the initially-hidden sphere + background elements
-      ['sphereCanvas', 'welcomeGlow', 'sphereLabel', 'welcomeContent'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('ws-revealed');
-      });
-    }
+    if (progress >= 1 && !unlocked) unlockWelcome();
 
     // Snap detent click
     const detent = Math.round(offset / ROW_H);
@@ -6823,6 +6841,39 @@ function initWelcomeScroll() {
 
     requestAnimationFrame(physicsTick);
   }
+
+  function unlockWelcome() {
+    if (unlocked) return;
+    unlocked = true;
+    enterBtn.classList.remove('enter-locked');
+    enterBtn.classList.add('enter-unlocked');
+    lockHint.classList.add('lh-hidden');
+    // Reveal the initially-hidden sphere + background elements
+    ['sphereCanvas', 'welcomeGlow', 'sphereLabel', 'welcomeContent'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('ws-revealed');
+    });
+  }
+
+  // Scrolling the drum is the intended way through, but it must not be the ONLY
+  // way. If the wheel never reaches us, or the list came up empty, this screen
+  // has no exit at all and the app can never be entered. So: the hint is also a
+  // button, Enter works, and after a while it opens on its own.
+  window._unlockWelcome = unlockWelcome;
+  if (!N) unlockWelcome();
+  if (lockHint) {
+    lockHint.style.cursor = 'pointer';
+    lockHint.style.pointerEvents = 'auto';
+    lockHint.textContent = 'Scroll to unlock, or click here';
+    lockHint.addEventListener('click', unlockWelcome);
+  }
+  document.addEventListener('keydown', (e) => {
+    if (unlocked || welcomeScreen.classList.contains('hidden')) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); unlockWelcome(); }
+  });
+  setTimeout(() => {
+    if (!unlocked && !welcomeScreen.classList.contains('hidden')) unlockWelcome();
+  }, 25000);
 
   requestAnimationFrame(renderFrame);
   requestAnimationFrame(physicsTick);
@@ -6902,8 +6953,17 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     // Keep the reminders, tasks, calendar and portfolio out of sight until the
     // introduction is over; they were showing through behind the hero.
     document.body.classList.add('welcome-active');
-    initSpikySphere();
-    initWelcomeScroll();
+    // A throw in either of these used to leave the welcome screen half-built and
+    // permanently locked, with no way into the app at all.
+    try { initSpikySphere(); } catch (err) { console.error('[welcome] sphere failed:', err); }
+    try { initWelcomeScroll(); } catch (err) {
+      console.error('[welcome] scroll failed:', err);
+      const eb = document.getElementById('enterBtn');
+      if (eb) { eb.classList.remove('enter-locked'); eb.classList.add('enter-unlocked'); }
+      ['sphereCanvas', 'welcomeGlow', 'sphereLabel', 'welcomeContent'].forEach((id) => {
+        document.getElementById(id)?.classList.add('ws-revealed');
+      });
+    }
     document.getElementById('enterBtn').addEventListener('click', async () => {
       if (!document.getElementById('enterBtn').classList.contains('enter-unlocked')) return;
       localStorage.setItem(welcomeKey, '1');

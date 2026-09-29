@@ -249,6 +249,16 @@ function createOverlayWindow() {
       overlayWindow.focus();
     }
   });
+  // Run with CALLISTO_DEBUG=1 to see the renderer's console on stdout. A blank
+  // screen tells you nothing from the outside; its console usually says exactly
+  // which line stopped.
+  if (process.env.CALLISTO_DEBUG) {
+    overlayWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+      console.log(`[renderer:${level}] ${message}  (${String(sourceId).split('/').pop()}:${line})`);
+    });
+    overlayWindow.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', JSON.stringify(d)));
+  }
+
   overlayWindow.webContents.once('did-finish-load', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (!overlayWindow.isVisible()) overlayWindow.show();
