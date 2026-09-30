@@ -3499,12 +3499,19 @@
       var win = find(/setup.*.exe$/i) || find(/.exe$/i);
       // Apple silicon Macs report an Apple GPU — give them the arm64 build,
       // Intel Macs the x64 one. (Rosetta ends in macOS 28, so arm64 matters.)
-      var appleSilicon = false;
+      // Which Mac build to offer. This used to test for 'Apple Md', which is a
+      // typo for 'Apple M' followed by a digit, so it never matched an M1 or M2
+      // and every Apple silicon Mac was handed the Intel build - which macOS
+      // then warns about. Now Intel has to be positively identified; anything
+      // else on a Mac gets the Apple silicon build, which is the safe default
+      // with Rosetta being retired.
+      var appleSilicon = /Mac/i.test(navigator.platform || navigator.userAgent || '');
       try {
         var gl = document.createElement('canvas').getContext('webgl');
         var dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
         var renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-        appleSilicon = /Apple (Md|GPU)/i.test(renderer) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+        if (/Apple\s*(M\d|GPU|silicon)/i.test(renderer)) appleSilicon = true;
+        else if (/Intel/i.test(renderer)) appleSilicon = false;
       } catch (_) {}
       var macArm = find(/arm64.dmg$/i), macIntel = find(/^(?!.*arm64).*.dmg$/i) || find(/.dmg$/i);
       var mac = (appleSilicon ? macArm : macIntel) || macArm || macIntel;

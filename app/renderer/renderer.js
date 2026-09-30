@@ -2563,6 +2563,32 @@ window._checkQuickLaunch = async function(text) {
   const isTV = /\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i.test(t);
 
   // ── YouTube channel stats: "how many subs", "my channel stats", etc. ──────
+  // The numbers, out loud. Everything connected, said the way the morning
+  // briefing says it - followers, views, visitors, orders and what Stripe has
+  // taken - with the panel opened alongside. Routing this through the model
+  // meant it sometimes answered in writing and said nothing at all.
+  const STATS_RE = /\b(?:show|tell|give|read|what(?:'?s| are| is)?|how(?:'?s| are| is)?)\b[^.?!]{0,20}\b(?:my|the)\b[^.?!]{0,16}\b(?:stats|statistics|analytics|numbers|figures|metrics|socials)\b|^(?:my )?(?:stats|analytics|numbers)$/i;
+  if (STATS_RE.test(t) && window.jarvis.connectorStatsBriefing) {
+    (async () => {
+      setState('thinking');
+      let text = null;
+      try { text = await window.jarvis.connectorStatsBriefing(); } catch (_) {}
+      if (!text) {
+        const msg = 'Nothing is connected yet, so there are no numbers to read. Open Connectors and link YouTube, Instagram, TikTok, your shop or Stripe.';
+        addMessage('assistant', msg);
+        window.jarvis.speak(msg);
+        setState('idle');
+        return;
+      }
+      const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
+      if (audio) playAudioChunks([audio]);
+      const ap = document.getElementById('analyticsPanel');
+      if (ap) { ap.classList.remove('hidden'); ap.scrollTop = 0; try { loadAnalyticsDashboard(); } catch (_) {} }
+      setState('idle');
+    })();
+    return true;
+  }
+
   const ytStatsM = /(?:how many|what(?:'s|'re| are| is)?|show|tell me|my)\s+(?:my\s+)?(?:sub(?:scriber)?s?|view(?:s|er)?s?|channel\s+stats?|youtube\s+stats?|channel\s+analytic|youtube\s+analytic|last\s+video|recent\s+video|upload)/i.test(t)
     || /(?:youtube|channel)\s+(?:stats?|analytic|sub|view|revenue|earning)/i.test(t)
     || /(?:how(?:'s|\s+is|\s+are)?|what(?:'s| is)?)\s+(?:my\s+)?(?:channel|youtube)/i.test(t);
@@ -7092,7 +7118,8 @@ async function speakStatsBriefing() {
     const text = await window.jarvis.connectorStatsBriefing().catch(() => null);
     if (!text) return;
     localStorage.setItem('callisto_stats_briefing', todayKey);
-    addMessage('assistant', text);
+    // Spoken only. It used to be pasted into the chat as well, which turned the
+    // morning greeting into a wall of numbers nobody had asked to read.
     const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
     if (audio) playAudioChunks([audio]);
   } catch (e) { console.error('[STATS BRIEF]', e); }
