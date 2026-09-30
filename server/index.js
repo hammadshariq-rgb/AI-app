@@ -761,7 +761,11 @@ app.get('/connect/calendar', (req, res) => {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/calendar/callback`,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    // Adding an event needs write access. With calendar.readonly every attempt
+    // came back 403, which is why Callisto could read a schedule but never put
+    // anything on it. calendar.events is the narrowest scope that can write:
+    // it covers events only, not calendar settings or sharing.
+    scope: 'https://www.googleapis.com/auth/calendar.events',
     access_type: 'offline',
     prompt: 'consent',
   });

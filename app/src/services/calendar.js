@@ -146,6 +146,12 @@ async function getUpcomingEvents(days = 7) {
 }
 
 // Add a new event to the primary calendar
+function nextDay(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function addEvent({ title, date, time, duration = 60, description = '' }) {
   const token = await getCalendarToken();
   if (!token) return { error: 'not_connected' };
@@ -170,8 +176,11 @@ async function addEvent({ title, date, time, duration = 60, description = '' }) 
         start: { dateTime: startDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
         end: { dateTime: endDateTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
       } : {
+        // For an all-day event Google treats end.date as EXCLUSIVE, so an event
+        // that starts and ends on the same date is rejected as ending before it
+        // begins. A one-day event ends on the following day.
         start: { date },
-        end: { date },
+        end: { date: nextDay(date) },
       }),
     };
 

@@ -715,6 +715,23 @@ const CHECK_SVG  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 // Small, safe Markdown renderer for chat bubbles: headings, bold/italic, inline
 // code, bullet and numbered lists, tables, code blocks and paragraphs. All text is
 // HTML-escaped before any tags are added, so model output can't inject markup.
+// While an answer is still arriving it is shown as plain text, which meant the
+// markdown showed through: rows of ### and ** and dashes, replaced a moment
+// later by the formatted version. Reading that happen is unpleasant. The
+// preview keeps the shape of the answer - headings on their own line, bullets
+// as bullets - without the punctuation that builds it.
+function _plainPreview(md) {
+  return String(md || '')
+    .replace(/```[a-z]*/gi, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '\u2022 ')
+    .replace(/^\s*(\d+)[.)]\s+/gm, '$1. ')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[ \t]+$/gm, '');
+}
+
 function _looksLikeMarkdown(t) {
   return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(t);
 }
@@ -5636,7 +5653,7 @@ function _openReplyGate() {
   clearTimeout(g.timer);
   if (g.text.trim()) {
     document.getElementById('_thinkingRow')?.remove();
-    g.el = addMessage('assistant', g.text);
+    g.el = addMessage('assistant', _plainPreview(g.text));
   }
   if (g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } g.card = null; }
 }
@@ -5675,12 +5692,12 @@ if (window.jarvis.onSentenceText) {
     g.text += (g.text ? ' ' : '') + text;
     if (g.open && g.el) {
       const span = g.el.querySelector('.msg-text');
-      if (span) span.textContent = g.text;     // plain while streaming; formatted at the end
+      if (span) span.textContent = _plainPreview(g.text);   // formatted properly once complete
       if (typeof scrollToBottom === 'function') scrollToBottom();
     } else if (g.open && !g.el) {
       // Gate opened by voice before any text arrived — show the bubble now
       document.getElementById('_thinkingRow')?.remove();
-      g.el = addMessage('assistant', g.text);
+      g.el = addMessage('assistant', _plainPreview(g.text));
     } else {
       // Show the reply (and any card) as soon as the first sentence exists.
       // Waiting for its voice added ~1s; the voice follows a moment later.

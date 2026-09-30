@@ -2480,19 +2480,32 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
 
   if (finalAction?.type === 'add_event') {
-    if (!calendar.isConnected()) {
-      const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
-      _sendTTS(_e.sender, spokenText);
-      return { text: spokenText, audio: null, card: null, hasAction: false };
-    }
     let eventArgs;
     try { eventArgs = JSON.parse(finalAction.arg); } catch (_) { eventArgs = { title: finalAction.arg, date: new Date().toISOString().split('T')[0] }; }
-    const addResult = await calendar.addEvent(eventArgs);
-    const spokenText = addResult.ok
-      ? finalText || `Done — I've added "${addResult.title}" to your calendar.`
-      : 'I couldn\'t add that to your calendar. Please try again.';
+
+    // Callisto has a calendar of its own, so an event always has somewhere to
+    // go. Refusing outright because Google was not connected meant the feature
+    // did nothing at all for anyone who had not linked an account — and when
+    // Google failed for any other reason, the event vanished entirely.
+    let googleOk = false;
+    let googleErr = null;
+    if (calendar.isConnected()) {
+      const addResult = await calendar.addEvent(eventArgs);
+      googleOk = !!addResult.ok;
+      if (!googleOk) googleErr = addResult.error || null;
+      if (googleOk && addResult.title) eventArgs.title = addResult.title;
+    }
+
+    const when = eventArgs.time ? `${eventArgs.date} at ${eventArgs.time}` : eventArgs.date;
+    const spokenText = finalText || (googleOk
+      ? `Done — I've added "${eventArgs.title}" to your calendar for ${when}.`
+      : calendar.isConnected()
+        ? `I've put "${eventArgs.title}" on your calendar here for ${when}, but Google Calendar wouldn't take it. You may need to reconnect it.`
+        : `I've put "${eventArgs.title}" on your calendar for ${when}. Connect Google Calendar if you'd like it on there too.`);
+    if (googleErr) console.warn('[calendar] Google rejected the event:', googleErr);
     _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, hasAction: true, calendarEvent: addResult.ok ? eventArgs : null };
+    // The in-app calendar gets it either way.
+    return { text: spokenText, audio: null, card: null, hasAction: true, calendarEvent: eventArgs };
   }
 
   if (finalAction?.type === 'search_drive') {
