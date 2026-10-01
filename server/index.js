@@ -496,7 +496,7 @@ app.post('/connect/google/exchange', async (req, res) => {
   const { code, redirectUri, service } = req.body || {};
   if (!code || !redirectUri) return res.status(400).json({ error: 'code and redirectUri required' });
   const scope = {
-    calendar: 'https://www.googleapis.com/auth/calendar.readonly',
+    calendar: 'https://www.googleapis.com/auth/calendar.events',
     youtube:  'https://www.googleapis.com/auth/youtube.readonly',
     analytics:'https://www.googleapis.com/auth/analytics.readonly',
   }[service] || '';
@@ -755,7 +755,7 @@ app.post('/connect/outlook/refresh', async (req, res) => {
 });
 
 // ── Google Calendar connector OAuth ──────────────────────────────────────────
-// Uses calendar.readonly — read-only access to view events (not create/modify)
+// Uses calendar.events — the narrowest scope that can also add an event.
 app.get('/connect/calendar', (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,

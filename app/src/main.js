@@ -3535,7 +3535,11 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background
 
 // Only the minimum scopes registered in Google Cloud Console — no gmail, no broad calendar
 const GOOGLE_OAUTH_SCOPES = {
-  calendar:      'https://www.googleapis.com/auth/calendar.readonly',
+  // calendar.events, not calendar.readonly: adding an event needs write access,
+  // and read-only made every attempt fail with 403. This is the scope the
+  // Connect button actually requests - the server has its own copy for the
+  // browser flow, and both have to agree or the grant silently stays read-only.
+  calendar:      'https://www.googleapis.com/auth/calendar.events',
   drive:         'https://www.googleapis.com/auth/drive.readonly',
   // upload is needed so customers can post their videos to their own channel
   youtube:       'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',

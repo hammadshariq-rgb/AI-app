@@ -250,6 +250,28 @@ function positionRightPanels() {
   // Expose so AI add_event path can call it
   window.gcAddLocalEvent = addLocalEvent;
 
+  // "Show me my calendar" asks for THIS calendar, not the one Windows ships.
+  // Nothing defined this before, and the branch that handles the phrase checks
+  // that it exists before using it - so the request fell through to the
+  // assistant, which opened the Microsoft Calendar app instead.
+  //
+  // Takes an optional date so that adding an event can bring the right month
+  // into view rather than leaving the person on today looking at nothing.
+  window.showCalendarOverlay = function (dateStr) {
+    try {
+      const panel = document.getElementById('glassCalendar');
+      if (panel) panel.classList.remove('hidden');
+      const monthly = document.getElementById('gcTabMonthly');
+      if (monthly && !monthly.classList.contains('active')) monthly.click();
+      if (dateStr) {
+        const d = new Date(`${dateStr}T00:00:00`);
+        if (!isNaN(d)) { currentDate = d; renderCalendar(); }
+      }
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
+      if (typeof positionRightPanels === 'function') positionRightPanels();
+    } catch (_) {}
+  };
+
   eventSaveBtn.addEventListener('click', function() {
     var title = (eventTitleInput.value || '').trim();
     if (!title) { eventTitleInput.focus(); return; }
@@ -640,6 +662,9 @@ function escCal(str) {
       fromGcal: true
     };
     window.gcAddLocalEvent(ev);
+    // Put it on screen where it was added, so "add gym on Friday" is visibly
+    // done rather than silently filed away in a month nobody is looking at.
+    if (window.showCalendarOverlay) window.showCalendarOverlay(dateStr);
   };
 })();
 
