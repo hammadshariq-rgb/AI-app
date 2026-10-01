@@ -3558,6 +3558,14 @@ if (window.jarvis && window.jarvis.onModelStart) {
     }
   };
   window.jarvis.onModelStart(window._startModelGen);
+
+  // A model that finished while Callisto was closed. It is already saved in
+  // Creations by this point; this is just so it is not a silent arrival.
+  window.jarvis.onModelResumed?.((m) => {
+    if (!m || !m.url) return;
+    const title = m.title || 'Your model';
+    _modelTell('Model ready', `${title} finished while you were away.`, 'Open', () => _openFinishedModel(m));
+  });
 }
 
 if (window.jarvis && window.jarvis.onModelProgress) {

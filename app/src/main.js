@@ -729,6 +729,9 @@ app.whenReady().then(async () => {
   // second-instance event will ever arrive. Pick it up before anything else.
   consumeStartupDeepLink();
 
+  // Anything that finished building while the app was closed.
+  setTimeout(() => { resumePendingModelJobs().catch(() => {}); }, 6000);
+
   // ── Sleep / wake ──────────────────────────────────────────────────────────
   // Closing and reopening a laptop makes the audio device "pop", which the
   // double-clap wake listener heard as claps and switched the mic on. Tell the
@@ -3172,14 +3175,67 @@ function sendModelProgress(jobKey, p) {
   }
 }
 
+// A model takes two or three minutes, and the job lives on the generator's
+// side. Quitting in the meantime used to throw it away: the model was built
+// and paid for, and the app came back knowing nothing about it. Unfinished
+// jobs are written down and picked up again on the next launch.
+function rememberModelJob(jobId, meta) {
+  if (!jobId) return;
+  const list = (store.get('pendingModelJobs') || []).filter((j) => j.jobId !== jobId);
+  list.push({ jobId, startedAt: Date.now(), ...meta });
+  store.set('pendingModelJobs', list.slice(-6));
+}
+
+function forgetModelJob(jobId) {
+  store.set('pendingModelJobs', (store.get('pendingModelJobs') || []).filter((j) => j.jobId !== jobId));
+}
+
+async function resumePendingModelJobs() {
+  const list = store.get('pendingModelJobs') || [];
+  if (!list.length) return;
+  const token = loadAuthToken();
+  if (!token) return;
+  // Anything older than two hours is never coming back.
+  const fresh = list.filter((j) => Date.now() - (j.startedAt || 0) < 2 * 60 * 60 * 1000);
+  if (fresh.length !== list.length) store.set('pendingModelJobs', fresh);
+
+  for (const job of fresh) {
+    try {
+      const r = await modeling.resume({ token, jobId: job.jobId, fromImage: !!job.fromImage });
+      forgetModelJob(job.jobId);
+      if (r.ok && r.url) {
+        const entry = artifacts.add({
+          kind: 'model', url: r.url, prompt: job.prompt,
+          title: job.title || String(job.prompt || 'Model').split(',')[0],
+          source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail,
+        });
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.webContents.send('model:resumed', { title: job.title, url: r.url, taskId: r.taskId, prompt: job.prompt });
+        }
+        console.log('[models] picked up a model finished while closed:', job.title);
+      }
+    } catch (err) {
+      console.warn('[models] could not resume', job.jobId, err.message);
+    }
+  }
+}
+
 ipcMain.handle('model:generate', async (_e, { prompt, style, jobKey }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
+  let startedId = null;
   try {
-    const r = await modeling.generate({ token, prompt, style }, (p) => sendModelProgress(jobKey, p));
+    const r = await modeling.generate(
+      { token, prompt, style },
+      (p) => sendModelProgress(jobKey, p),
+      (jobId) => { startedId = jobId; rememberModelJob(jobId, { prompt, title: String(prompt || '').split(',')[0] }); },
+    );
+    if (startedId) forgetModelJob(startedId);
     if (r.ok) artifacts.add({ kind: 'model', url: r.url, prompt, title: String(prompt || '').split(',')[0], source: 'Meshy', taskId: r.taskId, thumbnail: r.thumbnail });
     return r;
   } catch (err) {
+    // Deliberately left on the pending list: an error here is usually this app
+    // losing the connection, not the generator giving up.
     return { ok: false, error: err.message };
   }
 });
@@ -3189,7 +3245,11 @@ ipcMain.handle('model:fromImage', async (_e, { imageUrl, prompt, jobKey }) => {
   const token = loadAuthToken();
   if (!token) return { ok: false, error: 'Please sign in first.' };
   try {
-    const r = await modeling.generateFromImage({ token, imageUrl }, (p) => sendModelProgress(jobKey, p));
+    const r = await modeling.generateFromImage(
+      { token, imageUrl },
+      (p) => sendModelProgress(jobKey, p),
+      (jobId) => rememberModelJob(jobId, { prompt, title: String(prompt || 'Model from picture').split(',')[0], fromImage: true }),
+    );
     if (r.ok) {
       artifacts.add({
         kind: 'model', url: r.url, prompt: prompt || 'from a picture',

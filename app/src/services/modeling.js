@@ -40,23 +40,35 @@ async function isEnabled(token) {
 
 // Generates a model and resolves to { ok, url } once it's ready.
 // onProgress({ status, progress }) fires on each poll.
-async function generate({ token, prompt, style }, onProgress) {
+async function generate({ token, prompt, style }, onProgress, onStarted) {
   const started = await api('/models/generate', {
     token, method: 'POST', body: { prompt, style }, timeoutMs: 30000,
   });
   const jobId = started?.jobId;
   if (!jobId) return { ok: false, error: "The generator didn't accept that prompt." };
+  // The job now exists on the generator's side and will finish whether or not
+  // this app is still running. Handing the id back lets it be written down, so
+  // quitting mid-build loses nothing.
+  if (onStarted) { try { onStarted(jobId); } catch (_) {} }
   return poll(token, `/models/job/${encodeURIComponent(jobId)}`, onProgress, 'That took too long — try a simpler description.');
+}
+
+// Picks up a job that was already started, after a restart. Meshy keeps
+// building regardless of what this computer is doing.
+async function resume({ token, jobId, fromImage }, onProgress) {
+  const route = fromImage ? '/models/from-image/' : '/models/job/';
+  return poll(token, `${route}${encodeURIComponent(jobId)}`, onProgress, 'That model is taking unusually long.');
 }
 
 // Builds a model from a picture Callisto already made, rather than from words.
 // The likeness is far closer than describing the same thing again would give.
-async function generateFromImage({ token, imageUrl }, onProgress) {
+async function generateFromImage({ token, imageUrl }, onProgress, onStarted) {
   const started = await api('/models/from-image', {
     token, method: 'POST', body: { imageUrl }, timeoutMs: 30000,
   });
   const jobId = started?.jobId;
   if (!jobId) return { ok: false, error: "The generator didn't accept that picture." };
+  if (onStarted) { try { onStarted(jobId); } catch (_) {} }
   return poll(token, `/models/from-image/${encodeURIComponent(jobId)}`, onProgress, 'That took too long to build.');
 }
 
@@ -89,4 +101,4 @@ async function poll(token, path, onProgress, timeoutError) {
   return { ok: false, error: timeoutError };
 }
 
-module.exports = { isEnabled, generate, generateFromImage, retexture };
+module.exports = { isEnabled, generate, generateFromImage, resume, retexture };

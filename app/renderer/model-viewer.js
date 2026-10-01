@@ -1110,6 +1110,9 @@
 
   // ── Top-of-screen notification ────────────────────────────────────────────
   function notify({ title, text, action, onAction, timeout = 15000 }) {
+    // A card with nothing written on it tells the person nothing and still
+    // demands they dismiss it. If there is no message, there is no card.
+    if (!String(title || '').trim() && !String(text || '').trim()) return () => {};
     let host = document.getElementById('mvNotify');
     if (!host) {
       host = document.createElement('div');

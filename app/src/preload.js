@@ -159,6 +159,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   modelGenerate: (prompt, style, jobKey) => ipcRenderer.invoke('model:generate', { prompt, style, jobKey }),
   modelRetexture: (taskId, prompt, jobKey) => ipcRenderer.invoke('model:retexture', { taskId, prompt, jobKey }),
   modelFromImage: (imageUrl, prompt, jobKey) => ipcRenderer.invoke('model:fromImage', { imageUrl, prompt, jobKey }),
+  onModelResumed: (cb) => ipcRenderer.on('model:resumed', (_e, d) => cb(d)),
   saveModelFile: (bytes, suggestedName) => ipcRenderer.invoke('model:saveFile', { bytes, suggestedName }),
   fetchModelFile: (url) => ipcRenderer.invoke('model:fetchFile', url),
   artifactsList:   ()   => ipcRenderer.invoke('artifacts:list'),

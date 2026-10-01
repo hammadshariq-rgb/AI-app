@@ -844,7 +844,10 @@
     body.light-mode #gestureToggleBtn.active { background: rgba(20,200,100,0.1); border-color: rgba(20,200,100,0.4); color: rgba(20,160,80,0.9); }
 
     #gesturePanel {
-      position: fixed; bottom: 78px; left: 24px; z-index: 950;
+      /* Above the 3D studio (10000), not under it. The camera box is how you
+         know the hand is being seen at all, and it was being covered exactly
+         where hands are most used - spinning and recolouring a model. */
+      position: fixed; bottom: 78px; left: 24px; z-index: 10050;
       background: rgba(6,8,22,0.94); border: 1px solid rgba(61,92,255,0.25);
       border-radius: 18px; overflow: hidden; width: 300px;
       box-shadow: 0 16px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(61,92,255,0.08);
@@ -2173,7 +2176,7 @@
           <div class="gp-label">GESTURE CONTROL</div>
           <div class="gp-gesture" id="gpGestureIcon">–</div>
           <div class="gp-action" id="gpActionText">Show your hand to begin</div>
-          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next</div>
+          <div class="gp-hint">LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next</div>
           <button id="gpMyGesturesBtn" class="gp-mine-btn">✋ MY GESTURES</button>
         </div>
       </div>
@@ -3053,36 +3056,26 @@
         const _ga = (window.__gestureAspect || 1);
         const lmDist = (a, b) => Math.hypot((a.x - b.x) * _ga, a.y - b.y);
 
-        // ── One finger points, two fingers press ─────────────────
-        // Curling a finger like a trigger read badly: a curled finger hides its
-        // own tip from the camera, so the landmark it was measured by is the one
-        // the camera can no longer see, and the press either missed or fired on
-        // its own. Counting extended fingers instead is read from knuckles that
-        // stay in full view the whole time.
+        // ── Point to move, pinch to press ──────────────────────────
+        // Measured between the thumb tip and the index tip. Both stay in full
+        // view of the camera while pinching, which is what the curled finger
+        // did not: curling hid the very fingertip the press was measured by,
+        // so it missed presses and fired on its own.
         //
-        //   index alone        -> move the cursor
-        //   index + middle     -> press whatever it is over
-        //
-        // The press has to be held briefly, and the hand has to come back to one
-        // finger before it can fire again, so one deliberate gesture is one click.
-        const up = {
-          index:  fingerUp(lm, 8, 6),
-          middle: fingerUp(lm, 12, 10),
-          ring:   fingerUp(lm, 16, 14),
-          pinky:  fingerUp(lm, 20, 18),
-        };
-        const pointing = up.index && !up.middle && !up.ring && !up.pinky;
-        const pressing = up.index && up.middle && !up.ring && !up.pinky;
+        // The distance is divided by the span of the hand, so it means the same
+        // thing close to the camera and far from it.
+        const pinchGap = lmDist(lm[4], lm[8]) / handScale;
+        const apart   = pinchGap > 0.52;   // open — ready to press again
+        const pinched = pinchGap < 0.34;   // closed — fires
 
-        if (pointing) {
-          // Ready, and the previous press is spent.
+        if (apart) {
           triggerArmed = true;
           triggerFired = false;
           pressHeldSince = 0;
           magicCursor.classList.add('armed');
         }
 
-        if (pressing && triggerArmed && !triggerFired) {
+        if (pinched && triggerArmed && !triggerFired) {
           const now = Date.now();
           if (!pressHeldSince) pressHeldSince = now;
           if (now - pressHeldSince >= PRESS_HOLD_MS && now - lastClickTime > CLICK_COOLDOWN) {
@@ -3091,12 +3084,12 @@
             pressHeldSince = 0;
             lastClickTime = now;
             magicCursor.classList.remove('armed');
-            magicCursor.classList.add('pinch');          // reuse the press flash
+            magicCursor.classList.add('pinch');
             setTimeout(() => magicCursor.classList.remove('pinch'), 200);
             const el = document.elementFromPoint(smoothX, smoothY);
             if (el) el.click();
           }
-        } else if (!pressing) {
+        } else if (!pinched) {
           pressHeldSince = 0;
         }
       }
@@ -3106,8 +3099,10 @@
         lastLeftLm = lm;
       }
 
-      // How long two fingers must be held before it counts as a press.
-      const PRESS_HOLD_MS = 90;
+      // How long a pinch must be held before it counts as a press. Short enough
+      // to feel immediate, long enough that fingers passing each other on the
+      // way somewhere else do not fire it.
+      const PRESS_HOLD_MS = 70;
       let pressHeldSince = 0;
 
       let gestureEnabled = false;
@@ -3135,10 +3130,25 @@
       const SWAP_COOLDOWN = 900;
 
       function palmFacing(lm, label) {
-        const d = lm[17].x - lm[5].x;           // pinky knuckle vs index knuckle
-        if (Math.abs(d) < 0.02) return null;    // edge-on — can't tell
-        // Mirrored preview, so flip for a left hand to keep the meaning the same.
-        return (label === 'Left' ? -d : d) > 0 ? 'palm' : 'back';
+        // Which way the hand faces, read from the line between the index and
+        // pinky knuckles: pointing one way across the screen means palm, the
+        // other means back of hand, and near-vertical means edge-on.
+        //
+        // This used to compare the raw x gap against a fixed 0.02. A hand fills
+        // fewer normalised x units on a wide camera, so that gap sat under the
+        // threshold most of the time and the answer was almost always "can't
+        // tell" - which is why turning your hand over barely did anything.
+        // Comparing the horizontal part against the length of that same line
+        // makes it independent of how big the hand looks or how wide the frame
+        // is.
+        const ga = (window.__gestureAspect || 1);
+        const dx = (lm[17].x - lm[5].x) * ga;
+        const dy = lm[17].y - lm[5].y;
+        const span = Math.hypot(dx, dy);
+        if (!span) return null;
+        const ratio = (label === 'Left' ? -dx : dx) / span;
+        if (Math.abs(ratio) < 0.25) return null;   // edge-on — can't tell
+        return ratio > 0 ? 'palm' : 'back';
       }
 
       function checkHandSwap(lm, label) {
@@ -3459,25 +3469,43 @@
         // it with a 4-frame majority-vote buffer per hand slot to prevent flicker.
         // Fallback: if label is absent, infer from wrist x (selfie/mirror: higher
         // screen-x = LEFT hand, lower screen-x = RIGHT hand).
-        if (!window._handLabelBuf) window._handLabelBuf = [[], []];
-        const LABEL_BUF_LEN = 4;
-        for (let si = 0; si < 2; si++) {
-          const rawLabel = hands[si]?.label || null;
-          if (rawLabel) {
-            window._handLabelBuf[si].push(rawLabel);
-            if (window._handLabelBuf[si].length > LABEL_BUF_LEN)
-              window._handLabelBuf[si].shift();
-          } else {
-            window._handLabelBuf[si] = [];
-          }
-        }
+        // The votes used to be stored per SLOT, but MediaPipe does not keep a
+        // hand in the same slot from one frame to the next. When the two hands
+        // swapped slots - which happens constantly as they cross or one leaves
+        // the frame - each slot's history belonged to the other hand, and the
+        // majority vote confidently returned the wrong answer. That is the
+        // left/right mixing.
+        //
+        // So each hand is followed between frames by how close its wrist is to
+        // where a hand was last frame, and the votes belong to that hand rather
+        // than to a position in a list.
+        if (!window._handTracks) window._handTracks = [];
+        const VOTE_LEN = 10;
+        const MATCH_RADIUS = 0.22;   // in normalised frame units
+
+        const tracks = lms.map((lm, i) => {
+          const wx = lm[0].x, wy = lm[0].y;
+          let best = -1, bestD = MATCH_RADIUS;
+          window._handTracks.forEach((pTrack, pi) => {
+            if (pTrack._taken) return;
+            const d = Math.hypot(pTrack.x - wx, pTrack.y - wy);
+            if (d < bestD) { bestD = d; best = pi; }
+          });
+          const votes = best >= 0 ? window._handTracks[best].votes.slice() : [];
+          if (best >= 0) window._handTracks[best]._taken = true;
+          const raw = hands[i] && hands[i].label;
+          if (raw) { votes.push(raw); if (votes.length > VOTE_LEN) votes.shift(); }
+          return { x: wx, y: wy, votes };
+        });
+        window._handTracks = tracks.map((t) => ({ x: t.x, y: t.y, votes: t.votes }));
+
         function stableLabel(slotIdx, lm) {
-          const buf = window._handLabelBuf[slotIdx] || [];
-          if (buf.length >= 2) {
-            const lefts  = buf.filter(l => l === 'Left').length;
-            const rights = buf.filter(l => l === 'Right').length;
-            if (lefts  > rights) return 'Left';
-            if (rights > lefts)  return 'Right';
+          const votes = (tracks[slotIdx] && tracks[slotIdx].votes) || [];
+          const lefts  = votes.filter((l) => l === 'Left').length;
+          const rights = votes.filter((l) => l === 'Right').length;
+          // Needs a clear majority, not a single frame's opinion.
+          if (votes.length >= 3 && Math.abs(lefts - rights) >= 2) {
+            return lefts > rights ? 'Left' : 'Right';
           }
           // Fallback: position (selfie mirror — higher x = LEFT hand)
           return (lm && lm[0].x > 0.5) ? 'Left' : 'Right';
@@ -3755,8 +3783,8 @@
         const hint = document.querySelector('#gesturePanel .gp-hint');
         if (!hint) return;
         hint.innerHTML = window._convoMode
-          ? 'LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
-          : 'LEFT: 🖱 Callisto Cursor · one finger moves, two fingers press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
+          ? 'LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
+          : 'LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
       }
       window._refreshGestureHint = refreshGestureHint;
 
