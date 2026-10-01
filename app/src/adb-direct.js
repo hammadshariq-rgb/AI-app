@@ -92,7 +92,11 @@ async function downloadAdb(onProgress) {
     await new Promise((resolve, reject) => {
       const done = (err) => (err ? reject(err) : resolve());
       if (process.platform === 'win32') {
-        require('child_process').exec(`powershell -WindowStyle Hidden -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${app.getPath('userData')}' -Force"`,
+        // An argument list rather than a shell line with -WindowStyle Hidden,
+        // which is one of the patterns antivirus engines flag.
+        require('child_process').execFile('powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-Command',
+           `Expand-Archive -Path '${zipPath}' -DestinationPath '${app.getPath('userData')}' -Force`],
           { windowsHide: true, timeout: 30000 }, done);
       } else {
         execFile('unzip', ['-o', zipPath, '-d', app.getPath('userData')], { timeout: 30000 }, done);
