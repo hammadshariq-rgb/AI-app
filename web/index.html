@@ -91,7 +91,7 @@
     .ticker-item::before { content: '◆ '; color: rgba(0,180,255,0.4); font-size: 8px; }
     @keyframes scroll-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
 
-    /* Top info bar (time / weather / PERSONAL AI ASSISTANT label) */
+    /* Top info bar (time / weather / the CALLISTO AI label) */
     #infoBar {
       width: 100%; display: flex; align-items: center; justify-content: space-between;
       padding: 10px 28px; flex-shrink: 0;
@@ -1121,8 +1121,8 @@
     }
     .app-title {
       margin-left: 70px;
-      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 3px;
-      color: rgba(0, 200, 255, 0.65); text-shadow: 0 0 12px rgba(0, 200, 255, 0.5); white-space: nowrap;
+      font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 5px;
+      color: rgba(120, 170, 255, 0.72); text-shadow: 0 0 12px rgba(40, 100, 240, 0.5); white-space: nowrap;
     }
     .app-status-dot {
       width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88;
@@ -1154,29 +1154,35 @@
     .app-corner-r { right: 14px; border-top: 1px solid rgba(0,200,255,0.5); border-right: 1px solid rgba(0,200,255,0.5); }
 
     /* ── Orb ── */
+    /* Deep blue, exactly as the desktop app. The static rule alone was not
+       enough: appOrbIdle re-applies a box-shadow every frame, so leaving the
+       keyframes cyan kept painting it cyan whatever the rule above said. */
     #mainOrb {
       width: 200px; height: 200px;
-      background: radial-gradient(circle at 35% 30%, #66ecff 0%, #10c8f0 38%, #0a9cc8 62%, #04506e 100%);
-      box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25);
+      background: radial-gradient(circle at 35% 30%,
+        rgba(110, 160, 255, 0.95),
+        rgba(15,  55, 180, 0.90) 48%,
+        rgba(4,   12,  60, 0.98) 100%);
+      box-shadow: 0 0 32px 8px rgba(25,70,230,0.65), 0 0 75px 22px rgba(10,35,180,0.30), 0 0 130px 44px rgba(5,18,100,0.15), inset 0 0 45px rgba(60,120,255,0.18);
       animation: appOrbIdle 4s ease-in-out infinite;
     }
     @keyframes appOrbIdle {
-      0%,100% { box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25); }
-      50%     { box-shadow: 0 0 44px 12px rgba(0,210,255,0.70), 0 0 95px 30px rgba(0,170,230,0.36), 0 0 160px 55px rgba(0,120,180,0.20), inset 0 0 55px rgba(140,240,255,0.30); }
+      0%,100% { box-shadow: 0 0 32px 8px rgba(25,70,230,0.65), 0 0 75px 22px rgba(10,35,180,0.30), 0 0 130px 44px rgba(5,18,100,0.15), inset 0 0 45px rgba(60,120,255,0.18); }
+      50%     { box-shadow: 0 0 44px 12px rgba(35,85,245,0.78), 0 0 95px 30px rgba(14,45,200,0.38), 0 0 160px 55px rgba(6,24,130,0.22), inset 0 0 55px rgba(80,140,255,0.24); }
     }
-    .orb-ring { border: 1px solid rgba(0, 200, 255, 0.3); box-shadow: 0 0 8px rgba(0, 200, 255, 0.2); animation: appOrbRing 5s linear infinite; }
+    .orb-ring { border: 1px solid rgba(90, 140, 255, 0.32); box-shadow: 0 0 8px rgba(40, 90, 230, 0.22); animation: appOrbRing 5s linear infinite; }
     .orb-ring:nth-child(1) { width: 236px; height: 236px; }
-    .orb-ring:nth-child(2) { width: 268px; height: 268px; border-color: rgba(0, 160, 255, 0.15); box-shadow: none; animation-duration: 9s; animation-direction: reverse; }
+    .orb-ring:nth-child(2) { width: 268px; height: 268px; border-color: rgba(60, 110, 240, 0.16); box-shadow: none; animation-duration: 9s; animation-direction: reverse; }
     @keyframes appOrbRing { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
 
     #orbName {
       font-family: 'Orbitron', sans-serif; font-size: 38px; font-weight: 700; letter-spacing: 10px; margin-top: 30px;
-      color: #fff; text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4);
+      color: #fff; text-shadow: 0 0 10px rgba(120,170,255,0.95), 0 0 30px rgba(40,100,240,0.7), 0 0 60px rgba(20,60,200,0.4);
       animation: appNameGlow 3s ease-in-out infinite;
     }
     @keyframes appNameGlow {
-      0%,100% { text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4); }
-      50%     { text-shadow: 0 0 14px rgba(0,220,255,1), 0 0 50px rgba(0,200,255,0.9), 0 0 90px rgba(0,150,255,0.5); }
+      0%,100% { text-shadow: 0 0 10px rgba(120,170,255,0.95), 0 0 30px rgba(40,100,240,0.7), 0 0 60px rgba(20,60,200,0.4); }
+      50%     { text-shadow: 0 0 14px rgba(150,190,255,1), 0 0 50px rgba(50,110,250,0.9), 0 0 90px rgba(25,70,220,0.5); }
     }
     #orbName, #orbStatus { position: relative; z-index: 3; } /* above the orb glow */
     #orbStatus { font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 6px; color: rgba(0, 200, 255, 0.55); text-shadow: 0 0 8px rgba(0, 200, 255, 0.5); margin-top: 14px; }
@@ -1378,7 +1384,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <button id="themeToggle" class="app-shiny app-theme" title="Toggle light / dark mode" aria-label="Toggle light or dark mode"></button>
-    <div class="app-title">PERSONAL AI ASSISTANT</div>
+    <div class="app-title">CALLISTO AI</div>
     <div class="app-status-dot" aria-hidden="true"></div>
     <div class="app-clock">
       <div class="app-time" id="clockEl">--:--:--</div>
