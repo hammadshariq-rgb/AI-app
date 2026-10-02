@@ -1601,6 +1601,94 @@ function runPowerShell(ps, { timeout = 8000 } = {}, cb) {
   } catch (err) { if (cb) cb(err); }
 }
 
+// Everything the user asked for beyond the first thing.
+//
+// The first action goes through the long chain of handlers below, each of
+// which ends by returning the spoken reply. The rest cannot use that chain -
+// there is only one reply - so they used to be handed to commands.run, which
+// knows how to open apps and files and nothing else. Ask for a calendar entry,
+// a 3D model and the markets in one breath and only the markets happened,
+// because the other two are not commands.
+//
+// This does the work for the kinds that have a side effect, quietly: no second
+// voice line, no second card. The reply the user hears still describes
+// everything, because the model wrote it knowing what it asked for.
+async function runSecondaryAction(act, _e) {
+  const sender = _e && _e.sender;
+  const send = (ch, payload) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, payload);
+  };
+
+  switch (act.type) {
+    case 'draw':
+      send('draw:apply', act.payload || {});
+      return;
+
+    case 'generate_3d_model':
+      send('model:start', act.payload || {});
+      return;
+
+    case 'generate_image': {
+      const res = await ai.generateImage(act.arg).catch(() => null);
+      if (res && res.url) {
+        // Lands in Creations, which announces itself through the artifacts
+        // store's own change notification.
+        artifacts.add({
+          kind: 'image', url: res.url, prompt: act.arg,
+          title: String(act.arg || 'Image').slice(0, 60), source: 'DALL-E 3',
+        });
+      }
+      return;
+    }
+
+    case 'add_event': {
+      let eventArgs;
+      try { eventArgs = JSON.parse(act.arg); }
+      catch (_) { eventArgs = { title: act.arg, date: new Date().toISOString().split('T')[0] }; }
+      if (calendar.isConnected()) {
+        const r = await calendar.addEvent(eventArgs).catch(() => null);
+        if (r && !r.ok) console.warn('[calendar] Google rejected a secondary event:', r.error);
+      }
+      // The in-app calendar gets it either way, exactly as the primary path does.
+      if (sender && !sender.isDestroyed()) sender.send('calendar:add-local', eventArgs);
+      return;
+    }
+
+    case 'add_task': {
+      const [text, date] = String(act.arg || '').split('|');
+      if (text && text.trim()) {
+        tasks.add(text.trim(), (date || '').trim() || null);
+        if (sender && !sender.isDestroyed()) sender.send('jarvis:tasks-changed');
+      }
+      return;
+    }
+
+    case 'set_reminder': {
+      const parts = String(act.arg || '').split('|');
+      const when = parts[1] && new Date(parts[1].trim()).getTime();
+      if (parts[0] && parts[0].trim() && when && !isNaN(when)) {
+        const reminders = store.get('reminders') || [];
+        reminders.push({
+          id: Date.now().toString(), text: parts[0].trim(), datetime: when,
+          earlyMinutes: parseInt(parts[2] || '0', 10) || 0,
+          triggered: false, earlyTriggered: false,
+        });
+        store.set('reminders', reminders);
+        if (sender && !sender.isDestroyed()) sender.send('jarvis:reminder', { refresh: true });
+      }
+      return;
+    }
+
+    default:
+      if (act.arg !== undefined) {
+        await commands.run(act.type, act.arg).catch(() => null);
+      } else if (sender && !sender.isDestroyed()) {
+        // Panel-style actions the renderer owns (markets, calendar, weather—).
+        sender.send('jarvis:action-fired', act);
+      }
+  }
+}
+
 // Helper: send TTS audio to renderer without blocking the return value.
 //
 // Every sentence is synthesized straight away, in parallel, because waiting for
@@ -2838,14 +2926,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   for (const act of _extra) {
     if (!act || act === finalAction) continue;
     try {
-      if (act.type === 'draw') {
-        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('draw:apply', act.payload || {});
-      } else if (act.arg !== undefined) {
-        await commands.run(act.type, act.arg).catch(() => null);
-      } else {
-        // Panel-style actions the renderer owns (markets, calendar, weather…).
-        _e.sender.send('jarvis:action-fired', act);
-      }
+      await runSecondaryAction(act, _e);
     } catch (_) { /* one failed extra must not sink the rest */ }
   }
 

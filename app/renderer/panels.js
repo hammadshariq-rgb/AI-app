@@ -666,6 +666,12 @@ function escCal(str) {
     // done rather than silently filed away in a month nobody is looking at.
     if (window.showCalendarOverlay) window.showCalendarOverlay(dateStr);
   };
+
+  // An event asked for alongside other things arrives on its own channel,
+  // because only the first thing asked for comes back through the reply.
+  if (window.jarvis && window.jarvis.onCalendarAddLocal) {
+    window.jarvis.onCalendarAddLocal(function (ev) { window._handleAICalendarEvent(ev); });
+  }
 })();
 
 // Initial restack after all elements paint

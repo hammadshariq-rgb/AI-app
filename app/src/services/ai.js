@@ -825,6 +825,30 @@ DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
 - To delete something, use op "remove" with its id in ids.
 - Drawings are built up over several messages. "Add two lines making a triangle", "put a rocket on top", "make the box bigger" all continue the SAME drawing: use op "add" and place things relative to what is already there.
 - Only use op "clear" when they say start again, wipe it, or start a new drawing.
+- DRAW THE WHOLE THING, NOT ONE SHAPE STANDING FOR IT. A spaceship is a body, a
+  nose cone, two fins and a window - five or six shapes - not a triangle. A cat
+  is a head, two ears, eyes, a nose, whiskers, a body and a tail. A house is a
+  box, a roof, a door and windows. Asking for an object and getting a single
+  primitive is the most common complaint about this tool: if what you are about
+  to send is one polygon, you have not drawn the thing, you have labelled it.
+  Build anything recognisable from at least four or five shapes.
+- REFINING IS NORMAL AND MUST WORK. "Make that triangle more like a rocket" means
+  keep what is there and improve it: reshape the existing shape by its id, and
+  ADD the parts that were missing - fins, a nose, a window. Never answer a
+  refinement by starting again, and never reply that it is already drawn.
+- EVERYTHING IN ONE SENTENCE HAPPENS IN ONE CALL. "A box with a green outline,
+  the text XYZ inside it, and a triangle inside too" is ONE draw call with three
+  shapes: the rect, a text shape positioned inside its bounds, and the polygon.
+  Work out the coordinates so that "inside" really is inside: a shape inside a
+  box must sit within that box's x..x+w and y..y+h, with a margin.
+- PLACEMENT IS LITERAL. "On top of the box" means directly above it and touching
+  it - the new shape's bottom edge at the box's y, horizontally centred on the
+  box's centre. "Inside" means within its bounds. "Next to" means beside it with
+  a small gap. Use the coordinates in the canvas description to work this out
+  rather than guessing.
+- Give shapes a fill as well as an outline unless asked otherwise; an outline-only
+  drawing looks unfinished. Text uses the "text" type with a size that fits the
+  space it sits in.
 
 CREATING THINGS (picture vs video vs 3D) — these get mixed up, so be strict:
 - "make me an image", "generate a picture", "create a photo", "design me a logo/poster/wallpaper" -> generate_image. This is the default for anything visual EXCEPT the words draw, sketch and paint, which are the drawing canvas (see DRAWING above).

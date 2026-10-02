@@ -7095,7 +7095,18 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     mainView.classList.remove('hidden');
     fixLayout();
     setState('idle');
-    if (returningUser) {
+    // Once a day, on the first open. Opening Callisto again at five and then at
+    // seven used to replay the whole greeting, weather and all, which is a
+    // briefing nobody asked for twice. The parts each had their own daily gate;
+    // the greeting around them did not.
+    const _briefKey = new Date().toDateString();
+    const _alreadyBriefed = (() => {
+      try { return localStorage.getItem('callisto_daily_brief') === _briefKey; }
+      catch (_) { return false; }
+    })();
+
+    if (returningUser && !_alreadyBriefed) {
+      try { localStorage.setItem('callisto_daily_brief', _briefKey); } catch (_) {}
       try {
         const title = profile.title && profile.title !== 'none' ? spokenTitle(profile.title) : 'sir';
         const addressAs = profile.displayName || title;

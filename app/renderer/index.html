@@ -3171,6 +3171,13 @@
       function doHandSwap() {
         // A document open on screen is what the gesture most likely means.
         if (window._docStudioNext && window._docStudioNext()) { showGesture('⇄', 'Swap — next page'); return; }
+        // The drawing canvas flips rather than spins: a drawing turned to an odd
+        // angle is not something anyone asked for, but mirroring one is.
+        if (window.CallistoDraw?.isOpen?.()) {
+          showGesture('⇄', 'Swap — flipping the drawing');
+          window.CallistoDraw.flip?.('h');
+          return;
+        }
         // 1. A 3D model is open → spin it a quarter turn.
         if (window.CallistoModelViewer?.isOpen?.()) {
           showGesture('↻', 'Swap — rotating the model');

@@ -19,6 +19,9 @@
   let shapes = [];                   // [{ id, type, ...attrs }]
   let history = [];                  // snapshots, for undo
   let selectedId = null;
+  let penMode = false;          // freehand drawing by hand
+  let penStroke = null;         // the stroke currently being drawn
+  let flip = () => {};          // set up in wire(), used by the hand gesture too
   let commandHandler = null;
   // Editing by hand changes the picture just as much as Callisto drawing on it
   // does, so the description it works from has to be refreshed either way.
@@ -45,6 +48,20 @@
       </div>
 
       <div class="ds-stage">
+        <div class="ds-tools">
+          <button class="ds-tool" id="dsPen" title="Draw freehand" aria-label="Draw freehand">
+            <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.586 7.586"/></svg>
+          </button>
+          <button class="ds-tool" id="dsText" title="Add text" aria-label="Add text">
+            <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
+          </button>
+          <button class="ds-tool" id="dsFlipH" title="Flip across" aria-label="Flip across">
+            <svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L4 12l4 5z"/><path d="M16 7l4 5-4 5z"/></svg>
+          </button>
+          <button class="ds-tool" id="dsFlipV" title="Flip over" aria-label="Flip over">
+            <svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M7 8l5-4 5 4z"/><path d="M7 16l5 4 5-4z"/></svg>
+          </button>
+        </div>
         <svg id="dsSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
              xmlns="${NS}" role="img" aria-label="Your drawing">
           <g id="dsLayer"></g>
@@ -240,6 +257,22 @@
       default: break;
     }
     return s;
+  }
+
+  // setBox moves a shape's box, but the points inside a polyline or polygon keep
+  // their order and so keep their orientation. Mirroring them is what makes a
+  // flip look flipped rather than merely relocated.
+  function mirrorPoints(sh, axis, box) {
+    if (sh.type !== 'polygon' && sh.type !== 'polyline' && sh.type !== 'line') return;
+    const b = bboxOf(sh);
+    const fx = (v) => b.x + (b.x + b.w - v);
+    const fy = (v) => b.y + (b.y + b.h - v);
+    if (sh.points) {
+      sh.points = sh.points.map((p) => (axis === 'h' ? [fx(p[0]), p[1]] : [p[0], fy(p[1])]));
+    } else if (sh.type === 'line') {
+      if (axis === 'h') { sh.x1 = fx(sh.x1); sh.x2 = fx(sh.x2); }
+      else { sh.y1 = fy(sh.y1); sh.y2 = fy(sh.y2); }
+    }
   }
 
   function moveShape(s, dx, dy) {
@@ -539,6 +572,109 @@
       }
     });
 
+    // ── Pen, text and flipping ─────────────────────────────────────
+    const penBtn = root.querySelector('#dsPen');
+    const textBtn = root.querySelector('#dsText');
+
+    penBtn.addEventListener('click', () => {
+      penMode = !penMode;
+      penBtn.classList.toggle('on', penMode);
+      svg.classList.toggle('ds-penning', penMode);
+      if (penMode) { selectedId = null; render(); }
+    });
+
+    // A freehand stroke is stored as a polyline like any other shape, so it can
+    // be selected, moved, resized, recoloured and deleted afterwards.
+    svg.addEventListener('pointerdown', (e) => {
+      if (!penMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      snapshot();
+      const at = toCanvas(e);
+      penStroke = {
+        id: `p${Date.now().toString(36)}`,
+        type: 'polyline',
+        points: [[at.x, at.y]],
+        stroke: root.querySelector('#dsColour').value || '#e8f2ff',
+        fill: 'none',
+        width: Number(root.querySelector('#dsWidth').value) || 4,
+      };
+      shapes.push(penStroke);
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+    }, true);
+
+    svg.addEventListener('pointermove', (e) => {
+      if (!penMode || !penStroke) return;
+      const at = toCanvas(e);
+      const last = penStroke.points[penStroke.points.length - 1];
+      // Only record a point once the pen has actually travelled, or a slow hand
+      // produces thousands of points sitting on top of each other.
+      if (Math.hypot(at.x - last[0], at.y - last[1]) < 4) return;
+      penStroke.points.push([at.x, at.y]);
+      render();
+    }, true);
+
+    const endStroke = () => {
+      if (!penStroke) return;
+      // A tap with no travel leaves a stray dot behind.
+      if (penStroke.points.length < 2) shapes = shapes.filter((x) => x !== penStroke);
+      penStroke = null;
+      render();
+      report();
+    };
+    svg.addEventListener('pointerup', endStroke, true);
+    svg.addEventListener('pointercancel', endStroke, true);
+
+    textBtn.addEventListener('click', () => {
+      const words = window.prompt('What should it say?');
+      if (!words || !words.trim()) return;
+      snapshot();
+      shapes.push({
+        id: `t${Date.now().toString(36)}`,
+        type: 'text',
+        text: words.trim(),
+        x: W * 0.5 - Math.min(W * 0.4, words.length * 13),
+        y: H * 0.5,
+        size: 56,
+        stroke: root.querySelector('#dsColour').value || '#e8f2ff',
+      });
+      render();
+      report();
+    });
+
+    // Flipping, not spinning: the drawing reads the same way up, as it does in
+    // a word processor, rather than being turned to an arbitrary angle.
+    flip = (axis) => {
+      const sel = shapes.find((x) => x.id === selectedId);
+      const list = sel ? [sel] : shapes;
+      if (!list.length) return;
+      snapshot();
+      // Flipping one shape pivots on itself; flipping everything pivots on the
+      // whole picture, so the arrangement is mirrored rather than each piece.
+      let box;
+      if (sel) box = bboxOf(sel);
+      else {
+        const boxes = shapes.map(bboxOf);
+        const x = Math.min(...boxes.map((b) => b.x));
+        const y = Math.min(...boxes.map((b) => b.y));
+        box = {
+          x, y,
+          w: Math.max(...boxes.map((b) => b.x + b.w)) - x,
+          h: Math.max(...boxes.map((b) => b.y + b.h)) - y,
+        };
+      }
+      for (const sh of list) {
+        const b = bboxOf(sh);
+        if (axis === 'h') setBox(sh, { x: box.x + (box.x + box.w - (b.x + b.w)), y: b.y, w: b.w, h: b.h });
+        else setBox(sh, { x: b.x, y: box.y + (box.y + box.h - (b.y + b.h)), w: b.w, h: b.h });
+        mirrorPoints(sh, axis, box);
+      }
+      render();
+      report();
+    };
+    root.querySelector('#dsFlipH').addEventListener('click', () => flip('h'));
+    root.querySelector('#dsFlipV').addEventListener('click', () => flip('v'));
+
     root.querySelector('#dsDelete').addEventListener('click', () => {
       if (!selectedId) return;
       snapshot();
@@ -597,6 +733,7 @@
 
   window.CallistoDraw = {
     show, hide, apply, undo, download,
+    flip: (axis) => flip(axis === 'v' ? 'v' : 'h'),
     isOpen: () => open,
     describe,
     toPng,

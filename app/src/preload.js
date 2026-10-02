@@ -119,6 +119,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   taskBriefing: () => ipcRenderer.invoke('task:briefing'),
   weatherGreeting: () => ipcRenderer.invoke('weather:greeting'),
   onTasksChanged: (cb) => ipcRenderer.on('jarvis:tasks-changed', () => cb()),
+  onCalendarAddLocal: (cb) => ipcRenderer.on('calendar:add-local', (_e, d) => cb(d)),
   onReminder: (cb) => ipcRenderer.on('jarvis:reminder', (_e, d) => cb(d)),
   calendarList: () => ipcRenderer.invoke('calendar:list'),
   calendarAdd: (event) => ipcRenderer.invoke('calendar:add', event),
