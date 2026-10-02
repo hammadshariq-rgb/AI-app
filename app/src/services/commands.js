@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const { Notification, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -383,9 +383,12 @@ $contacts = $asTask.MakeGenericMethod([System.Collections.Generic.IReadOnlyList[
 $contacts.Wait()
 $contact = $contacts.Result | Select-Object -First 1
 if ($contact) { $contact.Phones | Select-Object -First 1 -ExpandProperty Number }`;
-      exec(`powershell -NoProfile -Command "${ps.replace(/\n/g, ' ')}"`, (err, stdout) => {
-        resolve((stdout || '').trim().replace(/\s/g, '') || null);
-      });
+      // An argument list, not a shell string: a contact name containing a quote
+      // would otherwise end the command and start a new one.
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps.replace(/\n/g, ' ')],
+        { windowsHide: true, timeout: 8000 }, (err, stdout) => {
+          resolve((stdout || '').trim().replace(/\s/g, '') || null);
+        });
     } else if (IS_MAC) {
       // Use osascript (AppleScript) to look up in macOS Contacts
       const script = `

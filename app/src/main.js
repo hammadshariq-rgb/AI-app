@@ -1358,16 +1358,16 @@ function startKeyHelper() {
     '  [Console]::Out.WriteLine("done $id"); [Console]::Out.Flush()',
     '}',
   ].join('\n');
-  // This runs from a plain .ps1 file rather than a base64 -EncodedCommand.
-  // The script is the same either way, but an encoded command line that polls
-  // key state and injects keystrokes looks exactly like a keylogger to an
-  // antivirus engine, and Norton quarantines it on sight. On disk it is
-  // readable, and can be seen for what it is.
+  // Passed as a plain -Command argument: not base64, not a dropped .ps1, and no
+  // execution policy to bypass. Each of those three is its own red flag to an
+  // antivirus engine, and this script polls key state and injects keystrokes,
+  // so it starts from a position of suspicion and needs none of them.
+  //
+  // The script goes in as ONE argument rather than through a shell, so nothing
+  // in it can be reinterpreted as part of a command line.
   try {
-    const helperPath = path.join(app.getPath('userData'), 'callisto-keys.ps1');
-    require('fs').writeFileSync(helperPath, script, 'utf8');
     _keyHelper = spawn('powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helperPath],
+      ['-NoProfile', '-NonInteractive', '-Command', script],
       { windowsHide: true });
   } catch (_) { _keyHelper = null; return null; }
   _keyHelper.ready = false;

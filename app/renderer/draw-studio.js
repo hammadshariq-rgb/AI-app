@@ -35,6 +35,7 @@
   let penMode = false;          // freehand drawing by hand
   let penStroke = null;         // the stroke currently being drawn
   let lineMode = false;         // drawing a straight line by dragging
+  let eraseMode = false;        // rubbing shapes out by dragging over them
   let flip = () => {};          // set up in wire(), used by the hand gesture too
   let commandHandler = null;
   // Editing by hand changes the picture just as much as Callisto drawing on it
@@ -69,6 +70,9 @@
           <button class="ds-tool" id="dsLine" title="Draw a straight line" aria-label="Draw a straight line">
             <svg viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/></svg>
           </button>
+          <button class="ds-tool" id="dsEraser" title="Erase" aria-label="Erase">
+            <svg viewBox="0 0 24 24"><path d="M20 20H9l-5-5a2 2 0 010-3l8-8a2 2 0 013 0l6 6a2 2 0 010 3l-7 7"/><path d="M14 8l-7 7"/></svg>
+          </button>
           <button class="ds-tool" id="dsText" title="Add text" aria-label="Add text">
             <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
           </button>
@@ -96,7 +100,7 @@
 
         <div class="ds-insp-group">Colour</div>
         <label class="ds-field"><span>Outline colour</span>
-          <input type="color" id="dsColour" value="#00c8ff"></label>
+          <input type="color" id="dsColour" value="#ffffff"></label>
         <label class="ds-field"><span>Fill colour</span>
           <input type="color" id="dsFill" value="#0a1020"></label>
 
@@ -127,7 +131,6 @@
         <label class="ds-field"><span>Turn <i id="dsRotateVal">0°</i></span>
           <input type="range" id="dsRotate" min="0" max="350" step="10" value="0"></label>
 
-        <div class="ds-insp-group">Arrange</div>
         <div class="ds-insp-row">
           <button class="ds-btn" id="dsDuplicate">Duplicate</button>
           <button class="ds-btn" id="dsForward" title="Bring to front">Front</button>
@@ -210,7 +213,7 @@
   }
 
   function elementFor(s) {
-    const stroke = s.stroke || '#e8f2ff';
+    const stroke = s.stroke || '#ffffff';
     const fill = s.fill || 'none';
     const sw = s.width == null ? 4 : s.width;
     let el;
@@ -409,6 +412,32 @@
 
   const HANDLES = [['nw', 0, 0], ['ne', 1, 0], ['se', 1, 1], ['sw', 0, 1]];
 
+  // Shapes made of points can have those points moved individually. A rectangle
+  // has none - it is moved and resized by its box.
+  function pointsOf(sh) {
+    if (!sh) return [];
+    if (sh.type === 'line') return [[sh.x1, sh.y1], [sh.x2, sh.y2]];
+    if (sh.type === 'polyline' || sh.type === 'polygon') {
+      const pts = sh.points || [];
+      // A long freehand stroke would otherwise sprout hundreds of dots; the ends
+      // are what people reach for.
+      if (pts.length > 12) return [pts[0], pts[pts.length - 1]];
+      return pts;
+    }
+    return [];
+  }
+
+  function setPoint(sh, i, x, y) {
+    if (sh.type === 'line') {
+      if (i === 0) { sh.x1 = x; sh.y1 = y; } else { sh.x2 = x; sh.y2 = y; }
+      return;
+    }
+    const pts = sh.points || [];
+    // When only the two ends are shown, the second dot is the last point.
+    const idx = (pts.length > 12 && i === 1) ? pts.length - 1 : i;
+    if (pts[idx]) pts[idx] = [x, y];
+  }
+
   // The dashed outline and its four corners. Drawn as part of the picture but
   // stripped out again on export, so what is saved is the drawing alone.
   // Duplicate and delete, sitting just above whatever is selected. Buttons
@@ -422,7 +451,6 @@
       bar.className = 'ds-shape-bar';
       bar.innerHTML = `
         <button type="button" data-act="duplicate" title="Duplicate">Duplicate</button>
-        <button type="button" data-act="flip" title="Flip across">Flip</button>
         <button type="button" data-act="delete" title="Delete">Delete</button>`;
       root.querySelector('.ds-stage').appendChild(bar);
       bar.addEventListener('click', (e) => {
@@ -482,6 +510,37 @@
       h.setAttribute('data-handle', name);
       g.appendChild(h);
     }
+
+    // The round handle above the shape, the way a word processor does it: drag
+    // it round and the shape follows to any angle, so it can be stood on one
+    // corner rather than only flipped.
+    const stalkTop = b.y - 58;
+    const stalk = document.createElementNS(NS, 'line');
+    stalk.setAttribute('x1', b.x + b.w / 2); stalk.setAttribute('y1', b.y - 6);
+    stalk.setAttribute('x2', b.x + b.w / 2); stalk.setAttribute('y2', stalkTop + 13);
+    stalk.setAttribute('class', 'ds-rot-stalk');
+    g.appendChild(stalk);
+
+    const rot = document.createElementNS(NS, 'circle');
+    rot.setAttribute('cx', b.x + b.w / 2);
+    rot.setAttribute('cy', stalkTop);
+    rot.setAttribute('r', 13);
+    rot.setAttribute('class', 'ds-rot-handle');
+    rot.setAttribute('data-rotate', '1');
+    g.appendChild(rot);
+
+    // Lines and anything built from points get a dot on every point, so the ends
+    // can be dragged out later rather than being fixed where they were drawn.
+    const pts = pointsOf(sel);
+    pts.forEach((p, i) => {
+      const dot = document.createElementNS(NS, 'circle');
+      dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]);
+      dot.setAttribute('r', 10);
+      dot.setAttribute('class', 'ds-point-handle');
+      dot.setAttribute('data-point', String(i));
+      g.appendChild(dot);
+    });
+
     svg.appendChild(g);
   }
 
@@ -490,7 +549,25 @@
     layer.innerHTML = '';
     for (const s of shapes) {
       const el = elementFor(s);
-      if (el) layer.appendChild(el);
+      if (!el) continue;
+      // A 4px line has a 4px hit area, which is almost impossible to press -
+      // with a fingertip through a camera, entirely impossible. Stroke-only
+      // shapes get an invisible wide copy underneath to catch the pointer, so
+      // a line can be selected and then recoloured, thickened or blurred like
+      // anything else.
+      if (!s.fill || s.fill === 'none') {
+        const hit = elementFor(s);
+        if (hit) {
+          hit.setAttribute('stroke', 'transparent');
+          hit.setAttribute('fill', 'none');
+          hit.setAttribute('stroke-width', Math.max(Number(s.width) || 4, 40));
+          hit.style.filter = '';
+          hit.removeAttribute('opacity');
+          hit.classList.add('ds-hit');
+          layer.appendChild(hit);
+        }
+      }
+      layer.appendChild(el);
     }
     root.querySelector('#dsEmpty').classList.toggle('hidden', shapes.length > 0);
     // Keep the selection ring on whatever is still selected.
@@ -675,18 +752,21 @@
 
     svg.addEventListener('pointerdown', (e) => {
       const handle = e.target?.getAttribute?.('data-handle');
+      const rotating = e.target?.getAttribute?.('data-rotate');
+      const pointIdx = e.target?.getAttribute?.('data-point');
       const shapeId = e.target?.getAttribute?.('data-shape-id');
-      if (!handle && !shapeId) return;
+      if (!handle && !rotating && pointIdx == null && !shapeId) return;
 
-      const id = handle ? selectedId : shapeId;
+      const id = (handle || rotating || pointIdx != null) ? selectedId : shapeId;
       const shape = shapes.find((x) => x.id === id);
       if (!shape) return;
 
-      if (!handle) { selectedId = id; syncInspector(); }
+      if (!handle && !rotating && pointIdx == null) { selectedId = id; syncInspector(); }
       // One snapshot for the whole gesture, so undo puts it back where it was
       // rather than unwinding it a pixel at a time.
       snapshot();
-      drag = { mode: handle ? 'resize' : 'move', handle, id, start: toCanvas(e), box: bboxOf(shape) };
+      const mode = rotating ? 'rotate' : (pointIdx != null ? 'point' : (handle ? 'resize' : 'move'));
+      drag = { mode, handle, point: pointIdx == null ? null : Number(pointIdx), id, start: toCanvas(e), box: bboxOf(shape) };
       try { svg.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault();
       render();
@@ -699,6 +779,26 @@
       const at = toCanvas(e);
       const dx = at.x - drag.start.x;
       const dy = at.y - drag.start.y;
+
+      if (drag.mode === 'rotate') {
+        // The angle from the shape's centre to where the hand is, with zero
+        // pointing straight up so the handle sits where the pointer does.
+        const [cx, cy] = centreOf(shape);
+        let deg = Math.round((Math.atan2(at.y - cy, at.x - cx) * 180) / Math.PI + 90);
+        if (deg < 0) deg += 360;
+        // Shift snaps to the quarter turns, as it does everywhere else.
+        if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+        shape.rotate = deg % 360;
+        render();
+        syncInspector();
+        return;
+      }
+
+      if (drag.mode === 'point') {
+        setPoint(shape, drag.point, at.x, at.y);
+        render();
+        return;
+      }
 
       if (drag.mode === 'move') {
         const b = bboxOf(shape);
@@ -760,20 +860,49 @@
 
     const lineBtn = root.querySelector('#dsLine');
 
+    const eraserBtn = root.querySelector('#dsEraser');
+
     const setTool = (tool) => {
       penMode = tool === 'pen';
       lineMode = tool === 'line';
+      eraseMode = tool === 'erase';
       penBtn.classList.toggle('on', penMode);
       lineBtn.classList.toggle('on', lineMode);
+      eraserBtn.classList.toggle('on', eraseMode);
       svg.classList.toggle('ds-penning', penMode || lineMode);
-      if (penMode || lineMode) { selectedId = null; render(); }
+      svg.classList.toggle('ds-erasing', eraseMode);
+      if (penMode || lineMode || eraseMode) { selectedId = null; render(); }
     };
     penBtn.addEventListener('click', () => setTool(penMode ? null : 'pen'));
     lineBtn.addEventListener('click', () => setTool(lineMode ? null : 'line'));
+    eraserBtn.addEventListener('click', () => setTool(eraseMode ? null : 'erase'));
+
+    // Erasing removes whole shapes, which is what a drawing made of shapes can
+    // do. Dragging rubs out everything the pointer passes over, in one undo step.
+    let erasing = false;
+    const eraseAt = (e) => {
+      const id = e.target && e.target.getAttribute && e.target.getAttribute('data-shape-id');
+      if (!id) return;
+      shapes = shapes.filter((x) => x.id !== id);
+      render();
+    };
+    svg.addEventListener('pointerdown', (e) => {
+      if (!eraseMode) return;
+      e.preventDefault(); e.stopPropagation();
+      snapshot();
+      erasing = true;
+      eraseAt(e);
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+    }, true);
+    svg.addEventListener('pointermove', (e) => { if (eraseMode && erasing) eraseAt(e); }, true);
+    const stopErase = () => { if (erasing) { erasing = false; report(); } };
+    svg.addEventListener('pointerup', stopErase, true);
+    svg.addEventListener('pointercancel', stopErase, true);
 
     // A freehand stroke is stored as a polyline like any other shape, so it can
     // be selected, moved, resized, recoloured and deleted afterwards.
     svg.addEventListener('pointerdown', (e) => {
+      if (eraseMode) return;
       if (!penMode && !lineMode) return;
       e.preventDefault();
       e.stopPropagation();
@@ -783,7 +912,7 @@
         id: `p${Date.now().toString(36)}`,
         type: 'polyline',
         points: [[at.x, at.y]],
-        stroke: root.querySelector('#dsColour').value || '#e8f2ff',
+        stroke: root.querySelector('#dsColour').value || '#ffffff',
         fill: 'none',
         width: Number(root.querySelector('#dsWidth').value) || 4,
       };
@@ -819,21 +948,55 @@
     svg.addEventListener('pointerup', endStroke, true);
     svg.addEventListener('pointercancel', endStroke, true);
 
+    // Electron does not implement window.prompt - it returns null and logs that
+    // it never will - so the text button appeared to do nothing at all. This
+    // asks for the words on the canvas instead, which is better anyway: you can
+    // see where the text is going while you type it.
     textBtn.addEventListener('click', () => {
-      const words = window.prompt('What should it say?');
-      if (!words || !words.trim()) return;
-      snapshot();
-      shapes.push({
-        id: `t${Date.now().toString(36)}`,
-        type: 'text',
-        text: words.trim(),
-        x: W * 0.5 - Math.min(W * 0.4, words.length * 13),
-        y: H * 0.5,
-        size: 56,
-        stroke: root.querySelector('#dsColour').value || '#e8f2ff',
+      let box = root.querySelector('#dsTextEntry');
+      if (box) { box.remove(); return; }
+
+      box = document.createElement('div');
+      box.id = 'dsTextEntry';
+      box.className = 'ds-text-entry';
+      box.innerHTML = `
+        <input type="text" id="dsTextInput" placeholder="Type, then press Enter" autocomplete="off">
+        <button type="button" id="dsTextAdd">Add</button>`;
+      root.querySelector('.ds-stage').appendChild(box);
+
+      const input = box.querySelector('#dsTextInput');
+      setTimeout(() => input.focus(), 20);
+
+      const commit = () => {
+        const words = (input.value || '').trim();
+        box.remove();
+        if (!words) return;
+        snapshot();
+        const size = 56;
+        const id = `t${Date.now().toString(36)}`;
+        shapes.push({
+          id,
+          type: 'text',
+          text: words,
+          // Roughly centred: SVG text is positioned from its left edge and
+          // sits on its baseline, so half the run is taken off the x.
+          x: Math.max(20, W * 0.5 - (words.length * size * 0.27)),
+          y: H * 0.5,
+          size,
+          stroke: root.querySelector('#dsColour').value || '#ffffff',
+          font: root.querySelector('#dsFont').value || undefined,
+        });
+        selectedId = id;
+        render();
+        syncInspector();
+        report();
+      };
+
+      box.querySelector('#dsTextAdd').addEventListener('click', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') { e.preventDefault(); box.remove(); }
       });
-      render();
-      report();
     });
 
     // Flipping, not spinning: the drawing reads the same way up, as it does in
