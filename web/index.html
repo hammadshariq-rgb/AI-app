@@ -1032,9 +1032,43 @@
 
     /* ═══ SIDEBAR NAV TABS (like app) ═══ */
     .sb-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-    .sb-nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--text2); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
-    .sb-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-    .sb-nav-item.active { background: rgba(61,92,255,0.12); border-color: rgba(61,92,255,0.2); color: rgba(150,180,255,0.9); }
+    /* Matched to the app's side navigation: glass rows that lift under the
+       pointer, rather than small flat list items. */
+    .sb-nav-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 13px 18px; margin-bottom: 7px;
+      border-radius: 14px;
+      font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400;
+      color: rgba(190,200,220,0.62);
+      cursor: pointer;
+      background: rgba(255,255,255,0.055);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 2px 6px rgba(0,0,0,0.10),
+        inset  3px  3px 0.5px -3.5px rgba(255,255,255,0.09),
+        inset -3px -3px 0.5px -3.5px rgba(255,255,255,0.85),
+        inset  1px  1px   1px -0.5px rgba(255,255,255,0.55),
+        inset -1px -1px   1px -0.5px rgba(255,255,255,0.55),
+        inset  0    0    6px   6px   rgba(255,255,255,0.10),
+        0 0 14px rgba(0,0,0,0.18);
+      transform: scale(1);
+      transition: transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease,
+                  background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    }
+    .sb-nav-item:hover {
+      transform: scale(1.04);
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(255,255,255,0.18);
+      color: rgba(220,230,255,0.9);
+    }
+    .sb-nav-item.active {
+      background: rgba(61,92,255,0.16);
+      border-color: rgba(120,160,255,0.34);
+      color: rgba(190,214,255,0.97);
+    }
+    .sb-nav-item.gold-nav.active { background: rgba(255,190,60,0.14); border-color: rgba(255,200,90,0.42); color: rgba(255,220,150,0.97); }
+    .sb-nav-icon { font-size: 16px; opacity: 0.85; width: 20px; text-align: center; }
     .sb-nav-item.gold-nav { color: rgba(245,158,11,0.8); }
     .sb-nav-item.gold-nav.active, .sb-nav-item.gold-nav:hover { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #f59e0b; }
     .sb-nav-icon { font-size: 14px; flex-shrink: 0; }
@@ -1229,20 +1263,30 @@
     #chatApp { background: radial-gradient(ellipse 110% 75% at 50% 18%, #06222e 0%, #041118 45%, #02070b 100%); padding-top: 86px; }
     #chatNav { display: none !important; }
     #chatWave { top: 330px; transform: none; height: 300px; opacity: 1; } /* same strands and place as the voice screen */
+    /* The same orb as the desktop app: deep blue, not cyan. The two sitting
+       side by side was the single thing that made the website look like a
+       different product. */
     #chatOrb {
       top: 100px; width: 200px; height: 200px;
-      background: radial-gradient(circle at 35% 30%, #66ecff 0%, #10c8f0 38%, #0a9cc8 62%, #04506e 100%);
-      box-shadow: 0 0 32px 8px rgba(0,200,255,0.55), 0 0 75px 22px rgba(0,160,220,0.28), 0 0 130px 44px rgba(0,110,170,0.14), inset 0 0 45px rgba(120,235,255,0.25);
+      background: radial-gradient(circle at 35% 30%,
+        rgba(110, 160, 255, 0.95),
+        rgba(15,  55, 180, 0.90) 48%,
+        rgba(4,   12,  60, 0.98) 100%);
+      box-shadow:
+        0 0 32px  8px rgba(25,  70, 230, 0.65),
+        0 0 75px 22px rgba(10,  35, 180, 0.30),
+        0 0 130px 44px rgba(5,  18, 100, 0.15),
+        inset 0 0 45px rgba(60, 120, 255, 0.18);
       animation: appOrbIdle 4s ease-in-out infinite;
     }
     #chatOrb::before, #chatOrb::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
-    #chatOrb::before { inset: -18px; border: 1px solid rgba(0,200,255,0.3); box-shadow: 0 0 8px rgba(0,200,255,0.2); }
-    #chatOrb::after { inset: -34px; border: 1px solid rgba(0,160,255,0.15); }
+    #chatOrb::before { inset: -18px; border: 1px solid rgba(90, 140, 255, 0.34); box-shadow: 0 0 10px rgba(40, 90, 230, 0.26); }
+    #chatOrb::after { inset: -34px; border: 1px solid rgba(60, 110, 240, 0.16); }
     #chatOrb.thinking { transform: translateX(-50%) scale(1); animation: appOrbIdle 1.2s ease-in-out infinite; }
     #chatOrbName, #chatOrbStatus { position: absolute; left: 50%; transform: translateX(-50%); z-index: 1; pointer-events: none; white-space: nowrap; }
     #chatOrbName {
       top: 340px; font-family: 'Orbitron', sans-serif; font-size: 38px; font-weight: 700; letter-spacing: 10px; color: #fff;
-      text-shadow: 0 0 10px rgba(0,220,255,1), 0 0 30px rgba(0,200,255,0.7), 0 0 60px rgba(0,150,255,0.4);
+      text-shadow: 0 0 10px rgba(120,170,255,0.95), 0 0 30px rgba(40,100,240,0.7), 0 0 60px rgba(20,60,200,0.4);
       animation: appNameGlow 3s ease-in-out infinite;
     }
     #chatOrbStatus { top: 398px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 6px; color: rgba(0,200,255,0.55); text-shadow: 0 0 8px rgba(0,200,255,0.5); }
@@ -3320,7 +3364,308 @@
   .wob-skip:hover{background:rgba(255,255,255,.07);color:rgba(195,215,255,.8)}
   .wob-next{flex:2;background:linear-gradient(135deg,#3d5cff 0%,#6c3dff 100%);border:none;border-radius:11px;color:#fff;font-size:14px;font-weight:700;padding:12px;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(61,92,255,.35);transition:transform .15s,box-shadow .15s}
   .wob-next:hover{transform:translateY(-1px);box-shadow:0 6px 26px rgba(61,92,255,.5)}
-</style>
+/* =============================================================
+   THE DRAWING STUDIO
+   Shared with the desktop app, which is where these rules come
+   from. The script was already being loaded here but none of its
+   styles were, so the canvas rendered as unstyled markup.
+============================================================= */
+.ds {
+  position: fixed; inset: 0; z-index: 9990;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 50% 0%, #101a30 0%, #070b16 60%, #05070f 100%);
+  color: rgba(228, 238, 255, 0.95);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.ds.hidden { display: none !important; }
+
+.ds-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px; flex: none; }
+.ds-brand {
+  font-family: 'Share Tech Mono', monospace; font-size: 10.5px; letter-spacing: 2.4px;
+  color: rgba(0, 200, 255, 0.75); white-space: nowrap;
+}
+.ds-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-top-actions { display: flex; align-items: center; gap: 8px; }
+
+.ds-btn {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 500; font-size: 13px; letter-spacing: 0; line-height: 20px;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.05); border: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  color: rgba(226, 238, 255, 0.9);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.ds-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; transform: translateY(-1px); }
+.ds-btn:active { transform: scale(0.98); }
+
+/* Moulded buttons: lit along the top edge, shadowed underneath, so they read as
+   raised rather than drawn on. The reference did this in white on black; these
+   are the same effect in the colours already in use here. */
+.ds-btn, .ds-shape-bar button, .ds-text-entry button {
+  box-shadow:
+    inset 0 0.18rem 0.5rem rgba(255, 255, 255, 0.16),
+    inset 0 -0.08rem 0.25rem rgba(0, 0, 0, 0.65),
+    inset 0 -0.3rem 0.7rem rgba(255, 255, 255, 0.07),
+    0 0.55rem 0.9rem -0.45rem rgba(0, 0, 0, 0.75);
+}
+.ds-btn:hover, .ds-shape-bar button:hover, .ds-text-entry button:hover {
+  box-shadow:
+    inset 0 0.18rem 0.4rem rgba(255, 255, 255, 0.26),
+    inset 0 -0.08rem 0.25rem rgba(0, 0, 0, 0.65),
+    inset 0 -0.3rem 0.7rem rgba(255, 255, 255, 0.14),
+    0 0.6rem 1rem -0.4rem rgba(0, 0, 0, 0.8);
+}
+.ds-btn:active, .ds-shape-bar button:active, .ds-text-entry button:active {
+  transform: translateY(2px) scale(0.99);
+  box-shadow:
+    inset 0 0.2rem 0.4rem rgba(255, 255, 255, 0.3),
+    inset 0 -0.08rem 0.25rem rgba(0, 0, 0, 0.8),
+    inset 0 -0.3rem 0.7rem rgba(255, 255, 255, 0.05);
+}
+.ds-btn-go {
+  background: rgba(0, 170, 255, 0.24);
+  color: #9fe6ff;
+}
+.ds-btn-go { background: rgba(0, 200, 255, 0.15); border-color: rgba(0, 200, 255, 0.42); color: #86dcff; }
+.ds-btn-sm { padding: 7px 14px; }
+.ds-x { background: none; border: 0; color: rgba(170, 190, 225, 0.6); font-size: 15px; cursor: pointer; padding: 4px 8px; }
+.ds-x:hover { color: #fff; }
+
+.ds-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
+/* The canvas was capped at 78vh, which left a square floating in the middle of a
+   wide screen with most of the window unused. It now takes the room it is given. */
+.ds-stage svg { width: min(100%, 96vh); height: min(100%, 96vh); }
+.ds-stage svg.ds-penning { cursor: crosshair; }
+/* Shapes are real DOM elements, so the Callisto cursor clicks them for free */
+/* Tool strip: pen, text and rotate sit with the drawing rather than in the
+   top bar, so the hand that is drawing does not have to travel. */
+/* One card holding the tools, rather than a column of separate tiles: a single
+   rounded surface with a hairline ring, and pill-shaped items inside it that
+   shift slightly under the pointer. */
+.ds-tools {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(10, 16, 32, 0.96);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 3px 0 rgba(0,0,0,0.5);
+}
+.ds-tool {
+  width: 38px; height: 38px; border-radius: 999px;
+  background: none; border: none;
+  color: rgba(226, 238, 255, 0.82);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.ds-tool:hover { background: rgba(255,255,255,0.07); color: #fff; transform: translateX(2px); }
+.ds-tool:active { transform: scale(0.96); }
+.ds-tool.on { background: rgba(0, 170, 255, 0.26); color: #fff; }
+.ds-tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The controls that appear on whatever shape is selected. */
+.ds-shape-bar {
+  position: absolute; transform: translateX(-50%); z-index: 6;
+  display: flex; gap: 2px; padding: 4px;
+  background: rgba(10, 16, 32, 0.96);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 3px 0 rgba(0,0,0,0.5);
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+}
+.ds-shape-bar.hidden { display: none !important; }
+.ds-shape-bar button {
+  background: none; border: none; cursor: pointer;
+  color: rgba(226, 238, 255, 0.9);
+  font-family: inherit;
+  font-size: 13px; font-weight: 500; line-height: 20px;
+  height: 32px; padding: 0 12px; border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.ds-shape-bar button:hover { background: rgba(255,255,255,0.08); color: #fff; transform: translateY(-1px); }
+.ds-shape-bar button:active { transform: scale(0.98); }
+.ds-shape-bar button[data-act="delete"]:hover { background: rgba(220, 60, 70, 0.28); color: #ffd7d7; }
+
+.ds-insp-row { display: flex; gap: 6px; margin: 12px 0 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07); }
+.ds-insp-row .ds-btn { flex: 1; padding: 0 6px; height: 32px; font-size: 12.5px; border-radius: 999px; }
+.ds-field select {
+  width: 100%; background: rgba(255,255,255,0.05); color: rgba(240,247,255,0.95);
+  border: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+  border-radius: 999px; padding: 7px 12px;
+  font-family: inherit; font-size: 13px; font-weight: 500;
+}
+.ds-field i { font-style: normal; opacity: 0.55; float: right; font-variant-numeric: tabular-nums; }
+.ds-field.hidden { display: none !important; }
+
+.ds-shape { cursor: pointer; transition: filter 0.12s; }
+.ds-shape:hover { filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.55)); }
+.ds-shape.ds-selected { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.9)); }
+
+/* Selection scaffolding: the dashed box round whatever is picked, and the four
+   corners that resize it. Deliberately large - they are grabbed by a fingertip
+   through the camera as often as by a mouse. */
+.ds-sel-ring {
+  fill: none;
+  stroke: rgba(0, 200, 255, 0.85);
+  stroke-width: 2;
+  stroke-dasharray: 10 7;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+/* The round handle above a selection, dragged to turn the shape to any angle. */
+.ds-rot-handle {
+  fill: #06101f; stroke: #00c8ff; stroke-width: 2.5;
+  cursor: grab; vector-effect: non-scaling-stroke;
+}
+.ds-rot-handle:hover { fill: #00c8ff; }
+.ds-rot-handle:active { cursor: grabbing; }
+.ds-rot-stalk {
+  stroke: rgba(0, 200, 255, 0.55); stroke-width: 2; stroke-dasharray: 5 5;
+  vector-effect: non-scaling-stroke; pointer-events: none;
+}
+
+/* The ends of a line, so it can be stretched out after it was drawn. */
+.ds-point-handle {
+  fill: #00c8ff; stroke: #06101f; stroke-width: 2.5;
+  cursor: grab; vector-effect: non-scaling-stroke;
+}
+.ds-point-handle:hover { fill: #7fe3ff; }
+
+/* The invisible wide twin that makes a thin line pressable. */
+.ds-hit { cursor: pointer; }
+.ds-hit:hover { stroke: rgba(0, 200, 255, 0.14) !important; }
+
+.ds-stage svg.ds-erasing { cursor: cell; }
+
+/* Asking for the words on the canvas, since Electron has no window.prompt. */
+.ds-text-entry {
+  position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 7;
+  display: flex; gap: 6px; padding: 6px;
+  border-radius: 16px;
+  background: rgba(10, 16, 32, 0.97);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 12px 30px rgba(0,0,0,0.55);
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+}
+.ds-text-entry input {
+  width: 260px; border: none; outline: none;
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+  border-radius: 999px; padding: 8px 14px;
+  color: #eaf4ff; font-family: inherit; font-size: 13.5px;
+}
+.ds-text-entry input::placeholder { color: rgba(226,238,255,0.4); }
+.ds-text-entry button {
+  border: none; cursor: pointer; border-radius: 999px; padding: 0 16px;
+  background: rgba(0, 170, 255, 0.26); color: #fff;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+}
+.ds-text-entry button:hover { background: rgba(0, 170, 255, 0.4); }
+
+.ds-handle {
+  fill: #06101f;
+  stroke: #00c8ff;
+  stroke-width: 2.5;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+}
+.ds-handle:hover { fill: #00c8ff; }
+.ds-handle:active { cursor: grabbing; }
+.ds-shape { cursor: move; }
+
+.ds-empty { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; pointer-events: none; text-align: center; }
+.ds-empty.hidden { display: none !important; }
+.ds-empty-mark { font-size: 46px; color: rgba(0, 200, 255, 0.3); }
+.ds-empty p { margin: 0; font-size: 14px; color: rgba(175, 196, 232, 0.75); }
+.ds-empty-eg { font-size: 12px !important; color: rgba(140, 165, 205, 0.55) !important; }
+
+/* The side bar that opens when a shape is pressed. It was a small floating box
+   pinned near the top, which could not hold everything a shape can be given -
+   the lower controls simply ran off the screen. It is now a full-height panel
+   that scrolls, with the controls grouped so they can be found. */
+.ds-insp {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 248px; z-index: 6;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 16px 14px 20px;
+  overflow-y: auto;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  background: linear-gradient(180deg, rgba(10,16,32,0.98) 0%, rgba(7,11,24,0.98) 100%);
+  border-left: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), -18px 0 46px rgba(0,0,0,0.5);
+  animation: dsInspIn 0.2s cubic-bezier(0.3, 0.9, 0.4, 1) both;
+}
+@keyframes dsInspIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.ds-insp.hidden { display: none !important; }
+.ds-insp::-webkit-scrollbar { width: 8px; }
+.ds-insp::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.22); border-radius: 4px; }
+
+/* Group headings, so a long panel can be read rather than scanned. */
+.ds-insp-group {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: 0;
+  text-transform: none;
+  color: rgba(226, 238, 255, 0.52);
+  margin: 10px 0 2px; padding: 10px 4px 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.ds-insp-group:first-of-type { margin-top: 2px; padding-top: 0; border-top: none; }
+
+/* The canvas gives the side bar its room rather than sitting underneath it. */
+.ds-stage.ds-insp-open { padding-right: 262px; }
+.ds-insp-name {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px; font-weight: 600; letter-spacing: 0;
+  color: rgba(0, 200, 255, 0.95);
+  padding: 0 4px 2px;
+}
+.ds-field {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; font-weight: 500; line-height: 20px;
+  color: rgba(226, 238, 255, 0.72);
+  padding: 6px 4px;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+.ds-field:hover { background: rgba(255,255,255,0.04); }
+.ds-field input[type="color"] {
+  width: 100%; height: 32px; border: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.14);
+  border-radius: 999px; background: none; cursor: pointer; padding: 3px;
+}
+.ds-field input[type="range"] { width: 100%; accent-color: #00a6ff; }
+
+.ds-command {
+  flex: none; display: flex; align-items: center; gap: 9px; margin: 0 auto 10px;
+  width: min(760px, calc(100% - 36px)); padding: 9px 10px 9px 14px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ds-spark { width: 17px; height: 17px; flex: none; fill: rgba(0, 200, 255, 0.8); }
+.ds-command input {
+  flex: 1; min-width: 0; height: 30px; background: none; border: 0; outline: none;
+  font-family: inherit; font-size: 13.5px; color: rgba(228, 238, 255, 0.95);
+}
+.ds-command input::placeholder { color: rgba(150, 172, 212, 0.6); }
+.ds-kbd {
+  flex: none; padding: 4px 8px; border-radius: 6px; font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 0.06em; color: rgba(160, 182, 218, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03);
+}
+
+.ds-make { flex: none; display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap; padding: 0 18px 8px; }
+.ds-make-label { font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 1.8px; color: rgba(150, 172, 212, 0.6); margin-right: 2px; }
+.ds-hint { flex: none; text-align: center; font-size: 10.5px; letter-spacing: 0.03em;
+  color: rgba(140, 165, 205, 0.55); padding-bottom: 12px; }
+
+@media (max-width: 720px) {
+  .ds-insp { position: static; width: auto; margin: 0 18px; }
+  .ds-kbd, .ds-hint { display: none; }
+}
+  </style>
 
 <div id="webOnboard" class="hidden">
   <div id="wobCard">
@@ -3531,7 +3876,7 @@
 <script src="/panels/portfolio.js?v=1"></script>
 <script src="/gates.js?v=1"></script>
 <script src="/create-web.js?v=1"></script>
-<script src="/draw-studio.js?v=1"></script>
+<script src="/draw-studio.js?v=2"></script>
 <script src="/draw-web.js?v=1"></script>
 <script src="/news-web.js?v=1"></script>
 <script src="/documents-web.js?v=1"></script>
