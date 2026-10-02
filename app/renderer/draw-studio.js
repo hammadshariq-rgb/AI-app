@@ -12,6 +12,19 @@
   'use strict';
 
   const NS = 'http://www.w3.org/2000/svg';
+
+  // The fonts offered in the text tool. Kept to faces that are actually present
+  // on Windows and macOS, so what is chosen is what gets drawn.
+  const FONTS = [
+    ['Inter, system-ui, sans-serif', 'Sans serif'],
+    ['Georgia, "Times New Roman", serif', 'Serif'],
+    ['"Courier New", ui-monospace, monospace', 'Typewriter'],
+    ['Impact, "Arial Black", sans-serif', 'Heavy'],
+    ['"Comic Sans MS", "Chalkboard SE", cursive', 'Handwritten'],
+    ['"Brush Script MT", "Snell Roundhand", cursive', 'Script'],
+    ['"Trebuchet MS", sans-serif', 'Rounded'],
+    ['Orbitron, "Rajdhani", sans-serif', 'Callisto'],
+  ];
   const W = 1000, H = 1000;          // the coordinate space the AI draws in
 
   let root = null, svg = null, layer = null;
@@ -21,6 +34,7 @@
   let selectedId = null;
   let penMode = false;          // freehand drawing by hand
   let penStroke = null;         // the stroke currently being drawn
+  let lineMode = false;         // drawing a straight line by dragging
   let flip = () => {};          // set up in wire(), used by the hand gesture too
   let commandHandler = null;
   // Editing by hand changes the picture just as much as Callisto drawing on it
@@ -52,6 +66,9 @@
           <button class="ds-tool" id="dsPen" title="Draw freehand" aria-label="Draw freehand">
             <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.586 7.586"/></svg>
           </button>
+          <button class="ds-tool" id="dsLine" title="Draw a straight line" aria-label="Draw a straight line">
+            <svg viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/></svg>
+          </button>
           <button class="ds-tool" id="dsText" title="Add text" aria-label="Add text">
             <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
           </button>
@@ -82,6 +99,29 @@
           <input type="color" id="dsFill" value="#0a1020"></label>
         <label class="ds-field"><span>Thickness</span>
           <input type="range" id="dsWidth" min="1" max="24" value="4"></label>
+        <label class="ds-field ds-text-only"><span>Font</span>
+          <select id="dsFont"></select></label>
+        <label class="ds-field"><span>Finish</span>
+          <select id="dsPattern">
+            <option value="">Plain</option>
+            <option value="stripes">Stripes</option>
+            <option value="dots">Dots</option>
+          </select></label>
+        <label class="ds-field"><span>Outline</span>
+          <select id="dsDash">
+            <option value="">Solid</option>
+            <option value="18 12">Dashed</option>
+            <option value="2 10">Dotted</option>
+          </select></label>
+        <label class="ds-field"><span>Blur <i id="dsBlurVal">0%</i></span>
+          <input type="range" id="dsBlur" min="0" max="100" step="5" value="0"></label>
+        <label class="ds-field"><span>Opacity <i id="dsOpacityVal">100%</i></span>
+          <input type="range" id="dsOpacity" min="10" max="100" step="5" value="100"></label>
+        <div class="ds-insp-row">
+          <button class="ds-btn" id="dsDuplicate">Duplicate</button>
+          <button class="ds-btn" id="dsForward" title="Bring to front">Front</button>
+          <button class="ds-btn" id="dsBack" title="Send to back">Back</button>
+        </div>
         <button class="ds-btn" id="dsDelete">Delete this</button>
       </div>
 
@@ -112,6 +152,52 @@
   // ── Turning the AI's shapes into SVG ───────────────────────────────────────
   // One place that knows how each shape type is drawn, so the AI only has to
   // describe what it wants rather than write SVG.
+  // A striped or dotted shape is filled with a pattern rather than a colour, so
+  // one has to exist in the document before anything can refer to it. They are
+  // made on demand, one per colour asked for.
+  // Callisto names a face plainly ("handwritten"); the picker stores the CSS
+  // stack. Both end up here, so either works.
+  const FONT_BY_NAME = {
+    plain: FONTS[0][0], serif: FONTS[1][0], typewriter: FONTS[2][0], heavy: FONTS[3][0],
+    handwritten: FONTS[4][0], script: FONTS[5][0], rounded: FONTS[6][0], callisto: FONTS[7][0],
+  };
+  function fontStack(v) {
+    if (!v) return null;
+    return FONT_BY_NAME[String(v).toLowerCase()] || v;
+  }
+
+  function patternFor(kind, colour) {
+    const key = `ds-${kind}-${String(colour).replace(/[^a-z0-9]/gi, '')}`;
+    let defs = svg.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS(NS, 'defs');
+      defs.setAttribute('data-export-keep', '1');
+      svg.insertBefore(defs, svg.firstChild);
+    }
+    if (defs.querySelector(`#${key}`)) return `url(#${key})`;
+
+    const pat = document.createElementNS(NS, 'pattern');
+    pat.setAttribute('id', key);
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('width', kind === 'dots' ? 22 : 18);
+    pat.setAttribute('height', kind === 'dots' ? 22 : 18);
+    if (kind === 'stripes') pat.setAttribute('patternTransform', 'rotate(45)');
+
+    if (kind === 'dots') {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', 11); c.setAttribute('cy', 11); c.setAttribute('r', 4);
+      c.setAttribute('fill', colour);
+      pat.appendChild(c);
+    } else {
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('width', 8); r.setAttribute('height', 18);
+      r.setAttribute('fill', colour);
+      pat.appendChild(r);
+    }
+    defs.appendChild(pat);
+    return `url(#${key})`;
+  }
+
   function elementFor(s) {
     const stroke = s.stroke || '#e8f2ff';
     const fill = s.fill || 'none';
@@ -151,7 +237,7 @@
         el = document.createElementNS(NS, 'text');
         el.setAttribute('x', s.x); el.setAttribute('y', s.y);
         el.setAttribute('font-size', s.size || 48);
-        el.setAttribute('font-family', 'Inter, system-ui, sans-serif');
+        el.setAttribute('font-family', fontStack(s.font) || 'Inter, system-ui, sans-serif');
         el.setAttribute('fill', stroke);
         el.textContent = s.text || '';
         break;
@@ -166,6 +252,21 @@
       el.setAttribute('stroke-linejoin', 'round');
     }
     if (s.rotate) el.setAttribute('transform', `rotate(${s.rotate} ${centreOf(s).join(' ')})`);
+
+    // ── Finishes ─────────────────────────────────────────────────────
+    // Stripes and dots replace the fill with a pattern of the same colour the
+    // shape would otherwise have been filled with.
+    if (s.pattern === 'stripes' || s.pattern === 'dots') {
+      el.setAttribute('fill', patternFor(s.pattern, (fill && fill !== 'none') ? fill : stroke));
+    }
+    if (s.dash) el.setAttribute('stroke-dasharray', s.dash === true ? '18 12' : String(s.dash));
+    if (s.opacity != null) el.setAttribute('opacity', Math.max(0, Math.min(1, Number(s.opacity))));
+    // Blur is given as a percentage because that is how people ask for it;
+    // a tenth of the canvas would be unrecognisable, so 100% is 20px.
+    if (s.blur) el.style.filter = `blur(${(Number(s.blur) / 100) * 20}px)`;
+    if (s.type === 'text' && s.font) el.setAttribute('font-family', fontStack(s.font));
+    if (s.type === 'text' && s.weight) el.setAttribute('font-weight', s.weight);
+
     el.setAttribute('data-shape-id', s.id);
     el.classList.add('ds-shape');
     return el;
@@ -299,15 +400,60 @@
 
   // The dashed outline and its four corners. Drawn as part of the picture but
   // stripped out again on export, so what is saved is the drawing alone.
+  // Duplicate and delete, sitting just above whatever is selected. Buttons
+  // rather than SVG so they stay a readable size however far the canvas is
+  // scaled, and so the Callisto cursor can press them like anything else.
+  function showShapeBar(box) {
+    let bar = root.querySelector('#dsShapeBar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'dsShapeBar';
+      bar.className = 'ds-shape-bar';
+      bar.innerHTML = `
+        <button type="button" data-act="duplicate" title="Duplicate">Duplicate</button>
+        <button type="button" data-act="flip" title="Flip across">Flip</button>
+        <button type="button" data-act="delete" title="Delete">Delete</button>`;
+      root.querySelector('.ds-stage').appendChild(bar);
+      bar.addEventListener('click', (e) => {
+        const act = e.target.getAttribute && e.target.getAttribute('data-act');
+        if (!act) return;
+        if (act === 'duplicate') duplicateSelected();
+        else if (act === 'flip') flip('h');
+        else if (act === 'delete') {
+          snapshot();
+          shapes = shapes.filter((x) => x.id !== selectedId);
+          selectedId = null;
+          render();
+          report();
+        }
+      });
+    }
+    // The canvas is letterboxed inside the stage, so the bar has to be placed
+    // in the stage's pixels rather than the drawing's own coordinates.
+    const r = svg.getBoundingClientRect();
+    const stage = root.querySelector('.ds-stage').getBoundingClientRect();
+    const scale = Math.min(r.width / W, r.height / H) || 1;
+    const offX = r.left - stage.left + (r.width - W * scale) / 2;
+    const offY = r.top - stage.top + (r.height - H * scale) / 2;
+    bar.style.left = `${Math.round(offX + (box.x + box.w / 2) * scale)}px`;
+    bar.style.top = `${Math.round(offY + box.y * scale - 46)}px`;
+    bar.classList.remove('hidden');
+  }
+
+  function hideShapeBar() {
+    root.querySelector('#dsShapeBar')?.classList.add('hidden');
+  }
+
   function renderHandles() {
     const existing = svg.querySelector('#dsHandles');
     if (existing) existing.remove();
     const sel = shapes.find((x) => x.id === selectedId);
-    if (!sel) return;
+    if (!sel) { hideShapeBar(); return; }
     const b = bboxOf(sel);
     const g = document.createElementNS(NS, 'g');
     g.setAttribute('id', 'dsHandles');
     g.setAttribute('data-export-skip', '1');
+    showShapeBar(b);
 
     const ring = document.createElementNS(NS, 'rect');
     ring.setAttribute('x', b.x - 6); ring.setAttribute('y', b.y - 6);
@@ -364,6 +510,18 @@
     const op = cmd.op || 'add';
     if (op === 'clear') shapes = [];
     if (op === 'remove' && cmd.ids) shapes = shapes.filter((s) => !cmd.ids.includes(s.id));
+    // "Duplicate that" by voice, offset so the copy is visible rather than
+    // hidden exactly behind what it was copied from.
+    if (op === 'duplicate' && cmd.ids) {
+      for (const id of cmd.ids) {
+        const src = shapes.find((x) => x.id === id);
+        if (!src) continue;
+        const copy = JSON.parse(JSON.stringify(src));
+        copy.id = `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+        moveShape(copy, 40, 40);
+        shapes.push(copy);
+      }
+    }
     if (cmd.title) { title = cmd.title; root.querySelector('#dsTitle').textContent = title; }
     for (const s of (cmd.shapes || [])) {
       const shape = { ...s, id: s.id || `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}` };
@@ -383,7 +541,18 @@
       const [cx, cy] = centreOf(s).map(Math.round);
       // Colours are part of the state: without them "make the box green" has
       // nothing to reason about, and "make it darker" is guesswork.
-      const paint = `, outline ${s.stroke || '#e8f2ff'}${s.fill && s.fill !== 'none' ? `, filled ${s.fill}` : ', not filled'}`;
+      // Finishes are part of the state too, so "make the other one match" and
+      // "remove the stripes" have something to reason about.
+      const extras = [
+        s.pattern ? s.pattern : null,
+        s.dash ? 'dashed outline' : null,
+        s.blur ? `blurred ${s.blur}%` : null,
+        s.opacity != null ? `${Math.round(s.opacity * 100)}% opaque` : null,
+        s.rotate ? `turned ${s.rotate} degrees` : null,
+        s.type === 'text' && s.font ? `font ${s.font}` : null,
+      ].filter(Boolean);
+      const paint = `, outline ${s.stroke || '#e8f2ff'}${s.fill && s.fill !== 'none' ? `, filled ${s.fill}` : ', not filled'}`
+        + (extras.length ? `, ${extras.join(', ')}` : '');
       const where = `at (${cx},${cy})`;
       switch (s.type) {
         case 'rect':    return `${s.id}: rectangle ${where}, ${Math.round(s.w)} wide by ${Math.round(s.h)} tall${paint}`;
@@ -576,17 +745,23 @@
     const penBtn = root.querySelector('#dsPen');
     const textBtn = root.querySelector('#dsText');
 
-    penBtn.addEventListener('click', () => {
-      penMode = !penMode;
+    const lineBtn = root.querySelector('#dsLine');
+
+    const setTool = (tool) => {
+      penMode = tool === 'pen';
+      lineMode = tool === 'line';
       penBtn.classList.toggle('on', penMode);
-      svg.classList.toggle('ds-penning', penMode);
-      if (penMode) { selectedId = null; render(); }
-    });
+      lineBtn.classList.toggle('on', lineMode);
+      svg.classList.toggle('ds-penning', penMode || lineMode);
+      if (penMode || lineMode) { selectedId = null; render(); }
+    };
+    penBtn.addEventListener('click', () => setTool(penMode ? null : 'pen'));
+    lineBtn.addEventListener('click', () => setTool(lineMode ? null : 'line'));
 
     // A freehand stroke is stored as a polyline like any other shape, so it can
     // be selected, moved, resized, recoloured and deleted afterwards.
     svg.addEventListener('pointerdown', (e) => {
-      if (!penMode) return;
+      if (!penMode && !lineMode) return;
       e.preventDefault();
       e.stopPropagation();
       snapshot();
@@ -604,8 +779,14 @@
     }, true);
 
     svg.addEventListener('pointermove', (e) => {
-      if (!penMode || !penStroke) return;
+      if (!penStroke) return;
       const at = toCanvas(e);
+      if (lineMode) {
+        // A straight line keeps only where it started and where the hand is now.
+        penStroke.points = [penStroke.points[0], [at.x, at.y]];
+        render();
+        return;
+      }
       const last = penStroke.points[penStroke.points.length - 1];
       // Only record a point once the pen has actually travelled, or a slow hand
       // produces thousands of points sitting on top of each other.
@@ -682,6 +863,24 @@
       selectedId = null;
       render();
     });
+    const fontSel = root.querySelector('#dsFont');
+    fontSel.innerHTML = FONTS.map(([css, name]) => `<option value="${css}">${name}</option>`).join('');
+    fontSel.addEventListener('change', (e) => setOnSelected('font', e.target.value));
+
+    root.querySelector('#dsPattern').addEventListener('change', (e) => setOnSelected('pattern', e.target.value));
+    root.querySelector('#dsDash').addEventListener('change', (e) => setOnSelected('dash', e.target.value));
+    root.querySelector('#dsBlur').addEventListener('input', (e) => {
+      root.querySelector('#dsBlurVal').textContent = `${e.target.value}%`;
+      setOnSelected('blur', Number(e.target.value) || '');
+    });
+    root.querySelector('#dsOpacity').addEventListener('input', (e) => {
+      root.querySelector('#dsOpacityVal').textContent = `${e.target.value}%`;
+      setOnSelected('opacity', Number(e.target.value) / 100);
+    });
+    root.querySelector('#dsDuplicate').addEventListener('click', duplicateSelected);
+    root.querySelector('#dsForward').addEventListener('click', () => restack(true));
+    root.querySelector('#dsBack').addEventListener('click', () => restack(false));
+
     root.querySelector('#dsColour').addEventListener('input', (e) => editSelected('stroke', e.target.value));
     root.querySelector('#dsFill').addEventListener('input', (e) => editSelected('fill', e.target.value));
     root.querySelector('#dsWidth').addEventListener('input', (e) => editSelected('width', Number(e.target.value)));
@@ -706,6 +905,56 @@
     if (/^#/.test(s.stroke || '')) c.value = s.stroke;
     if (/^#/.test(s.fill || '')) f.value = s.fill;
     w.value = s.width == null ? 4 : s.width;
+
+    root.querySelector('#dsPattern').value = s.pattern || '';
+    root.querySelector('#dsDash').value = s.dash && s.dash !== true ? String(s.dash) : (s.dash ? '18 12' : '');
+    const blur = Number(s.blur) || 0;
+    root.querySelector('#dsBlur').value = blur;
+    root.querySelector('#dsBlurVal').textContent = `${blur}%`;
+    const op = s.opacity == null ? 100 : Math.round(Number(s.opacity) * 100);
+    root.querySelector('#dsOpacity').value = op;
+    root.querySelector('#dsOpacityVal').textContent = `${op}%`;
+    root.querySelector('#dsFont').value = s.font || FONTS[0][0];
+    // The font picker only means anything for text.
+    root.querySelectorAll('.ds-text-only').forEach((el) => el.classList.toggle('hidden', s.type !== 'text'));
+  }
+
+  // Everything in the inspector edits the selected shape the same way: set one
+  // field, redraw, and tell Callisto what the canvas looks like now.
+  function setOnSelected(field, value) {
+    const sh = shapes.find((x) => x.id === selectedId);
+    if (!sh) return;
+    snapshot();
+    if (value === '' || value == null) delete sh[field];
+    else sh[field] = value;
+    render();
+    report();
+  }
+
+  function duplicateSelected() {
+    const sh = shapes.find((x) => x.id === selectedId);
+    if (!sh) return;
+    snapshot();
+    const copy = JSON.parse(JSON.stringify(sh));
+    copy.id = `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    // Offset a little, or the copy hides exactly behind the original and looks
+    // like nothing happened.
+    moveShape(copy, 40, 40);
+    shapes.push(copy);
+    selectedId = copy.id;
+    render();
+    syncInspector();
+    report();
+  }
+
+  function restack(toFront) {
+    const i = shapes.findIndex((x) => x.id === selectedId);
+    if (i < 0) return;
+    snapshot();
+    const [sh] = shapes.splice(i, 1);
+    if (toFront) shapes.push(sh); else shapes.unshift(sh);
+    render();
+    report();
   }
 
   function undo() {

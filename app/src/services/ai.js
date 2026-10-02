@@ -128,8 +128,8 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          op: { type: 'string', enum: ['add', 'clear', 'replace', 'remove'], description: 'add = keep what is there (default), and also how you CHANGE an existing shape - pass its id. clear = wipe first. replace = wipe and draw this instead. remove = delete the shapes whose ids are given.' },
-          ids: { type: 'array', items: { type: 'string' }, description: 'For op "remove": the ids of the shapes to delete.' },
+          op: { type: 'string', enum: ['add', 'clear', 'replace', 'remove', 'duplicate'], description: 'add = keep what is there (default), and also how you CHANGE an existing shape - pass its id. clear = wipe first. replace = wipe and draw this instead. remove = delete the shapes whose ids are given.' },
+          ids: { type: 'array', items: { type: 'string' }, description: 'For op "remove" or "duplicate": the ids of the shapes to delete or copy.' },
           title: { type: 'string', description: 'A short name for the drawing, only on the first request' },
           shapes: {
             type: 'array',
@@ -150,6 +150,13 @@ const TOOLS = [
                 fill: { type: 'string', description: 'Fill colour as hex, or "none"' },
                 width: { type: 'number', description: 'Line thickness, 1-24' },
                 radius: { type: 'number', description: 'Corner rounding on a rect' },
+                font: { type: 'string', enum: ['plain', 'serif', 'typewriter', 'heavy', 'handwritten', 'script', 'rounded', 'callisto'], description: 'For text only: which face to set it in.' },
+                weight: { type: 'string', description: 'For text: "bold" when they ask for bold.' },
+                pattern: { type: 'string', enum: ['stripes', 'dots'], description: 'Fill the shape with stripes or dots instead of a flat colour. Use when they say striped, stripes, hatched, spotted or dotted.' },
+                dash: { type: 'string', description: 'Dashed or dotted OUTLINE: "18 12" for dashed, "2 10" for dotted. Leave out for a solid line.' },
+                blur: { type: 'number', description: 'Blur as a percentage, 0-100. "Blur it 30%" is 30.' },
+                opacity: { type: 'number', description: 'How solid the shape is, 0-1. "Make it half transparent" is 0.5.' },
+                rotate: { type: 'number', description: 'Turn the shape this many degrees.' },
                 rotate: { type: 'number', description: 'Degrees' },
               },
               required: ['type'],
@@ -823,6 +830,18 @@ DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
 - "Make it bigger/smaller/wider" is the same thing with the size fields, and
   "move it up/left" the same with the position fields.
 - To delete something, use op "remove" with its id in ids.
+- THE CANVAS CAN DO WHAT A WORD PROCESSOR CAN, and all of it through the same
+  tool, by changing fields on a shape that already exists:
+    "add stripes to it"            -> { id, pattern: "stripes" }
+    "make it spotted"              -> { id, pattern: "dots" }
+    "make the outline dashed"      -> { id, dash: "18 12" }   (dotted: "2 10")
+    "blur it 30%"                  -> { id, blur: 30 }
+    "make it half see-through"     -> { id, opacity: 0.5 }
+    "turn it 45 degrees"           -> { id, rotate: 45 }
+    "put it in a handwritten font" -> { id, font: "handwritten" }
+    "make the writing bold"        -> { id, weight: "bold" }
+    "duplicate it" / "copy that"   -> op "duplicate" with its id in ids
+  Never say a thing cannot be done to a shape without trying these first.
 - Drawings are built up over several messages. "Add two lines making a triangle", "put a rocket on top", "make the box bigger" all continue the SAME drawing: use op "add" and place things relative to what is already there.
 - Only use op "clear" when they say start again, wipe it, or start a new drawing.
 - DRAW THE WHOLE THING, NOT ONE SHAPE STANDING FOR IT. A spaceship is a body, a
