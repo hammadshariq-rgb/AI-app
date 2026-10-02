@@ -93,15 +93,22 @@
       <!-- Selecting a shape: the panel only appears when one is picked -->
       <div class="ds-insp hidden" id="dsInsp">
         <div class="ds-insp-name" id="dsInspName">Shape</div>
-        <label class="ds-field"><span>Colour</span>
+
+        <div class="ds-insp-group">Colour</div>
+        <label class="ds-field"><span>Outline colour</span>
           <input type="color" id="dsColour" value="#00c8ff"></label>
-        <label class="ds-field"><span>Fill</span>
+        <label class="ds-field"><span>Fill colour</span>
           <input type="color" id="dsFill" value="#0a1020"></label>
+
+        <div class="ds-insp-group">Line</div>
         <label class="ds-field"><span>Thickness</span>
           <input type="range" id="dsWidth" min="1" max="24" value="4"></label>
+        <div class="ds-insp-group ds-text-only">Text</div>
         <label class="ds-field ds-text-only"><span>Font</span>
           <select id="dsFont"></select></label>
-        <label class="ds-field"><span>Finish</span>
+
+        <div class="ds-insp-group">Finish</div>
+        <label class="ds-field"><span>Pattern</span>
           <select id="dsPattern">
             <option value="">Plain</option>
             <option value="stripes">Stripes</option>
@@ -115,8 +122,12 @@
           </select></label>
         <label class="ds-field"><span>Blur <i id="dsBlurVal">0%</i></span>
           <input type="range" id="dsBlur" min="0" max="100" step="5" value="0"></label>
-        <label class="ds-field"><span>Opacity <i id="dsOpacityVal">100%</i></span>
+        <label class="ds-field"><span>Density <i id="dsOpacityVal">100%</i></span>
           <input type="range" id="dsOpacity" min="10" max="100" step="5" value="100"></label>
+        <label class="ds-field"><span>Turn <i id="dsRotateVal">0°</i></span>
+          <input type="range" id="dsRotate" min="0" max="350" step="10" value="0"></label>
+
+        <div class="ds-insp-group">Arrange</div>
         <div class="ds-insp-row">
           <button class="ds-btn" id="dsDuplicate">Duplicate</button>
           <button class="ds-btn" id="dsForward" title="Bring to front">Front</button>
@@ -488,7 +499,9 @@
       if (el) el.classList.add('ds-selected');
       else selectedId = null;
     }
-    root.querySelector('#dsInsp').classList.toggle('hidden', !selectedId);
+    const inspOpen = !!selectedId;
+    root.querySelector('#dsInsp').classList.toggle('hidden', !inspOpen);
+    root.querySelector('.ds-stage').classList.toggle('ds-insp-open', inspOpen);
     renderHandles();
   }
 
@@ -877,6 +890,10 @@
       root.querySelector('#dsOpacityVal').textContent = `${e.target.value}%`;
       setOnSelected('opacity', Number(e.target.value) / 100);
     });
+    root.querySelector('#dsRotate').addEventListener('input', (e) => {
+      root.querySelector('#dsRotateVal').textContent = `${e.target.value}°`;
+      setOnSelected('rotate', Number(e.target.value) || '');
+    });
     root.querySelector('#dsDuplicate').addEventListener('click', duplicateSelected);
     root.querySelector('#dsForward').addEventListener('click', () => restack(true));
     root.querySelector('#dsBack').addEventListener('click', () => restack(false));
@@ -914,7 +931,10 @@
     const op = s.opacity == null ? 100 : Math.round(Number(s.opacity) * 100);
     root.querySelector('#dsOpacity').value = op;
     root.querySelector('#dsOpacityVal').textContent = `${op}%`;
-    root.querySelector('#dsFont').value = s.font || FONTS[0][0];
+    const rot = Number(s.rotate) || 0;
+    root.querySelector('#dsRotate').value = rot;
+    root.querySelector('#dsRotateVal').textContent = `${rot}°`;
+    root.querySelector('#dsFont').value = fontStack(s.font) || FONTS[0][0];
     // The font picker only means anything for text.
     root.querySelectorAll('.ds-text-only').forEach((el) => el.classList.toggle('hidden', s.type !== 'text'));
   }

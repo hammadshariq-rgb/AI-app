@@ -9293,13 +9293,37 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .ds-empty p { margin: 0; font-size: 14px; color: rgba(175, 196, 232, 0.75); }
 .ds-empty-eg { font-size: 12px !important; color: rgba(140, 165, 205, 0.55) !important; }
 
+/* The side bar that opens when a shape is pressed. It was a small floating box
+   pinned near the top, which could not hold everything a shape can be given -
+   the lower controls simply ran off the screen. It is now a full-height panel
+   that scrolls, with the controls grouped so they can be found. */
 .ds-insp {
-  position: absolute; right: 18px; top: 74px; width: 210px; z-index: 2;
-  display: flex; flex-direction: column; gap: 10px; padding: 14px;
-  border-radius: 14px; background: rgba(10, 16, 30, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: absolute; right: 0; top: 0; bottom: 0; width: 248px; z-index: 6;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 16px 14px 20px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(10,16,32,0.98) 0%, rgba(7,11,24,0.98) 100%);
+  border-left: 1px solid rgba(0, 180, 255, 0.18);
+  box-shadow: -18px 0 46px rgba(0,0,0,0.5);
+  animation: dsInspIn 0.2s cubic-bezier(0.3, 0.9, 0.4, 1) both;
 }
+@keyframes dsInspIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 .ds-insp.hidden { display: none !important; }
+.ds-insp::-webkit-scrollbar { width: 8px; }
+.ds-insp::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.22); border-radius: 4px; }
+
+/* Group headings, so a long panel can be read rather than scanned. */
+.ds-insp-group {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(0, 200, 255, 0.55);
+  margin: 12px 0 2px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.ds-insp-group:first-of-type { margin-top: 4px; padding-top: 0; border-top: none; }
+
+/* The canvas gives the side bar its room rather than sitting underneath it. */
+.ds-stage.ds-insp-open { padding-right: 262px; }
 .ds-insp-name { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
   letter-spacing: 1.8px; color: rgba(0, 200, 255, 0.8); }
 .ds-field { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: rgba(168, 188, 224, 0.8); }
