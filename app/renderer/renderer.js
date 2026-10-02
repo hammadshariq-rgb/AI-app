@@ -9092,12 +9092,20 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   const [, authResult] = await Promise.all([splashPromise, authPromise]);
 
   if (authResult.offline) {
-    // Server unreachable — only allow in if they previously had an active subscription
+    // Server unreachable - only allow in if they previously had an active subscription
     if (storedProfile && storedProfile.name && storedProfile.wasSubscribed) {
       await enterMain(true, _isReturningUser);
     } else {
+      // Someone who has just signed up gets put back at the start here, which
+      // reads as the app refusing them for no reason. Say what actually
+      // happened, so a second attempt is an obvious thing to try.
       setupView.classList.remove('hidden');
       showNameStep();
+      const err = document.getElementById('nameError') || document.getElementById('authError');
+      if (err) {
+        err.textContent = "I couldn't reach the Callisto servers just now. Check your connection and try again.";
+        err.classList.remove('hidden');
+      }
     }
     return;
   }

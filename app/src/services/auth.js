@@ -1,7 +1,14 @@
 const fetch = require('node-fetch');
 
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
-const TIMEOUT = 3500;
+
+// 3.5 seconds was not enough. The server sleeps when idle and takes several
+// seconds to wake, and a distant or tethered connection is slower again, so
+// signing up could abort before the server had answered at all - and the person
+// was then told the server was not running, with a path to a folder on the
+// developer's computer. Long enough to survive a cold start, short enough that
+// a genuinely dead server is not waited on forever.
+const TIMEOUT = 20000;
 
 function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
@@ -10,9 +17,20 @@ function fetchWithTimeout(url, options = {}) {
     .finally(() => clearTimeout(timer));
 }
 
+// What went wrong, said to the person using the app rather than to whoever
+// wrote it. A timeout and a refused connection are different problems.
+function connectionError(err) {
+  const msg = String((err && err.message) || '').toLowerCase();
+  if (err && (err.name === 'AbortError' || msg.includes('abort'))) {
+    return { error: 'That took too long to answer. Check your internet connection and try again - it often works on a second attempt.' };
+  }
+  return { error: 'I could not reach the Callisto servers. Check your internet connection and try again in a moment.' };
+}
+
 async function safeJson(res) {
   const text = await res.text();
-  try { return JSON.parse(text); } catch { return { error: 'Server not ready. Run: cd server && npm start' }; }
+  try { return JSON.parse(text); }
+  catch { return { error: 'The server gave an answer I could not read. Please try again in a moment.' }; }
 }
 
 async function signup(email, password, name) {
@@ -24,7 +42,7 @@ async function signup(email, password, name) {
     });
     return safeJson(res);
   } catch (e) {
-    return { error: 'Server not running. Open a terminal and run: cd C:\\Users\\hamma\\jarvis-app\\server && npm start' };
+    return connectionError(e);
   }
 }
 
@@ -37,7 +55,7 @@ async function login(email, password) {
     });
     return safeJson(res);
   } catch (e) {
-    return { error: 'Server not running. Open a terminal and run: cd C:\\Users\\hamma\\jarvis-app\\server && npm start' };
+    return connectionError(e);
   }
 }
 
@@ -47,8 +65,8 @@ async function verifyToken(token) {
       headers: { Authorization: `Bearer ${token}` },
     });
     return await res.json();
-  } catch {
-    return { error: 'Server unreachable' };
+  } catch (e) {
+    return connectionError(e);
   }
 }
 
