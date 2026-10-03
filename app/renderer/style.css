@@ -5289,10 +5289,16 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
 .shopping-deals-btn:hover { background: rgba(255,60,60,0.18); }
 
 /* ===================== UPDATE BANNER ===================== */
+/* No backdrop-filter here. Callisto's window is transparent and frameless, and
+   on macOS a backdrop filter over a transparent window blurs the whole window
+   behind it rather than just the strip under the element - which is why the
+   screen appeared to go blurry while an update was downloading. A solid
+   background gives the same look with none of that. */
 #updateBanner {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(30,30,50,0.95); border: 1px solid rgba(100,120,255,0.35);
-  backdrop-filter: blur(16px); border-radius: 10px; padding: 10px 18px;
+  max-width: min(520px, calc(100vw - 48px));
+  background: rgb(26, 28, 46); border: 1px solid rgba(100,120,255,0.35);
+  border-radius: 10px; padding: 10px 18px;
   display: flex; align-items: center; gap: 12px; z-index: 9999;
   font-size: 12px; color: rgba(200,210,255,0.85); font-weight: 500;
   box-shadow: 0 4px 24px rgba(0,0,0,0.4); animation: slideUp 0.3s ease;
@@ -5304,6 +5310,11 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;
 }
 #updateBanner #updateInstallBtn:hover { background: rgba(74,222,128,0.25); }
+#updateBanner .ub-x {
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  color: rgba(200,210,255,0.5); font-size: 12px; line-height: 1;
+}
+#updateBanner .ub-x:hover { color: rgba(230,238,255,0.95); }
 @keyframes slideUp { from { opacity:0; transform: translateX(-50%) translateY(12px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
 
 /* ===================== CALENDAR CARD ===================== */

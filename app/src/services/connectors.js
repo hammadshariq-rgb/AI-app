@@ -129,9 +129,37 @@ async function getSpotifyToken() {
 
 // Search for a track and return its URI. Handles a stale token by refreshing once.
 // Returns: { ok, trackUri, trackName, artistName } or { ok: false, error }
+// The Callisto licence token, for calls that go to our own server rather than
+// to a connected account.
+function getAuthToken() {
+  const raw = store.get('authToken');
+  if (!raw) return '';
+  if (!safeStorage.isEncryptionAvailable()) return raw;
+  try { return safeStorage.decryptString(Buffer.from(raw, 'base64')); }
+  catch { return raw; }
+}
+
+async function searchSpotifyViaServer(query) {
+  try {
+    const plain = String(query || '').replace(/^play\s+/i, '').trim();
+    const res = await fetch(`${SERVER}/spotify/search?q=${encodeURIComponent(plain)}`, {
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+    });
+    const data = await res.json();
+    if (data && data.ok) return data;
+    return { ok: false, error: (data && data.error) || 'track_not_found' };
+  } catch (_) {
+    return { ok: false, error: 'not_connected' };
+  }
+}
+
 async function searchSpotifyTrack(query) {
   let token = await getSpotifyToken();
-  if (!token) return { ok: false, error: 'not_connected' };
+  // Searching the catalogue is public, so not having linked a Spotify account
+  // is no reason to fail: the licence server looks it up with Callisto's own
+  // credentials instead. Playing it still needs either an account (Windows) or
+  // the desktop app (a Mac, through AppleScript).
+  if (!token) return searchSpotifyViaServer(query);
 
   // Strip a leading "play " the AI may have passed through
   const plain = query.replace(/^play\s+/i, '').trim();

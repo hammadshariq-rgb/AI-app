@@ -646,6 +646,48 @@ app.get('/connect/stripe/poll', (req, res) => {
   res.json({ ok: false });
 });
 
+// Finding a track needs no permission from the listener - it is public
+// catalogue data - so this uses Callisto's own Spotify credentials. Playing it
+// on a Mac is AppleScript, which needs no account either. Together that means
+// "play road trips on Spotify" works for someone who has never opened the
+// connectors panel, instead of failing silently for everyone but the one person
+// who happened to link their account.
+let _appSpotifyToken = { value: null, expires: 0 };
+
+async function appSpotifyToken() {
+  if (_appSpotifyToken.value && Date.now() < _appSpotifyToken.expires) return _appSpotifyToken.value;
+  const id = process.env.SPOTIFY_CLIENT_ID, secret = process.env.SPOTIFY_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  const creds = Buffer.from(`${id}:${secret}`).toString('base64');
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+  const data = await res.json();
+  if (!data.access_token) return null;
+  _appSpotifyToken = { value: data.access_token, expires: Date.now() + ((data.expires_in || 3600) - 60) * 1000 };
+  return data.access_token;
+}
+
+app.get('/spotify/search', authMiddleware, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) return res.status(400).json({ error: 'q required' });
+    const token = await appSpotifyToken();
+    if (!token) return res.status(503).json({ error: 'Spotify is not configured on this server.' });
+    const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await r.json();
+    const t = data?.tracks?.items?.[0];
+    if (!t) return res.json({ ok: false, error: 'track_not_found' });
+    res.json({ ok: true, trackUri: t.uri, trackName: t.name, artistName: (t.artists || [])[0]?.name || '' });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 app.get('/connect/spotify', (req, res) => {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) return res.status(500).send('Spotify not configured. Add SPOTIFY_CLIENT_ID to server .env');

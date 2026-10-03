@@ -4800,8 +4800,15 @@ async function _coreSpotifyPlay(query) {
   // Any exit through here leaves the window back at its default (not always-on-top)
   const finish = (res) => { if (alive()) stopSpotifyFocusLock(); return res; };
 
+  // On a Mac the whole thing can be done without a linked account: the server
+  // finds the track with Callisto's own credentials and AppleScript tells the
+  // desktop app to play it. Only Windows, which drives playback through the Web
+  // API, genuinely needs the account. Requiring it on both meant "play road
+  // trips on Spotify" worked only for whoever had opened the connectors panel.
   const tokens = connectors.loadTokens('spotify');
-  if (!tokens?.access_token) return { ok: false, error: 'Spotify not connected' };
+  if (!tokens?.access_token && process.platform !== 'darwin') {
+    return { ok: false, error: 'Spotify not connected' };
+  }
 
   // ── macOS ──────────────────────────────────────────────────────────────────
   // AppleScript `play track <uri>` starts playback instantly. It needs no Connect

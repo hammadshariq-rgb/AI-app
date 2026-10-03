@@ -6241,22 +6241,29 @@ if (window.jarvis.onSentenceText) {
 })();
 
 // ── Auto-updater notifications ────────────────────────────────────────────────
-window.jarvis.onUpdateAvailable(({ version }) => {
+// An update is never urgent. It downloads in the background and installs when
+// Callisto is closed anyway, so the most these should do is mention it - and
+// the download notice takes itself away rather than sitting there.
+function _updateBanner(html, cls) {
+  document.getElementById('updateBanner')?.remove();
   const banner = document.createElement('div');
   banner.id = 'updateBanner';
-  banner.innerHTML = `<span>Update v${version} is downloading…</span>`;
+  if (cls) banner.className = cls;
+  banner.innerHTML = html + '<button class="ub-x" aria-label="Dismiss">\u2715</button>';
   document.body.appendChild(banner);
+  banner.querySelector('.ub-x').addEventListener('click', () => banner.remove());
+  return banner;
+}
+
+window.jarvis.onUpdateAvailable(({ version }) => {
+  const b = _updateBanner(`<span>Version ${version} is downloading in the background.</span>`);
+  setTimeout(() => { if (b.isConnected) b.remove(); }, 8000);
 });
 
 window.jarvis.onUpdateReady(() => {
-  const existing = document.getElementById('updateBanner');
-  if (existing) existing.remove();
-  const banner = document.createElement('div');
-  banner.id = 'updateBanner';
-  banner.className = 'update-ready';
-  banner.innerHTML = `<span>Update ready — restart to install</span><button id="updateInstallBtn">Restart Now</button>`;
-  document.body.appendChild(banner);
-  document.getElementById('updateInstallBtn').addEventListener('click', () => window.jarvis.installUpdate());
+  _updateBanner('<span>An update is ready. It installs next time you close Callisto.</span>'
+    + '<button id="updateInstallBtn">Restart now</button>', 'update-ready');
+  document.getElementById('updateInstallBtn')?.addEventListener('click', () => window.jarvis.installUpdate());
 });
 
 // Queue and play audio chunks in order — each starts as soon as the previous ends
