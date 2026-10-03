@@ -199,7 +199,15 @@ function loadAuthToken() {
   if (!raw) return null;
   if (!safeStorage.isEncryptionAvailable()) return raw;
   try { return safeStorage.decryptString(Buffer.from(raw, 'base64')); }
-  catch { return raw; }
+  catch (_) {
+    // Returning the ciphertext meant sending an unreadable token with every
+    // request and being told 401 by everything, forever, with no way out: the
+    // app believed it was signed in and the person was told the speech service
+    // was unreachable. An unreadable token is no token - say so, and let them
+    // sign in again.
+    console.warn('[auth] stored token could not be decrypted; treating as signed out');
+    return null;
+  }
 }
 
 function getAssistantName() {
@@ -727,11 +735,21 @@ ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
 
 app.whenReady().then(async () => {
   if (!IS_PRIMARY_INSTANCE) return;   // this copy is on its way out; it hands over above
-  // Deliberately NOT setName('Your Own Personal AI') any more: that name reached
-  // the macOS menu bar and the Force Quit list. The data folder is pinned
-  // explicitly further up, so it keeps its old location regardless of this - an
-  // existing customer's settings, tokens and connections stay where they are.
-  app.setName('Callisto');
+  // DO NOT CHANGE THIS NAME. It looks cosmetic and is not.
+  //
+  // Electron's safeStorage derives its key from the application name, so every
+  // secret this app has ever written - the sign-in token, Spotify, Google
+  // Calendar, YouTube, Stripe - was encrypted under THIS string. Rename it and
+  // none of them decrypt: the app looks signed in, sends an unreadable token
+  // with every request, and is answered 401 by everything. That shipped in
+  // 1.3.64 as "Callisto" and broke speech for everyone who already had an
+  // account; reverting the name makes the existing ciphertext readable again,
+  // which is why nothing had to be re-encrypted.
+  //
+  // The product is still called Callisto everywhere a person can see: the
+  // window, the installer, the shortcut, and the bundle name macOS shows in
+  // Force Quit all come from productName, not from here.
+  app.setName('Your Own Personal AI');
 
   // If Windows launched us *because* of a jarvis:// link, it is in argv and no
   // second-instance event will ever arrive. Pick it up before anything else.
