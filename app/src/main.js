@@ -2294,6 +2294,14 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       let playResult = null;
       try { playResult = await playOnSpotifyTimed(query, 8000); } catch (_) { playResult = { ok: false, error: 'timeout' }; }
 
+      // macOS refuses one app to control another until the person allows it, and
+      // refuses silently. Saying which switch to turn on beats "nothing happened".
+      if (playResult.error === 'mac_automation_denied') {
+        const spokenText = 'I need permission to control Spotify. Open System Settings, then Privacy & Security, then Automation, and switch on Spotify under Callisto.';
+        _sendTTS(_e.sender, spokenText);
+        return { text: spokenText, audio: null, card: null, hasAction: false };
+      }
+
       if (playResult.ok) {
         // Plays in background — suppress Spotify window immediately
         suppressSpotifyWindow();
@@ -4819,9 +4827,16 @@ async function _coreSpotifyPlay(query) {
     if (!alive()) return superseded;
     if (!found?.ok) return finish({ ok: false, error: found?.error || 'track_not_found' });
 
+    // Why it failed matters. macOS refuses Apple events between apps until the
+    // person has allowed it in Privacy & Security, and the refusal is silent
+    // from the outside - it just never plays. Keeping the error lets us say so.
+    let lastPlayErr = null;
     const playTrack = () => new Promise((resolve) => {
       exec(`osascript -e 'tell application "Spotify" to play track "${found.trackUri}"'`,
-        (err) => resolve(!err));
+        (err, _out, stderr) => {
+          if (err) lastPlayErr = String(stderr || err.message || '');
+          resolve(!err);
+        });
     });
 
     const running = await new Promise((r) =>
@@ -4848,7 +4863,29 @@ async function _coreSpotifyPlay(query) {
       setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 1000);
       return finish({ ok: true, trackName: found.trackName, artistName: found.artistName });
     }
-    return finish({ ok: false, error: 'play_failed' });
+    // AppleScript did not work. That is usually permission rather than anything
+    // being wrong with the request, and it is not a reason to give up: the Web
+    // API path Windows uses works here too whenever an account is linked. Trying
+    // it is what turns "nothing happened" into music.
+    const deniedAutomation = /-1743|not authori[sz]ed|Not allowed to send/i.test(lastPlayErr || '');
+    console.warn('[Spotify] AppleScript playback failed:', lastPlayErr || '(no detail)');
+
+    if (tokens?.access_token) {
+      const viaApi = await playOnSpotifyTimed(query, 8000).catch(() => ({ ok: false, error: 'timeout' }));
+      if (!alive()) return superseded;
+      if (viaApi.ok) {
+        setTimeout(() => { if (alive()) suppressSpotifyWindow(); }, 250);
+        return finish({ ok: true, trackName: viaApi.trackName || found.trackName, artistName: viaApi.artistName || found.artistName });
+      }
+      console.warn('[Spotify] Web API fallback also failed:', viaApi.error);
+    }
+
+    return finish({
+      ok: false,
+      error: deniedAutomation ? 'mac_automation_denied' : 'play_failed',
+      trackName: found.trackName,
+      artistName: found.artistName,
+    });
   }
 
   // ── Windows ────────────────────────────────────────────────────────────────
