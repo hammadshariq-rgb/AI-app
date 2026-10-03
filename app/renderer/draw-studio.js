@@ -15,15 +15,20 @@
 
   // The fonts offered in the text tool. Kept to faces that are actually present
   // on Windows and macOS, so what is chosen is what gets drawn.
+  // Keyed by a plain name, not by the CSS stack. The stacks contain double
+  // quotes, and the picker built its options as value="<stack>" - which ended
+  // the attribute early and truncated the value, so choosing any font except the
+  // first (the only one without quotes) silently did nothing. The key is also
+  // what Callisto says when asked for a font, so both routes agree.
   const FONTS = [
-    ['Inter, system-ui, sans-serif', 'Sans serif'],
-    ['Georgia, "Times New Roman", serif', 'Serif'],
-    ['"Courier New", ui-monospace, monospace', 'Typewriter'],
-    ['Impact, "Arial Black", sans-serif', 'Heavy'],
-    ['"Comic Sans MS", "Chalkboard SE", cursive', 'Handwritten'],
-    ['"Brush Script MT", "Snell Roundhand", cursive', 'Script'],
-    ['"Trebuchet MS", sans-serif', 'Rounded'],
-    ['Orbitron, "Rajdhani", sans-serif', 'Callisto'],
+    ['plain',       'Sans serif',  'Inter, system-ui, sans-serif'],
+    ['serif',       'Serif',       'Georgia, "Times New Roman", serif'],
+    ['typewriter',  'Typewriter',  '"Courier New", ui-monospace, monospace'],
+    ['heavy',       'Heavy',       'Impact, "Arial Black", sans-serif'],
+    ['handwritten', 'Handwritten', '"Comic Sans MS", "Chalkboard SE", cursive'],
+    ['script',      'Script',      '"Brush Script MT", "Snell Roundhand", cursive'],
+    ['rounded',     'Rounded',     '"Trebuchet MS", sans-serif'],
+    ['callisto',    'Callisto',    'Orbitron, "Rajdhani", sans-serif'],
   ];
   const W = 1000, H = 1000;          // the coordinate space the AI draws in
 
@@ -171,13 +176,20 @@
   // made on demand, one per colour asked for.
   // Callisto names a face plainly ("handwritten"); the picker stores the CSS
   // stack. Both end up here, so either works.
-  const FONT_BY_NAME = {
-    plain: FONTS[0][0], serif: FONTS[1][0], typewriter: FONTS[2][0], heavy: FONTS[3][0],
-    handwritten: FONTS[4][0], script: FONTS[5][0], rounded: FONTS[6][0], callisto: FONTS[7][0],
-  };
+  const FONT_BY_NAME = Object.fromEntries(FONTS.map(([key, , stack]) => [key, stack]));
+  // A key resolves to its stack; a stack saved by an older version is passed
+  // through unchanged so existing drawings keep the font they were given.
   function fontStack(v) {
     if (!v) return null;
     return FONT_BY_NAME[String(v).toLowerCase()] || v;
+  }
+  // The other direction, for putting the picker on the right entry.
+  function fontKey(v) {
+    if (!v) return FONTS[0][0];
+    const low = String(v).toLowerCase();
+    if (FONT_BY_NAME[low]) return low;
+    const hit = FONTS.find(([, , stack]) => stack === v);
+    return hit ? hit[0] : FONTS[0][0];
   }
 
   function patternFor(kind, colour) {
@@ -443,6 +455,80 @@
   // Duplicate and delete, sitting just above whatever is selected. Buttons
   // rather than SVG so they stay a readable size however far the canvas is
   // scaled, and so the Callisto cursor can press them like anything else.
+  // Clicking into text puts a caret where the click landed and lets it be
+  // retyped, rather than making someone delete the shape and add it again. The
+  // editor is a real input laid over the drawing at the same size and font, so
+  // what is being typed looks like what will be drawn.
+  function editTextShape(sh, clientX) {
+    if (!sh || sh.type !== 'text') return;
+    root.querySelector('#dsTextEdit')?.remove();
+
+    const r = svg.getBoundingClientRect();
+    const stage = root.querySelector('.ds-stage').getBoundingClientRect();
+    const scale = Math.min(r.width / W, r.height / H) || 1;
+    const offX = r.left - stage.left + (r.width - W * scale) / 2;
+    const offY = r.top - stage.top + (r.height - H * scale) / 2;
+    const size = (sh.size || 48) * scale;
+
+    const input = document.createElement('input');
+    input.id = 'dsTextEdit';
+    input.className = 'ds-text-edit';
+    input.type = 'text';
+    input.value = sh.text || '';
+    input.style.left = `${Math.round(offX + sh.x * scale)}px`;
+    input.style.top = `${Math.round(offY + sh.y * scale - size)}px`;
+    input.style.fontSize = `${Math.max(12, size)}px`;
+    input.style.fontFamily = fontStack(sh.font) || 'Inter, system-ui, sans-serif';
+    input.style.color = sh.stroke || '#ffffff';
+    input.style.width = `${Math.max(120, (sh.text || '').length * size * 0.62 + 40)}px`;
+    root.querySelector('.ds-stage').appendChild(input);
+
+    // Hide the drawn copy while editing, or the words appear twice.
+    const drawn = layer.querySelector(`[data-shape-id="${sh.id}"]`);
+    if (drawn) drawn.style.visibility = 'hidden';
+
+    input.focus();
+    // Put the caret where the click actually landed, not at the end.
+    if (typeof clientX === 'number') {
+      const rel = clientX - (stage.left + parseFloat(input.style.left));
+      const approx = Math.round(rel / (size * 0.55));
+      const pos = Math.max(0, Math.min(input.value.length, approx));
+      try { input.setSelectionRange(pos, pos); } catch (_) {}
+    } else {
+      input.select();
+    }
+
+    let done = false;
+    const commit = (keep) => {
+      if (done) return;
+      done = true;
+      const words = input.value;
+      input.remove();
+      if (drawn) drawn.style.visibility = '';
+      if (keep && words.trim() && words !== sh.text) {
+        snapshot();
+        sh.text = words;
+        render();
+        report();
+      } else if (keep && !words.trim()) {
+        // Emptied: the shape has nothing left to be.
+        snapshot();
+        shapes = shapes.filter((x) => x.id !== sh.id);
+        selectedId = null;
+        render();
+        report();
+      } else {
+        render();
+      }
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+      if (e.key === 'Escape') { e.preventDefault(); commit(false); }
+    });
+    input.addEventListener('blur', () => commit(true));
+  }
+
   function showShapeBar(box) {
     let bar = root.querySelector('#dsShapeBar');
     if (!bar) {
@@ -475,7 +561,9 @@
     const offX = r.left - stage.left + (r.width - W * scale) / 2;
     const offY = r.top - stage.top + (r.height - H * scale) / 2;
     bar.style.left = `${Math.round(offX + (box.x + box.w / 2) * scale)}px`;
-    bar.style.top = `${Math.round(offY + box.y * scale - 46)}px`;
+    // Below the shape. Above it, the bar sat over whatever was higher up the
+    // canvas and hid the thing being worked on.
+    bar.style.top = `${Math.round(offY + (box.y + box.h) * scale + 14)}px`;
     bar.classList.remove('hidden');
   }
 
@@ -761,7 +849,15 @@
       const shape = shapes.find((x) => x.id === id);
       if (!shape) return;
 
-      if (!handle && !rotating && pointIdx == null) { selectedId = id; syncInspector(); }
+      if (!handle && !rotating && pointIdx == null) {
+        // Already selected and it is text: this click is "let me edit it".
+        if (selectedId === id && shape.type === 'text') {
+          editTextShape(shape, e.clientX);
+          return;
+        }
+        selectedId = id;
+        syncInspector();
+      }
       // One snapshot for the whole gesture, so undo puts it back where it was
       // rather than unwinding it a pixel at a time.
       snapshot();
@@ -825,6 +921,12 @@
       try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
       report();
     };
+    svg.addEventListener('dblclick', (e) => {
+      const id = e.target?.getAttribute?.('data-shape-id');
+      const sh = shapes.find((x) => x.id === id);
+      if (sh && sh.type === 'text') { selectedId = id; syncInspector(); editTextShape(sh, e.clientX); }
+    });
+
     svg.addEventListener('pointerup', endDrag);
     svg.addEventListener('pointercancel', endDrag);
 
@@ -984,7 +1086,7 @@
           y: H * 0.5,
           size,
           stroke: root.querySelector('#dsColour').value || '#ffffff',
-          font: root.querySelector('#dsFont').value || undefined,
+          font: root.querySelector('#dsFont').value || undefined,   // a key, resolved when drawn
         });
         selectedId = id;
         render();
@@ -1040,7 +1142,7 @@
       render();
     });
     const fontSel = root.querySelector('#dsFont');
-    fontSel.innerHTML = FONTS.map(([css, name]) => `<option value="${css}">${name}</option>`).join('');
+    fontSel.innerHTML = FONTS.map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
     fontSel.addEventListener('change', (e) => setOnSelected('font', e.target.value));
 
     root.querySelector('#dsPattern').addEventListener('change', (e) => setOnSelected('pattern', e.target.value));
@@ -1097,7 +1199,7 @@
     const rot = Number(s.rotate) || 0;
     root.querySelector('#dsRotate').value = rot;
     root.querySelector('#dsRotateVal').textContent = `${rot}°`;
-    root.querySelector('#dsFont').value = fontStack(s.font) || FONTS[0][0];
+    root.querySelector('#dsFont').value = fontKey(s.font);
     // The font picker only means anything for text.
     root.querySelectorAll('.ds-text-only').forEach((el) => el.classList.toggle('hidden', s.type !== 'text'));
   }
