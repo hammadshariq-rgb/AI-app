@@ -814,7 +814,7 @@ async function getSquarespaceStats() {
   const creds = store.get('connector.squarespace');
   if (!creds?.api_key) return null;
   const api_key = decryptSecret(creds.api_key);
-  const headers = { Authorization: `Bearer ${api_key}`, 'User-Agent': 'JarvisApp/1.0' };
+  const headers = { Authorization: `Bearer ${api_key}`, 'User-Agent': 'CallistoApp/1.0' };
 
   try {
     // Orders from last 30 days

@@ -8406,7 +8406,7 @@ const CONNECT_STEPS = {
     steps: [
       'Log into your <strong>Shopify Admin</strong> at yourstore.myshopify.com/admin',
       'Go to <strong>Settings</strong> <span class="step-arrow">›</span> <strong>Apps and sales channels</strong> <span class="step-arrow">›</span> <strong>Develop apps</strong>',
-      'Click <strong>Create an app</strong>, give it any name (e.g. Jarvis)',
+      'Click <strong>Create an app</strong>, give it any name (e.g. Callisto)',
       'Click <strong>Configure Admin API scopes</strong> — enable <em>read_orders</em> and <em>read_customers</em>',
       'Click <strong>Install app</strong> then copy the <strong>Admin API access token</strong>',
       'Paste the token and your store URL in the next screen',

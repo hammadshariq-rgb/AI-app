@@ -163,7 +163,7 @@ async function wikiCard(topic) {
   if (!topic || topic.length < 2) return null;
   const res = await _timedFetch(
     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`,
-    { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 5000
+    { headers: { 'User-Agent': 'CallistoApp/1.0' } }, 5000
   );
   if (!res.ok) return null;
   const data = await res.json();
@@ -177,7 +177,7 @@ async function wikiCard(topic) {
     try {
       const imgRes = await _timedFetch(
         `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.title)}&prop=images&format=json&imlimit=8`,
-        { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 3000
+        { headers: { 'User-Agent': 'CallistoApp/1.0' } }, 3000
       );
       if (imgRes.ok) {
         const imgData = await imgRes.json();
@@ -190,7 +190,7 @@ async function wikiCard(topic) {
         if (imgTitles.length) {
           const urlRes = await _timedFetch(
             `https://en.wikipedia.org/w/api.php?action=query&titles=${imgTitles.map(encodeURIComponent).join('|')}&prop=imageinfo&iiprop=url&format=json`,
-            { headers: { 'User-Agent': 'JarvisApp/1.0' } }, 3000
+            { headers: { 'User-Agent': 'CallistoApp/1.0' } }, 3000
           );
           if (urlRes.ok) {
             const urlData = await urlRes.json();
@@ -241,7 +241,7 @@ async function getPlacesCard(query) {
 
     const res = await _timedFetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&addressdetails=1&extratags=1`,
-      { headers: { 'User-Agent': 'JarvisApp/1.0 (personal assistant)' } }, 5000
+      { headers: { 'User-Agent': 'CallistoApp/1.0 (personal assistant)' } }, 5000
     );
     if (!res.ok) return null;
     const data = await res.json();

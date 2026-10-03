@@ -1,6 +1,6 @@
 {
-  "name": "jarvis-desktop",
-  "version": "1.3.63",
+  "name": "callisto",
+  "version": "1.3.64",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -100,8 +100,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Your Own Personal AI",
-      "menuCategory": "Your Own Personal AI",
+      "shortcutName": "Callisto",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"
     },

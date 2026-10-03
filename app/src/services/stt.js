@@ -18,7 +18,7 @@ const WHISPER_TIMEOUT_MS = 60000;
 // unusual/spelled-out names.
 function buildWhisperPrompt() {
   const profile   = store.get('profile') || {};
-  const assistantName = store.get('profile.name') || 'Jarvis';
+  const assistantName = store.get('profile.name') || 'Callisto';
   const displayName   = profile.displayName || '';
   const vipSenders    = store.get('vipSenders') || [];
 

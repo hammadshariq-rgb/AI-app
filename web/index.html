@@ -1407,7 +1407,7 @@
           <div class="pd-row" id="dropYearly"><span>Yearly <span class="pd-save">Save 17%</span></span><span class="pd-price">CA$200/yr</span></div>
         </div>
       </div>
-      <a class="btn-nav blue" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.62/Callisto-Setup-1.3.62.exe" data-dl="win">⬇ Download App</a>
+      <a class="btn-nav blue" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.62/Callisto-Setup-1.3.62.exe" data-dl="auto">⬇ Download App</a>
     </div>
   </nav>
 
@@ -1902,7 +1902,7 @@
           <div class="pd-row" id="cnDropYr"><span>Yearly <span class="pd-save">Save 17%</span></span><span class="pd-price">CA$200/yr</span></div>
         </div>
       </div>
-      <a class="cn-btn dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.62/Callisto-Setup-1.3.62.exe" data-dl="win">⬇ Download App</a>
+      <a class="cn-btn dl" href="https://github.com/hammadshariq-rgb/AI-app/releases/download/v1.3.62/Callisto-Setup-1.3.62.exe" data-dl="auto">⬇ Download App</a>
       <div class="cn-user" id="cnUser">
         <div class="cn-avatar" id="cnAvatar">?</div>
         <span class="cn-uname" id="cnUname"></span>
@@ -3860,6 +3860,15 @@
       var mac = (appleSilicon ? macArm : macIntel) || macArm || macIntel;
       document.querySelectorAll('[data-dl-intel]').forEach(function (a) { if (appleSilicon ? macIntel : macArm) a.href = appleSilicon ? macIntel : macArm; a.textContent = appleSilicon ? 'Intel Mac? Download that version' : 'Apple silicon Mac? Download that version'; });
       document.querySelectorAll('[data-dl="win"]').forEach(function (a) { if (win) a.href = win; });
+      // The nav button said "Download App" and always handed over the Windows
+      // installer, so a Mac visitor got an .exe. It now follows whichever machine
+      // they are on, and says which one it is giving them.
+      var onMac = /Mac/i.test(navigator.platform || navigator.userAgent || '');
+      document.querySelectorAll('[data-dl="auto"]').forEach(function (a) {
+        var href = onMac ? mac : win;
+        if (href) a.href = href;
+        a.textContent = onMac ? '⬇ Download for Mac' : '⬇ Download for Windows';
+      });
       document.querySelectorAll('[data-dl="mac"]').forEach(function (a) { if (mac) a.href = mac; });
       document.querySelectorAll('[data-dl-version]').forEach(function (el) { if (rel.tag_name) el.textContent = rel.tag_name; });
     })

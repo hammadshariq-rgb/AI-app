@@ -46,10 +46,14 @@ const calendar = require('./services/calendar');
 // In dev mode on Windows, setAsDefaultProtocolClient needs the
 // exe path + argv[1] so Windows maps the protocol back to the
 // right instance even when running from source (not packaged).
-if (process.defaultApp) {
-  app.setAsDefaultProtocolClient('jarvis', process.execPath, [path.resolve(process.argv[1])]);
-} else {
-  app.setAsDefaultProtocolClient('jarvis');
+// Both schemes: callisto:// is the name the product actually has, and jarvis://
+// stays registered so a sign-in link already sitting in a browser still works.
+for (const scheme of ['callisto', 'jarvis']) {
+  if (process.defaultApp) {
+    app.setAsDefaultProtocolClient(scheme, process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient(scheme);
+  }
 }
 
 const store = new Store();
@@ -616,7 +620,7 @@ if (!IS_PRIMARY_INSTANCE) app.quit();
 
 // Windows: second instance sends the URL as argv
 app.on('second-instance', (_e, argv) => {
-  const url = argv.find(a => a.startsWith('jarvis://'));
+  const url = argv.find(a => a.startsWith('callisto://') || a.startsWith('jarvis://'));
   if (url) handleDeepLink(url);
   showOverlay();
 });
@@ -632,7 +636,7 @@ app.on('open-url', (event, url) => {
 // Windows cold start: the app was launched *by* the link, so it is sitting in
 // argv and no second-instance event will ever fire for it.
 function consumeStartupDeepLink() {
-  const url = process.argv.find((a) => typeof a === 'string' && a.startsWith('jarvis://'));
+  const url = process.argv.find((a) => typeof a === 'string' && (a.startsWith('callisto://') || a.startsWith('jarvis://')));
   if (url) handleDeepLink(url);
 }
 
@@ -723,7 +727,11 @@ ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
 
 app.whenReady().then(async () => {
   if (!IS_PRIMARY_INSTANCE) return;   // this copy is on its way out; it hands over above
-  app.setName('Your Own Personal AI');
+  // Deliberately NOT setName('Your Own Personal AI') any more: that name reached
+  // the macOS menu bar and the Force Quit list. The data folder is pinned
+  // explicitly further up, so it keeps its old location regardless of this - an
+  // existing customer's settings, tokens and connections stay where they are.
+  app.setName('Callisto');
 
   // If Windows launched us *because* of a jarvis:// link, it is in argv and no
   // second-instance event will ever arrive. Pick it up before anything else.
@@ -4065,7 +4073,7 @@ ipcMain.handle('squarespace:connect', async (_e, { api_key }) => {
   try {
     // Verify directly with Squarespace API
     const res = await fetch('https://api.squarespace.com/1.0/commerce/orders?modifiedAfter=2020-01-01T00:00:00Z', {
-      headers: { Authorization: `Bearer ${api_key}`, 'User-Agent': 'JarvisAI/1.0' },
+      headers: { Authorization: `Bearer ${api_key}`, 'User-Agent': 'CallistoAI/1.0' },
     });
     if (res.status === 401 || res.status === 403) {
       return { ok: false, error: 'Invalid API key. Check you copied it correctly from Squarespace Settings → Advanced → API Keys.' };
