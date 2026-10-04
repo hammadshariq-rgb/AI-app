@@ -1764,12 +1764,58 @@ let _ttsGeneration = 0;
 function resetTTS() {
   _ttsGeneration += 1;
   _ttsChain = Promise.resolve();
+  // Release whatever is still waiting for a slot: it belongs to an answer
+  // nobody is listening to any more, and holding the slots would delay the new
+  // one behind work that will be thrown away.
+  while (_ttsWaiting.length) {
+    const next = _ttsWaiting.shift();
+    try { next(); } catch (_) {}
+  }
+}
+
+// How many sentences may be in the air at once.
+//
+// Every sentence used to start its own request the moment it existed. For a
+// short reply that is three requests and it is quick. For a long one - and the
+// detailed answers on science, law and the rest now run to several hundred
+// words - it is thirty or forty requests fired in the same instant, which is
+// enough of a burst that some of them stall. Because sentences are delivered in
+// order, one stalled request silenced every sentence behind it until the
+// twenty-five second backstop gave up on it: the answer stopped in the middle
+// and carried on a long pause later.
+//
+// Three at a time keeps the first sentence just as quick - speech starts as
+// soon as sentence one is back - while the rest follow steadily behind.
+const TTS_MAX_IN_FLIGHT = 3;
+let _ttsInFlight = 0;
+const _ttsWaiting = [];
+
+function _ttsSlot() {
+  if (_ttsInFlight < TTS_MAX_IN_FLIGHT) {
+    _ttsInFlight += 1;
+    return Promise.resolve();
+  }
+  return new Promise((release) => _ttsWaiting.push(release));
+}
+
+function _ttsRelease() {
+  const next = _ttsWaiting.shift();
+  if (next) next();            // hand the slot straight on
+  else _ttsInFlight = Math.max(0, _ttsInFlight - 1);
 }
 
 function _sendTTS(sender, text) {
   if (!text || !String(text).trim()) return;
   const gen = _ttsGeneration;
-  const job = tts.synthesize(text).catch(() => null);
+
+  // Queued rather than started outright, so a long answer does not arrive as
+  // one burst. Still begins before its turn to be spoken, so nothing waits on
+  // the sentence before it being read aloud.
+  const job = _ttsSlot()
+    .then(() => (gen === _ttsGeneration ? tts.synthesize(text) : null))
+    .catch(() => null)
+    .finally(_ttsRelease);
+
   _ttsChain = _ttsChain.then(async () => {
     // Ordered delivery means a straggler holds up everything behind it, so the
     // queue refuses to wait forever for any one sentence.

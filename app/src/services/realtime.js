@@ -389,7 +389,211 @@ async function getLatestNews(topic) {
 }
 
 // Scrape Google for a general factual answer — handles current leaders, recent events, etc.
+// Scraping Google stopped working: it answers a request like this with a page
+// of JavaScript that strips down to "Please click here if you are not
+// redirected" - 92KB of HTML carrying 182 characters of nothing. Every
+// current-affairs question therefore fell back to the model's training data,
+// which is how a question about 2026 was answered with a president who left
+// office in January 2025.
+//
+// Wikidata answers the same questions properly, and it is a structured API
+// rather than a page to be scraped: who holds an office right now is a claim
+// with a start and an end date, so the right one can be picked rather than
+// guessed. Wikipedia covers everything else.
+const ROLE_QUERY_RE = /(?:who(?:'s|\s+is|\s+was)?\s*(?:the\s+)?(?:current\s+)?)?\b(president|prime minister|chancellor|king|queen|monarch|emperor|pope|chief minister|governor|mayor|secretary[- ]general|ceo|chief executive|chairman|chairperson|owner|founder|leader)\s+of\s+(?:the\s+)?([A-Za-z0-9 .&'-]{2,48})/i;
+
+// Wikidata answers were failing intermittently with "Premature close" - the
+// node-fetch gzip race this file already works around elsewhere, which bites
+// hardest on the larger entities (Apple's chief-executive history has eight
+// entries, each with citations). Asking for an uncompressed body removes the
+// decompression step the race happens in, and one retry covers the rest.
+async function wdFetch(url) {
+  // Node's own fetch, not node-fetch. node-fetch v2 kept ending these responses
+  // with "Premature close" part-way through a body that curl fetches without
+  // complaint - a six kilobyte reply, so not a size problem, just its stream
+  // handling. The built-in client does not have the fault; node-fetch stays as
+  // the fallback for any runtime without one.
+  const client = (typeof globalThis.fetch === 'function') ? globalThis.fetch : null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (client) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 12000);
+        try {
+          const res = await client(url, { signal: ctrl.signal, headers: { 'User-Agent': DEFAULT_UA } });
+          if (!res.ok) return null;
+          return await res.json();
+        } finally { clearTimeout(timer); }
+      }
+      const res = await fetch(url, { timeout: 12000, headers: { 'Accept-Encoding': 'identity' } });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      if (attempt === 1) {
+        if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] gave up on ' + url + ': ' + err.message);
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+async function wikidataSearch(term) {
+  const data = await wdFetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(term)}&language=en&format=json&limit=1`);
+  return (data && data.search && data.search[0]) || null;
+}
+
+async function wikidataLabel(id) {
+  const data = await wdFetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${id}&props=labels%7Cdescriptions&languages=en&format=json`);
+  const e = data && data.entities && data.entities[id];
+  if (!e) return null;
+  return {
+    label: e.labels && e.labels.en && e.labels.en.value,
+    description: e.descriptions && e.descriptions.en && e.descriptions.en.value,
+  };
+}
+
+// Statements carry a start and an end; the one covering today is the answer, and
+// a statement marked preferred wins a tie - which is how Wikidata itself marks
+// the current holder.
+//
+// This reads the REST endpoint rather than wbgetclaims. The old one bundles
+// every citation with the answer, and the reply kept dying mid-body with
+// "Premature close" - the same gzip race this file already works around
+// elsewhere. The REST shape is smaller and gives rank and qualifiers directly.
+function statementTime(qualifiers, propertyId) {
+  const q = (qualifiers || []).find((x) => x.property && x.property.id === propertyId);
+  const t = q && q.value && q.value.content && q.value.content.time;
+  if (!t) return null;
+  const m = String(t).match(/([+-])(\d{4})-(\d{2})-(\d{2})/);
+  if (!m || m[1] === '-') return null;
+  return {
+    ms: Date.UTC(Number(m[2]), Math.max(0, Number(m[3]) - 1), Math.max(1, Number(m[4]))),
+    iso: `${m[2]}-${m[3]}-${m[4]}`,
+  };
+}
+
+function pickCurrentStatement(statements) {
+  if (!statements || !statements.length) return null;
+  const now = Date.now();
+  const live = statements.filter((st) => {
+    const start = statementTime(st.qualifiers, 'P580');
+    const end = statementTime(st.qualifiers, 'P582');
+    if (start && start.ms > now) return false;
+    if (end && end.ms < now) return false;
+    return true;
+  });
+  const pool = live.length ? live : statements;
+  return pool.find((st) => st.rank === 'preferred') || pool[0];
+}
+
+async function wikidataClaim(entityId, property) {
+  const data = await wdFetch(`https://www.wikidata.org/w/rest.php/wikibase/v1/entities/items/${entityId}/statements?property=${property}`);
+  const st = data && pickCurrentStatement(data[property]);
+  const id = st && st.value && st.value.content;
+  if (!id || typeof id !== 'string') return null;
+  const who = await wikidataLabel(id);
+  if (!who || !who.label) return null;
+  const since = statementTime(st.qualifiers, 'P580');
+  return { name: who.label, description: who.description, since: since ? since.iso : null };
+}
+
+// Who currently holds a role, from structured data rather than from memory.
+async function roleHolderFact(query) {
+  const m = ROLE_QUERY_RE.exec(query || '');
+  if (!m) return null;
+  const role = m[1].toLowerCase().replace(/\s+/g, ' ').trim();
+  let subject = m[2].trim().replace(/[?.!,]+$/, '');
+  // "the United States in 2026" is the United States. Trailing time wording
+  // sent the lookup after an entity that does not exist, and it fell back to a
+  // Wikipedia article about the year instead of answering the question.
+  subject = subject
+    .replace(/\s+(?:in|for|during|as of|right now|today|currently)\s+(?:the\s+)?(?:year\s+)?\d{4}\s*$/i, '')
+    .replace(/\s+(?:right now|at the moment|currently|today)\s*$/i, '')
+    .trim();
+  if (!subject) return null;
+
+  const officeRoles = /president|prime minister|chancellor|king|queen|monarch|emperor|pope|chief minister|governor|mayor|secretary[- ]general/i;
+  try {
+    if (officeRoles.test(role)) {
+      // Some offices are titled with "the" and some without, and the search is
+      // literal enough that the wrong one finds nothing at all.
+      let office = await wikidataSearch(`${role} of ${subject}`);
+      if (!office) office = await wikidataSearch(`${role} of the ${subject}`);
+      if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] office lookup "' + role + ' of ' + subject + '" -> ' + (office ? office.id + ' ' + office.label : 'null'));
+      if (office) {
+        const holder = await wikidataClaim(office.id, 'P1308');
+        if (holder) {
+          return `LIVE FACT (Wikidata, current today): the ${office.label} is ${holder.name}`
+            + (holder.since ? `, in office since ${holder.since}` : '')
+            + (holder.description ? `. ${holder.name}: ${holder.description}` : '') + '.';
+        }
+      }
+    }
+    const org = await wikidataSearch(subject);
+    if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] role=' + role + ' subject=' + subject + ' org=' + (org && org.id));
+    if (!org) return null;
+    const wanted = /ceo|chief executive/i.test(role) ? ['P169']
+      : /chairman|chairperson/i.test(role) ? ['P488', 'P169']
+      : /founder/i.test(role) ? ['P112']
+      : /owner/i.test(role) ? ['P169', 'P112', 'P127']
+      : ['P169', 'P488', 'P112'];
+    for (const prop of wanted) {
+      const hit = await wikidataClaim(org.id, prop).catch((e) => {
+        if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] claim ' + prop + ' threw: ' + e.message);
+        return null;
+      });
+      if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] ' + prop + ' -> ' + (hit && hit.name));
+      if (hit) {
+        const what = prop === 'P169' ? 'chief executive'
+          : prop === 'P488' ? 'chairperson'
+          : prop === 'P112' ? 'founder' : 'owner';
+        let line = `LIVE FACT (Wikidata, current today): the ${what} of ${org.label} is ${hit.name}`
+          + (hit.since ? `, since ${hit.since}` : '') + '.';
+        // "Who owns Tesla" has no single answer, and naming the company back is
+        // not one. Say what owning a listed company actually means.
+        if (/owner/i.test(role) && prop !== 'P127') {
+          line += ` ${org.label} is publicly traded, so it is owned by its shareholders rather than by any one person;`
+            + ` the largest individual holder is usually reported alongside the institutions.`;
+        }
+        if (org.description) line += ` ${org.label}: ${org.description}.`;
+        return line;
+      }
+    }
+  } catch (err) {
+    if (process.env.CALLISTO_RT_DEBUG) console.warn('[rt] roleHolderFact threw: ' + err.message);
+  }
+  return null;
+}
+
+// Everything else: Wikipedia's own search, then the article summary.
+async function wikipediaFact(query) {
+  try {
+    const sres = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`, { timeout: 7000 });
+    if (!sres.ok) return null;
+    const sdata = await sres.json();
+    const title = sdata.query && sdata.query.search && sdata.query.search[0] && sdata.query.search[0].title;
+    if (!title) return null;
+    const pres = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { timeout: 7000 });
+    if (!pres.ok) return null;
+    const p = await pres.json();
+    if (!p.extract) return null;
+    return `Wikipedia (${p.title}): ${String(p.extract).slice(0, 600)}`;
+  } catch (_) { return null; }
+}
+
+// Kept under its old name so every caller keeps working, but it no longer
+// scrapes Google first: the role lookup, then Wikipedia, and only then the old
+// scrape, which in practice returns nothing at all.
 async function googleFactSearch(query) {
+  const role = await roleHolderFact(query).catch(() => null);
+  if (role) return role;
+  const wiki = await wikipediaFact(query).catch(() => null);
+  if (wiki) return wiki;
+  return legacyGoogleScrape(query);
+}
+
+async function legacyGoogleScrape(query) {
   try {
     const res = await fetch(`https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en&gl=us`, {
       headers: BROWSER_HEADERS, timeout: 8000,
@@ -1888,4 +2092,4 @@ async function searchImages(query) {
   } catch { return null; }
 }
 
-module.exports = { fetchRealtimeContext, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
+module.exports = { fetchRealtimeContext, roleHolderFact, wikipediaFact, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
