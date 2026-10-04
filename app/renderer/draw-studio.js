@@ -29,7 +29,19 @@
     ['script',      'Script',      '"Brush Script MT", "Snell Roundhand", cursive'],
     ['rounded',     'Rounded',     '"Trebuchet MS", sans-serif'],
     ['callisto',    'Callisto',    'Orbitron, "Rajdhani", sans-serif'],
+    ['modern',      'Modern',      '"Plus Jakarta Sans", Inter, sans-serif'],
+    ['grotesque',   'Grotesque',   '"Helvetica Neue", Helvetica, Arial, sans-serif'],
+    ['condensed',   'Condensed',   '"Arial Narrow", "Avenir Next Condensed", sans-serif'],
+    ['book',        'Book',        '"Palatino Linotype", Palatino, "Book Antiqua", serif'],
+    ['slab',        'Slab',        '"Rockwell", "Courier Bold", Georgia, serif'],
+    ['elegant',     'Elegant',     '"Didot", "Bodoni MT", "Playfair Display", serif'],
+    ['technical',   'Technical',   '"Share Tech Mono", Consolas, monospace'],
+    ['display',     'Display',     '"Rajdhani", "Futura", "Century Gothic", sans-serif'],
+    ['marker',      'Marker',      '"Marker Felt", "Segoe Print", "Comic Sans MS", cursive'],
+    ['typewriter2', 'Old type',    '"American Typewriter", "Courier New", serif'],
   ];
+  // Drawn in Callisto's blue on white paper, the way a sketch actually looks.
+  const CALLISTO_BLUE = '#0f37b4';
   const W = 1000, H = 1000;          // the coordinate space the AI draws in
 
   let root = null, svg = null, layer = null;
@@ -41,6 +53,7 @@
   let penStroke = null;         // the stroke currently being drawn
   let lineMode = false;         // drawing a straight line by dragging
   let eraseMode = false;        // rubbing shapes out by dragging over them
+  let editingText = false;      // an input is open over a text shape
   let flip = () => {};          // set up in wire(), used by the hand gesture too
   let commandHandler = null;
   // Editing by hand changes the picture just as much as Callisto drawing on it
@@ -105,7 +118,7 @@
 
         <div class="ds-insp-group">Colour</div>
         <label class="ds-field"><span>Outline colour</span>
-          <input type="color" id="dsColour" value="#ffffff"></label>
+          <input type="color" id="dsColour" value="#0f37b4"></label>
         <label class="ds-field"><span>Fill colour</span>
           <input type="color" id="dsFill" value="#0a1020"></label>
 
@@ -225,7 +238,7 @@
   }
 
   function elementFor(s) {
-    const stroke = s.stroke || '#ffffff';
+    const stroke = s.stroke || CALLISTO_BLUE;
     const fill = s.fill || 'none';
     const sw = s.width == null ? 4 : s.width;
     let el;
@@ -487,7 +500,9 @@
     const drawn = layer.querySelector(`[data-shape-id="${sh.id}"]`);
     if (drawn) drawn.style.visibility = 'hidden';
 
-    input.focus();
+    editingText = true;
+    // Focus after the current event has finished, for the same reason.
+    requestAnimationFrame(() => { try { input.focus(); } catch (_) {} });
     // Put the caret where the click actually landed, not at the end.
     if (typeof clientX === 'number') {
       const rel = clientX - (stage.left + parseFloat(input.style.left));
@@ -502,6 +517,7 @@
     const commit = (keep) => {
       if (done) return;
       done = true;
+      editingText = false;
       const words = input.value;
       input.remove();
       if (drawn) drawn.style.visibility = '';
@@ -526,7 +542,9 @@
       if (e.key === 'Enter') { e.preventDefault(); commit(true); }
       if (e.key === 'Escape') { e.preventDefault(); commit(false); }
     });
-    input.addEventListener('blur', () => commit(true));
+    // Attached a tick later so the click that opened this cannot immediately
+    // blur it shut.
+    setTimeout(() => input.addEventListener('blur', () => commit(true)), 0);
   }
 
   function showShapeBar(box) {
@@ -754,7 +772,7 @@
     clone.querySelectorAll('[data-export-skip]').forEach((e) => e.remove());
     // A background, so a downloaded drawing isn't transparent on white paper.
     const bg = document.createElementNS(NS, 'rect');
-    bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#0a0f1e');
+    bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#ffffff');
     clone.insertBefore(bg, clone.firstChild);
     return new XMLSerializer().serializeToString(clone);
   }
@@ -823,6 +841,7 @@
     // Clicking a shape selects it — works with the mouse and, because these are
     // ordinary DOM elements, with the Callisto cursor too.
     layer.addEventListener('click', (e) => {
+      if (editingText) return;   // mid-edit: a redraw here closes the editor
       const id = e.target?.getAttribute?.('data-shape-id');
       selectedId = id || null;
       syncInspector();
@@ -851,7 +870,13 @@
 
       if (!handle && !rotating && pointIdx == null) {
         // Already selected and it is text: this click is "let me edit it".
+        // The default action has to be stopped, or the click that follows this
+        // pointerdown moves focus off the new input, fires its blur, commits and
+        // removes it again - all before anything is drawn on screen, so the
+        // editor appeared never to open at all.
         if (selectedId === id && shape.type === 'text') {
+          e.preventDefault();
+          e.stopPropagation();
           editTextShape(shape, e.clientX);
           return;
         }
@@ -1014,7 +1039,7 @@
         id: `p${Date.now().toString(36)}`,
         type: 'polyline',
         points: [[at.x, at.y]],
-        stroke: root.querySelector('#dsColour').value || '#ffffff',
+        stroke: root.querySelector('#dsColour').value || CALLISTO_BLUE,
         fill: 'none',
         width: Number(root.querySelector('#dsWidth').value) || 4,
       };
@@ -1085,7 +1110,7 @@
           x: Math.max(20, W * 0.5 - (words.length * size * 0.27)),
           y: H * 0.5,
           size,
-          stroke: root.querySelector('#dsColour').value || '#ffffff',
+          stroke: root.querySelector('#dsColour').value || CALLISTO_BLUE,
           font: root.querySelector('#dsFont').value || undefined,   // a key, resolved when drawn
         });
         selectedId = id;

@@ -9254,7 +9254,15 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .ds-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
 /* The canvas was capped at 78vh, which left a square floating in the middle of a
    wide screen with most of the window unused. It now takes the room it is given. */
-.ds-stage svg { width: min(100%, 96vh); height: min(100%, 96vh); }
+/* White paper. A sketch is drawn on white and read as a sketch; the dark stage
+   made every drawing look like a diagram on a screen. The chrome around it
+   stays dark so the controls keep their contrast. */
+.ds-stage svg {
+  width: min(100%, 96vh); height: min(100%, 96vh);
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
 .ds-stage svg.ds-penning { cursor: crosshair; }
 /* Shapes are real DOM elements, so the Callisto cursor clicks them for free */
 /* Tool strip: pen, text and rotate sit with the drawing rather than in the
@@ -9328,15 +9336,15 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .ds-field.hidden { display: none !important; }
 
 .ds-shape { cursor: pointer; transition: filter 0.12s; }
-.ds-shape:hover { filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.55)); }
-.ds-shape.ds-selected { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.9)); }
+.ds-shape:hover { filter: drop-shadow(0 0 5px rgba(15, 55, 180, 0.45)); }
+.ds-shape.ds-selected { filter: drop-shadow(0 0 7px rgba(15, 55, 180, 0.55)); }
 
 /* Selection scaffolding: the dashed box round whatever is picked, and the four
    corners that resize it. Deliberately large - they are grabbed by a fingertip
    through the camera as often as by a mouse. */
 .ds-sel-ring {
   fill: none;
-  stroke: rgba(0, 200, 255, 0.85);
+  stroke: rgba(0, 110, 220, 0.9);
   stroke-width: 2;
   stroke-dasharray: 10 7;
   pointer-events: none;
@@ -9344,26 +9352,26 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 }
 /* The round handle above a selection, dragged to turn the shape to any angle. */
 .ds-rot-handle {
-  fill: #06101f; stroke: #00c8ff; stroke-width: 2.5;
+  fill: #ffffff; stroke: #0f37b4; stroke-width: 2.5;
   cursor: grab; vector-effect: non-scaling-stroke;
 }
-.ds-rot-handle:hover { fill: #00c8ff; }
+.ds-rot-handle:hover { fill: #0f37b4; }
 .ds-rot-handle:active { cursor: grabbing; }
 .ds-rot-stalk {
-  stroke: rgba(0, 200, 255, 0.55); stroke-width: 2; stroke-dasharray: 5 5;
+  stroke: rgba(15, 55, 180, 0.55); stroke-width: 2; stroke-dasharray: 5 5;
   vector-effect: non-scaling-stroke; pointer-events: none;
 }
 
 /* The ends of a line, so it can be stretched out after it was drawn. */
 .ds-point-handle {
-  fill: #00c8ff; stroke: #06101f; stroke-width: 2.5;
+  fill: #0f37b4; stroke: #ffffff; stroke-width: 2.5;
   cursor: grab; vector-effect: non-scaling-stroke;
 }
-.ds-point-handle:hover { fill: #7fe3ff; }
+.ds-point-handle:hover { fill: #2f5ae0; }
 
 /* The invisible wide twin that makes a thin line pressable. */
 .ds-hit { cursor: pointer; }
-.ds-hit:hover { stroke: rgba(0, 200, 255, 0.14) !important; }
+.ds-hit:hover { stroke: rgba(15, 55, 180, 0.12) !important; }
 
 .ds-stage svg.ds-erasing { cursor: cell; }
 
@@ -9392,22 +9400,22 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .ds-text-entry button:hover { background: rgba(0, 170, 255, 0.4); }
 
 .ds-handle {
-  fill: #06101f;
-  stroke: #00c8ff;
+  fill: #ffffff;
+  stroke: #0f37b4;
   stroke-width: 2.5;
   cursor: grab;
   vector-effect: non-scaling-stroke;
 }
-.ds-handle:hover { fill: #00c8ff; }
+.ds-handle:hover { fill: #0f37b4; }
 .ds-handle:active { cursor: grabbing; }
 .ds-shape { cursor: move; }
 
 .ds-empty { position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; pointer-events: none; text-align: center; }
 .ds-empty.hidden { display: none !important; }
-.ds-empty-mark { font-size: 46px; color: rgba(0, 200, 255, 0.3); }
-.ds-empty p { margin: 0; font-size: 14px; color: rgba(175, 196, 232, 0.75); }
-.ds-empty-eg { font-size: 12px !important; color: rgba(140, 165, 205, 0.55) !important; }
+.ds-empty-mark { font-size: 46px; color: rgba(15, 55, 180, 0.28); }
+.ds-empty p { margin: 0; font-size: 14px; color: rgba(40, 60, 110, 0.72); }
+.ds-empty-eg { font-size: 12px !important; color: rgba(60, 85, 140, 0.6) !important; }
 
 /* The side bar that opens when a shape is pressed. It was a small floating box
    pinned near the top, which could not hold everything a shape can be given -
