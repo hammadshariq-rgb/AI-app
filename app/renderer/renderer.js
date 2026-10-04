@@ -6696,6 +6696,14 @@ function promptUserCallName(googleName) {
     hidWhileAsking.forEach((el) => el.classList.add('hidden'));
     box.appendChild(div);
 
+    // Forced, because something in the cascade was computing this to
+    // display:none - no inline style, no rule I could find matching it - and an
+    // invisible question that the sign-in waits on is a dead end: the card showed
+    // the heading and nothing else, forever.
+    div.style.setProperty('display', 'block', 'important');
+    div.style.setProperty('visibility', 'visible', 'important');
+    div.style.setProperty('opacity', '1', 'important');
+
     const input = div.querySelector('#callNameInput');
     const btn = div.querySelector('#callNameBtn');
     setTimeout(() => input.focus(), 100);
@@ -6706,6 +6714,18 @@ function promptUserCallName(googleName) {
       hidWhileAsking.forEach((el) => el.classList.remove('hidden'));
       resolve(val || googleName.split(' ')[0] || googleName);
     };
+
+    // And if it still cannot be seen, do not wait for an answer to a question
+    // nobody was asked. Signing in matters more than the nickname, which can be
+    // changed in Settings afterwards.
+    requestAnimationFrame(() => {
+      if (div.isConnected && div.offsetParent === null) {
+        console.warn('[auth] the call-name prompt could not be shown; continuing without it');
+        div.remove();
+        hidWhileAsking.forEach((el) => el.classList.remove('hidden'));
+        resolve(googleName.split(' ')[0] || googleName);
+      }
+    });
     btn.addEventListener('click', finish);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(); });
   });

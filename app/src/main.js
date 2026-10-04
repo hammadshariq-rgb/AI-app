@@ -25,6 +25,10 @@ if (app.isPackaged) {
   try {
     app.setPath('userData', path.join(app.getPath('appData'), 'Your Own Personal AI'));
   } catch (_) { /* first run on a fresh machine — the default is fine */ }
+} else if (process.env.CALLISTO_USERDATA) {
+  // Running from source against a real installation's data, so a fault someone
+  // is actually hitting can be reproduced instead of guessed at.
+  try { app.setPath('userData', process.env.CALLISTO_USERDATA); } catch (_) {}
 }
 
 const ai = require('./services/ai');
@@ -291,6 +295,34 @@ function createOverlayWindow() {
           return id + '=' + (shown ? 'VISIBLE ' + Math.round(r.width) + 'x' + Math.round(r.height) : 'hidden');
         }).join('  |  ');
       })()`).then((v) => console.log('[views]', v)).catch((e) => console.log('[views] failed', e.message));
+      overlayWindow.webContents.executeJavaScript(`(() => {
+        const box = document.getElementById('setupBox');
+        if (!box) return 'no setup box';
+        return Array.from(box.children).map((el) => {
+          const cs = getComputedStyle(el);
+          const shown = cs.display !== 'none' && cs.visibility !== 'hidden';
+          return (el.id || el.className || el.tagName) + '=' + (shown ? 'SHOWN' : 'hidden');
+        }).join('  ');
+      })()`).then((v) => console.log('[setupbox]', v)).catch(() => {});
+
+      // Replay the message a finished Google sign-in sends, so the screen it
+      // leaves behind can be inspected without needing a real account.
+      if (process.env.CALLISTO_FAKE_GOOGLE) {
+        setTimeout(() => {
+          overlayWindow.webContents.send('auth:google-success', {
+            token: loadAuthToken() || 'test', name: 'Callisto', email: 'test@example.com',
+          });
+          setTimeout(() => {
+            overlayWindow.webContents.executeJavaScript(`(() => {
+              const p = document.getElementById('callNamePrompt');
+              if (!p) return 'no prompt on screen';
+              const cs = getComputedStyle(p);
+              return 'prompt display=' + cs.display + ' visible=' + (p.offsetParent ? 'yes' : 'no');
+            })()`).then((v) => console.log('[aftergoogle]', v)).catch(() => {});
+          }, 2500);
+        }, 9000);
+      }
+
       // And what the server actually thinks of the token we are holding.
       overlayWindow.webContents.executeJavaScript('window.jarvis.authVerify()')
         .then((r) => console.log('[authVerify]', JSON.stringify(r)))
