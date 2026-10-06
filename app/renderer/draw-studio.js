@@ -498,7 +498,12 @@
     root.querySelector('.ds-stage').appendChild(input);
 
     // Hide the drawn copy while editing, or the words appear twice.
-    const drawn = layer.querySelector(`[data-shape-id="${sh.id}"]`);
+    //
+    // Not just any element with this id: a stroke-only shape also has an
+    // invisible wide copy underneath to catch the pointer, and that copy comes
+    // first. Hiding it hid nothing, which is why the text showed through the
+    // box being typed in.
+    const drawn = layer.querySelector(`[data-shape-id="${sh.id}"]:not(.ds-hit)`);
     if (drawn) drawn.style.visibility = 'hidden';
 
     editingText = true;
@@ -679,7 +684,8 @@
     root.querySelector('#dsEmpty').classList.toggle('hidden', shapes.length > 0);
     // Keep the selection ring on whatever is still selected.
     if (selectedId) {
-      const el = layer.querySelector(`[data-shape-id="${selectedId}"]`);
+      // The visible shape, not the invisible copy that catches the pointer.
+      const el = layer.querySelector(`[data-shape-id="${selectedId}"]:not(.ds-hit)`);
       if (el) el.classList.add('ds-selected');
       else selectedId = null;
     }
