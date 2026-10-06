@@ -1110,9 +1110,33 @@ app.post('/connect/youtube/refresh', async (req, res) => {
 
 // ── Instagram connector OAuth ─────────────────────────────────────────────────
 // Requires INSTAGRAM_CLIENT_ID and INSTAGRAM_CLIENT_SECRET from a Meta app
+// Instagram has two APIs, and they are not the same door.
+//
+// Instagram Login is the one this app is set up for: the account authorises
+// Callisto directly, on instagram.com, with no Facebook Page in between - which
+// also means a Creator account needs no Page at all. Its permissions are the
+// instagram_business_* set, its credentials are an Instagram App ID and Secret
+// of their own, and its data lives on graph.instagram.com.
+//
+// The older route reaches Instagram through a Facebook Page, and is kept below
+// for an app configured that way. Which one runs is decided by which
+// credentials are set, so neither needs the other.
 app.get('/connect/instagram', (req, res) => {
+  const igAppId = process.env.INSTAGRAM_APP_ID;
+  if (igAppId) {
+    const params = new URLSearchParams({
+      client_id: igAppId,
+      redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
+      response_type: 'code',
+      // basic covers the profile and its numbers; content_publish is posting.
+      // Comments and messages need their own scopes and their own review.
+      scope: 'instagram_business_basic,instagram_business_content_publish',
+    });
+    return res.redirect(`https://www.instagram.com/oauth/authorize?${params}`);
+  }
+
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
-  if (!clientId) return res.status(500).send('Instagram not configured. Add INSTAGRAM_CLIENT_ID to server .env');
+  if (!clientId) return res.status(500).send('Instagram not configured. Add INSTAGRAM_APP_ID (Instagram login) or INSTAGRAM_CLIENT_ID (Facebook login) to the server environment.');
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
@@ -1145,6 +1169,51 @@ app.get('/connect/instagram', (req, res) => {
 app.get('/connect/instagram/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
+
+  // Instagram Login hands the code back to this same address, so the flow that
+  // started it is the flow that finishes it.
+  if (process.env.INSTAGRAM_APP_ID) {
+    try {
+      // Instagram appends #_ to the redirect. A fragment never reaches a
+      // server, but it has been seen attached to the code itself, and a code
+      // with it attached is simply rejected.
+      const cleanCode = String(code).replace(/#_$/, '');
+      const shortRes = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.INSTAGRAM_APP_ID,
+          client_secret: process.env.INSTAGRAM_APP_SECRET || '',
+          grant_type: 'authorization_code',
+          redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
+          code: cleanCode,
+        }),
+      });
+      const short = await shortRes.json();
+      if (!short.access_token) throw new Error(short.error_message || short.error?.message || 'Instagram did not return a token');
+
+      // An hour's token is no use to anyone; this one lasts sixty days.
+      let finalToken = short.access_token;
+      let expiresIn = 3600;
+      try {
+        const longRes = await fetch(`https://graph.instagram.com/access_token?grant_type=ig_exchange_token`
+          + `&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET || '')}`
+          + `&access_token=${encodeURIComponent(short.access_token)}`);
+        const long = await longRes.json();
+        if (long.access_token) { finalToken = long.access_token; expiresIn = long.expires_in || 5184000; }
+      } catch (_) { /* the short one still works today */ }
+
+      // "via" tells the app which API this token belongs to, so it asks the
+      // right host for the numbers afterwards.
+      if (!stashTokens(req, 'instagram', { access_token: finalToken, expires_in: expiresIn, via: 'instagram_login' })) {
+        return res.status(400).send('This connection link has expired. Please start the connection again from the Callisto app.');
+      }
+      return res.send(connectedPage('Instagram'));
+    } catch (err) {
+      return res.send(`<p>Instagram connection failed: ${String(err.message || err).replace(/[<>]/g, '')}</p>`);
+    }
+  }
+
   try {
     const tokenRes = await fetch('https://graph.facebook.com/v23.0/oauth/access_token', {
       method: 'POST',

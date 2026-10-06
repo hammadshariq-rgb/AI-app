@@ -21,6 +21,8 @@ function saveTokens(service, data) {
     _enc: true,
   };
   if (data.refresh_token) obj.refresh_token = encryptSecret(data.refresh_token);
+  // Which flow a token came from, where that decides who to ask for the data.
+  if (data.via) obj.via = data.via;
   store.set(`connector.${service}`, obj);
 }
 
@@ -413,6 +415,8 @@ async function getYouTubeStats() {
 // ── Instagram ──────────────────────────────────────────────────────────────────
 
 function saveInstagramTokens(tokens) { saveTokens('instagram', tokens); }
+// True when Instagram was connected through Instagram's own login.
+function instagramViaLogin() { return store.get('connector.instagram.via') === 'instagram_login'; }
 
 async function getInstagramToken() {
   const tokens = loadTokens('instagram');
@@ -607,14 +611,25 @@ async function findInstagramContact(name) {
 async function getInstagramStats() {
   const token = await getInstagramToken();
   if (!token) return null;
+  // A token from Instagram Login belongs to the account itself and is spent on
+  // graph.instagram.com; the older one reaches Instagram through a Page on
+  // graph.facebook.com. Everything after this point is the same either way.
+  const viaInstagram = instagramViaLogin();
+  const host = viaInstagram ? 'https://graph.instagram.com/v23.0/' : 'https://graph.facebook.com/v23.0/';
   const graph = async (path) => {
-    const res = await fetch(`https://graph.facebook.com/v23.0/${path}${path.includes('?') ? '&' : '?'}access_token=${token}`);
+    const res = await fetch(`${host}${path}${path.includes('?') ? '&' : '?'}access_token=${token}`);
     return res.json();
   };
   try {
-    // Get connected Instagram Business account via Facebook Graph
-    const pagesData = await graph('me/accounts?fields=instagram_business_account,name');
-    const igId = pagesData.data?.find((p) => p.instagram_business_account)?.instagram_business_account?.id;
+    let igId;
+    if (viaInstagram) {
+      const me = await graph('me?fields=user_id,username');
+      igId = me.user_id || me.id;
+    } else {
+      // Get connected Instagram Business account via Facebook Graph
+      const pagesData = await graph('me/accounts?fields=instagram_business_account,name');
+      igId = pagesData.data?.find((p) => p.instagram_business_account)?.instagram_business_account?.id;
+    }
     if (!igId) return null;
 
     const DAY = 86400;
@@ -1425,7 +1440,7 @@ module.exports = {
   playOnSpotify, searchSpotifyTrack, getSpotifyToken, loadTokens,
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
-  getYouTubeToken, getInstagramToken, getTikTokToken,
+  getYouTubeToken, getInstagramToken, getTikTokToken, instagramViaLogin,
   // Outlook mail
   getOutlookToken, getOutlookInbox, getOutlookSummary, sendOutlookEmail,
   markOutlookRead, getOutlookAccount,
