@@ -90,7 +90,8 @@ function createStore(store, onChange) {
       prompt: String(prompt || '').slice(0, 600), source: source || '',
       taskId: taskId || null, remoteUrl: inline ? null : url,
       remoteThumb: thumbnail || null,
-      file: own, thumbFile: null, createdAt: Date.now(),
+      // Finished the moment it arrived, so nothing was waited for.
+      inline, file: own, thumbFile: null, createdAt: Date.now(),
     };
     save([entry, ...all()]);
     changed(entry);

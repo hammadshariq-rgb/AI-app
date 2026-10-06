@@ -68,7 +68,10 @@ const artifacts = require('./services/artifacts').createStore(store, (entry) => 
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('artifacts:changed', entry || null);
   }
-  if (entry && entry.file) notifyCreationReady(entry);
+  // Something the user drew themselves arrives already finished, and telling
+  // them their drawing is ready the moment they close the canvas is noise.
+  // Only work that was waited for announces itself.
+  if (entry && entry.file && !entry.inline) notifyCreationReady(entry);
 });
 
 const KIND_WORD = { model: '3D model', image: 'image', video: 'video' };
@@ -1676,6 +1679,14 @@ function runPowerShell(ps, { timeout = 8000 } = {}, cb) {
   } catch (err) { if (cb) cb(err); }
 }
 
+// The ones that take real time: minutes, not milliseconds. They go last, and
+// each announces itself when it finishes - a notification and a line in the
+// chat - because by then the person has usually moved on.
+const SLOW_ACTIONS = new Set([
+  'generate_image', 'generate_3d_model', 'upload_media',
+  'create_slides', 'create_document', 'create_spreadsheet',
+]);
+
 // Everything the user asked for beyond the first thing.
 //
 // The first action goes through the long chain of handlers below, each of
@@ -2435,11 +2446,18 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // They are side effects only - no second voice line, no second card - so
   // they are set going and left to finish on their own. A 3D model takes
   // minutes, and the answer must not wait behind it.
-  const _extra = (result.actions || []).slice(1);
+  const _extra = (result.actions || []).slice(1).filter((a) => a && a !== finalAction);
   if (_extra.length) {
+    // Quickest first, whatever order they were asked for in. Opening a panel or
+    // saving an entry is instant; a picture or a 3D model takes minutes, and
+    // putting one of those first would hold up everything behind it. The slow
+    // ones run last and announce themselves when they are done.
+    const _quickFirst = [
+      ..._extra.filter((a) => !SLOW_ACTIONS.has(a.type)),
+      ..._extra.filter((a) => SLOW_ACTIONS.has(a.type)),
+    ];
     (async () => {
-      for (const act of _extra) {
-        if (!act || act === finalAction) continue;
+      for (const act of _quickFirst) {
         try { await runSecondaryAction(act, _e); }
         catch (err) { console.error('[secondary]', act.type, err && err.message); }
       }
