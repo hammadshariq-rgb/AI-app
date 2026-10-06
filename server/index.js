@@ -558,6 +558,26 @@ app.get(/^\/connect\/([a-z]+)$/, (req, res, next) => {
   next();
 });
 
+// What the provider said when it sent the user back empty-handed.
+//
+// Every callback used to answer "No code.", which tells nobody anything. The
+// reason is right there in the query string - an app whose login is switched
+// off, a permission that was refused, a checkup Meta is waiting on - and it is
+// the one thing worth reading when a connection will not go through.
+function oauthRefusal(req) {
+  const q = req.query || {};
+  const why = String(q.error_description || q.error_reason || q.error || '').replace(/\+/g, ' ').trim();
+  const code = String(q.error_code || '').trim();
+  if (!why && !code) return 'That connection came back without an authorisation code. Please start it again from the Callisto app.';
+  const detail = [why, code ? '(code ' + code + ')' : ''].filter(Boolean).join(' ');
+  // The provider wrote this, so it is escaped before it goes in the page.
+  const safe = detail.replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  )).slice(0, 300);
+  return 'The connection was refused: ' + safe
+    + '. Nothing was saved - you can close this tab and try again from the Callisto app.';
+}
+
 // At the callback: file the tokens under the secret this browser started with.
 function stashTokens(req, service, data) {
   const state = readCookie(req, `oauth_state_${service}`);
@@ -613,7 +633,7 @@ app.get('/connect/stripe', (req, res) => {
 app.get('/connect/stripe/callback', async (req, res) => {
   const { code, error_description } = req.query;
   if (error_description) return res.send(`<p>Stripe connection failed: ${String(error_description).slice(0, 200)}</p>`);
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://connect.stripe.com/oauth/token', {
       method: 'POST',
@@ -702,7 +722,7 @@ app.get('/connect/spotify', (req, res) => {
 
 app.get('/connect/spotify/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const creds = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
     const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
@@ -755,7 +775,7 @@ app.get('/connect/outlook', (req, res) => {
 
 app.get('/connect/outlook/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
@@ -816,7 +836,7 @@ app.get('/connect/calendar', (req, res) => {
 
 app.get('/connect/calendar/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -1042,7 +1062,7 @@ app.get('/connect/youtube', (req, res) => {
 
 app.get('/connect/youtube/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -1107,7 +1127,7 @@ app.get('/connect/instagram', (req, res) => {
 
 app.get('/connect/instagram/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://graph.facebook.com/v23.0/oauth/access_token', {
       method: 'POST',
@@ -1173,7 +1193,7 @@ app.get('/connect/tiktok', (req, res) => {
 
 app.get('/connect/tiktok/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
       method: 'POST',
@@ -1275,7 +1295,7 @@ app.get('/connect/analytics', (req, res) => {
 
 app.get('/connect/analytics/callback', async (req, res) => {
   const { code } = req.query;
-  if (!code) return res.status(400).send('No code.');
+  if (!code) return res.status(400).send(oauthRefusal(req));
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
