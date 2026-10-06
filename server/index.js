@@ -1116,12 +1116,29 @@ app.get('/connect/instagram', (req, res) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${PUBLIC_URL}/connect/instagram/callback`,
+    response_type: 'code',
+  });
+
+  // Which of Meta's two login products this app is set up with decides how the
+  // dialog is opened, and they are not interchangeable.
+  //
+  // Facebook Login for BUSINESS keeps the permissions in a configuration made
+  // in the app dashboard, and the dialog is opened with that configuration's
+  // id. An app set up that way refuses a classic scope list outright - the
+  // dialog never opens and the user is told "Facebook Login is currently
+  // unavailable for this app", for every request, including one asking for no
+  // permissions at all. That is what was happening here, and no amount of
+  // changing the scopes could have fixed it.
+  //
+  // Classic Facebook Login, on consumer apps, still takes the scope list.
+  if (process.env.INSTAGRAM_CONFIG_ID) {
+    params.set('config_id', process.env.INSTAGRAM_CONFIG_ID);
+  } else {
     // pages_manage_posts also lets Callisto post to the user's Facebook Page;
     // instagram_manage_messages + pages_messaging cover reading and replying to
     // DMs. Both message scopes need Advanced Access from Meta's app review.
-    scope: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_manage_messages,pages_messaging',
-    response_type: 'code',
-  });
+    params.set('scope', 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_manage_messages,pages_messaging');
+  }
   res.redirect(`https://www.facebook.com/v23.0/dialog/oauth?${params}`);
 });
 
