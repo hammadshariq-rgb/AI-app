@@ -1754,6 +1754,30 @@ async function runSecondaryAction(act, _e) {
       return;
     }
 
+    // Anything written to a file. As a second action these fell through to
+    // commands.run, which has nothing for them, so asking for a deck or a
+    // document alongside something else produced no file at all.
+    case 'create_slides':
+    case 'create_document':
+    case 'create_spreadsheet': {
+      const spec = act.spec || {};
+      const kind = act.type === 'create_slides' ? 'slides'
+        : act.type === 'create_spreadsheet' ? 'sheet' : 'doc';
+      try {
+        const file = await documents.writeAny({
+          kind,
+          title: act.arg || spec.title || 'Document',
+          slides: act.slides || [],
+          sections: act.sections || [],
+          sheets: spec.sheets || [],
+        }, app.getPath('documents'));
+        await shell.openPath(file);
+      } catch (err) {
+        console.error(`[${act.type}] secondary build failed:`, err.message);
+      }
+      return;
+    }
+
     default:
       if (act.arg !== undefined) {
         await commands.run(act.type, act.arg).catch(() => null);
@@ -2401,6 +2425,27 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     _sendTTS(_e.sender, finalText);
     return { text: finalText, audio: null, card: null, hasAction: false };
   }
+  // Everything the user asked for beyond the first thing starts HERE, before
+  // the first one is handled. It used to run after that long chain of handlers,
+  // and almost every one of them ends by returning the reply - so for most
+  // requests the rest of what was asked for was never reached at all. "Sketch
+  // me a box, tell me what photosynthesis is and open my markets" is exactly
+  // that shape, and only one of the three ever happened.
+  //
+  // They are side effects only - no second voice line, no second card - so
+  // they are set going and left to finish on their own. A 3D model takes
+  // minutes, and the answer must not wait behind it.
+  const _extra = (result.actions || []).slice(1);
+  if (_extra.length) {
+    (async () => {
+      for (const act of _extra) {
+        if (!act || act === finalAction) continue;
+        try { await runSecondaryAction(act, _e); }
+        catch (err) { console.error('[secondary]', act.type, err && err.message); }
+      }
+    })();
+  }
+
   if (finalAction?.type === 'play_music') {
     const parts = finalAction.arg.split('|');
     const aiService = (parts[0] || '').trim();
@@ -2898,6 +2943,27 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   }
 
+  // A presentation. The model could ask for one and say it had saved a .pptx,
+  // but nothing here carried it out, so the file never existed - the one task
+  // Callisto would claim to have finished without doing it.
+  if (finalAction?.type === 'create_slides') {
+    const deckTitle = finalAction.arg || 'Presentation';
+    const deckSlides = Array.isArray(finalAction.slides) ? finalAction.slides : [];
+    try {
+      const file = await documents.writeSlides(deckTitle, deckSlides, app.getPath('documents'));
+      await shell.openPath(file);
+      const spokenText = finalText
+        || `Your presentation "${deckTitle}" is ready — ${deckSlides.length} slide${deckSlides.length !== 1 ? 's' : ''}, saved in your Documents folder.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
+    } catch (err) {
+      console.error('[pptx] build failed:', err.message);
+      const spokenText = 'I put the presentation together but couldn\'t save the file. Please try again.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+  }
+
   if (finalAction?.type === 'set_volume') {
     await commands.run('set_volume', finalAction.arg).catch(() => {});
     const [action, levelStr] = (finalAction.arg || '').split('|');
@@ -3047,17 +3113,6 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   // Run the action command in parallel — fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
-
-  // "Open my markets and show me the weather" is two asks. The model returns a
-  // tool call for each; the first is handled above and the rest run here, so
-  // nothing the user asked for is silently dropped.
-  const _extra = (result.actions || []).slice(1);
-  for (const act of _extra) {
-    if (!act || act === finalAction) continue;
-    try {
-      await runSecondaryAction(act, _e);
-    } catch (_) { /* one failed extra must not sink the rest */ }
-  }
 
   // For open_app: make sure nothing is pinning Callisto on top, so the launched
   // app comes to the front — every time, not just the first. The window's default
@@ -4138,6 +4193,11 @@ ipcMain.handle('calendar:add', async (_e, eventArgs) => {
     const result = await calendar.addEvent(eventArgs);
     return result;
   } catch (e) { return { error: e.message }; }
+});
+// Removing an event here removes it from Google too, or it returns on the next
+// refresh looking like the delete never worked.
+ipcMain.handle('calendar:delete', async (_e, args) => {
+  try { return await calendar.deleteEvent(args || {}); } catch (e) { return { error: e.message }; }
 });
 
 ipcMain.handle('drive:open', async (_e, { fileId, mimeType, webViewLink }) => connectors.openDriveFile(fileId, mimeType, webViewLink));

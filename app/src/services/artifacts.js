@@ -53,12 +53,15 @@ function createStore(store, onChange) {
     return keep;
   }
 
+  // A drawing arrives as the picture itself rather than a link to one.
+  function writeDataUrl(url, file) {
+    const b64 = url.slice(url.indexOf(',') + 1);
+    fs.writeFileSync(file, Buffer.from(b64, 'base64'));
+    return true;
+  }
+
   async function download(url, file) {
-    if (/^data:/.test(url)) {
-      const b64 = url.slice(url.indexOf(',') + 1);
-      fs.writeFileSync(file, Buffer.from(b64, 'base64'));
-      return true;
-    }
+    if (/^data:/.test(url)) return writeDataUrl(url, file);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Download failed (${res.status})`);
     fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
@@ -71,14 +74,27 @@ function createStore(store, onChange) {
     if (!EXT[kind] || !url) return null;
     prune();
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+    // A picture that came to us whole is written now, and only the file is
+    // kept. Holding the picture itself would put megabytes of it in the
+    // settings file, which is re-read and re-written on every change.
+    const inline = /^data:/.test(url);
+    let own = null;
+    if (inline) {
+      const f = path.join(dir(), `${id}.${EXT[kind]}`);
+      try { writeDataUrl(url, f); own = f; } catch (_) { return null; }
+    }
+
     const entry = {
       id, kind, title: String(title || prompt || 'Untitled').slice(0, 120),
       prompt: String(prompt || '').slice(0, 600), source: source || '',
-      taskId: taskId || null, remoteUrl: url, remoteThumb: thumbnail || null,
-      file: null, thumbFile: null, createdAt: Date.now(),
+      taskId: taskId || null, remoteUrl: inline ? null : url,
+      remoteThumb: thumbnail || null,
+      file: own, thumbFile: null, createdAt: Date.now(),
     };
     save([entry, ...all()]);
     changed(entry);
+    if (inline) return entry;        // nothing left to fetch
 
     (async () => {
       const file = path.join(dir(), `${id}.${EXT[kind]}`);

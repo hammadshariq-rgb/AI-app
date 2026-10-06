@@ -59,6 +59,7 @@
   // Editing by hand changes the picture just as much as Callisto drawing on it
   // does, so the description it works from has to be refreshed either way.
   let changeHandler = null;
+  let hideHandler = null;        // fires when the canvas is put away
   function report() { try { changeHandler && changeHandler(); } catch (_) {} }
   let title = 'Untitled drawing';
 
@@ -1288,7 +1289,12 @@
     open = true;
     root.querySelector('#dsTitle').textContent = title;
   }
-  function hide() { if (root) root.classList.add('hidden'); open = false; }
+  function hide() {
+    if (root) root.classList.add('hidden');
+    open = false;
+    // Say so, so whoever is listening can keep the drawing.
+    try { hideHandler && hideHandler(); } catch (_) {}
+  }
 
   window.CallistoDraw = {
     show, hide, apply, undo, download,
@@ -1299,7 +1305,9 @@
     count: () => shapes.length,
     setTitle: (t) => { title = t; if (root) root.querySelector('#dsTitle').textContent = t; },
     onCommand: (fn) => { commandHandler = fn; },
+    titleOf: () => title,
     onChange: (fn) => { changeHandler = fn; },
+    onHide: (fn) => { hideHandler = fn; },
     onHandOff: (fn) => { handOffHandler = fn; },
   };
 })();

@@ -191,7 +191,7 @@ function positionRightPanels() {
             renderCalendar();
             rebuildRows();
             if (evFromGcal && window.jarvis && window.jarvis.calendarDeleteEvent) {
-              window.jarvis.calendarDeleteEvent(evTitle).catch(function() {});
+              window.jarvis.calendarDeleteEvent(evTitle, dateStr).catch(function() {});
             }
           });
         })(ev.id, ev.title, !!ev.fromGcal);

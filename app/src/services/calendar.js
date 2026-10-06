@@ -245,8 +245,64 @@ async function clearSchedule(startDate, endDate) {
   }
 }
 
+// Remove one event by name, so deleting it in the app's own calendar also
+// removes it from Google. Without this the event came straight back on the
+// next refresh, and there was no way to tell why.
+async function deleteEvent({ title, date } = {}) {
+  const token = await getCalendarToken();
+  if (!token) return { error: 'not_connected' };
+  const wanted = String(title || '').trim().toLowerCase();
+  if (!wanted) return { error: 'no_title' };
+
+  try {
+    // A day either side, because an event at 11pm local can sit on the next
+    // day in UTC, and the panel asks by local date.
+    const from = date ? new Date(`${date}T00:00:00`) : new Date();
+    if (!date) from.setHours(0, 0, 0, 0);
+    const start = new Date(from.getTime() - 24 * 60 * 60 * 1000);
+    const end = new Date(from.getTime() + (date ? 2 : 90) * 24 * 60 * 60 * 1000);
+
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const calListData = await calListRes.json();
+    const calendars = (calListData.items || []).filter(c =>
+      c.accessRole === 'owner' || c.accessRole === 'writer'
+    );
+    // No calendar list (or no write access) still leaves the usual one.
+    if (!calendars.length) calendars.push({ id: 'primary' });
+
+    let deleted = 0;
+    await Promise.all(calendars.map(async (cal) => {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
+        `timeMin=${encodeURIComponent(start.toISOString())}&` +
+        `timeMax=${encodeURIComponent(end.toISOString())}&` +
+        `singleEvents=true&maxResults=100`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      const matches = (data.items || []).filter(e =>
+        String(e.summary || '').trim().toLowerCase() === wanted
+      );
+      for (const e of matches) {
+        const del = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(e.id)}`,
+          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+        ).catch(() => null);
+        if (del && (del.ok || del.status === 410)) deleted += 1;
+      }
+    }));
+
+    return deleted ? { ok: true, deleted } : { error: 'not_found' };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 function isConnected() {
   return !!store.get('connector.calendar.access_token');
 }
 
-module.exports = { getUpcomingEvents, addEvent, clearSchedule, saveCalendarTokens, getCalendarToken, isConnected };
+module.exports = { getUpcomingEvents, addEvent, deleteEvent, clearSchedule, saveCalendarTokens, getCalendarToken, isConnected };

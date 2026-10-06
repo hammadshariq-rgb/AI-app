@@ -75,7 +75,11 @@ function mountModeling(app, { authMiddleware }) {
           method: 'POST',
           body: JSON.stringify({
             mode: 'preview',
-            prompt: prompt.slice(0, 800),
+            // The generator responds strongly to wording about detail and
+            // construction, and models were coming out soft and vague. The
+            // description itself comes from Callisto; this adds the qualities
+            // every model wants, without overriding anything it asked for.
+            prompt: `${prompt.slice(0, 700)}, highly detailed, sharp well-defined edges, clean even surfaces, accurate proportions, single centred object on a plain background`,
             // Meshy's current spec only accepts 'realistic'; 'sculpture' was removed.
             art_style: 'realistic',
             should_remesh: true,

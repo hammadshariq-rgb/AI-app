@@ -262,7 +262,7 @@ const TOOLS = [
         properties: {
           prompt: {
             type: 'string',
-            description: 'A clear description of the single object to model. Text-to-3D works best on one well-described object, so name the form, materials and notable details — e.g. "an ornate Iron Man style powered armour suit, red and gold segmented plating, arc reactor on the chest, standing upright". Avoid scenes with multiple characters.',
+            description: 'A DETAILED description of one object. Quality depends almost entirely on this: "Captain America shield" produces a vague disc, while a full description produces something worth looking at. ALWAYS expand what the user said into at least 20 words covering, in this order: the object, its overall form and proportions, its materials and finish, its colours, its distinctive details, and how it is oriented. For example, "Captain America\'s shield" becomes "a round concave Captain America shield, polished brushed metal, concentric red and white rings with a dark blue centre and a white five-pointed star, slightly worn battle-scuffed edges, viewed face on". Never pass the user\'s words through unchanged, and never describe a scene or more than one object.',
           },
           style: {
             type: 'string',
@@ -815,6 +815,17 @@ DOING MORE THAN ONE THING AT ONCE:
 - People ask for several things in one breath: "open my markets and show me the weather", "play some music and tell me my schedule". Call a tool for EACH of them in the same reply. Every tool call runs.
 - Never do just the first one and ignore the rest, and never say you can only do one thing at a time.
 - If one part is a question and the other an action, do the action and answer the question in the same reply.
+- ORDER THEM BY HOW LONG THEY TAKE, QUICKEST FIRST. Opening something is instant,
+  so it goes first and the person sees it happen straight away. Answering a
+  question is next, in the reply itself. Anything that has to be built - a 3D
+  model, a video, a picture - goes LAST, because it runs in the background and
+  announces itself when it is ready. So "sketch me a box, tell me what
+  photosynthesis is and open my markets" is three calls in this order: open the
+  markets, then the drawing, and the explanation of photosynthesis is the reply
+  you write alongside them.
+- The reply covers EVERYTHING that was asked, not just the part you answered in
+  words. Say what you have opened and what is being built, in one or two
+  sentences, so nothing looks ignored while it is still happening.
 
 DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
 - DRAW, SKETCH, PAINT or DOODLE -> the draw tool, every single time. "Draw me a box", "sketch a house", "paint me a rocket" all open the canvas. Never answer one of these with generate_image.
@@ -1067,10 +1078,10 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|presentation|powerpoint|slide ?deck|deck|slides|build (?:me )?a|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
 
 // A document/slides deck is only made when the user actually asks for one.
-const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;
+const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;
 
 // Questions about a subject ("how does depreciation work?", "explain EBITDA")
 // should be answered in chat, not routed to a tool because they contain words
@@ -1082,6 +1093,18 @@ function isKnowledgeQuestion(message) {
   const m = String(message || '');
   return KNOWLEDGE_Q.test(m) && !STRONG_ACTION.test(m) && !DOC_INTENT.test(m);
 }
+
+// What the quick model is allowed to settle on its own: opening things,
+// messages, music, reminders, lists. Drawing, 3D models and anything built
+// from a long description are deliberately absent - they need the full model
+// to come out well.
+const FAST_PATH_TOOLS = new Set([
+  'open_url', 'open_folder', 'open_file', 'open_app', 'open_chat',
+  'read_messages', 'send_message', 'make_call', 'place_phone_call',
+  'play_music', 'notify', 'generate_image', 'search_drive', 'get_analytics',
+  'set_reminder', 'add_task', 'list_tasks', 'mark_emails_read', 'set_volume',
+  'system_power', 'remember_fact', 'forget_fact', 'get_briefing',
+]);
 
 // Tools offered for this message — document/slide creation only when requested.
 function toolsFor(message) {
@@ -1170,7 +1193,10 @@ const FAST_SYSTEM_PROMPT = (assistantName) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
-  return `You are ${assistantName}, an AI assistant. Today is ${dateStr}, ${timeStr}. Call the correct tool immediately. Reply in 1 short sentence only.`;
+  // One call per thing asked for. Without saying so, the quick model answers
+  // "play some music and remind me at five" with a single call and the other
+  // half of the request is simply never mentioned again.
+  return `You are ${assistantName}, an AI assistant. Today is ${dateStr}, ${timeStr}. Call the correct tool immediately. If the user asks for more than one thing, call a tool for EVERY one of them in the same reply - one call each, in the order they asked. Reply in 1 short sentence that covers everything you are doing.`;
 };
 
 // Turns one tool call into an action. Extracted so that EVERY call in a
@@ -1234,43 +1260,30 @@ async function respond({ message, history = [], assistantName, memories = [], re
       if (!fastData.error) {
         const fastChoice = fastData.choices[0];
         if (fastChoice.finish_reason === 'tool_calls' && fastChoice.message.tool_calls) {
-          const call = fastChoice.message.tool_calls[0];
-          const fnName = call.function.name;
-          const args = JSON.parse(call.function.arguments);
-          let action = null;
-          if (fnName === 'open_url')           action = { type: 'open_url',      arg: args.url };
-          else if (fnName === 'open_folder')   action = { type: 'open_folder',   arg: args.name };
-          else if (fnName === 'open_file')     action = { type: 'open_file',     arg: args.name };
-          else if (fnName === 'open_app')      action = { type: 'open_app',      arg: args.name };
-          else if (fnName === 'open_chat')     action = { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
-          else if (fnName === 'read_messages') action = { type: 'read_messages', payload: { from: args.from || '' } };
-          else if (fnName === 'send_message')  action = { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
-          else if (fnName === 'make_call')     action = { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
-          else if (fnName === 'place_phone_call') action = { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
-          else if (fnName === 'play_music')    action = { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
-          else if (fnName === 'notify')        action = { type: 'notify',        arg: args.message };
-          else if (fnName === 'generate_image') action = { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
-          else if (fnName === 'generate_3d_model') action = { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
-          else if (fnName === 'upload_media') action = { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
-          else if (fnName === 'run_command') action = { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
-          else if (fnName === 'get_events')    action = { type: 'get_events',    arg: String(args.days || 7) };
-          else if (fnName === 'add_event')     action = { type: 'add_event',     arg: JSON.stringify(args) };
-          else if (fnName === 'clear_schedule') action = { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
-          else if (fnName === 'search_drive')  action = { type: 'search_drive',   arg: args.filename || '', open: args.open !== false };
-          else if (fnName === 'get_analytics') action = { type: 'get_analytics',  arg: args.platform || 'all' };
-          else if (fnName === 'set_reminder')  action = { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
-          else if (fnName === 'add_task')    action = { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
-          else if (fnName === 'list_tasks')  action = { type: 'list_tasks',    arg: args.when || 'today' };
-          else if (fnName === 'create_document') action = { type: 'create_document', arg: args.title || 'Document', sections: args.sections || [] };
-          else if (fnName === 'create_slides')   action = { type: 'create_slides',   arg: args.title || 'Presentation', slides: args.slides || [] };
-          else if (fnName === 'create_spreadsheet') action = { type: 'create_spreadsheet', spec: args };
-          else if (fnName === 'mark_emails_read') action = { type: 'mark_emails_read', arg: '' };
-          else if (fnName === 'set_volume')    action = { type: 'set_volume',    arg: `${args.action}|${args.level ?? ''}` };
-          else if (fnName === 'system_power')  action = { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
-          else if (fnName === 'remember_fact') action = { type: 'remember_fact', arg: args.fact };
-          else if (fnName === 'forget_fact')   action = { type: 'forget_fact',   arg: args.query };
-          else if (fnName === 'get_briefing')  action = { type: 'get_briefing',  arg: args.days || 1 };
-          if (action) return { text: fastChoice.message.content || 'Right away.', memory: null, action };
+          // EVERY call the model made, not just the first. This path kept
+          // tool_calls[0] and dropped the rest, so "play some music and remind
+          // me at five" did one of the two - and it is the path most action
+          // requests take, which is why asking for two things only ever got
+          // one. It also used to carry its own copy of the tool-to-action list,
+          // which had fallen behind the real one and knew nothing about
+          // drawing, 3D models or calendar entries.
+          const fastCalls = fastChoice.message.tool_calls;
+          // Anything outside this set deserves the full model - a drawing or a
+          // 3D model from the quick one comes out poor - so the whole request
+          // falls through rather than being half-answered here.
+          const everyoneIsQuick = fastCalls.every((c) => FAST_PATH_TOOLS.has(c.function.name));
+          if (everyoneIsQuick) {
+            const fastActions = fastCalls.map((c) => {
+              try { return mapToolCall(c.function.name, JSON.parse(c.function.arguments)); }
+              catch (_) { return null; }
+            }).filter(Boolean);
+            if (fastActions.length) {
+              return {
+                text: fastChoice.message.content || 'Right away.', memory: null,
+                action: fastActions[0], actions: fastActions,
+              };
+            }
+          }
         }
       }
     } catch (_) { /* fall through to full path */ }

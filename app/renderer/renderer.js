@@ -1757,7 +1757,7 @@ window._checkMarketsOverlay = async function(text) {
     const res = await window.jarvis.tvOpenUrl(url, name).catch((e) => ({ ok: false, error: e.message }));
     if (res && res.ok === false) {
       addMessage('assistant', `⚠️ ${res.error || `Couldn't open ${name} on the TV.`}`);
-      window.jarvis.speak((res.error || `Couldn't open ${name} on the TV.`).split('.')[0] + '.');
+      say((res.error || `Couldn't open ${name} on the TV.`).split('.')[0] + '.');
     }
     return res;
   }
@@ -1811,7 +1811,7 @@ window._checkMarketsOverlay = async function(text) {
             tvUpdateUI();
             tvRenderDevices(tvDevices);
             addMessage('assistant', tvConnectedMessage(dev, res));
-            window.jarvis.speak(`Connected to ${dev.name}.`);
+            say(`Connected to ${dev.name}.`);
           } else {
             btn.textContent = 'RETRY'; btn.disabled = false;
             addMessage('assistant', `Could not connect to ${dev.name}: ${res.error || 'unknown error'}`);
@@ -1886,7 +1886,7 @@ window._checkMarketsOverlay = async function(text) {
     if (!url) return;
     tvOpenAndReport(url, NAMES[app]);
     addMessage('assistant', `📺 Opening **${NAMES[app]}** on your TV…`);
-    window.jarvis.speak(`Opening ${NAMES[app]} on your TV.`);
+    say(`Opening ${NAMES[app]} on your TV.`);
   };
 
   // ── Volume slider ────────────────────────────────────────────────────────
@@ -1933,7 +1933,7 @@ window._checkMarketsOverlay = async function(text) {
           try { localStorage.setItem('tv_last_device', JSON.stringify(dev)); } catch(_) {}
           tvUpdateUI();
           addMessage('assistant', tvConnectedMessage(dev, res));
-          window.jarvis.speak('Connected to TV.');
+          say('Connected to TV.');
         } else {
           addMessage('assistant', `Could not connect to ${ip}: ${(res && res.error) || 'unknown error'}`);
         }
@@ -2002,7 +2002,7 @@ window._checkMarketsOverlay = async function(text) {
     if (s.phase === 'prompt' && !_tvPromptShown) {
       _tvPromptShown = true;
       addMessage('assistant', '📺 Look at your TV — it\'s asking to **allow debugging** from this computer ("Allow network debugging?" or "Allow USB debugging?"). Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
-      window.jarvis.speak('Please accept the prompt on your TV, and tick always allow.');
+      say('Please accept the prompt on your TV, and tick always allow.');
     } else if (s.phase === 'ready') {
       _tvPromptShown = false;
       addMessage('assistant', `📺 Full control of **${tvConnected?.name || 'your TV'}** is set up — I can now play specific videos on it.`);
@@ -2199,13 +2199,13 @@ window._checkMarketsOverlay = async function(text) {
     if (res && res.askProfile) {
       tvProfileAsk = { app: res.app || app, query: res.query || '', needsPosition: !!res.needsPosition, profileName: res.profileName || null, askedAt: Date.now(), until: Date.now() + 3 * 60 * 1000 };
       addMessage('assistant', `📺 ${res.message}`);
-      window.jarvis.speak(res.message);
+      say(res.message);
       return;
     }
     tvProfileAsk = null;
     if (res && res.ok && profileUsed && (app === 'netflix' || app === 'prime')) rememberProfile(app, profileUsed);
     addMessage('assistant', `${res && res.ok ? '📺' : '⚠️'} ${(res && res.message) || (res && res.ok ? 'Done.' : 'That didn\'t work.')}`);
-    if (res && res.ok && res.message) window.jarvis.speak(res.message.replace(/["*]/g, ''));
+    if (res && res.ok && res.message) say(res.message.replace(/["*]/g, ''));
   }
 
   async function answerProfileQuestion(reply) {
@@ -2219,7 +2219,7 @@ window._checkMarketsOverlay = async function(text) {
         tvProfileAsk = { ...ask, needsPosition: true, profileName: reply.name, askedAt: Date.now(), until: Date.now() + 3 * 60 * 1000 };
         const q = `Netflix doesn't let me read its profile names. Which number is ${reply.name}, counting from the left?`;
         addMessage('assistant', `📺 ${q}`);
-        window.jarvis.speak(q);
+        say(q);
         return true;
       }
     }
@@ -2297,7 +2297,7 @@ window._checkMarketsOverlay = async function(text) {
       if (bare && (await window.jarvis.tvPlaying().catch(() => null))?.playing) {
         const res = await window.jarvis.tvDo({ action: 'remote', ...bare }).catch((e) => ({ ok: false, message: e.message }));
         addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
-        if (res.ok) window.jarvis.speak(res.message);
+        if (res.ok) say(res.message);
         return true;
       }
     }
@@ -2331,7 +2331,7 @@ window._checkMarketsOverlay = async function(text) {
       }
       if (remote && remote.key === 'power_on') {
         addMessage('assistant', '📺 Your TV is on.');
-        window.jarvis.speak('Your TV is on.');
+        say('Your TV is on.');
         return true;
       }
     }
@@ -2339,7 +2339,7 @@ window._checkMarketsOverlay = async function(text) {
     if (remote) {
       const res = await window.jarvis.tvDo({ action: 'remote', ...remote }).catch((e) => ({ ok: false, message: e.message }));
       addMessage('assistant', `${res.ok ? '📺' : '⚠️'} ${res.message || (res.ok ? 'Done.' : 'That didn\'t work.')}`);
-      if (res.ok) window.jarvis.speak(res.message);
+      if (res.ok) say(res.message);
       return true;
     }
 
@@ -2376,7 +2376,7 @@ window._checkMarketsOverlay = async function(text) {
         .replace(/\s+on\s+(?:spotify|youtube(?:\s+music)?|apple\s+music)$/i, '')   // it plays through YouTube on the TV
         .trim();
       addMessage('assistant', `📺 Searching YouTube for *"${query}"* and casting to **${tvConnected.name}**…`);
-      window.jarvis.speak(`Playing ${query} on YouTube on your TV.`);
+      say(`Playing ${query} on YouTube on your TV.`);
       try {
         const res = await window.jarvis.tvCastYouTube(query);
         if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there. Once full control is set up I'll be able to play it directly.`);
@@ -2389,7 +2389,7 @@ window._checkMarketsOverlay = async function(text) {
     // ── "open Netflix on TV" ───────────────────────────────────────────────
     if (/netflix/i.test(t)) {
       addMessage('assistant', `📺 Launching **Netflix** on **${tvConnected.name}**…`);
-      window.jarvis.speak('Opening Netflix on your TV.');
+      say('Opening Netflix on your TV.');
       try { await tvOpenAndReport('https://www.netflix.com', 'Netflix'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
@@ -2398,7 +2398,7 @@ window._checkMarketsOverlay = async function(text) {
     // ── "open YouTube on TV" (no search query) ────────────────────────────
     if (/\byoutube\b/i.test(t) && !ytM) {
       addMessage('assistant', `📺 Launching **YouTube** on **${tvConnected.name}**…`);
-      window.jarvis.speak('Opening YouTube on your TV.');
+      say('Opening YouTube on your TV.');
       try { await tvOpenAndReport('https://www.youtube.com', 'YouTube'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
@@ -2410,7 +2410,7 @@ window._checkMarketsOverlay = async function(text) {
       const song  = songM ? songM[1].trim() : '';
       if (song) {
         addMessage('assistant', `📺 Searching for *"${song}"* and casting to **${tvConnected.name}**…`);
-        window.jarvis.speak(`Playing ${song} on your TV.`);
+        say(`Playing ${song} on your TV.`);
         try {
           const res = await window.jarvis.tvCastYouTube(song + ' official audio');
           if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there.`);
@@ -2419,7 +2419,7 @@ window._checkMarketsOverlay = async function(text) {
         } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       } else {
         addMessage('assistant', `📺 Launching **Spotify** on **${tvConnected.name}**…`);
-        window.jarvis.speak('Opening Spotify on your TV.');
+        say('Opening Spotify on your TV.');
         try { await tvOpenAndReport('https://open.spotify.com', 'Spotify'); }
         catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       }
@@ -2429,7 +2429,7 @@ window._checkMarketsOverlay = async function(text) {
     // ── "open Prime / Amazon on TV" ───────────────────────────────────────
     if (/prime|amazon\s+video/i.test(t)) {
       addMessage('assistant', `📺 Launching **Prime Video** on **${tvConnected.name}**…`);
-      window.jarvis.speak('Opening Prime Video on your TV.');
+      say('Opening Prime Video on your TV.');
       try { await tvOpenAndReport('https://www.primevideo.com', 'Prime Video'); }
       catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
       return true;
@@ -2441,7 +2441,7 @@ window._checkMarketsOverlay = async function(text) {
     if (openM) {
       const what = openM[1].trim();
       addMessage('assistant', `📺 I can't open **${what}** on your TV yet. On the TV I can play YouTube, Netflix, Prime Video, and videos stored on the TV itself.`);
-      window.jarvis.speak(`I can't open ${what} on your TV yet. I can do YouTube, Netflix, Prime Video, and videos stored on the TV.`);
+      say(`I can't open ${what} on your TV yet. I can do YouTube, Netflix, Prime Video, and videos stored on the TV.`);
       return true;
     }
     return false;
@@ -2549,7 +2549,7 @@ window._checkQuickLaunch = async function(text) {
       }
       if (window.CallistoNewsStage && window.CallistoNewsStage.show(list)) {
         addMessage('assistant', "Here's the news - " + list.length + " headlines. Arrow keys to move through them.");
-        window.jarvis.speak('Here is the news.');
+        say('Here is the news.');
         setState('idle');
         return true;
       }
@@ -2576,7 +2576,7 @@ window._checkQuickLaunch = async function(text) {
       if (!text) {
         const msg = 'Nothing is connected yet, so there are no numbers to read. Open Connectors and link YouTube, Instagram, TikTok, your shop or Stripe.';
         addMessage('assistant', msg);
-        window.jarvis.speak(msg);
+        say(msg);
         setState('idle');
         return;
       }
@@ -2602,7 +2602,7 @@ window._checkQuickLaunch = async function(text) {
         const yt = data?.youtube;
         if (!yt) {
           addMessage('assistant', `📺 Your YouTube channel isn't connected yet. Open **Connectors** and link your YouTube account to see your stats here.`);
-          window.jarvis.speak('Your YouTube channel is not connected. Please connect it from the connectors panel.');
+          say('Your YouTube channel is not connected. Please connect it from the connectors panel.');
           return;
         }
         // Build a detailed response
@@ -2618,7 +2618,7 @@ window._checkQuickLaunch = async function(text) {
         }
         addMessage('assistant', replyText);
         const spoken = `Your channel ${yt.channelName} has ${fmtN(yt.subscribers)} subscribers and ${fmtN(yt.totalViews)} total views.${latestVideo ? ` Your latest video "${latestVideo.title}" has ${fmtN(latestVideo.views)} views.` : ''}`;
-        window.jarvis.speak(spoken);
+        say(spoken);
         // Also open the analytics panel
         const ap = document.getElementById('analyticsPanel');
         if (ap) { ap.classList.remove('hidden'); ap.scrollTop = 0; loadAnalyticsDashboard(); }
@@ -2639,7 +2639,7 @@ window._checkQuickLaunch = async function(text) {
   if (ytM) {
     const query = ytM[1].replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
     addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
-    window.jarvis.speak(`Opening ${query} on YouTube.`);
+    say(`Opening ${query} on YouTube.`);
     window.jarvis.openGoogleUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
     return true;
   }
@@ -2647,7 +2647,7 @@ window._checkQuickLaunch = async function(text) {
   // ── Instagram: must say "open instagram" explicitly ──────────────────────
   if (/^open\s+instagram\s*$/i.test(t) || /^launch\s+instagram\s*$/i.test(t)) {
     addMessage('assistant', `📸 Opening Instagram…`);
-    window.jarvis.speak('Opening Instagram.');
+    say('Opening Instagram.');
     // The Instagram app if it's installed, otherwise instagram.com in the browser.
     window.jarvis.openApp('instagram');
     return true;
@@ -2656,7 +2656,7 @@ window._checkQuickLaunch = async function(text) {
   // ── WhatsApp web: explicit web request (check before native open) ───────────
   if (/whatsapp\s+web/i.test(t) || /open\s+whatsapp\s+on\s+(the\s+)?web/i.test(t)) {
     addMessage('assistant', `💬 Opening WhatsApp Web…`);
-    window.jarvis.speak('Opening WhatsApp Web.');
+    say('Opening WhatsApp Web.');
     window.jarvis.openUrl('https://web.whatsapp.com');
     return true;
   }
@@ -2684,7 +2684,7 @@ window._checkQuickLaunch = async function(text) {
       const uri = APP_URIS[appName];
       const label = appName.charAt(0).toUpperCase() + appName.slice(1);
       addMessage('assistant', `📱 Opening **${label}**…`);
-      window.jarvis.speak(`Opening ${label}.`);
+      say(`Opening ${label}.`);
       // Always go through the main process: it stops Spotify's focus guard so the
       // app stays in front, and on Mac uses "open -a", which also brings forward an
       // app that's already running or hidden (a URI only worked the first time).
@@ -2705,7 +2705,7 @@ window._checkQuickLaunch = async function(text) {
   if (googleM) {
     const query = googleM[1].replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
     addMessage('assistant', `🔍 Searching Google for **${query}**…`);
-    window.jarvis.speak(`Searching Google for ${query}.`);
+    say(`Searching Google for ${query}.`);
     window.jarvis.openGoogleUrl(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
     return true;
   }
@@ -2720,7 +2720,7 @@ window._checkQuickLaunch = async function(text) {
       window.showCalendarOverlay();
       window._hudWantsWindow = true;
       addMessage('assistant', '📅 Here\'s your calendar!');
-      window.jarvis.speak('Opening your calendar.');
+      say('Opening your calendar.');
       return true;
     }
   }
@@ -2735,14 +2735,14 @@ window._checkQuickLaunch = async function(text) {
           ? 'Your Google Calendar isn\'t connected yet. Go to Settings → Connectors to link it.'
           : 'I had trouble reading your calendar. Please try again.';
         addMessage('assistant', `❌ ${msg}`);
-        window.jarvis.speak(msg);
+        say(msg);
         return;
       }
       const events = (res && res.events) ? res.events.slice(0, 10) : (Array.isArray(res) ? res.slice(0, 10) : []);
       if (events.length === 0) {
         const msg = 'You have no upcoming events.';
         addMessage('assistant', `📅 ${msg}`);
-        window.jarvis.speak(msg);
+        say(msg);
         return;
       }
       // Build spoken summary
@@ -2751,7 +2751,7 @@ window._checkQuickLaunch = async function(text) {
         return `${e.title} on ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
       }).join(', ');
       const spoken = `You have ${events.length} upcoming event${events.length > 1 ? 's' : ''}. ${first}${events.length > 3 ? `, and ${events.length - 3} more` : ''}.`;
-      window.jarvis.speak(spoken);
+      say(spoken);
       // Show card
       showCard({ type: 'calendar', events });
       addMessage('assistant', `📅 Here are your upcoming events.`);
@@ -2794,7 +2794,7 @@ window._checkQuickLaunch = async function(text) {
       const msg = `**${title}** added to ${where} for ${dateStr}.`;
       addMessage('assistant', `✅ ${msg}`);
       const spokenMsg = `I've added ${title} to ${googleOk ? 'your Google Calendar' : 'your planner'} for ${dateStr}.`;
-      window.jarvis.speak(spokenMsg);
+      say(spokenMsg);
     })();
     return true;
   }
@@ -2807,7 +2807,7 @@ window._checkQuickLaunch = async function(text) {
   if (imgM) {
     const prompt = imgM[1].trim();
     addMessage('assistant', `🎨 Generating image of **${prompt}**…`);
-    window.jarvis.speak(`Creating an image of ${prompt}.`);
+    say(`Creating an image of ${prompt}.`);
     (async () => {
       try {
         const result = await window.jarvis.generateImage(prompt, '1024x1024');
@@ -2816,7 +2816,7 @@ window._checkQuickLaunch = async function(text) {
           window.jarvis.setLatestMedia?.('image', window._lastImage);
           showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
           addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
-          window.jarvis.speak(`Here's your image of ${prompt}.`);
+          say(`Here's your image of ${prompt}.`);
         } else {
           const errMsg = result && result.error ? result.error : 'Unknown error';
           console.error('[image] server returned error:', errMsg);
@@ -2888,7 +2888,7 @@ window._checkQuickLaunch = async function(text) {
         // button, and one spoken line. Adding to the portfolio is the user's choice.
         addMessage('assistant', said);
         showCard(stockCard);
-        window.jarvis.speak(`${stockData.name || rawQuery} is at ${cur === '$' ? '' : cur}${stockData.price}${cur === '$' ? ' dollars' : ''}, ${dir} ${pct} percent today.`).catch(() => {});
+        say(`${stockData.name || rawQuery} is at ${cur === '$' ? '' : cur}${stockData.price}${cur === '$' ? ' dollars' : ''}, ${dir} ${pct} percent today.`).catch(() => {});
       } catch (e) { setState('idle'); console.error('[stock intercept]', e); }
     })();
     return true;
@@ -3054,10 +3054,10 @@ window._checkQuickLaunch = async function(text) {
           const top = places[0];
           const ratingStr = top.rating ? ` · ⭐ ${top.rating}` : '';
           addMessage('assistant', `📍 Found **${places.length} ${placeType}** near you. Top result: **${top.name}**${ratingStr}.`);
-          window.jarvis.speak(`I found ${places.length} ${placeType} near you. The top result is ${top.name}.`);
+          say(`I found ${places.length} ${placeType} near you. The top result is ${top.name}.`);
         } else {
           addMessage('assistant', `📍 I've opened Google Maps for **${placeType}** near you.`);
-          window.jarvis.speak(`Here's a map search for ${placeType} near you.`);
+          say(`Here's a map search for ${placeType} near you.`);
         }
       } catch (_) {
         const fallbackUrl = `https://www.google.com/maps/search/${encodeURIComponent(placeType + ' near me')}`;
@@ -3551,10 +3551,10 @@ if (window.jarvis && window.jarvis.onModelStart) {
     window._lastModel = model;
     if (onScreen) {
       const loaded = await V.open(model.url, model);
-      if (loaded) window.jarvis.speak(`Your 3D model of ${title} is ready.`);
+      if (loaded) say(`Your 3D model of ${title} is ready.`);
     } else {
       _modelTell('Model ready', title, 'Open', () => _openFinishedModel(model));
-      window.jarvis.speak(`Your 3D model of ${title} is ready.`);
+      say(`Your 3D model of ${title} is ready.`);
     }
   };
   window.jarvis.onModelStart(window._startModelGen);
@@ -3621,7 +3621,7 @@ async function _repaintOpenModel(text) {
   const title = info.title;
   _modelJobs.set(jobKey, { kind: 'repaint', title, sourceTaskId: info.taskId });
   V.setBusy(`Repainting ${title} — this takes about a minute`);
-  window.jarvis.speak('Repainting it now.');
+  say('Repainting it now.');
 
   const style = `${info.prompt || title}. ${text}`.slice(0, 600);
   let res;
@@ -3639,7 +3639,7 @@ async function _repaintOpenModel(text) {
   window._lastModel = model;
   if (stillOpen) {
     await V.open(model.url, model);
-    window.jarvis.speak('Done.');
+    say('Done.');
   } else {
     _modelTell('Repaint ready', title, 'Open', () => _openFinishedModel(model));
   }
@@ -3713,7 +3713,7 @@ async function runShoppingSearch(store, query) {
   // own search straight away — and if the site can't be reached, Google it.
   if (store === 'amazon' || store === 'aliexpress' || store === 'temu') {
     addMessage('assistant', `${meta.emoji} Opening **${meta.name}** results for **${query}**…`);
-    window.jarvis.speak(`Here's ${query} on ${meta.name}.`);
+    say(`Here's ${query} on ${meta.name}.`);
     const res = await window.jarvis.shopSearch(store, query, 1).catch(() => null);
     let url = res?.searchUrl || '';
     if (store === 'amazon') url = (url || `https://www.amazon.com/s?k=${encodeURIComponent(query)}`).replace('www.amazon.com', amazonSite());
@@ -3724,7 +3724,7 @@ async function runShoppingSearch(store, query) {
   }
 
   addMessage('assistant', `${meta.emoji} Searching ${meta.name} for **${query}**…`);
-  window.jarvis.speak(`Searching ${meta.name} for ${query}.`);
+  say(`Searching ${meta.name} for ${query}.`);
 
   // Render the card immediately in a loading state so it never feels stalled
   showCard({ type: 'shopping', store, query, loading: true, products: [] });
@@ -3743,7 +3743,7 @@ async function runShoppingSearch(store, query) {
   });
 
   const n = res?.products?.length || 0;
-  if (n) window.jarvis.speak(`Found ${n} results. The cheapest is ${formatMoney(res.products[0].currency, lowestPrice(res.products))}.`);
+  if (n) say(`Found ${n} results. The cheapest is ${formatMoney(res.products[0].currency, lowestPrice(res.products))}.`);
 }
 
 function lowestPrice(products) {
@@ -5323,6 +5323,67 @@ window.jarvis.onConnectorConnected?.(async () => {
   try { window._appConnected = await window.jarvis.connectorStatus() || {}; } catch (_) {}
 });
 
+// Does this message ask for more than one thing?
+//
+// Everything below runs through a chain of single-purpose shortcuts, each of
+// which handles what it recognises and RETURNS. That is fine for one request
+// and quietly destructive for several: "sketch me a box, tell me what
+// photosynthesis is and open my markets" was matched by the markets shortcut,
+// which opened the markets and dropped the rest of the sentence on the floor.
+// The model never saw it, so there was nothing to blame for the missing work.
+//
+// So a message asking for several things is taken apart, and each piece is
+// offered to the shortcuts on its own. Skipping the shortcuts instead would
+// lose the things only they can do - the markets, the TV, the studios - which
+// the model has no tool for. Whatever no shortcut claims is what the model is
+// asked, so nothing is dropped and nothing is done twice.
+const _REQUEST_VERB = /\b(open|show|play|draw|sketch|paint|make|create|generate|build|tell|explain|what|who|when|where|why|how|add|put|send|email|message|call|remind|schedule|book|set|turn|find|search|look up|give)\b/i;
+
+function _splitRequests(text) {
+  const t = String(text || '').trim();
+  // The ways people string requests together, a bare "and" included. Splitting
+  // on commas alone left "sketch me a box, tell me what photosynthesis is and
+  // open my markets" as two pieces, the second of which the markets shortcut
+  // claimed whole - taking the question down with it.
+  //
+  // This cuts "supply and demand" in half too, but a piece with no request
+  // verb in it never counts towards a second request, so a question keeps its
+  // own subject.
+  return t.split(/,|;| & |\s+and then\s+|\s+and also\s+|\s+then\s+|\s+and\s+/i)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 4);
+}
+
+function _looksMultiTask(text) {
+  const t = String(text || '').trim();
+  if (t.length < 18) return false;
+  const parts = _splitRequests(t);
+  if (parts.length < 2) return false;
+  return parts.filter((x) => _REQUEST_VERB.test(x)).length >= 2;
+}
+window._looksMultiTask = _looksMultiTask;
+
+// One piece of a multi-part request, offered to the shortcuts in the order a
+// message on its own would meet them. True means one of them took it.
+async function _runLocalShortcuts(part, attachments) {
+  const tries = [
+    () => window._checkDocStudio?.(part),
+    () => window._checkAnalyticsRequest?.(part),
+    () => window._checkModelCommand?.(part),
+    () => window._checkGoogleFlow?.(part),
+    () => window._checkHiggsfield?.(part, attachments),
+    () => window._checkMarketsOverlay?.(part),
+    () => window._checkTvCast?.(part),
+    () => window._checkQuickLaunch?.(part),
+    () => window._checkCreative?.(part),
+  ];
+  for (const run of tries) {
+    // One shortcut throwing must not cost the user the rest of the request.
+    try { if (await run()) return true; } catch (_) {}
+  }
+  return false;
+}
+
 async function sendToJarvis(text) {
   // Before anything is sent: is an account missing that this needs?
   if (window.CallistoGate) {
@@ -5350,43 +5411,63 @@ async function sendToJarvis(text) {
   // (typed, or spoken through Ctrl+Shift+C).
   // The document studio takes paging and small edits first, so "next slide"
   // does not go off to the model as a question.
-  if (typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
+  const _multi = _looksMultiTask(text);
+  if (_multi) {
+    // Each piece gets its own go at the shortcuts, so the instant things - a
+    // panel, an app, the TV - have already happened by the time the model is
+    // asked for the rest. That is the order the user sees it in: what is quick
+    // first, the answer alongside it, anything slow building behind them.
+    const _before = chat.querySelectorAll('.msg-row.assistant .msg-text').length;
+    const _parts = _splitRequests(text);
+    const _left = [];
+    for (const _part of _parts) {
+      if (!(await _runLocalShortcuts(_part, attachments))) _left.push(_part);
+    }
+    if (!_left.length) return _hudAfterHandled(_before);
+    if (_left.length !== _parts.length) {
+      // Only what is left over goes on to the model, or it would redo what has
+      // just been done. History follows it, so the two agree.
+      text = _left.join(', ');
+      if (history.length) history[history.length - 1] = { role: 'user', content: text };
+    }
+  }
+  if (!_multi && typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
   // Asking about their own numbers: answer it and open the panel, rather than
   // sending it off to the model which has no access to these figures.
-  if (typeof window._checkAnalyticsRequest === 'function' && window._checkAnalyticsRequest(text)) return;
-  if (typeof window._checkModelCommand === 'function' && window._checkModelCommand(text)) {
+  if (!_multi && typeof window._checkAnalyticsRequest === 'function' && window._checkAnalyticsRequest(text)) return;
+  if (!_multi && typeof window._checkModelCommand === 'function' && window._checkModelCommand(text)) {
     if (window._hudVoiceActive && typeof _maybeForwardToHud === 'function') _maybeForwardToHud('Updating your 3D model…', null);
     return;
   }
   // How many answers were showing, so a Ctrl+Shift+C request can find the new one.
   const _asstBefore = chat.querySelectorAll('.msg-row.assistant .msg-text').length;
   // Check Google Flow video creation (must run before HiggsField — takes "make me a video about X")
-  if (typeof window._checkGoogleFlow === 'function') {
+  if (!_multi && typeof window._checkGoogleFlow === 'function') {
     const handled = await window._checkGoogleFlow(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check HiggsField video generation (image-based, animate, effects)
-  if (typeof window._checkHiggsfield === 'function') {
+  if (!_multi && typeof window._checkHiggsfield === 'function') {
     const handled = await window._checkHiggsfield(text, attachments);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check markets overlay command
-  if (typeof window._checkMarketsOverlay === 'function') {
+  if (!_multi && typeof window._checkMarketsOverlay === 'function') {
     const handled = await window._checkMarketsOverlay(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check TV cast commands — runs before quick-launch so "play X on YouTube on TV" → TV, not local browser
-  if (typeof window._checkTvCast === 'function') {
+  if (!_multi && typeof window._checkTvCast === 'function') {
     const handled = await window._checkTvCast(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check quick-launch commands (Spotify, YouTube, Instagram, WhatsApp, Calendar)
-  if (typeof window._checkQuickLaunch === 'function') {
+  if (!_multi && typeof window._checkQuickLaunch === 'function') {
     const handled = await window._checkQuickLaunch(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
   // Check creative (painting / 3D model) — may short-circuit the AI call
-  if (typeof window._checkCreative === 'function') {
+  if (!_multi && typeof window._checkCreative === 'function') {
     const handled = await window._checkCreative(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
@@ -5799,7 +5880,7 @@ if (window.jarvis.onSentenceText) {
       const video = { url: res.videoUrl, title };
       window._lastVideo = video;
       window.jarvis.setLatestMedia?.('video', video);
-      window.jarvis.speak('Your video is ready.');
+      say('Your video is ready.');
       if (onScreen) {
         VV.open(video.url, { title });
       } else if (VV && typeof _modelTell === 'function') {
@@ -5839,7 +5920,7 @@ if (window.jarvis.onSentenceText) {
       .trim() || text.trim();
     const flowUrl = `https://flow.google.com/?prompt=${encodeURIComponent(subject)}`;
     addMessage('assistant', `🎥 Opening **Google Flow** to create a video about: *${subject}*`);
-    window.jarvis.speak(`Opening Google Flow to create your video.`);
+    say(`Opening Google Flow to create your video.`);
     window.jarvis.openInAppBrowser(flowUrl);
     _maybeForwardToHud(`🎥 Opening Google Flow for: ${subject}`, null);
     return true;
@@ -5899,7 +5980,7 @@ if (window.jarvis.onSentenceText) {
       const r = await window.jarvis.openBlender(subject);
       if (r.ok) {
         addMessage('assistant', `✅ 3D studio is open with your model of "${subject}". It is building now.`);
-        window.jarvis.speak(`The 3D studio is now open with a model of ${subject}.`);
+        say(`The 3D studio is now open with a model of ${subject}.`);
       } else {
         addMessage('assistant', r.error || 'Could not open the 3D studio.');
       }
@@ -5925,7 +6006,7 @@ if (window.jarvis.onSentenceText) {
         try {
           const r = await window.jarvis.openPaint3D(subject, null);
           if (r && r.ok === false) throw new Error(r.error || 'Could not open Paint 3D');
-          window.jarvis.speak(`Paint 3D is now open. You can draw ${subject} there.`);
+          say(`Paint 3D is now open. You can draw ${subject} there.`);
           addMessage('assistant', `✅ Paint 3D is open! Draw your **${subject}** there.`);
         } catch (err) {
           addMessage('assistant', `Sorry, couldn't open Paint 3D: ${err.message}`);
@@ -5941,8 +6022,17 @@ if (window.jarvis.onSentenceText) {
           if (imgData.error) throw new Error(imgData.error);
           const imageUrl = imgData.url;
           window._lastGeneratedImageUrl = imageUrl;
+          // Into Creations, the same as a picture made any other way. This path
+          // showed the painting and then forgot it, so paintings were the one
+          // thing you could make and never find again.
+          try {
+            window.jarvis.artifactAdd?.({
+              kind: 'image', url: imageUrl, title: subject,
+              prompt: subject, source: 'painting',
+            });
+          } catch (_) {}
           showPaintingInSidebar(imageUrl, subject);
-          window.jarvis.speak(`Here's your AI-generated image of ${subject}.`);
+          say(`Here's your AI-generated image of ${subject}.`);
           addMessage('assistant', `✨ Here's your AI image of **${subject}**! Shown in the side panel.\n\nSay **"make it 3D"** to turn it into a 3D model.`);
         } catch (err) {
           addMessage('assistant', `Sorry, couldn't generate the image: ${err.message}`);
@@ -6181,7 +6271,7 @@ if (window.jarvis.onSentenceText) {
       if (shop) {
         openBrowserPanel(shop.url, shop.name, shop.icon);
         if (window.jarvis && window.jarvis.speak)
-          window.jarvis.speak('Opening ' + shop.name + ' for ' + shop.query);
+          say('Opening ' + shop.name + ' for ' + shop.query);
       } else if (places) {
         // fetchAndShowPlaces handles speak internally after results are loaded
         fetchAndShowPlaces(places.placeType, places.query);
@@ -6273,6 +6363,28 @@ let audioPlaying = false;
 
 let voiceVolume = parseFloat(localStorage.getItem('voiceVolume') || '1.5');
 let voicePitch  = parseFloat(localStorage.getItem('voicePitch')  || '1.0');
+
+// Saying something out loud.
+//
+// jarvis.speak only MAKES the audio - it hands it back and plays nothing - so
+// every place that called it and ignored what came back went silent. The thing
+// happened and Callisto said nothing about it: the TV turned on in silence,
+// Instagram opened in silence, a finished 3D model announced itself to nobody.
+// This plays it, through the same queue as everything else, so two
+// announcements never talk over each other.
+function say(text) {
+  const t = String(text == null ? '' : text).trim();
+  if (!t) return Promise.resolve(null);
+  try {
+    return Promise.resolve(window.jarvis.speak(t)).then((audio) => {
+      if (audio) playAudioChunks([audio]);
+      return audio;
+    }).catch(() => null);
+  } catch (_) {
+    return Promise.resolve(null);
+  }
+}
+window.say = say;
 
 function playAudioChunks(chunks) {
   audioQueue.push(...chunks);
@@ -9094,7 +9206,7 @@ voiceVolumeSlider.addEventListener('input', () => {
       previewBtn.disabled = true;
       if (previewStatus) previewStatus.textContent = 'Generating…';
       try {
-        await window.jarvis.speak("Hello. This is how I'll sound from now on.");
+        await say("Hello. This is how I'll sound from now on.");
         if (previewStatus) previewStatus.textContent = '';
       } catch (_) {
         if (previewStatus) previewStatus.textContent = 'Preview unavailable';
@@ -9271,7 +9383,7 @@ function convoStop(spoken) {
   window.jarvis.hudMicState?.(false, true);
   if (isRecording) { window._discardRecording = true; stopRecording(); }
   addMessage('assistant', '🎙 Conversation mode off.');
-  if (spoken) window.jarvis.speak('Okay, I\'ve stopped listening.');
+  if (spoken) say('Okay, I\'ve stopped listening.');
   window.jarvis.screenWatchStop?.().catch(() => {});
   window._refreshGestureHint?.();
   screenWatchBadge(false);
@@ -9718,7 +9830,7 @@ async function stopRecording() {
       // Silence or noise. In conversation mode this happens constantly by
       // design, and announcing it every time is worse than saying nothing.
       if (!window._convoMode) {
-        if (window.jarvis && window.jarvis.speak) window.jarvis.speak("I didn't hear that.");
+        if (window.jarvis && window.jarvis.speak) say("I didn't hear that.");
         _maybeForwardToHud(`I didn't hear that. Press ${keys('Ctrl+Shift+C')} and try again.`, null);
       }
       setState('idle');
@@ -10220,8 +10332,8 @@ micBtn.addEventListener('click', () => {
 // ================================================================
 
 // ===================== ARTIFACTS (this week's creations) =====================
-// AI images, Meshy 3D models and Higgsfield videos made in the app. Files are kept
-// locally by the main process and cleared every Monday.
+// Images, paintings, sketches from the canvas, 3D models and videos made in the
+// app. Files are kept locally by the main process and cleared every Monday.
 (function () {
   const grid = document.getElementById('artGrid');
   const empty = document.getElementById('artEmpty');
@@ -10232,6 +10344,15 @@ micBtn.addEventListener('click', () => {
   let filter = 'all';
 
   const KIND_LABEL = { image: 'Image', model: '3D model', video: 'Video' };
+
+  // A sketch and a painting are both images, but calling them "Image" loses
+  // what they are. The source says which, so the card says it too.
+  function badgeFor(a) {
+    if (a.source === 'sketch') return 'Sketch';
+    if (a.source === 'painting') return 'Painting';
+    return KIND_LABEL[a.kind] || 'Image';
+  }
+
   const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function when(ts) {
@@ -10261,7 +10382,7 @@ micBtn.addEventListener('click', () => {
       <article class="art-card" data-id="${esc(a.id)}">
         <button class="art-thumb art-kind-${a.kind}" data-open aria-label="Open ${esc(a.title)}">
           ${thumbHtml(a)}
-          <span class="art-badge">${KIND_LABEL[a.kind]}</span>
+          <span class="art-badge">${badgeFor(a)}</span>
         </button>
         <div class="art-meta">
           <div class="art-name" title="${esc(a.prompt || a.title)}">${esc(a.title)}</div>
@@ -10510,7 +10631,7 @@ function wirePublishCard(card) {
       goBtn.textContent = 'Posted';
       const link = res.url ? `\n\n[Open on ${card.platformName}](${res.url})` : '';
       addMessage('assistant', `✅ Posted to ${card.platformName}.${res.note ? ` ${res.note}` : ''}${link}`);
-      window.jarvis.speak(`Posted to ${card.platformName}.`);
+      window.say(`Posted to ${card.platformName}.`);   // this scope has its own say(), for the status line
     } else {
       say('error', res?.error || 'The upload failed.');
       goBtn.disabled = false;
@@ -10715,6 +10836,30 @@ if (window.jarvis.onMacNeedsAutomation) {
   // Moving, resizing, recolouring or deleting by hand updates the description
   // too, so "now make it green" still means the right shape afterwards.
   D().onChange?.(report);
+
+  // A drawing joins Creations when the canvas is put away, so it can be found
+  // again instead of lasting only until the next one. The drawing itself is the
+  // signature, so closing and reopening without touching anything saves nothing
+  // twice, while a real change saves the new version.
+  let _lastSavedSketch = '';
+  async function saveSketchToCreations() {
+    try {
+      if (!D().count || D().count() === 0) return;
+      const drawing = D().describe();
+      if (drawing === _lastSavedSketch) return;
+      const png = await D().toPng(2);
+      if (!png) return;
+      _lastSavedSketch = drawing;
+      const name = (D().titleOf && D().titleOf()) || '';
+      await window.jarvis.artifactAdd?.({
+        kind: 'image', url: png, source: 'sketch',
+        title: name && name !== 'Untitled drawing' ? name : 'Sketch',
+        prompt: drawing.slice(0, 400),
+      });
+    } catch (_) {}
+  }
+  window._saveSketchToCreations = saveSketchToCreations;
+  D().onHide?.(saveSketchToCreations);
 
   window.jarvis.onDrawApply?.((cmd) => {
     if (!cmd) return;
