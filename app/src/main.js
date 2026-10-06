@@ -1023,15 +1023,23 @@ app.whenReady().then(async () => {
       sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected — highlight text first, then press ${process.platform === 'darwin' ? 'Cmd' : 'Ctrl'}+Shift+E.` });
       return;
     }
-    // Step 3: Show overlay + enter magic edit mode
+    // Step 3: Show the editor WITHOUT taking focus.
+    //
+    // This used to show the window and focus it, which pulled the person out of
+    // the document they were editing and onto Callisto. Then, to paste the
+    // result back, it had to hide itself, hand focus back, paste, and reappear -
+    // the window seeming to close and open again around every edit.
+    //
+    // Floating above without focus removes the whole dance: the document keeps
+    // focus the entire time, so the paste lands where it belongs and nothing has
+    // to be hidden. The microphone does not need focus to record.
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    if (!overlayWindow.isVisible()) {
-      overlayWindow.show();
-      overlayWindow.focus();
+    const firstShow = !overlayWindow.isVisible();
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.showInactive();
+    if (firstShow) {
       const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
       overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
-    } else {
-      overlayWindow.focus();
     }
     magicEditActive = true;
     overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
@@ -1459,6 +1467,10 @@ app.on('will-quit', () => { try { _keyHelper && _keyHelper.kill(); } catch (_) {
 
 ipcMain.on('magic:ended', () => {
   magicEditActive = false;
+  // Dismissed without editing anything: stop floating above everything else.
+  try {
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
+  } catch (_) {}
   // Closed without an edit — give the user their clipboard back.
   if (magicClipboardSaved) { restoreClipboard(magicClipboardSaved); magicClipboardSaved = null; }
 });
@@ -1476,7 +1488,10 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
     // Hide our window first so the document the user was editing gets focus back —
     // otherwise the paste lands in Callisto instead of their document.
     const wasVisible = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible();
-    if (wasVisible) overlayWindow.hide();
+    // Only hide if Callisto actually holds focus. It normally does not any more,
+    // and hiding a window that was never in the way is what produced the flicker.
+    const stoleFocus = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isFocused();
+    if (wasVisible && stoleFocus) overlayWindow.hide();
     const savedClip = magicClipboardSaved;
     magicClipboardSaved = null;
     setTimeout(async () => {
@@ -1486,7 +1501,9 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
       const restore = () => setTimeout(() => {
         restoreClipboard(savedClip);
         if (wasVisible && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
-          overlayWindow.showInactive();
+          if (stoleFocus) overlayWindow.showInactive();
+          // Back to normal stacking once the edit has landed.
+          try { overlayWindow.setAlwaysOnTop(false); } catch (_) {}
         }
       }, 500);
       if (process.platform === 'darwin') {

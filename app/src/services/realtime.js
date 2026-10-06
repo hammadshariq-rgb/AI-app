@@ -444,12 +444,25 @@ async function wikidataSearch(term) {
 }
 
 async function wikidataLabel(id) {
-  const data = await wdFetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${id}&props=labels%7Cdescriptions&languages=en&format=json`);
+  // Not just the English label. Wikidata files a lot of personal names under
+  // "mul" - one spelling that serves every language - and asking only for en
+  // came back empty for them. Apple's chief executive was a name with no en
+  // label, so the lookup returned nothing and the question went unanswered
+  // while the very same record carried the description "CEO of Apple".
+  const data = await wdFetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${id}&props=labels%7Cdescriptions&languages=en%7Cmul%7Cen-gb&format=json`);
   const e = data && data.entities && data.entities[id];
   if (!e) return null;
+  const labels = e.labels || {};
+  const label = (labels.en && labels.en.value)
+    || (labels.mul && labels.mul.value)
+    || (labels['en-gb'] && labels['en-gb'].value)
+    || null;
+  const descriptions = e.descriptions || {};
   return {
-    label: e.labels && e.labels.en && e.labels.en.value,
-    description: e.descriptions && e.descriptions.en && e.descriptions.en.value,
+    label,
+    description: (descriptions.en && descriptions.en.value)
+      || (descriptions.mul && descriptions.mul.value)
+      || null,
   };
 }
 
