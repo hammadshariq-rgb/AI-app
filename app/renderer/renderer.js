@@ -8029,9 +8029,6 @@ function renderAnalyticsConnectors(status) {
 
   setRow('youtube', document.getElementById('youtubeStatus'), document.getElementById('youtubeBtn'));
   setRow('instagram', document.getElementById('instagramStatus'), document.getElementById('instagramBtn'));
-  // Facebook rides on the same Meta login as Instagram: one connection covers both,
-  // so this row connects and disconnects that one.
-  setRow('instagram', document.getElementById('facebookStatus'), document.getElementById('facebookBtn'));
   setRow('tiktok', document.getElementById('tiktokStatus'), document.getElementById('tiktokBtn'));
   setRow('shopify', document.getElementById('shopifyStatus'), document.getElementById('shopifyBtn'));
   setRow('squarespace', document.getElementById('squarespaceStatus'), document.getElementById('squarespaceBtn'));
@@ -8040,7 +8037,7 @@ function renderAnalyticsConnectors(status) {
 
   // An expand button on every analytics row that has something to show, and
   // only once it is connected  an empty chart helps nobody.
-  [['youtube', 'youtubeRow'], ['instagram', 'instagramRow'], ['facebook', 'facebookRow'],
+  [['youtube', 'youtubeRow'], ['instagram', 'instagramRow'],
    ['tiktok', 'tiktokRow'], ['stripe', 'stripeRow']].forEach(function ([key, rowId]) {
     const row = document.getElementById(rowId);
     if (!row) return;
