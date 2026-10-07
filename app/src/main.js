@@ -4333,15 +4333,45 @@ async function _dmTick() {
     if (!seen) return;
 
     for (const t of fresh.slice(0, 3)) {
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('dm:incoming', {
-          platform: 'instagram',
-          name: t.name || 'Someone',
-          contactId: t.contactId || null,
-          threadId: t.id || null,
-          preview: String(t.lastMessage || '').slice(0, 120),
-          kind: t.lastKind || 'text',
-        });
+      const payload = {
+        platform: 'instagram',
+        name: t.name || 'Someone',
+        contactId: t.contactId || null,
+        threadId: t.id || null,
+        preview: String(t.lastMessage || '').slice(0, 120),
+        kind: t.lastKind || 'text',
+      };
+      const alive = overlayWindow && !overlayWindow.isDestroyed();
+      const onScreen = alive && overlayWindow.isVisible() && !overlayWindow.isMinimized();
+
+      // The card lives inside the window, so it is only any use when the
+      // window is there to be looked at - which it usually is not. Hidden or
+      // minimised, this goes to the desktop instead, and clicking it brings
+      // Callisto up with the card waiting.
+      if (onScreen) {
+        overlayWindow.webContents.send('dm:incoming', payload);
+      } else {
+        try {
+          if (Notification.isSupported()) {
+            const note = new Notification({
+              title: `${payload.name} messaged you on Instagram`,
+              body: payload.preview || 'Tap to read and reply.',
+              silent: false,
+            });
+            note.on('click', () => {
+              if (!alive || overlayWindow.isDestroyed()) return;
+              if (overlayWindow.isMinimized()) overlayWindow.restore();
+              overlayWindow.show();
+              overlayWindow.focus();
+              overlayWindow.webContents.send('dm:incoming', payload);
+            });
+            note.show();
+          } else if (alive) {
+            overlayWindow.webContents.send('dm:incoming', payload);
+          }
+        } catch (_) {
+          if (alive) overlayWindow.webContents.send('dm:incoming', payload);
+        }
       }
     }
   } catch (_) { /* a quiet failure here must never interrupt anything */ }
