@@ -10420,53 +10420,64 @@ micBtn.addEventListener('click', () => {
 })();
 
 // == Which Instagram account ==
-// One Facebook login can reach several Instagram accounts, one per Page. The
-// first one found was used without a word, so there was no way to know whose
-// followers, posts or messages were being shown. This names it, and lets a
-// different one be picked.
+//
+// One Facebook login reaches one Instagram account per Page, and the first one
+// found was used without a word - so there was no telling whose followers,
+// posts or messages were on screen.
+//
+// The name goes here rather than in the row's status line, because
+// renderConnectors() rewrites that line to a flat "Connected" every time it
+// runs, which silently erased the name each time. This block owns its own
+// space, so nothing overwrites it.
 (function () {
   const wrap = document.getElementById('instagramPick');
-  const sel = document.getElementById('instagramAccount');
-  const status = document.getElementById('instagramStatus');
-  if (!wrap || !sel || !window.jarvis?.instagramAccounts) return;
+  if (!wrap || !window.jarvis?.instagramAccounts) return;
 
   async function refresh() {
     let res = null;
     try { res = await window.jarvis.instagramAccounts(); } catch (_) {}
     if (!res || !res.ok || !res.accounts || !res.accounts.length) { wrap.classList.add('hidden'); return; }
 
-    // With one account there is nothing to choose, but its name is still worth
-    // saying - that was the whole complaint.
     const chosen = res.chosen || res.accounts[0].igId;
     const current = res.accounts.find((a) => a.igId === chosen) || res.accounts[0];
-    if (status && current.username) status.textContent = 'Connected as @' + current.username;
+    const many = res.accounts.length > 1;
 
-    // One account is not a choice, but it is worth saying why there is only
-    // one: this API sees an Instagram account only through the Facebook Page
-    // it is linked to, so the others on the same login are invisible to it.
-    if (res.accounts.length < 2) {
-      wrap.classList.remove('hidden');
-      wrap.innerHTML = '<span class="connector-pick-note">Only Instagram accounts linked to a Facebook Page can be used. Link another Page to switch between them.</span>';
-      return;
-    }
-    sel.innerHTML = res.accounts.map((a) =>
-      `<option value="${a.igId}"${a.igId === chosen ? ' selected' : ''}>@${a.username || a.igId}${a.pageName ? ' - ' + a.pageName : ''}</option>`
-    ).join('');
     wrap.classList.remove('hidden');
+    wrap.innerHTML = many
+      ? '<label for="instagramAccount">Account</label><select id="instagramAccount"></select><button type="button" class="connector-pick-btn" id="instagramChange">Change</button>'
+      : '<span class="connector-pick-current">Using <strong></strong></span><button type="button" class="connector-pick-btn" id="instagramChange">Change</button>'
+        + '<span class="connector-pick-note">Only Instagram accounts linked to a Facebook Page can be used. Link another Page, or use Change to sign in with a different account.</span>';
+
+    if (many) {
+      const sel = wrap.querySelector('#instagramAccount');
+      sel.innerHTML = res.accounts.map((a) =>
+        `<option value="${a.igId}"${a.igId === chosen ? ' selected' : ''}>@${a.username || a.igId}${a.pageName ? ' - ' + a.pageName : ''}</option>`
+      ).join('');
+      sel.addEventListener('change', async () => {
+        try {
+          await window.jarvis.instagramUse(sel.value);
+          addMessage('assistant', 'Instagram is now set to ' + (sel.options[sel.selectedIndex] || {}).textContent.split(' - ')[0] + '.');
+          refresh();
+        } catch (_) {}
+      });
+    } else {
+      wrap.querySelector('.connector-pick-current strong').textContent = '@' + (current.username || current.igId);
+    }
+
+    // Changing to an account this login cannot see means signing in again -
+    // a different Facebook account, or one with different Pages shared to it.
+    wrap.querySelector('#instagramChange').addEventListener('click', async () => {
+      try {
+        await window.jarvis.connectorDisconnect('instagram');
+        if (typeof showConnectSteps === 'function') showConnectSteps('instagram');
+        else document.getElementById('instagramBtn')?.click();
+      } catch (_) {}
+    });
   }
 
-  sel.addEventListener('change', async () => {
-    try {
-      await window.jarvis.instagramUse(sel.value);
-      const picked = (sel.options[sel.selectedIndex] || {}).textContent || '';
-      addMessage('assistant', `Instagram is now set to ${picked.split(' - ')[0]}.`);
-      refresh();
-    } catch (_) {}
-  });
-
-  // Whenever the connectors panel is opened, and once a connection finishes.
+  window._refreshInstagramAccount = refresh;
   document.querySelector('[data-section="connectors"]')?.addEventListener('click', () => setTimeout(refresh, 300));
-  window.jarvis.onConnectorConnected?.(() => setTimeout(refresh, 600));
+  window.jarvis.onConnectorConnected?.(() => setTimeout(refresh, 800));
   setTimeout(refresh, 2500);
 })();
 
