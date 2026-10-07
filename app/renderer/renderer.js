@@ -2959,6 +2959,35 @@ window._checkQuickLaunch = async function(text) {
                // "bbq spots near me", "pharmacies nearby" matched none of
                // the patterns above, which all want a verb or a superlative.
                || t.match(/^(?:any\s+|some\s+)?(.+?)\s+(?:near\s+me|nearby|around\s+here|close\s+by)\b/i);
+  // The same question about somewhere else: "hotels in Lisbon", "apartments
+  // in Lahore". Only "near me" was understood, so anywhere the person was
+  // not standing had no answer at all. The place becomes coordinates and
+  // everything after that is the search that already exists.
+  const placesInM = /^(?:find\s+|show\s+(?:me\s+)?|list\s+|any\s+|best\s+|good\s+)?((?:hotels?|motels?|hostels?|airbnbs?|apartments?|flats?|places\s+to\s+stay|restaurants?|cafes?|coffee\s+shops?|bars?|pubs?|clubs?|gyms?|museums?|beaches?|parks?|hospitals?|pharmacies|schools?|universities|attractions|things\s+to\s+do))\s+in\s+([a-z][a-z\s,'.-]{2,60})$/i.exec(t);
+  if (!placesM && placesInM) {
+    const what = placesInM[1].trim();
+    const where = placesInM[2].trim().replace(/[.?!]+$/, '');
+    addMessage('assistant', `Finding **${what}** in **${where}**...`);
+    (async () => {
+      const maps = () => window.jarvis.openGoogleUrl(
+        `https://www.google.com/maps/search/${encodeURIComponent(what + ' in ' + where)}`);
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(where)}&format=json&limit=1`,
+          { headers: { 'Accept-Language': 'en' } });
+        const hit = (await r.json())[0];
+        if (!hit) { addMessage('assistant', `I couldn't find anywhere called "${where}".`); return; }
+        const res = await window.jarvis.placesNearby(what, Number(hit.lat), Number(hit.lon), where);
+        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(what + ' in ' + where)}`;
+        if (res && res.ok && (res.places || []).length) {
+          showCard({ type: 'places', query: `${what} in ${where}`, places: res.places, mapsUrl });
+        }
+        else { maps(); addMessage('assistant', `Opened a map of ${what} in ${where}.`); }
+      } catch (_) { maps(); }
+    })();
+    return true;
+  }
+
   if (placesM) {
     const placeType = placesM[1].trim();
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
