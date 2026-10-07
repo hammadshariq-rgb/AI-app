@@ -1803,9 +1803,20 @@ const TICKER_MAP = {
   uniswap: 'UNI-USD', uni: 'UNI-USD',
   stellar: 'XLM-USD', xlm: 'XLM-USD',
   tron: 'TRX-USD', trx: 'TRX-USD',
+  // Commodities. Asking the price of gold used to find no ticker at all and
+  // fall through to a web search, which opened Google rather than answering -
+  // and silver had no price anywhere. These are the futures Yahoo quotes.
+  gold: 'GC=F', 'gold price': 'GC=F', 'xau': 'GC=F',
+  silver: 'SI=F', 'xag': 'SI=F',
+  platinum: 'PL=F', palladium: 'PA=F', copper: 'HG=F',
+  oil: 'CL=F', 'crude': 'CL=F', 'crude oil': 'CL=F', 'wti': 'CL=F',
+  'brent': 'BZ=F', 'brent crude': 'BZ=F',
+  'natural gas': 'NG=F', 'gas': 'NG=F',
+  wheat: 'ZW=F', corn: 'ZC=F', soybeans: 'ZS=F', sugar: 'SB=F',
+  coffee: 'KC=F', cocoa: 'CC=F', cotton: 'CT=F',
 };
 
-const STOCK_KEYWORDS = /\b(stock|share|shares|price|invest|market|nasdaq|nyse|crypto|cryptocurrency|coin|token|trading|chart|value|worth|valuation|how much is|how much are|what is .+ worth|what is .+ trading)\b/i;
+const STOCK_KEYWORDS = /\b(stock|share|shares|price|invest|market|nasdaq|nyse|crypto|cryptocurrency|coin|token|trading|commodity|commodities|bullion|ounce|per ounce|spot price|chart|value|worth|valuation|how much is|how much are|what is .+ worth|what is .+ trading)\b/i;
 
 async function fetchCardData(query) {
   return _cached(`card:${query}`, () => _fetchCardDataInner(query), 45000);
