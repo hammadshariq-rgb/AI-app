@@ -2628,6 +2628,25 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   if (finalAction?.type === 'run_command') {
     const p = finalAction.payload || {};
     const folder = p.folder || store.get('project.folder') || app.getPath('home');
+
+    // A command that works on a project cannot work in a home folder, and
+    // falling back to one guaranteed the failure: "npm run build" there can
+    // only ever answer that there is no package.json. Better to ask which
+    // project than to offer a button that cannot work.
+    const needsProject = /^\s*(?:npm|npx|yarn|pnpm|bun|cargo|mvn|gradle|make|dotnet|go|composer)\b/i.test(p.command || '');
+    if (needsProject) {
+      const _fs = require('fs');
+      const markers = ['package.json', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'go.mod', 'Makefile', 'composer.json'];
+      const looksLikeProject = markers.some((m) => {
+        try { return _fs.existsSync(path.join(folder, m)); } catch (_) { return false; }
+      });
+      if (!looksLikeProject) {
+        const spoken = `There's no project in ${folder}, so that command would fail there. Tell me which folder the project is in and I'll run it there.`;
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, card: null, hasAction: false };
+      }
+    }
+
     const spokenText = 'Here\'s the command — press Run when you\'re ready.';
     _sendTTS(_e.sender, spokenText);
     return {
