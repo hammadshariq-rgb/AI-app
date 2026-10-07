@@ -2320,6 +2320,17 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // if they contain action-ish words like "report" or "book".
   const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message) && !ai.isKnowledgeQuestion(message);
 
+  // A short answer to a question Callisto just asked is not a fresh command.
+  // The quick path gets a bare prompt, five lines of history and an
+  // instruction to call a tool no matter what - so "Instagram", said in reply
+  // to "which app?", became "open Instagram" instead of carrying on with the
+  // message being arranged. Anything that looks like an answer goes to the
+  // full model, which can see the whole conversation.
+  const _lastAssistant = [...(history || [])].reverse().find((h) => h && h.role === 'assistant');
+  const _answeringQuestion = !!(_lastAssistant
+    && /\?\s*$/.test(String(_lastAssistant.content || '').trim())
+    && String(message || '').trim().length < 40);
+
   const trimmedHistory = needsAction ? history.slice(-5) : history.slice(-30);
   // While the screen is being watched, what the user is looking at is part of
   // the conversation — "combine these two PDFs" needs no screenshot, because
@@ -2334,7 +2345,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
 
 ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" — do not ask them to send a screenshot.`;
   }
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
@@ -2673,7 +2684,13 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // WhatsApp only ever types the message into the chat for the user to send.
   if (finalAction?.type === 'send_message') {
     const p = finalAction.payload || {};
-    if (p.platform && p.platform !== 'instagram') {
+    // Only refuse when the person actually asked for somewhere else. "Send a
+    // message to Sara" names no app, and the model was filling that gap with
+    // WhatsApp - so a request Callisto can carry out perfectly well came back
+    // as a refusal. Instagram is the only place it can send, so an unnamed
+    // "send a message" means Instagram.
+    const askedElsewhere = /\b(whatsapp|whats app|telegram|messenger|discord|signal|snapchat|sms|text message|imessage|slack|teams)\b/i.test(String(message || ''));
+    if (p.platform && p.platform !== 'instagram' && askedElsewhere) {
       // Instagram is the only place Callisto can actually send. WhatsApp and
       // the rest can only be opened, or called.
       const spoken = 'I can\'t send messages on WhatsApp — it doesn\'t allow apps to. I can open the chat so you can type it, or call them instead.';
