@@ -2983,6 +2983,10 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const reminders = store.get('reminders') || [];
     reminders.push({ id: Date.now().toString(), text: reminderText, datetime: reminderTime, earlyMinutes: earlyMin, triggered: false, earlyTriggered: false });
     store.set('reminders', reminders);
+    // Tell the window, or the reminder sits in the store unseen until the next
+    // restart - saved, confirmed out loud, and absent from the panel. Adding a
+    // task has always done this; setting a reminder never did.
+    try { _e.sender.send('jarvis:reminder', { refresh: true }); } catch (_) {}
     const spokenText = finalText || `Reminder set. I'll let you know.`;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: true };

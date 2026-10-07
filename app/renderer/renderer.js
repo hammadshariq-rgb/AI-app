@@ -2939,7 +2939,11 @@ window._checkQuickLaunch = async function(text) {
   // ── Places near me: "find best X near me" / "restaurants near me" ────────
   const placesM = t.match(/(?:find|show|what(?:'s|'re|\s+are|\s+is))\s+(?:the\s+)?(?:best\s+)?(.+?)\s+near\s+me/i)
                || t.match(/(?:best|nearest|closest)\s+(.+?)\s+(?:near\s+me|nearby|around\s+here)/i)
-               || t.match(/(?:nearby|near\s+me)\s+(.+)/i);
+               || t.match(/(?:nearby|near\s+me)\s+(.+)/i)
+               // The way most people ask: the thing first, no verb at all.
+               // "bbq spots near me", "pharmacies nearby" matched none of
+               // the patterns above, which all want a verb or a superlative.
+               || t.match(/^(?:any\s+|some\s+)?(.+?)\s+(?:near\s+me|nearby|around\s+here|close\s+by)\b/i);
   if (placesM) {
     const placeType = placesM[1].trim();
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
