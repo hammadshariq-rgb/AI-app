@@ -888,6 +888,7 @@ app.whenReady().then(async () => {
     // Check on startup, then every 4 hours
     autoUpdater.checkForUpdates().catch(() => {});
     setInterval(() => { autoUpdater.checkForUpdates().catch(() => {}); }, 4 * 60 * 60 * 1000);
+    startDmWatcher();   // tells you when someone messages, whatever you are doing
   }
 
   console.log('app ready, creating tray...');
@@ -3097,6 +3098,24 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const newsCtx = await realtime.getNewsContext('today briefing').catch(() => null);
     if (newsCtx) parts.push('For the news: ' + newsCtx.replace(/\n/g, ' ').slice(0, 300));
 
+    // How the accounts are doing. Only the ones actually connected say
+    // anything, so nobody hears about a platform they do not use. Both are
+    // asked at once, and neither is allowed to hold up the briefing.
+    const [igBrief, ttBrief] = await Promise.all([
+      connectors.getInstagramStats().catch(() => null),
+      connectors.getTikTokStats().catch(() => null),
+    ]);
+    if (igBrief) {
+      const bits = [`Instagram is on ${Number(igBrief.followers || 0).toLocaleString()} followers`];
+      if (igBrief.views30 != null) bits.push(`${Number(igBrief.views30).toLocaleString()} views in the last thirty days`);
+      parts.push(bits.join(', ') + '.');
+    }
+    if (ttBrief) {
+      const bits = [`TikTok is on ${Number(ttBrief.followers || 0).toLocaleString()} followers`];
+      if (ttBrief.likes != null) bits.push(`${Number(ttBrief.likes).toLocaleString()} likes`);
+      parts.push(bits.join(', ') + '.');
+    }
+
     // Memory reminder
     if (memories.length > 0) parts.push(`You have ${memories.length} thing${memories.length !== 1 ? 's' : ''} in my memory.`);
 
@@ -4248,6 +4267,65 @@ ipcMain.handle('calendar:delete', async (_e, args) => {
 
 // Which Instagram account this is, and switching to another one. Someone with
 // several Pages has several accounts, and the first one found is a coin toss.
+// == A message arriving while you are doing something else ==
+//
+// Instagram only. TikTok's API has no messaging in it at all, and WhatsApp
+// allows no app near a personal account - so there is nothing to watch on
+// either, and pretending otherwise would just produce a feature that never
+// fires.
+//
+// The inbox is read on a timer and anything newer than the last thing seen is
+// announced once. The watermark is kept on disk, so restarting does not
+// re-announce a conversation from yesterday.
+const DM_POLL_MS = 60 * 1000;
+let _dmTimer = null;
+
+async function _dmTick() {
+  try {
+    if (!connectors.getConnectorStatus) return;
+    const status = await connectors.getConnectorStatus().catch(() => null);
+    if (!status || !status.instagram) return;
+
+    const inbox = await connectors.getInstagramInbox(10).catch(() => null);
+    if (!inbox || !inbox.ok || !Array.isArray(inbox.threads)) return;
+
+    const seen = Number(store.get('dmSeenAt') || 0);
+    let newest = seen;
+    const fresh = [];
+    for (const t of inbox.threads) {
+      const at = t.lastAt ? new Date(t.lastAt).getTime() : 0;
+      if (!at) continue;
+      if (at > newest) newest = at;
+      // Theirs, not ours, and not something already announced.
+      if (at > seen && !t.lastFromMe) fresh.push({ ...t, at });
+    }
+    if (newest > seen) store.set('dmSeenAt', newest);
+
+    // The first run after connecting has no watermark; everything in the inbox
+    // would look new, so it is treated as already seen instead.
+    if (!seen) return;
+
+    for (const t of fresh.slice(0, 3)) {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('dm:incoming', {
+          platform: 'instagram',
+          name: t.name || 'Someone',
+          contactId: t.contactId || null,
+          threadId: t.id || null,
+          preview: String(t.lastMessage || '').slice(0, 120),
+          kind: t.lastKind || 'text',
+        });
+      }
+    }
+  } catch (_) { /* a quiet failure here must never interrupt anything */ }
+}
+
+function startDmWatcher() {
+  if (_dmTimer) return;
+  _dmTimer = setInterval(_dmTick, DM_POLL_MS);
+  setTimeout(_dmTick, 15000);   // once shortly after start, then on the timer
+}
+
 ipcMain.handle('instagram:accounts', async () => {
   try { return await connectors.listInstagramAccounts(); } catch (e) { return { ok: false, error: e.message }; }
 });

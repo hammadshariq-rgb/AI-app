@@ -162,6 +162,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   modelRetexture: (taskId, prompt, jobKey) => ipcRenderer.invoke('model:retexture', { taskId, prompt, jobKey }),
   modelFromImage: (imageUrl, prompt, jobKey) => ipcRenderer.invoke('model:fromImage', { imageUrl, prompt, jobKey }),
   artifactAdd: (entry) => ipcRenderer.invoke('artifacts:add', entry),
+  onDmIncoming: (cb) => ipcRenderer.on('dm:incoming', (_e, d) => cb(d)),
   instagramAccounts: () => ipcRenderer.invoke('instagram:accounts'),
   instagramUse: (igId) => ipcRenderer.invoke('instagram:use', igId),
   onModelResumed: (cb) => ipcRenderer.on('model:resumed', (_e, d) => cb(d)),

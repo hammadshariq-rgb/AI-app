@@ -9971,3 +9971,48 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   .nst, .nst-card { transition: none; }
   .nst-live { animation: none; }
 }
+
+/* A message arriving while you are doing something else. Bottom right, out of
+   the way of the chat, gone again in four seconds unless a reply is started. */
+.dm-pop {
+  position: fixed; right: 18px; bottom: 18px; z-index: 9000;
+  display: flex; align-items: center; gap: 10px;
+  max-width: 380px; padding: 10px 12px;
+  background: rgba(10, 16, 32, 0.97);
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 8px 28px rgba(0,0,0,0.55);
+  font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  transform: translateY(14px); opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.3, 1.2, 0.5, 1), opacity 0.22s ease;
+}
+.dm-pop.in { transform: translateY(0); opacity: 1; }
+.dm-pop.replying { flex-wrap: wrap; }
+.dm-pop-icon {
+  flex: none; width: 30px; height: 30px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+  color: #fff;
+}
+.dm-pop-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; }
+.dm-pop-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dm-pop-name { font-size: 12.5px; font-weight: 600; color: #eaf4ff; }
+.dm-pop-text {
+  font-size: 11.5px; color: rgba(200, 218, 245, 0.72);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dm-pop-reply, .dm-pop-send {
+  flex: none; border: none; cursor: pointer;
+  background: rgba(58, 169, 255, 0.22); color: #bfe4ff;
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  padding: 6px 12px; border-radius: 999px;
+}
+.dm-pop-reply:hover, .dm-pop-send:hover { background: rgba(58, 169, 255, 0.34); color: #fff; }
+.dm-pop-send:disabled { opacity: 0.5; cursor: default; }
+.dm-pop-row { display: flex; gap: 6px; width: 100%; margin-top: 8px; }
+.dm-pop-input {
+  flex: 1; min-width: 0;
+  background: rgba(255,255,255,0.06); color: #eaf4ff;
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 999px;
+  padding: 7px 12px; font-family: inherit; font-size: 12.5px;
+}
+.dm-pop-input:focus { outline: none; border-color: rgba(58,169,255,0.6); }

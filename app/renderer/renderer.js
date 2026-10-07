@@ -10331,6 +10331,72 @@ micBtn.addEventListener('click', () => {
 })();
 // ================================================================
 
+// == Someone just messaged you ==
+// A small card in the corner for four seconds, whatever else is on screen.
+// Clicking Reply holds it open - a box that vanishes mid-sentence would be
+// worse than no box - and sending goes through the same path as a dictated
+// reply, so it lands in the real conversation.
+(function () {
+  if (!window.jarvis?.onDmIncoming) return;
+
+  const ICON = {
+    instagram: '<svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1"/></svg>',
+  };
+
+  function show(d) {
+    if (!d) return;
+    const el = document.createElement('div');
+    el.className = 'dm-pop';
+    el.innerHTML = `
+      <span class="dm-pop-icon dm-pop-${d.platform || 'instagram'}">${ICON[d.platform] || ICON.instagram}</span>
+      <span class="dm-pop-body">
+        <span class="dm-pop-name"></span>
+        <span class="dm-pop-text"></span>
+      </span>
+      <button class="dm-pop-reply" type="button">Reply</button>`;
+    // Their words go in as text, never as markup.
+    el.querySelector('.dm-pop-name').textContent = d.name || 'Someone';
+    el.querySelector('.dm-pop-text').textContent = d.preview || (d.kind && d.kind !== 'text' ? 'Sent a ' + d.kind : '');
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('in'));
+
+    let timer = setTimeout(close, 4000);
+    function close() { clearTimeout(timer); el.classList.remove('in'); setTimeout(() => el.remove(), 220); }
+
+    el.querySelector('.dm-pop-reply').addEventListener('click', () => {
+      clearTimeout(timer);                 // it stays until they are done
+      el.classList.add('replying');
+      el.querySelector('.dm-pop-reply').remove();
+      const row = document.createElement('span');
+      row.className = 'dm-pop-row';
+      row.innerHTML = '<input class="dm-pop-input" placeholder="Reply..." maxlength="900"><button class="dm-pop-send" type="button">Send</button>';
+      el.appendChild(row);
+      const input = row.querySelector('.dm-pop-input');
+      input.focus();
+      const send = async () => {
+        const text = input.value.trim();
+        if (!text) return close();
+        row.querySelector('.dm-pop-send').disabled = true;
+        try {
+          const r = await window.jarvis.dmSend(d.platform || 'instagram', d.name || '', text, d.contactId || null);
+          if (r && r.ok) addMessage('assistant', `Replied to ${d.name || 'them'}.`);
+          else addMessage('assistant', (r && r.error) || `I couldn't send that reply to ${d.name || 'them'}.`);
+        } catch (_) {
+          addMessage('assistant', `I couldn't send that reply to ${d.name || 'them'}.`);
+        }
+        close();
+      };
+      row.querySelector('.dm-pop-send').addEventListener('click', send);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); send(); }
+        if (e.key === 'Escape') close();
+      });
+    });
+  }
+
+  window.jarvis.onDmIncoming(show);
+})();
+
 // == Which Instagram account ==
 // One Facebook login can reach several Instagram accounts, one per Page. The
 // first one found was used without a word, so there was no way to know whose
