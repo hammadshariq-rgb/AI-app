@@ -2885,6 +2885,33 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
+  // How one post did, found by whatever the user called it.
+  if (finalAction?.type === 'post_stats') {
+    const res = await connectors.findPostStats(finalAction.arg || '').catch(() => null);
+    let spokenText;
+    if (!res || !res.ok) {
+      spokenText = (res && res.error) === 'no_posts'
+        ? `There are no recent posts to look through. Connect Instagram or TikTok in Connectors first.`
+        : `I couldn't find a post matching "${finalAction.arg}". Try a word from the caption.`;
+    } else {
+      const p = res.post;
+      const n = (v) => Number(v).toLocaleString();
+      const bits = [];
+      if (p.views != null) bits.push(`${n(p.views)} views`);
+      if (p.likes != null) bits.push(`${n(p.likes)} likes`);
+      if (p.comments != null) bits.push(`${n(p.comments)} comments`);
+      if (p.shares != null) bits.push(`${n(p.shares)} shares`);
+      if (p.saves != null) bits.push(`${n(p.saves)} saves`);
+      if (p.reach != null) bits.push(`reached ${n(p.reach)}`);
+      const name = p.text ? `"${p.text.slice(0, 60)}"` : 'that post';
+      spokenText = bits.length
+        ? `On ${p.platform}, ${name} has ${bits.join(', ')}.`
+        : `I found ${name} on ${p.platform}, but there are no numbers for it yet.`;
+    }
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
+
   if (finalAction?.type === 'get_analytics') {
     const platform = finalAction.arg;
     const analytics = await connectors.getAllAnalytics();

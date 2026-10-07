@@ -675,7 +675,7 @@ async function getInstagramStats() {
     // has none yet), so each part is optional — the basics still come back.
     const [igData, mediaData, daily, totals] = await Promise.all([
       graph(`${igId}?fields=name,username,followers_count,follows_count,media_count,profile_picture_url`),
-      graph(`${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,media_product_type,permalink,thumbnail_url,media_url,insights.metric(views,reach,saved,shares)&limit=6`),
+      graph(`${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,media_product_type,permalink,thumbnail_url,media_url,insights.metric(views,reach,saved,shares)&limit=25`),
       graph(`${igId}/insights?metric=views,reach,profile_views&period=day&since=${since}&until=${until}`).catch(() => ({})),
       graph(`${igId}/insights?metric=accounts_engaged,total_interactions&metric_type=total_value&period=days_28`).catch(() => ({})),
     ]);
@@ -714,7 +714,7 @@ async function getInstagramStats() {
       engagementRate: interactions && reach30 ? ((interactions / reach30) * 100).toFixed(1) : null,
       recentPosts: (mediaData.data || []).map((p) => ({
         id: p.id,
-        caption: (p.caption || '').replace(/\s+/g, ' ').slice(0, 60),
+        caption: (p.caption || '').replace(/\s+/g, ' ').slice(0, 120),
         likes: p.like_count || 0,
         comments: p.comments_count || 0,
         views: metricOf(p, 'views'),
@@ -1158,6 +1158,56 @@ async function getStripeStats() {
 
 // ── Analytics summary (all platforms) ─────────────────────────────────────────
 
+// One post, by whatever the user called it.
+//
+// "How many views did my cooking video get" means nothing to an API: posts are
+// identified by id, and nobody remembers ids. So both accounts' recent posts
+// are searched by caption and title, and the closest match wins - scored on how
+// many of the words asked for actually appear, so a one-word match on a long
+// caption does not beat a three-word one.
+function _postWords(text) {
+  return String(text || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+}
+
+async function findPostStats(query) {
+  const wanted = _postWords(query);
+  if (!wanted.length) return { ok: false, error: 'no_query' };
+
+  const [ig, tt] = await Promise.all([
+    getInstagramStats().catch(() => null),
+    getTikTokStats().catch(() => null),
+  ]);
+
+  const candidates = [];
+  for (const p of (ig && ig.recentPosts) || []) {
+    candidates.push({
+      platform: 'Instagram', text: p.caption || '', when: p.date || null, link: p.link || null,
+      views: p.views ?? null, likes: p.likes ?? null, comments: p.comments ?? null,
+      shares: p.shares ?? null, saves: p.saved ?? null, reach: p.reach ?? null,
+    });
+  }
+  for (const v of (tt && tt.recentVideos) || []) {
+    candidates.push({
+      platform: 'TikTok', text: v.title || '', when: null, link: null,
+      views: v.views ?? null, likes: v.likes ?? null, comments: v.comments ?? null,
+      shares: null, saves: null, reach: null,
+    });
+  }
+  if (!candidates.length) return { ok: false, error: 'no_posts' };
+
+  let best = null;
+  for (const c of candidates) {
+    const words = _postWords(c.text);
+    if (!words.length) continue;
+    const hits = wanted.filter((w) => words.some((x) => x === w || x.startsWith(w) || w.startsWith(x))).length;
+    if (!hits) continue;
+    const score = hits / wanted.length;
+    if (!best || score > best.score) best = { ...c, score };
+  }
+  if (!best) return { ok: false, error: 'not_found', searched: candidates.length };
+  return { ok: true, post: best };
+}
+
 async function getAllAnalytics() {
   const [youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe] = await Promise.all([
     getYouTubeStats().catch(() => null),
@@ -1477,7 +1527,7 @@ module.exports = {
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeToken, getInstagramToken, getTikTokToken, instagramViaLogin,
-  listInstagramAccounts, setInstagramAccount, getInstagramPage,
+  listInstagramAccounts, setInstagramAccount, getInstagramPage, findPostStats,
   // Outlook mail
   getOutlookToken, getOutlookInbox, getOutlookSummary, sendOutlookEmail,
   markOutlookRead, getOutlookAccount,

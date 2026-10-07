@@ -337,6 +337,20 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'post_stats',
+      description: 'How ONE post or video of theirs did. Use when they ask about a particular one by name or subject: "how many views did my cooking video get", "how many likes did the gym post get", "how did my reel about the dog do", "how many shares did xyz get". Searches their recent Instagram posts and TikTok videos by caption and title. For overall account numbers - followers, total views this month - use get_analytics instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What they called the post or video, in their own words: "cooking", "the gym one", "dog reel". Leave out words like video, post or reel unless they are part of the actual caption.' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_analytics',
       description: 'Get business analytics and social media statistics for the user. Use when the user asks about their sales, revenue, orders, YouTube views, subscribers, Instagram followers, TikTok stats, or any platform metrics.',
       parameters: {
@@ -1105,7 +1119,7 @@ const STRONG_ACTION = /\b(open|launch|play|pause|call|ring|phone|message|text|dm
 // them. "How many followers does Ronaldo have" has no first person, so it stays
 // a question, which is right - the tool would answer it with the wrong account.
 const FIRST_PERSON = /\b(?:my|mine|our|ours|i|me|we|us)\b/i;
-const OWN_THINGS = /\b(?:followers?|following|subscribers?|views?|likes?|comments?|messages?|messaged|texted|dms?|inbox|stats|statistics|analytics|insights|revenue|earnings|sales|takings|posts?|reach|engagement|impressions?|audience|mentions?|notifications?|instagram|insta|youtube|tiktok|facebook|channel|page|shop|store)\b/i;
+const OWN_THINGS = /\b(?:followers?|following|subscribers?|views?|likes?|comments?|shares?|forwards?|messages?|messaged|texted|dms?|inbox|stats|statistics|analytics|insights|revenue|earnings|sales|takings|posts?|reach|engagement|impressions?|audience|mentions?|notifications?|instagram|insta|youtube|tiktok|facebook|channel|page|shop|store)\b/i;
 function asksAboutOwnData(message) {
   const m = String(message || '');
   return FIRST_PERSON.test(m) && OWN_THINGS.test(m);
@@ -1245,6 +1259,7 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'add_event')     return { type: 'add_event',     arg: JSON.stringify(args) };
       else if (fnName === 'clear_schedule') return { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
       else if (fnName === 'search_drive')  return { type: 'search_drive',   arg: args.filename };
+      else if (fnName === 'post_stats')   return { type: 'post_stats',    arg: args.query || '' };
       else if (fnName === 'get_analytics') return { type: 'get_analytics',  arg: args.platform || 'all' };
       else if (fnName === 'set_reminder')  return { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
       else if (fnName === 'add_task')    return { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
