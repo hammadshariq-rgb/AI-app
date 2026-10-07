@@ -43,16 +43,48 @@ async function getWeather(location) {
     const area = data.nearest_area[0];
     const city = area.areaName[0].value;
     const country = area.country[0].value;
-    const desc = current.weatherDesc[0].value;
+    const night = _nightFrom(data);
+    const desc = _describe(current.weatherDesc[0].value, night);
     const tempC = current.temp_C;
     const tempF = current.temp_F;
     const humidity = current.humidity;
     const feelsC = current.FeelsLikeC;
     const wind = current.windspeedKmph;
-    return `Weather in ${city}, ${country}: ${desc}. Temperature: ${tempC}°C (${tempF}°F), feels like ${feelsC}°C. Humidity: ${humidity}%. Wind: ${wind} km/h.`;
+    const when = night === true ? ' It is night-time there now.' : night === false ? ' It is daytime there now.' : '';
+    return `Weather in ${city}, ${country}: ${desc}. Temperature: ${tempC}°C (${tempF}°F), feels like ${feelsC}°C. Humidity: ${humidity}%. Wind: ${wind} km/h.${when}`;
   } catch (e) {
     return null;
   }
+}
+
+// Is it night where they are, according to the same reading the weather came
+// from? Without this the description is taken at face value, and wttr.in will
+// happily call a cloudless night "Sunny" - which is how Callisto came to
+// report sunshine in Lahore at half past ten at night.
+function _nightFrom(data) {
+  try {
+    const obs = String(data.current_condition?.[0]?.localObsDateTime || '');
+    const astro = data.weather?.[0]?.astronomy?.[0] || {};
+    const mins = (t) => {
+      const m = String(t || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!m) return null;
+      let h = Number(m[1]) % 12;
+      if (/PM/i.test(m[3])) h += 12;
+      return h * 60 + Number(m[2]);
+    };
+    const now = mins(obs.split(' ').slice(1).join(' '));
+    const up = mins(astro.sunrise);
+    const down = mins(astro.sunset);
+    if (now == null || up == null || down == null) return null;
+    return now < up || now >= down;
+  } catch (_) { return null; }
+}
+
+// "Sunny" after dark is not a description anyone recognises.
+function _describe(desc, night) {
+  const d = String(desc || '').trim();
+  if (!night) return d;
+  return d.replace(/\bsunny\b/gi, 'clear');
 }
 
 // One short spoken line for the greeting — "It's 18 degrees and cloudy in
@@ -65,7 +97,7 @@ async function getWeatherGreeting(location, displayCity = null) {
     // wttr.in names the nearest weather station's suburb ("Rehmanpura"), which
     // reads as wrong to someone who lives in Lahore. Prefer the city we know.
     const city = displayCity || data.nearest_area?.[0]?.areaName?.[0]?.value || null;
-    const desc = String(current.weatherDesc[0].value || '').trim().toLowerCase();
+    const desc = _describe(String(current.weatherDesc[0].value || '').trim(), _nightFrom(data)).toLowerCase();
     const tempC = parseInt(current.temp_C, 10);
     const feelsC = parseInt(current.FeelsLikeC, 10);
     const where = city ? ` in ${city}` : '';

@@ -3251,6 +3251,9 @@ const WeatherWidget = (function() {
     95:'⛈️',96:'⛈️',99:'⛈️'
   };
 
+  // After dark: the same sky, lit differently.
+  const NIGHT = { 0:'\u{1F319}', 1:'\u{1F319}', 2:'\u2601\uFE0F', 45:'\u{1F32B}\uFE0F', 48:'\u{1F32B}\uFE0F' };
+
   let _lat, _lon, _city, _country, _timer;
 
   function els() {
@@ -3269,10 +3272,14 @@ const WeatherWidget = (function() {
     const { temp, loc } = els();
     if (!temp) return;
     try {
-      const url  = `https://api.open-meteo.com/v1/forecast?latitude=${_lat}&longitude=${_lon}&current=temperature_2m,weathercode&timezone=auto`;
+      const url  = `https://api.open-meteo.com/v1/forecast?latitude=${_lat}&longitude=${_lon}&current=temperature_2m,weathercode,is_day&timezone=auto`;
       const data = await fetch(url).then(r => r.json());
       const t    = Math.round(data.current.temperature_2m);
-      const icon = WMO[data.current.weathercode] ?? '🌡️';
+      // A sun at half past ten at night is simply wrong. Open-Meteo says
+      // which it is, so a clear or lightly clouded sky gets a moon after dark.
+      const night = data.current.is_day === 0;
+      const code = data.current.weathercode;
+      const icon = (night && NIGHT[code]) || WMO[code] || '\u{1F321}';
       temp.textContent = `${icon} ${t}°C`;
       loc.textContent  = `${_city}, ${_country}`;
     } catch {
@@ -6436,8 +6443,9 @@ function drainAudioQueue() {
   const chunk = audioQueue.shift();
   const audio = new Audio(`data:audio/mp3;base64,${chunk}`);
   _currentAudio = audio;
-  // Apply pitch (playbackRate) — lower = deeper voice
-  if (voicePitch < 0.99) audio.playbackRate = voicePitch;
+      // DEEP is no longer playbackRate. It was, which is also what SPEED
+      // uses - so making the voice deeper made it slower, and the two
+      // sliders fought each other. Depth is a tone now, applied below.
   // Use Web Audio API to boost volume beyond 100%.
   //
   // One context, reused. This used to build a new AudioContext for every
@@ -6455,7 +6463,27 @@ function drainAudioQueue() {
     const source = ctx.createMediaElementSource(audio);
     const gain = ctx.createGain();
     gain.gain.value = voiceVolume;
-    source.connect(gain);
+
+    // Depth, as tone rather than tempo: lift the chest of the voice and take
+    // the edge off the top. A real pitch shift needs a phase vocoder; this
+    // makes a voice sound deeper without touching how fast it speaks, which
+    // is the part that was making DEEP and SPEED indistinguishable.
+    const depth = Math.max(0, Math.min(1, (1 - voicePitch) / 0.4));   // 0 off, 1 full
+    if (depth > 0.02) {
+      const low = ctx.createBiquadFilter();
+      low.type = 'lowshelf';
+      low.frequency.value = 220;
+      low.gain.value = 14 * depth;          // chest
+      const high = ctx.createBiquadFilter();
+      high.type = 'highshelf';
+      high.frequency.value = 2600;
+      high.gain.value = -11 * depth;        // less rasp
+      source.connect(low);
+      low.connect(high);
+      high.connect(gain);
+    } else {
+      source.connect(gain);
+    }
     gain.connect(ctx.destination);
   } catch (_) {
     // No boost available; the clip still plays through the element itself.

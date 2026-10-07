@@ -2163,7 +2163,11 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   const isMarkRead = MARK_READ_REGEX.test(message);
   const isEmailQuery = !isMarkRead && (UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message));
   const needsRealtime = REALTIME_REGEX.test(message);
-  const needsCard = (CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest;
+  // Asking Callisto what Callisto is must not be looked up. Jupiter has a
+  // moon by that name, so "what is Callisto AI" came back as astronomy -
+  // the one question it should answer out of its own head.
+  const _aboutItself = /\b(?:what|who)\s+(?:is|are|'s)\s+(?:you|u|callisto|callisto\s+ai|this\s+app)\b/i.test(message) || /\b(?:what\s+can\s+you\s+do|who\s+(?:made|built|created)\s+(?:you|callisto)|tell\s+me\s+about\s+(?:yourself|callisto))\b/i.test(message);
+  const needsCard = (CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest && !_aboutItself;
   const needsNews = !isEmailQuery && NEWS_REGEX.test(message);
 
   // Run ALL data fetches in parallel — don't wait for one before starting another
