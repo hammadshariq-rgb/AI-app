@@ -2713,11 +2713,21 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
     const match = p.to ? await connectors.findInstagramContact(p.to) : null;
     if (p.to && !match) {
-      // Not a failed search: Instagram allows no app to START a conversation.
-      // Replies only, to people already in the inbox, within a day of their
-      // last message. Saying "I couldn't find them" sounded like a bug in the
-      // lookup and sent people hunting for a fault that was never there.
-      const spoken = `Instagram only lets apps reply to people who've messaged you first — it doesn't allow starting a new chat with anyone. ${p.to} isn't in your inbox, so you'd have to message them in Instagram yourself.`;
+      // Two different failures were wearing the same message. Instagram does
+      // only allow replies - but "they are not in your inbox" is a lie when the
+      // inbox could not be read at all, and that is what sends someone hunting
+      // for a fault in the wrong place. So ask the inbox which it is.
+      const check = await connectors.getInstagramInbox(5).catch(() => null);
+      let spoken;
+      if (!check || !check.ok) {
+        const why = (check && check.error) || 'the inbox would not open';
+        spoken = `I can't read your Instagram inbox, so I can't tell who has messaged you: ${why}. The connection usually needs the messaging permission — reconnect Instagram from Connectors and allow messages when Meta asks.`;
+      } else if (!(check.threads || []).length) {
+        spoken = `Your Instagram inbox is empty as far as Callisto can see. Instagram only shares conversations with the account it is connected to, so check it is the right one in Connectors.`;
+      } else {
+        const names = (check.threads || []).slice(0, 4).map((t) => t.name).filter(Boolean);
+        spoken = `I can't see ${p.to} in your Instagram inbox. I can see ${names.join(', ')}. Instagram only lets apps reply to people already there, so if the name is spelled differently, try that.`;
+      }
       _sendTTS(_e.sender, spoken);
       return { text: spoken, audio: null, hasAction: false };
     }
