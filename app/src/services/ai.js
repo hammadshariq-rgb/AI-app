@@ -1080,7 +1080,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|message|chat|dm|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|presentation|powerpoint|slide ?deck|deck|slides|build (?:me )?a|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|messages?|chat|dms?|inbox|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|reply|respond|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|presentation|powerpoint|slide ?deck|deck|slides|build (?:me )?a|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
 
 // A document/slides deck is only made when the user actually asks for one.
 const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;
@@ -1091,8 +1091,27 @@ const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|pu
 const KNOWLEDGE_Q = /^\s*(?:hey|hi|ok|okay|so|please|callisto)?[\s,]*(what|what's|whats|how|why|when|where|who|which|explain|describe|define|compare|tell me (?:about|how|why|what)|can you (?:explain|tell me|help me understand)|could you explain|help me understand|walk me through|is it|is there|are there|should i|do i|does|difference between|pros and cons|give me (?:an? )?(?:overview|summary|breakdown|rundown|example))\b/i;
 const STRONG_ACTION = /\b(open|launch|play|pause|call|ring|phone|message|text|dm|remind|schedule|add (?:an? )?event|book (?:a|an|me)|send|email|search (?:for|my)|find (?:my|me a)|generate|draw|paint|sketch|create|make|set|turn (?:on|off|up|down)|mute|unmute|volume|shut ?down|restart|reboot|remember|forget|note that|what'?s on my|my (?:schedule|calendar|events|day)|briefing|weather|news|score|stock|price of|near me|nearby)\b/i;
 
+// Asking about your OWN numbers or your OWN inbox is never general knowledge,
+// however it is phrased.
+//
+// "How many followers do I have" begins with "how", so it was filed as a
+// question to be answered from memory, and the tools that could have looked it
+// up were never offered - the model simply made something up. The same went for
+// "how many messages do I have", "check my DMs", "what's my follower count".
+//
+// Both halves are required: a first-person word AND something that belongs to
+// them. "How many followers does Ronaldo have" has no first person, so it stays
+// a question, which is right - the tool would answer it with the wrong account.
+const FIRST_PERSON = /\b(?:my|mine|our|ours|i|me|we|us)\b/i;
+const OWN_THINGS = /\b(?:followers?|following|subscribers?|views?|likes?|comments?|messages?|messaged|texted|dms?|inbox|stats|statistics|analytics|insights|revenue|earnings|sales|takings|posts?|reach|engagement|impressions?|audience|mentions?|notifications?|instagram|insta|youtube|tiktok|facebook|channel|page|shop|store)\b/i;
+function asksAboutOwnData(message) {
+  const m = String(message || '');
+  return FIRST_PERSON.test(m) && OWN_THINGS.test(m);
+}
+
 function isKnowledgeQuestion(message) {
   const m = String(message || '');
+  if (asksAboutOwnData(m)) return false;
   return KNOWLEDGE_Q.test(m) && !STRONG_ACTION.test(m) && !DOC_INTENT.test(m);
 }
 
@@ -1246,7 +1265,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
   const isDocWork = DOC_INTENT.test(message);
-  const needsTools = isDocWork || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message));
+  const needsTools = isDocWork || asksAboutOwnData(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message));
 
   // Fast path: action queries with no context get a minimal prompt and trimmed history for speed
   if (fast && needsTools && !realtimeContext && !isDocWork) {
@@ -1355,7 +1374,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
   const hasImages = attachments.some(a => a.kind === 'image');
 
   // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
-  const needsTools = !skipToolFallback && (DOC_INTENT.test(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message)));
+  const needsTools = !skipToolFallback && (DOC_INTENT.test(message) || asksAboutOwnData(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message)));
   if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }
@@ -1463,4 +1482,5 @@ async function generateImage(prompt, size = '1024x1024') {
   return { url: data.url };
 }
 
-module.exports = { respond, respondStreaming, generateImage, ACTION_KEYWORDS, isKnowledgeQuestion, serverFetch };
+module.exports = {
+  asksAboutOwnData, respond, respondStreaming, generateImage, ACTION_KEYWORDS, isKnowledgeQuestion, serverFetch };
