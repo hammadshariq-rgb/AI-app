@@ -3041,6 +3041,20 @@ body.light-mode #profileVolSlider::-webkit-slider-runnable-track {
 .connector-info,
 .connector-btn { position: relative; z-index: 1; }
 
+/* The row squeezed its own text away. Nothing claimed the leftover width, and
+   the button could shrink, so with a long status - "Connected as @name" - the
+   name came out as "IN..." and the status as "Con...", which is no use to
+   anyone trying to see which account is connected. The text takes the space
+   now, the button keeps its size, and the status is allowed a second line. */
+.connector-info { flex: 1 1 auto; min-width: 0; }
+.connector-btn { flex-shrink: 0; }
+.connector-status {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+
 .connector-icon {
   width: 42px; height: 42px;
   border-radius: 12px;

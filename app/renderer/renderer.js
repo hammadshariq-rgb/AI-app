@@ -8902,8 +8902,16 @@ function renderLanguageList(filter = '') {
 languageSearch?.addEventListener('input', () => renderLanguageList(languageSearch.value));
 
 // Listen for successful connector OAuth callback
+//
+// Two places in the main process announce a finished connection, and for some
+// services both of them fire - which is why "Instagram connected" arrived
+// twice. One connection, one line about it.
+const _announcedConnect = new Map();
 window.jarvis.onConnectorConnected(({ service }) => {
   renderConnectors();
+  const _now = Date.now();
+  if (_now - (_announcedConnect.get(service) || 0) < 10000) return;
+  _announcedConnect.set(service, _now);
   const connectedMessages = {
     gmail:         'Gmail connected. Say "give me an update" to check your emails.',
     drive:         'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
