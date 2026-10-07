@@ -9297,10 +9297,24 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   box-shadow: 0 2px 10px rgba(15, 111, 224, 0.55);
 }
 .ds-tool.on:hover { background: linear-gradient(180deg, #4fb4ff, #1a7bea); color: #fff; }
+/* Drawn, not filled. The rule below and the markup it applies to were both
+   checked inside a shipped build and both were correct, yet the icons still
+   came out as solid discs - so something at runtime is painting them. Every
+   part is forced, children included, since a fill on a child element would
+   survive a rule that only names the svg. */
 .ds-tool svg {
   width: 19px; height: 19px;
-  fill: none; stroke: currentColor; stroke-width: 2;
+  fill: none !important; stroke: currentColor !important; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
+}
+.ds-tool svg path,
+.ds-tool svg circle,
+.ds-tool svg rect,
+.ds-tool svg line,
+.ds-tool svg polyline,
+.ds-tool svg polygon {
+  fill: none !important;
+  stroke: currentColor !important;
 }
 
 /* The controls that appear on whatever shape is selected. */

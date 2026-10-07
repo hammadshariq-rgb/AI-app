@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Callisto AI</title>
-  <link rel="stylesheet" href="style.css?v=68" />
+  <link rel="stylesheet" href="style.css?v=69" />
   <style>
     /* ── GLASS SIDEBAR ── */
     #historySidebar {
@@ -194,6 +194,17 @@
     .chrome-btn:active { transform: scale(0.97) !important; }
 
     /* Quick commands sizing */
+    /* The line under a command that only works once something is connected, so
+       nobody tries it, gets nothing back and assumes it is broken. */
+    .sw-cmd-note {
+      display: block;
+      margin-top: 3px;
+      font-size: 10.5px;
+      font-weight: 400;
+      letter-spacing: 0.2px;
+      color: rgba(150, 175, 230, 0.55);
+      text-transform: none;
+    }
     .sw-cmd.chrome-btn {
       display: block !important;
       width: 100% !important;
@@ -1753,6 +1764,10 @@
               <button class="sw-cmd chrome-btn" data-cmd="Play " data-caret="5">"Play [song name]"</button>
               <button class="sw-cmd chrome-btn" data-cmd="Create me a 3D model of " data-caret="24">"Create me a 3D model of…"</button>
               <button class="sw-cmd chrome-btn" data-cmd="Open  file" data-caret="5">"Open [name] file"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="Sketch me a box">"Sketch me a box"</button>
+              <button class="sw-cmd chrome-btn" data-cmd="How many followers do I have on Instagram?">"How many followers do I have on Instagram?"<span class="sw-cmd-note">after connecting Instagram</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="How many followers do I have on TikTok?">"How many followers do I have on TikTok?"<span class="sw-cmd-note">after connecting TikTok</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="How much revenue did my app generate?">"How much revenue did my app generate?"<span class="sw-cmd-note">after connecting Stripe</span></button>
               <script>
                 document.querySelectorAll('#widgetQuickCmds .sw-cmd[data-cmd]').forEach((b) => b.addEventListener('click', () => {
                   const input = document.getElementById('userInput');
