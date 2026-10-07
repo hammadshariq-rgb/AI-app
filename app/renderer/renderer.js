@@ -9362,15 +9362,20 @@ function convoBanner(on) {
   if (el) return;
   el = document.createElement('div');
   el.id = 'convoBanner';
-  el.innerHTML = `<span class="cb-dot"></span> Conversation mode — just talk. ${keys('Win+Alt+C')} to stop.`;
+  el.innerHTML = `<span class="cb-dot"></span><span id="cbText">Listening</span>`
+    + `<span class="cb-hint">${keys('Win+Alt+C')} to stop</span>`;
   el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:99998;'
     + 'display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:999px;'
     + 'background:rgba(10,14,35,0.92);border:1px solid rgba(0,200,255,0.35);backdrop-filter:blur(14px);'
     + 'font-size:12.5px;color:#c8e4ff;letter-spacing:0.3px;box-shadow:0 8px 30px rgba(0,0,0,0.45)';
   const dot = document.createElement('style');
   dot.textContent = '#convoBanner .cb-dot{width:8px;height:8px;border-radius:50%;background:#00c8ff;'
-    + 'box-shadow:0 0 10px #00c8ff;animation:cbPulse 1.4s ease-in-out infinite}'
-    + '@keyframes cbPulse{0%,100%{opacity:1}50%{opacity:0.25}}';
+    + 'box-shadow:0 0 10px #00c8ff;animation:cbPulse 1.4s ease-in-out infinite;flex:none}'
+    + '@keyframes cbPulse{0%,100%{opacity:1}50%{opacity:0.25}}'
+    // Each state gets its own colour and its own word, so a glance says which.
+    + '#convoBanner.is-thinking .cb-dot{background:#ffb545;box-shadow:0 0 10px #ffb545;animation-duration:0.7s}'
+    + '#convoBanner.is-speaking .cb-dot{background:#3dffa0;box-shadow:0 0 10px #3dffa0;animation:none}'
+    + '#convoBanner .cb-hint{opacity:0.45;font-size:11px;margin-left:4px}';
   el.appendChild(dot);
   document.body.appendChild(el);
 }
@@ -9499,11 +9504,32 @@ window.jarvis.onScreenSuggest?.((sug) => { if (window._convoMode) screenSuggest(
 
 // Between turns: pick the listening back up once Callisto has finished speaking
 // and the answer is in. Mic stays off while it talks, so it can't hear itself.
+// What it is doing, said on the banner, and the microphone picked back up the
+// moment it is free. Both decided in one place, so the words on screen cannot
+// disagree with what is actually happening - which is what made this feel
+// broken: a banner that pulsed identically whether it was listening, thinking
+// or talking.
+function convoShowState(state) {
+  const el = document.getElementById('convoBanner');
+  if (!el) return;
+  const label = document.getElementById('cbText');
+  if (label) {
+    label.textContent = state === 'thinking' ? 'Thinking'
+      : state === 'speaking' ? 'Speaking'
+      : 'Listening';
+  }
+  el.classList.toggle('is-thinking', state === 'thinking');
+  el.classList.toggle('is-speaking', state === 'speaking');
+}
+
 setInterval(() => {
-  if (!window._convoMode || isRecording || _convoBusy || audioPlaying) return;
-  if (document.getElementById('_thinkingRow')) return;
+  if (!window._convoMode) return;
+  const thinking = _convoBusy || !!document.getElementById('_thinkingRow');
+  const speaking = audioPlaying;
+  convoShowState(thinking ? 'thinking' : speaking ? 'speaking' : 'listening');
+  if (isRecording || thinking || speaking) return;
   convoListen();
-}, 700);
+}, 250);
 
 if (window.jarvis.onConvoToggle) {
   window.jarvis.onConvoToggle(() => (window._convoMode ? convoStop(false) : convoStart()));
