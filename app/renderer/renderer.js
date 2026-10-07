@@ -11166,13 +11166,15 @@ if (window.jarvis.onMacNeedsAutomation) {
       if (month > 0) return `Nothing this week. ${cur}${n(Math.round(month))} over the last thirty days.`;
       return 'No payments have come through yet.';
     }
+    // One follower is a follower, not "1 followers".
+    const plural = (v, word) => `${n(v)} ${Number(v) === 1 ? word : word + 's'}`;
     if (key === 'instagram') {
-      return `Instagram is on ${n(d.followers)} followers` +
-        (d.views30 != null ? `, with ${n(d.views30)} views this month.` : '.');
+      return `Instagram is on ${plural(d.followers, 'follower')}` +
+        (d.views30 != null ? `, with ${plural(d.views30, 'view')} this month.` : '.');
     }
     if (key === 'facebook') {
-      return `Your Facebook Page has ${n(d.followers)} followers` +
-        (d.reach != null ? `, reaching ${n(d.reach)} people.` : '.');
+      return `Your Facebook Page has ${plural(d.followers, 'follower')}` +
+        (d.reach != null ? `, reaching ${plural(d.reach, 'person').replace('persons', 'people')}.` : '.');
     }
     if (key === 'tiktok') {
       return `TikTok has ${n(d.followers)} followers and ${n(d.likes)} likes.`;

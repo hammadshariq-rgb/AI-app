@@ -2327,6 +2327,12 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // to "which app?", became "open Instagram" instead of carrying on with the
   // message being arranged. Anything that looks like an answer goes to the
   // full model, which can see the whole conversation.
+  // Anything about messages goes to the full model. The quick one has a bare
+  // prompt and must call a tool at once, and "check my Instagram messages"
+  // came back as a follower count - it saw "Instagram" and reached for
+  // analytics. The full prompt knows an inbox from a follower.
+  const _aboutMessages = /(messages?|dms?|inbox|messaged)/i.test(String(message || ''));
+
   const _lastAssistant = [...(history || [])].reverse().find((h) => h && h.role === 'assistant');
   const _answeringQuestion = !!(_lastAssistant
     && /\?\s*$/.test(String(_lastAssistant.content || '').trim())
@@ -2346,7 +2352,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
 
 ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" — do not ask them to send a screenshot.`;
   }
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
