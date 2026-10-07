@@ -10419,7 +10419,14 @@ micBtn.addEventListener('click', () => {
     const current = res.accounts.find((a) => a.igId === chosen) || res.accounts[0];
     if (status && current.username) status.textContent = 'Connected as @' + current.username;
 
-    if (res.accounts.length < 2) { wrap.classList.add('hidden'); return; }
+    // One account is not a choice, but it is worth saying why there is only
+    // one: this API sees an Instagram account only through the Facebook Page
+    // it is linked to, so the others on the same login are invisible to it.
+    if (res.accounts.length < 2) {
+      wrap.classList.remove('hidden');
+      wrap.innerHTML = '<span class="connector-pick-note">Only Instagram accounts linked to a Facebook Page can be used. Link another Page to switch between them.</span>';
+      return;
+    }
     sel.innerHTML = res.accounts.map((a) =>
       `<option value="${a.igId}"${a.igId === chosen ? ' selected' : ''}>@${a.username || a.igId}${a.pageName ? ' - ' + a.pageName : ''}</option>`
     ).join('');

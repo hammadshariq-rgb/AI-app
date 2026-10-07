@@ -10016,3 +10016,8 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   padding: 7px 12px; font-family: inherit; font-size: 12.5px;
 }
 .dm-pop-input:focus { outline: none; border-color: rgba(58,169,255,0.6); }
+
+.connector-pick-note {
+  font-size: 10.5px; line-height: 1.45;
+  color: rgba(150, 175, 230, 0.5);
+}
