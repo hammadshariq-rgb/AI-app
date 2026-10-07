@@ -3171,18 +3171,44 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     // How the accounts are doing. Only the ones actually connected say
     // anything, so nobody hears about a platform they do not use. Both are
     // asked at once, and neither is allowed to hold up the briefing.
-    const [igBrief, ttBrief] = await Promise.all([
+    const [igBrief, ttBrief, stripeBrief] = await Promise.all([
       connectors.getInstagramStats().catch(() => null),
       connectors.getTikTokStats().catch(() => null),
+      connectors.getStripeStats().catch(() => null),
     ]);
+    const n = (v) => Number(v || 0).toLocaleString();
+    const plural = (v, w) => `${n(v)} ${Number(v) === 1 ? w : w + 's'}`;
+
+    // Money first: it is the number anyone checks first in the morning.
+    if (stripeBrief) {
+      const cur = stripeBrief.currency ? stripeBrief.currency.toUpperCase() + ' ' : '';
+      const today = Number(stripeBrief.today && stripeBrief.today.revenue) || 0;
+      const week = Number(stripeBrief.last7Days && stripeBrief.last7Days.revenue) || 0;
+      parts.push(today > 0
+        ? `You've taken ${cur}${n(Math.round(today))} today, ${cur}${n(Math.round(week))} over the week.`
+        : `Nothing through Stripe yet today; ${cur}${n(Math.round(week))} over the week.`);
+    }
+
     if (igBrief) {
-      const bits = [`Instagram is on ${Number(igBrief.followers || 0).toLocaleString()} followers`];
-      if (igBrief.views30 != null) bits.push(`${Number(igBrief.views30).toLocaleString()} views in the last thirty days`);
+      const bits = [`Instagram is on ${plural(igBrief.followers, 'follower')}`];
+      if (igBrief.views30 != null) bits.push(`${plural(igBrief.views30, 'view')} in the last thirty days`);
+      // How the newest post is doing, which is the thing actually worth hearing.
+      const last = (igBrief.recentPosts || [])[0];
+      if (last && last.views != null) {
+        bits.push(`the latest post has ${plural(last.views, 'view')}`);
+      } else if (last && last.likes != null) {
+        bits.push(`the latest post has ${plural(last.likes, 'like')}`);
+      }
       parts.push(bits.join(', ') + '.');
     }
+
     if (ttBrief) {
-      const bits = [`TikTok is on ${Number(ttBrief.followers || 0).toLocaleString()} followers`];
-      if (ttBrief.likes != null) bits.push(`${Number(ttBrief.likes).toLocaleString()} likes`);
+      const bits = [`TikTok is on ${plural(ttBrief.followers, 'follower')}`];
+      if (ttBrief.likes != null) bits.push(`${plural(ttBrief.likes, 'like')}`);
+      const lastVid = (ttBrief.recentVideos || [])[0];
+      if (lastVid && lastVid.views != null) {
+        bits.push(`the latest video has ${plural(lastVid.views, 'view')}`);
+      }
       parts.push(bits.join(', ') + '.');
     }
 
