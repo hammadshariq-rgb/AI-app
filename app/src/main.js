@@ -2691,11 +2691,18 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     // "send a message" means Instagram.
     const askedElsewhere = /\b(whatsapp|whats app|telegram|messenger|discord|signal|snapchat|sms|text message|imessage|slack|teams)\b/i.test(String(message || ''));
     if (p.platform && p.platform !== 'instagram' && askedElsewhere) {
-      // Instagram is the only place Callisto can actually send. WhatsApp and
-      // the rest can only be opened, or called.
-      const spoken = 'I can\'t send messages on WhatsApp — it doesn\'t allow apps to. I can open the chat so you can type it, or call them instead.';
+      // Nothing can send on WhatsApp - it allows no app to - but the chat can
+      // be opened with the words already typed, which is one tap from sent.
+      // Answering "I can't" and stopping there helped nobody, least of all
+      // someone who just dictated a message.
+      const where = String(p.platform).replace(/^whatsapp$/i, 'WhatsApp')
+        .replace(/^(.)/, (c) => c.toUpperCase());
+      await commands.run('open_chat', `${p.platform}|${p.to || ''}|${p.message || ''}`).catch(() => null);
+      const spoken = p.message
+        ? `I've opened ${where}${p.to ? ` with ${p.to}` : ''} and typed your message in — press send.`
+        : `I've opened ${where}${p.to ? ` with ${p.to}` : ''} for you.`;
       _sendTTS(_e.sender, spoken);
-      return { text: spoken, audio: null, hasAction: false };
+      return { text: spoken, audio: null, hasAction: true };
     }
     const status = await connectors.getConnectorStatus();
     if (!status.instagram) {
