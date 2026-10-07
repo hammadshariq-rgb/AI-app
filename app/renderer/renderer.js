@@ -2282,7 +2282,7 @@ window._checkMarketsOverlay = async function(text) {
   }
 
   window._checkTvCast = async function(text) {
-    const t = text.trim();
+    let t = text.trim();
 
     // Answering "who's watching?" — while that question is open, the reply goes to the TV.
     if (tvProfileAsk && Date.now() < tvProfileAsk.until && tvConnected) {
@@ -2318,7 +2318,19 @@ window._checkMarketsOverlay = async function(text) {
     // A question ("what's on TV tonight?") is for the AI, not the TV.
     const remote = parseTvRemote(t);
     const question = /^(?:how|what|what's|whats|why|when|where|which|who|whose|is|are|was|were|does|do|did|should|has|have)\b/i.test(t);
-    if (!remote && (question || !/\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast|cast)(?:'?s)?\b/i.test(t))) return false;
+    // "one my TV" is how it comes out when someone types quickly, and "to
+    // the telly" is how plenty of people say it. The old pattern took only a
+    // clean "on my TV", so the request went to the laptop and had to be
+    // repeated - which is exactly what felt inconsistent.
+    const MEANT_FOR_TV = /\b(?:on|one|onto|to|in|om)\s+(?:the\s+|my\s+)?(?:tv|telly|television|screen|chromecast|cast)(?:'?s)?\b/i;
+    if (!remote && (question || !MEANT_FOR_TV.test(t))) return false;
+
+    // "on my TV" on its own, right after asking for something: they are not
+    // starting again, they are correcting where it should have gone.
+    const bareDestination = /^(?:no[,.]?\s+)?(?:on|one|onto|to|in)\s+(?:the\s+|my\s+)?(?:tv|telly|television|screen)(?:'?s)?[.!?]*$/i.test(t);
+    if (bareDestination && window._lastMediaRequest && Date.now() - window._lastMediaRequest.at < 5 * 60 * 1000) {
+      t = `${window._lastMediaRequest.text} on my TV`;
+    }
     if (!tvConnected && !(await tvReconnectLast())) {
       const known = !!localStorage.getItem('tv_last_device');
       // Off or in standby: switch it on (unless the ask was to switch it off).
@@ -2640,6 +2652,9 @@ window._checkQuickLaunch = async function(text) {
     const query = ytM[1].replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim();
     addMessage('assistant', `▶️ Opening **${query}** on YouTube…`);
     say(`Opening ${query} on YouTube.`);
+    // Remembered, so "on my TV" said straight afterwards can send the same
+    // thing to the TV instead of making them type the whole request again.
+    window._lastMediaRequest = { text, at: Date.now() };
     window.jarvis.openGoogleUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
     return true;
   }
