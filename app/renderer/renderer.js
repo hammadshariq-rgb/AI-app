@@ -2664,7 +2664,10 @@ window._checkQuickLaunch = async function(text) {
   // ── General app opener: "open/launch/start [app]" ────────────────────────
   // Catches WhatsApp, Telegram, Discord, Spotify, Notes, Calculator, etc.
   // Flexible: "open whatsapp", "open up discord", "can you open telegram", etc.
-  const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|calendar|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
+  // 'calendar' is deliberately not in this list. It sat here and matched
+  // first, so "open my calendar" launched the system Calendar app instead
+  // of showing the one inside Callisto, which is what was meant.
+  const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
   // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
   const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
   // A file or folder ("open my budget file", "open resume.pdf") is found and opened
