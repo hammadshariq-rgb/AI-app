@@ -5866,9 +5866,23 @@ if (window.jarvis.onSentenceText) {
     try {
       // "Now make a video of it" should animate the picture they are looking at,
       // not a fresh interpretation of the same words. An attached file still wins.
-      const seedUrl = (!imageBase64 && /\b(it|this|that|the (?:image|picture|photo))\b/i.test(text))
-        ? (window._lastGeneratedImageUrl || null)
-        : null;
+      // Any picture Callisto can see, not only one it drew itself.
+      //
+      // "Animate this" used to mean the last AI-generated image and nothing
+      // else, so a photo they had added, a sketch they had drawn, or anything
+      // sitting in Creations could not be animated at all - the request
+      // quietly became a fresh video made from the words instead.
+      let seedUrl = null;
+      if (!imageBase64 && /(it|this|that|the (?:image|picture|photo|sketch|drawing))/i.test(text)) {
+        seedUrl = window._lastGeneratedImageUrl || null;
+        if (!seedUrl) {
+          try {
+            const _al = await window.jarvis.artifactsList();
+            const newest = ((_al && _al.items) || []).find((a) => a.kind === 'image' && a.url);
+            if (newest) seedUrl = newest.url;
+          } catch (_) {}
+        }
+      }
       res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64, imageUrl: seedUrl });
     } catch (e) {
       res = { error: e.message };
