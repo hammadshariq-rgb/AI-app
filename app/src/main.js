@@ -2712,7 +2712,11 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
     const match = p.to ? await connectors.findInstagramContact(p.to) : null;
     if (p.to && !match) {
-      const spoken = `I couldn't find anyone called ${p.to} in your Instagram messages. They need to have messaged you first.`;
+      // Not a failed search: Instagram allows no app to START a conversation.
+      // Replies only, to people already in the inbox, within a day of their
+      // last message. Saying "I couldn't find them" sounded like a bug in the
+      // lookup and sent people hunting for a fault that was never there.
+      const spoken = `Instagram only lets apps reply to people who've messaged you first — it doesn't allow starting a new chat with anyone. ${p.to} isn't in your inbox, so you'd have to message them in Instagram yourself.`;
       _sendTTS(_e.sender, spoken);
       return { text: spoken, audio: null, hasAction: false };
     }
