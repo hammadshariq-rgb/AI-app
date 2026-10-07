@@ -619,10 +619,22 @@ async function sendInstagramMessage(recipientId, text) {
     const data = await res.json();
     if (data.error) {
       const m = data.error.message || 'Instagram refused the message.';
-      if (/24|outside.*window|policy/i.test(m)) {
+      const sub = Number(data.error.error_subcode || 0);
+      // The old test was /24|outside.*window|policy/, which matched the digits
+      // "24" anywhere - including inside an error code like 2534014. So every
+      // other failure was reported as a closed 24-hour window, even on a
+      // message that had just arrived, and the real reason never showed.
+      const outsideWindow = sub === 2534022
+        || /24[- ]?hours?/i.test(m)
+        || /outside\s+(?:of\s+)?(?:the\s+)?allowed\s+window/i.test(m)
+        || /messaging\s+window/i.test(m);
+      if (outsideWindow) {
         return { ok: false, error: 'Instagram only allows a reply within 24 hours of their last message, and that window has closed.' };
       }
-      return { ok: false, error: m };
+      // Anything else goes back as Instagram worded it, with its code, which
+      // is the only thing that makes these diagnosable.
+      const code = data.error.code ? ` (#${data.error.code}${sub ? '/' + sub : ''})` : '';
+      return { ok: false, error: m + code };
     }
     return { ok: true, messageId: data.message_id || null };
   } catch (err) {
