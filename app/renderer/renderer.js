@@ -10468,6 +10468,7 @@ micBtn.addEventListener('click', () => {
         <figcaption>
           <span class="art-lb-title">${esc(a.title)}</span>
           <span class="art-lb-actions">
+            ${a.vector ? '<button class="art-lb-btn art-lb-edit" data-edit>Edit drawing</button>' : ''}
             <button class="art-lb-btn art-lb-primary" data-save>Download</button>
             <button class="art-lb-btn" data-close aria-label="Close">Close</button>
           </span>
@@ -10478,6 +10479,10 @@ micBtn.addEventListener('click', () => {
     box.querySelector('.art-lb-backdrop').addEventListener('click', close);
     box.querySelector('[data-close]').addEventListener('click', close);
     box.querySelector('[data-save]').addEventListener('click', () => window.jarvis.artifactsSave(a.id));
+    // Back to the canvas, with the drawing on it.
+    box.querySelector('[data-edit]')?.addEventListener('click', () => {
+      if (window._editSavedSketch && window._editSavedSketch(a)) close();
+    });
     document.addEventListener('keydown', onKey);
     document.body.appendChild(box);
   }
@@ -10855,6 +10860,8 @@ if (window.jarvis.onMacNeedsAutomation) {
         kind: 'image', url: png, source: 'sketch',
         title: name && name !== 'Untitled drawing' ? name : 'Sketch',
         prompt: drawing.slice(0, 400),
+        // The shapes travel with it, so it can be opened and drawn on again.
+        vector: JSON.stringify(D().exportShapes ? D().exportShapes() : []),
       });
     } catch (_) {}
   }
@@ -10906,6 +10913,20 @@ if (window.jarvis.onMacNeedsAutomation) {
 
   // "open the drawing page" / "let's draw" with nothing to draw yet.
   window._openDrawing = () => { D().show(); report(); };
+
+  // Opening a drawing from Creations, to carry on with it rather than start
+  // again. The picture in Creations is a PNG; these are the shapes it was made
+  // from, so every line is still a line that can be moved, recoloured or
+  // deleted.
+  window._editSavedSketch = (entry) => {
+    try {
+      const list = JSON.parse((entry && entry.vector) || '[]');
+      if (!Array.isArray(list) || !list.length) return false;
+      D().loadShapes(list, entry.title || 'Sketch');
+      report();
+      return true;
+    } catch (_) { return false; }
+  };
 })();
 
 // ── Document studio wiring ────────────────────────────────────────────────────

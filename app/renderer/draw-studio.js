@@ -1312,6 +1312,19 @@
     setTitle: (t) => { title = t; if (root) root.querySelector('#dsTitle').textContent = t; },
     onCommand: (fn) => { commandHandler = fn; },
     titleOf: () => title,
+    // The drawing itself, as shapes rather than as a picture of them. A saved
+    // PNG cannot be edited; this can, which is what lets a drawing be reopened
+    // from Creations and carried on with.
+    exportShapes: () => JSON.parse(JSON.stringify(shapes)),
+    loadShapes: (list, name) => {
+      build();
+      shapes = Array.isArray(list) ? JSON.parse(JSON.stringify(list)) : [];
+      selectedId = null;
+      if (name) title = name;
+      render();
+      show();
+      report();
+    },
     onChange: (fn) => { changeHandler = fn; },
     onHide: (fn) => { hideHandler = fn; },
     onHandOff: (fn) => { handOffHandler = fn; },

@@ -70,7 +70,7 @@ function createStore(store, onChange) {
 
   // Record a creation. Downloads it in the background; the entry appears
   // immediately and gains its local file once the download finishes.
-  function add({ kind, url, title, prompt, source, taskId, thumbnail }) {
+  function add({ kind, url, title, prompt, source, taskId, thumbnail, vector }) {
     if (!EXT[kind] || !url) return null;
     prune();
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -92,6 +92,9 @@ function createStore(store, onChange) {
       remoteThumb: thumbnail || null,
       // Finished the moment it arrived, so nothing was waited for.
       inline, file: own, thumbFile: null, createdAt: Date.now(),
+      // A drawing keeps its shapes as well as its picture, so it can be
+      // opened again and carried on with rather than only looked at.
+      vector: typeof vector === 'string' ? vector.slice(0, 400000) : null,
     };
     save([entry, ...all()]);
     changed(entry);
@@ -116,7 +119,7 @@ function createStore(store, onChange) {
   function list() {
     return prune().map(a => ({
       id: a.id, kind: a.kind, title: a.title, prompt: a.prompt, source: a.source,
-      taskId: a.taskId, createdAt: a.createdAt,
+      taskId: a.taskId, createdAt: a.createdAt, vector: a.vector || null,
       url: a.file && fs.existsSync(a.file) ? pathToFileURL(a.file).href : a.remoteUrl,
       thumb: a.thumbFile && fs.existsSync(a.thumbFile) ? pathToFileURL(a.thumbFile).href : a.remoteThumb,
       local: !!(a.file && fs.existsSync(a.file)),
