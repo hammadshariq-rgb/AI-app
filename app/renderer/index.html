@@ -1291,6 +1291,25 @@
       color: rgba(130,160,255,0.85); white-space: nowrap; flex-shrink: 0;
     }
 
+    /* Choosing between several Instagram accounts on one login. */
+    .connector-pick {
+      display: flex; align-items: center; gap: 8px;
+      margin: -2px 0 10px 46px;
+    }
+    .connector-pick.hidden { display: none; }
+    .connector-pick label {
+      font-size: 10px; letter-spacing: 1px;
+      color: rgba(150, 175, 230, 0.55); text-transform: uppercase;
+    }
+    .connector-pick select {
+      flex: 1; min-width: 0;
+      background: rgba(255,255,255,0.05);
+      color: rgba(240,247,255,0.95);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 5px 8px;
+      font-family: 'Inter', sans-serif; font-size: 12px;
+    }
+
     /* ── Connector chips ── */
     .ob-connectors { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
     .ob-connector {
@@ -1901,6 +1920,14 @@
                 <div class="connector-icon instagram"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></div>
                 <div class="connector-info"><div class="connector-name">INSTAGRAM</div><div class="connector-status" id="instagramStatus">Not connected</div></div>
                 <button class="connector-btn" id="instagramBtn">CONNECT</button>
+              </div>
+              <!-- Which account, out of however many hang off this login. One
+                   Facebook login can reach several Instagram accounts, and the
+                   first one found was being used silently - so nobody could
+                   tell whose followers they were looking at. -->
+              <div class="connector-pick hidden" id="instagramPick">
+                <label for="instagramAccount">Account</label>
+                <select id="instagramAccount"></select>
               </div>
               <!-- Personal accounts have no Instagram API at all, so say this
                    before they connect rather than leaving them with an empty

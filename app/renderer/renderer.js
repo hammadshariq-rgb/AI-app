@@ -10331,6 +10331,50 @@ micBtn.addEventListener('click', () => {
 })();
 // ================================================================
 
+// == Which Instagram account ==
+// One Facebook login can reach several Instagram accounts, one per Page. The
+// first one found was used without a word, so there was no way to know whose
+// followers, posts or messages were being shown. This names it, and lets a
+// different one be picked.
+(function () {
+  const wrap = document.getElementById('instagramPick');
+  const sel = document.getElementById('instagramAccount');
+  const status = document.getElementById('instagramStatus');
+  if (!wrap || !sel || !window.jarvis?.instagramAccounts) return;
+
+  async function refresh() {
+    let res = null;
+    try { res = await window.jarvis.instagramAccounts(); } catch (_) {}
+    if (!res || !res.ok || !res.accounts || !res.accounts.length) { wrap.classList.add('hidden'); return; }
+
+    // With one account there is nothing to choose, but its name is still worth
+    // saying - that was the whole complaint.
+    const chosen = res.chosen || res.accounts[0].igId;
+    const current = res.accounts.find((a) => a.igId === chosen) || res.accounts[0];
+    if (status && current.username) status.textContent = 'Connected as @' + current.username;
+
+    if (res.accounts.length < 2) { wrap.classList.add('hidden'); return; }
+    sel.innerHTML = res.accounts.map((a) =>
+      `<option value="${a.igId}"${a.igId === chosen ? ' selected' : ''}>@${a.username || a.igId}${a.pageName ? ' - ' + a.pageName : ''}</option>`
+    ).join('');
+    wrap.classList.remove('hidden');
+  }
+
+  sel.addEventListener('change', async () => {
+    try {
+      await window.jarvis.instagramUse(sel.value);
+      const picked = (sel.options[sel.selectedIndex] || {}).textContent || '';
+      addMessage('assistant', `Instagram is now set to ${picked.split(' - ')[0]}.`);
+      refresh();
+    } catch (_) {}
+  });
+
+  // Whenever the connectors panel is opened, and once a connection finishes.
+  document.querySelector('[data-section="connectors"]')?.addEventListener('click', () => setTimeout(refresh, 300));
+  window.jarvis.onConnectorConnected?.(() => setTimeout(refresh, 600));
+  setTimeout(refresh, 2500);
+})();
+
 // ===================== ARTIFACTS (this week's creations) =====================
 // Images, paintings, sketches from the canvas, 3D models and videos made in the
 // app. Files are kept locally by the main process and cleared every Monday.

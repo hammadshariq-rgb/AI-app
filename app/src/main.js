@@ -4246,6 +4246,19 @@ ipcMain.handle('calendar:delete', async (_e, args) => {
   try { return await calendar.deleteEvent(args || {}); } catch (e) { return { error: e.message }; }
 });
 
+// Which Instagram account this is, and switching to another one. Someone with
+// several Pages has several accounts, and the first one found is a coin toss.
+ipcMain.handle('instagram:accounts', async () => {
+  try { return await connectors.listInstagramAccounts(); } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('instagram:use', async (_e, igId) => {
+  try {
+    const r = connectors.setInstagramAccount(igId);
+    await connectors.getInstagramPage(true).catch(() => null);   // warm the new one
+    return r;
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 ipcMain.handle('drive:open', async (_e, { fileId, mimeType, webViewLink }) => connectors.openDriveFile(fileId, mimeType, webViewLink));
 
 // Auto-updater: quit and install immediately when user confirms

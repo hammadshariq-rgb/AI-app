@@ -431,6 +431,38 @@ async function getInstagramToken() {
 
 let _igPage = null;   // { pageId, pageToken, igId, igUsername }
 
+// Every Instagram account reachable from this login, one per Facebook Page.
+// Someone with several Pages has several, and until this existed there was no
+// way to see which one Callisto had picked, nor to pick a different one.
+async function listInstagramAccounts() {
+  const token = await getInstagramToken();
+  if (!token) return { ok: false, error: 'not_connected' };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=access_token,name,instagram_business_account{id,username}&access_token=${token}`);
+    const data = await res.json();
+    if (data.error) return { ok: false, error: data.error.message };
+    const accounts = (data.data || [])
+      .filter((p) => p.instagram_business_account)
+      .map((p) => ({
+        igId: p.instagram_business_account.id,
+        username: p.instagram_business_account.username || null,
+        pageId: p.id,
+        pageName: p.name || null,
+      }));
+    return { ok: true, accounts, chosen: store.get('connector.instagram.igId') || (accounts[0] && accounts[0].igId) || null };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Which one to use from now on. Remembered, so it survives a restart.
+function setInstagramAccount(igId) {
+  if (!igId) return { ok: false };
+  store.set('connector.instagram.igId', String(igId));
+  _igPage = null;             // looked up again, against the new choice
+  return { ok: true };
+}
+
 async function getInstagramPage(force = false) {
   if (_igPage && !force) return _igPage;
   const token = await getInstagramToken();
@@ -438,7 +470,11 @@ async function getInstagramPage(force = false) {
   try {
     const res = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=access_token,name,instagram_business_account{id,username}&access_token=${token}`);
     const data = await res.json();
-    const page = (data.data || []).find((p) => p.instagram_business_account);
+    const pages = (data.data || []).filter((p) => p.instagram_business_account);
+    // The one they chose, or the first if they never chose - but at least now
+    // the choice exists, and the name of whichever it is can be shown.
+    const wanted = store.get('connector.instagram.igId');
+    const page = (wanted && pages.find((p) => p.instagram_business_account.id === String(wanted))) || pages[0];
     if (!page) return null;
     _igPage = {
       pageId: page.id,
@@ -1441,6 +1477,7 @@ module.exports = {
   disconnectService, getVipSenders, addVipSender, removeVipSender,
   pollForToken,
   getYouTubeToken, getInstagramToken, getTikTokToken, instagramViaLogin,
+  listInstagramAccounts, setInstagramAccount, getInstagramPage,
   // Outlook mail
   getOutlookToken, getOutlookInbox, getOutlookSummary, sendOutlookEmail,
   markOutlookRead, getOutlookAccount,
