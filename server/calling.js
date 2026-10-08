@@ -170,6 +170,31 @@ function mountCalling(app, { authMiddleware, resolvePublicUrl }) {
   const configured = !!(VAPI_API_KEY && VAPI_PHONE_NUMBER_ID);
 
   // Lets the desktop app grey out the feature instead of failing at call time.
+  // ── Reception: the number a business gives out, answered ────────────────
+  const reception = require('./reception');
+
+  app.get('/reception/profile', authMiddleware, async (req, res) => {
+    try { res.json({ ok: true, profile: await reception.getProfile(req.userId) }); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+
+  app.post('/reception/profile', authMiddleware, async (req, res) => {
+    try {
+      const r = await reception.setProfile(req.userId, req.body || {});
+      res.status(r.ok ? 200 : 400).json(r);
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+
+  app.get('/reception/calls', authMiddleware, async (req, res) => {
+    try { res.json({ ok: true, calls: await reception.recentCalls(req.userId, req.query.limit) }); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+
+  app.post('/reception/calls/:id/read', authMiddleware, async (req, res) => {
+    try { res.json(await reception.markRead(req.userId, req.params.id)); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+
   app.get('/calls/config', authMiddleware, (_req, res) => {
     res.json({ ok: true, enabled: configured });
   });
@@ -305,12 +330,36 @@ function mountCalling(app, { authMiddleware, resolvePublicUrl }) {
       const sent = req.headers['x-vapi-secret'] || req.headers['x-vapi-signature'] || '';
       if (sent !== CALL_WEBHOOK_SECRET) return res.status(401).json({ error: 'bad secret' });
     }
+    // An incoming call asks a question and waits for the answer: which voice
+    // should pick up. Answering after acknowledging would be too late, so this
+    // one branch replies instead of acknowledging.
+    const incoming = req.body && req.body.message;
+    if (incoming && incoming.type === 'assistant-request') {
+      try {
+        const reception = require('./reception');
+        const numberId = incoming.call?.phoneNumberId || incoming.phoneNumber?.id || '';
+        const profile = await reception.byNumber(numberId);
+        if (!profile) {
+          return res.json({ error: 'This number is not set up to take calls yet.' });
+        }
+        return res.json({ assistant: reception.assistantFor(profile) });
+      } catch (err) {
+        return res.json({ error: 'Sorry, this line is unavailable right now.' });
+      }
+    }
+
     res.json({ ok: true }); // acknowledge fast; process below
 
     try {
       const msg = req.body?.message || {};
+
       const rec = findRecord(msg);
-      if (!rec) return;
+      if (!rec) {
+        // No record means nobody here placed this call - someone rang a number
+        // that belongs to a business instead. Those are handled below.
+        await handleInbound(msg).catch(() => {});
+        return;
+      }
 
       if (msg.type === 'status-update') {
         const s = msg.status || '';
@@ -470,6 +519,27 @@ async function persist(rec) {
     transcript: rec.transcript,
     createdAt: rec.createdAt,
     endedAt: Date.now(),
+  });
+}
+
+// An incoming call that has ended: whatever was said is kept for the owner to
+// read, since the whole point is that they were not there to take it.
+async function handleInbound(msg) {
+  if (!msg || msg.type !== 'end-of-call-report') return;
+  const reception = require('./reception');
+  const numberId = msg.call?.phoneNumberId || msg.phoneNumber?.id || '';
+  const profile = await reception.byNumber(numberId);
+  if (!profile) return;
+
+  const started = msg.startedAt || msg.call?.createdAt || Date.now();
+  const ended = msg.endedAt || Date.now();
+  await reception.logCall(profile.userId, {
+    from: msg.call?.customer?.number || msg.customer?.number || '',
+    startedAt: started,
+    seconds: Math.max(0, Math.round((new Date(ended) - new Date(started)) / 1000)),
+    summary: msg.analysis?.summary || msg.summary || '',
+    transcript: msg.artifact?.transcript || msg.transcript || '',
+    endedReason: msg.endedReason || '',
   });
 }
 
