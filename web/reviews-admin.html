@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Review queue — Callisto AI</title>
+  <!-- Nothing here should ever reach a search engine: it is a back room, not
+       a page. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #05070f; --card: rgba(255,255,255,0.045); --line: rgba(255,255,255,0.1);
+      --text: #c8d4ff; --dim: rgba(150,170,255,0.55); --accent: #3d5cff; --ok: #34d399; --no: #f87171;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh; padding: 36px 20px; line-height: 1.5;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .sub { color: var(--dim); font-size: 13.5px; margin-bottom: 26px; }
+    .key-row { display: flex; gap: 9px; margin-bottom: 26px; }
+    input, button { font-family: inherit; font-size: 14px; }
+    input {
+      flex: 1; background: rgba(255,255,255,0.05); color: var(--text);
+      border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    button { cursor: pointer; border: none; border-radius: 999px; padding: 10px 18px; font-weight: 600; }
+    .primary { background: var(--accent); color: #fff; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 18px 20px; margin-bottom: 13px;
+    }
+    .who { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .name { font-weight: 600; }
+    .meta { font-size: 12px; color: var(--dim); }
+    .stars { color: #ffd43b; letter-spacing: 2px; }
+    .text { margin-bottom: 14px; opacity: 0.9; }
+    .acts { display: flex; gap: 9px; }
+    .approve { background: rgba(52,211,153,0.16); color: var(--ok); }
+    .reject { background: rgba(248,113,113,0.14); color: var(--no); }
+    .note { color: var(--dim); font-size: 13.5px; padding: 18px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Review queue</h1>
+    <p class="sub">Nothing appears on the site until it is approved here.</p>
+
+    <div class="key-row">
+      <input id="key" type="password" placeholder="Admin key" autocomplete="off" />
+      <button class="primary" id="load">Open</button>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <script>
+  (function () {
+    var API = 'https://ai-app-production-9224.up.railway.app';
+    var keyEl = document.getElementById('key');
+    var list = document.getElementById('list');
+
+    // Kept for this browser only, so the key is typed once rather than every
+    // time a review arrives.
+    try { keyEl.value = localStorage.getItem('reviewKey') || ''; } catch (e) {}
+
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function when(iso) {
+      var d = new Date(iso);
+      return isNaN(d) ? '' : d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function act(id, what) {
+      return fetch(API + '/reviews/' + encodeURIComponent(id) + '/' + what, {
+        method: 'POST',
+        headers: { 'x-review-key': keyEl.value },
+      }).then(function (r) { return r.json(); }).then(load);
+    }
+
+    function load() {
+      var key = keyEl.value.trim();
+      if (!key) { list.innerHTML = '<p class="note">Enter the admin key.</p>'; return; }
+      try { localStorage.setItem('reviewKey', key); } catch (e) {}
+      list.innerHTML = '<p class="note">Loading...</p>';
+      fetch(API + '/reviews/pending', { headers: { 'x-review-key': key } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            list.innerHTML = '<p class="note">' + esc((data && data.error) || 'Could not open the queue.') + '</p>';
+            return;
+          }
+          var rows = data.reviews || [];
+          if (!rows.length) { list.innerHTML = '<p class="note">Nothing waiting.</p>'; return; }
+          list.innerHTML = rows.map(function (r) {
+            var stars = new Array(Math.max(1, Math.min(5, r.rating || 5)) + 1).join('★');
+            return '<div class="card">'
+              + '<div class="who"><span class="name">' + esc(r.name) + '</span>'
+              + '<span class="stars">' + stars + '</span>'
+              + '<span class="meta">' + esc(when(r.createdAt)) + (r.ip ? ' · ' + esc(r.ip) : '') + '</span></div>'
+              + '<div class="text">' + esc(r.text) + '</div>'
+              + '<div class="acts">'
+              + '<button class="approve" data-ok="' + esc(r.id) + '">Approve</button>'
+              + '<button class="reject" data-no="' + esc(r.id) + '">Hide</button>'
+              + '</div></div>';
+          }).join('');
+        })
+        .catch(function () { list.innerHTML = '<p class="note">Could not reach the server.</p>'; });
+    }
+
+    list.addEventListener('click', function (e) {
+      var ok = e.target.closest('[data-ok]');
+      var no = e.target.closest('[data-no]');
+      if (ok) act(ok.dataset.ok, 'approve');
+      if (no) act(no.dataset.no, 'hide');
+    });
+
+    document.getElementById('load').addEventListener('click', load);
+    keyEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
+    if (keyEl.value) load();
+  })();
+  </script>
+</body>
+</html>

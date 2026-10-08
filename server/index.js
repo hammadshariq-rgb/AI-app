@@ -277,6 +277,35 @@ app.post('/reviews', async (req, res) => {
   }
 });
 
+// Deciding which ones go up. The key lives only in the server's environment;
+// with no key set these three do not exist at all, so a forgotten variable
+// cannot leave the queue standing open.
+function reviewAdmin(req, res) {
+  const key = process.env.REVIEW_ADMIN_KEY;
+  if (!key) { res.status(404).json({ ok: false, error: 'Not available.' }); return false; }
+  const given = String(req.headers['x-review-key'] || req.query.key || '');
+  if (given !== key) { res.status(401).json({ ok: false, error: 'Wrong key.' }); return false; }
+  return true;
+}
+
+app.get('/reviews/pending', async (req, res) => {
+  if (!reviewAdmin(req, res)) return;
+  try { res.json({ ok: true, reviews: await reviews.pending() }); }
+  catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post('/reviews/:id/approve', async (req, res) => {
+  if (!reviewAdmin(req, res)) return;
+  try { res.json(await reviews.approve(req.params.id)); }
+  catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post('/reviews/:id/hide', async (req, res) => {
+  if (!reviewAdmin(req, res)) return;
+  try { res.json(await reviews.hide(req.params.id)); }
+  catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 

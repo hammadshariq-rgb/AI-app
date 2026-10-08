@@ -1880,6 +1880,7 @@
       </div>
       <textarea id="rvText" name="text" placeholder="What has Callisto done for you?" maxlength="400" required></textarea>
       <button class="rv-send" type="submit" id="rvSend">Post review</button>
+      <p class="rv-note" style="margin:0">Reviews are read before they go up.</p>
       <div class="rv-note" id="rvNote"></div>
     </form>
   </div>
@@ -4163,7 +4164,7 @@
         });
         const data = await res.json();
         if (data && data.ok) {
-          note.textContent = 'Thank you.';
+          note.textContent = 'Thank you - it will appear once it has been read.';
           form.reset();
           rating = 5;
           document.querySelectorAll('#rvStars button').forEach((x) => x.classList.add('on'));
