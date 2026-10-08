@@ -1999,6 +1999,10 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
         prompt: safePrompt,
         n: 1,
         size: targetSize,
+        // Asking for the best this model does. Left to its default it renders
+        // faster and noticeably rougher - soft edges, mangled detail - which
+        // is most of what "the picture came out weird" meant.
+        quality: 'high',
       });
     } catch (e1) {
       console.warn('[image] gpt-image-1 failed:', e1.message, '— trying dall-e-3');
@@ -2009,18 +2013,24 @@ app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
           prompt: safePrompt,
           n: 1,
           size: targetSize,
+          quality: 'hd',
+          // "vivid" is the default and it embellishes - it will add drama,
+          // colour and detail nobody asked for. Natural renders what was
+          // actually described.
+          style: 'natural',
         });
       } catch (e3) {
-        console.warn('[image] dall-e-3 failed:', e3.message, '— trying dall-e-2');
-        // Final fallback to dall-e-2
-        const safeSize2 = ['256x256','512x512','1024x1024'].includes(targetSize) ? targetSize : '1024x1024';
-        result = await openai.images.generate({
-          model: 'dall-e-2',
-          prompt: safePrompt,
-          n: 1,
-          size: safeSize2,
-          response_format: 'url',
-        });
+        // No fall back to dall-e-2. It is two generations behind and renders
+        // melted faces, broken hands and mangled text - which is exactly what
+        // "the picture came out weird" described. A picture nobody would keep
+        // is worse than no picture, so the attempt is refunded and the reason
+        // is said plainly instead.
+        console.warn('[image] dall-e-3 failed:', e3.message);
+        refundImage();
+        const why = /content.?policy|safety|rejected/i.test(e3.message || '')
+          ? 'That one was refused by the image service. Try describing it differently.'
+          : 'The image service would not answer just then. Try again in a moment.';
+        return res.status(502).json({ error: why });
       }
     }
 

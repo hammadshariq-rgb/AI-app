@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.3.78",
+  "version": "1.3.79",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.hammadshariq.yourpersonalai",
-    "productName": "Callisto",
+    "productName": "Callisto AI",
     "copyright": "Copyright © 2025 Hammad Shariq",
     "publish": [
       {
@@ -49,7 +49,7 @@
       }
     ],
     "win": {
-      "artifactName": "Callisto-Setup-${version}.${ext}",
+      "artifactName": "Callisto-AI-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -63,7 +63,7 @@
       "publisherName": "Hammad Shariq"
     },
     "mac": {
-      "artifactName": "Callisto-${version}-${arch}.${ext}",
+      "artifactName": "Callisto-AI-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -100,7 +100,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Callisto",
+      "shortcutName": "Callisto AI",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"
     },

@@ -312,7 +312,7 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          prompt: { type: 'string', description: 'A detailed description of the image to generate. Be specific about style, colours, subject, and mood.' },
+          prompt: { type: 'string', description: 'A DETAILED description of the picture. The result is only as good as this: "a cat" produces something strange and generic, a full description produces a picture worth keeping. ALWAYS expand what the user said into at least 25 words covering, in this order: the subject and what it is doing, the setting around it, the lighting, the mood, the style (photograph, oil painting, watercolour, 3D render, flat illustration), and the framing (close-up, wide shot, from above). For example "make me a picture of a cat" becomes "a ginger tabby cat curled asleep on a windowsill, soft afternoon sunlight falling across its fur, a quiet room behind it, warm and still, photographed with a shallow depth of field, close-up". Keep every specific thing the user asked for exactly as they said it, and never pass their words through unchanged.' },
           size: { type: 'string', enum: ['1024x1024', '1792x1024', '1024x1792'], description: 'Image size. Use 1792x1024 for wide/landscape, 1024x1792 for tall/portrait, 1024x1024 for square.' },
         },
         required: ['prompt'],
