@@ -393,6 +393,62 @@
       border: 1px solid rgba(255,255,255,0.2);
     }
 
+
+    /* ===== REVIEWS ===== */
+    /* The cards drift past on their own and stop when a cursor lands on them,
+       so a wall of them reads as a glance rather than as homework. */
+    #reviews { position: relative; overflow: hidden; }
+    .rv-marquee { display: flex; gap: 14px; overflow: hidden; padding: 6px 0; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+    .rv-track { display: flex; gap: 14px; flex-shrink: 0; animation: rvScroll 48s linear infinite; }
+    .rv-marquee:hover .rv-track { animation-play-state: paused; }
+    @keyframes rvScroll { from { transform: translateX(0); } to { transform: translateX(calc(-100% - 14px)); } }
+    @media (prefers-reduced-motion: reduce) { .rv-track { animation: none; } .rv-marquee { overflow-x: auto; } }
+    .rv-card {
+      width: 290px; flex: none; padding: 18px 20px; border-radius: 18px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.09);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .rv-top { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
+    .rv-ini {
+      width: 38px; height: 38px; border-radius: 50%; flex: none;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: #fff;
+      background: linear-gradient(135deg, var(--orb), var(--cyan));
+    }
+    .rv-name { font-weight: 600; font-size: 14px; color: var(--text); }
+    .rv-when { font-size: 11px; color: var(--text2); }
+    .rv-text { font-size: 13.5px; line-height: 1.55; color: var(--text); opacity: 0.88; margin-bottom: 10px; }
+    .rv-stars { font-size: 13px; letter-spacing: 2px; color: #ffd43b; }
+    .rv-form {
+      max-width: 620px; margin: 30px auto 0; display: grid; gap: 11px;
+      background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px; padding: 22px;
+    }
+    .rv-row { display: flex; gap: 11px; flex-wrap: wrap; }
+    .rv-form input, .rv-form textarea {
+      width: 100%; background: rgba(255,255,255,0.05); color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 11px;
+      padding: 11px 13px; font-family: inherit; font-size: 14px;
+    }
+    .rv-form textarea { resize: vertical; min-height: 92px; }
+    .rv-form input:focus, .rv-form textarea:focus { outline: none; border-color: var(--accent); }
+    .rv-pick { display: flex; align-items: center; gap: 7px; }
+    .rv-pick button {
+      background: none; border: none; cursor: pointer; padding: 0;
+      font-size: 22px; line-height: 1; color: rgba(255,255,255,0.22);
+    }
+    .rv-pick button.on { color: #ffd43b; }
+    .rv-send {
+      justify-self: start; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--orb), var(--accent)); color: #fff;
+      font-family: inherit; font-weight: 600; font-size: 14px;
+      padding: 11px 26px; border-radius: 999px;
+    }
+    .rv-send:disabled { opacity: 0.55; cursor: default; }
+    .rv-note { font-size: 12px; color: var(--text2); min-height: 16px; }
+    @media (max-width: 640px) { .rv-card { width: 240px; } }
     /* ═══ AURORA PRICING ═══ */
     #pricing { position: relative; }
 
@@ -1806,6 +1862,29 @@
 
   <!-- DOWNLOAD -->
   <div class="glow-div"></div>
+  <!-- ===== REVIEWS ===== -->
+  <div class="section" id="reviews">
+    <h2 class="sec-title">What people say</h2>
+    <div class="rv-marquee" id="rvMarquee"><div class="rv-track" id="rvTrack"></div></div>
+
+    <form class="rv-form" id="rvForm" autocomplete="off">
+      <div class="rv-row">
+        <input id="rvName" name="name" placeholder="Your name" maxlength="40" required style="flex:1;min-width:200px" />
+        <div class="rv-pick" id="rvStars" aria-label="Your rating">
+          <button type="button" data-n="1">&#9733;</button>
+          <button type="button" data-n="2">&#9733;</button>
+          <button type="button" data-n="3">&#9733;</button>
+          <button type="button" data-n="4">&#9733;</button>
+          <button type="button" data-n="5">&#9733;</button>
+        </div>
+      </div>
+      <textarea id="rvText" name="text" placeholder="What has Callisto done for you?" maxlength="400" required></textarea>
+      <button class="rv-send" type="submit" id="rvSend">Post review</button>
+      <div class="rv-note" id="rvNote"></div>
+    </form>
+  </div>
+
+
   <div class="section" id="downloadSec" style="text-align:center">
     <div class="sec-eyebrow">DOWNLOAD</div>
     <h2 class="sec-title">Get the full experience</h2>
@@ -4009,5 +4088,97 @@
     });
   })();
 </script>
+
+  <script>
+  // Reviews: read from the server, written back to it, so everyone sees the
+  // same wall rather than whatever this browser happens to remember.
+  (function () {
+    const track = document.getElementById('rvTrack');
+    const form  = document.getElementById('rvForm');
+    if (!track || !form) return;
+    const API = 'https://ai-app-production-9224.up.railway.app';
+    let rating = 5;
+
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function when(iso) {
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+      if (days < 1) return 'today';
+      if (days === 1) return 'yesterday';
+      if (days < 30) return days + ' days ago';
+      return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+
+    function card(r) {
+      const initial = (r.name || '?').trim().charAt(0).toUpperCase();
+      const stars = '&#9733;'.repeat(Math.max(1, Math.min(5, r.rating || 5)));
+      return '<div class="rv-card">'
+        + '<div class="rv-top"><span class="rv-ini">' + esc(initial) + '</span>'
+        + '<span><span class="rv-name">' + esc(r.name) + '</span><br>'
+        + '<span class="rv-when">' + esc(when(r.createdAt)) + '</span></span></div>'
+        + '<div class="rv-text">' + esc(r.text) + '</div>'
+        + '<div class="rv-stars">' + stars + '</div></div>';
+    }
+
+    async function load() {
+      let list = [];
+      try {
+        const res = await fetch(API + '/reviews');
+        const data = await res.json();
+        list = (data && data.reviews) || [];
+      } catch (_) {}
+      if (!list.length) { document.getElementById('rvMarquee').style.display = 'none'; return; }
+      document.getElementById('rvMarquee').style.display = '';
+      // Twice through, so the loop has something to scroll into.
+      const html = list.map(card).join('');
+      track.innerHTML = html + html;
+    }
+
+    document.getElementById('rvStars').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-n]');
+      if (!b) return;
+      rating = Number(b.dataset.n);
+      [...e.currentTarget.querySelectorAll('button')].forEach((x) =>
+        x.classList.toggle('on', Number(x.dataset.n) <= rating));
+    });
+    document.querySelectorAll('#rvStars button').forEach((x) =>
+      x.classList.toggle('on', Number(x.dataset.n) <= rating));
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const note = document.getElementById('rvNote');
+      const send = document.getElementById('rvSend');
+      const name = document.getElementById('rvName').value.trim();
+      const text = document.getElementById('rvText').value.trim();
+      if (!name || text.length < 4) { note.textContent = 'A name and a few words, please.'; return; }
+      send.disabled = true; note.textContent = 'Posting...';
+      try {
+        const res = await fetch(API + '/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, text: text, rating: rating }),
+        });
+        const data = await res.json();
+        if (data && data.ok) {
+          note.textContent = 'Thank you.';
+          form.reset();
+          rating = 5;
+          document.querySelectorAll('#rvStars button').forEach((x) => x.classList.add('on'));
+          load();
+        } else {
+          note.textContent = (data && data.error) || 'That did not go through.';
+        }
+      } catch (_) {
+        note.textContent = 'That did not go through.';
+      }
+      send.disabled = false;
+    });
+
+    load();
+  })();
+  </script>
 </body>
 </html>

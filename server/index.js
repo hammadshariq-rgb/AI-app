@@ -254,6 +254,29 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── Reviews on the website ────────────────────────────────────────────────────
+const reviews = require('./reviews');
+
+app.get('/reviews', async (req, res) => {
+  try {
+    res.json({ ok: true, reviews: await reviews.list(req.query.limit) });
+  } catch (err) {
+    // An empty list is a quiet page; an error here would break the whole
+    // section for everyone over one bad connection.
+    res.json({ ok: true, reviews: [] });
+  }
+});
+
+app.post('/reviews', async (req, res) => {
+  try {
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+    const r = await reviews.add({ ...(req.body || {}), ip });
+    res.status(r.ok ? 200 : 400).json(r);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: 'Could not save that just now.' });
+  }
+});
+
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 
