@@ -6430,20 +6430,6 @@ if (window.jarvis.onSentenceText) {
   });
 })();
 
-// ── Auto-updater notifications ────────────────────────────────────────────────
-// An update is never urgent. It downloads in the background and installs when
-// Callisto is closed anyway, so the most these should do is mention it - and
-// the download notice takes itself away rather than sitting there.
-function _updateBanner(html, cls) {
-  document.getElementById('updateBanner')?.remove();
-  const banner = document.createElement('div');
-  banner.id = 'updateBanner';
-  if (cls) banner.className = cls;
-  banner.innerHTML = html + '<button class="ub-x" aria-label="Dismiss">\u2715</button>';
-  document.body.appendChild(banner);
-  banner.querySelector('.ub-x').addEventListener('click', () => banner.remove());
-  return banner;
-}
 
 // The banners that used to live here are gone. Between them and the button
 // in the corner, one update announced itself three times - once while
