@@ -152,6 +152,9 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const users = require('./users');
+// Welcome and purchase letters. Safe to require unconditionally: with no
+// MAIL_USER/MAIL_PASS set every send is a logged no-op.
+const mail = require('./mail');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -226,9 +229,19 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
       console.log('Checkout completed. customer:', session.customer, 'email:', session.customer_email);
       const sub = await stripe.subscriptions.retrieve(session.subscription);
       console.log('Subscription status:', sub.status);
-      let user = await users.findByStripeCustomer(session.customer);
+
+      // Which account just paid, most reliable first. The account id travels
+      // with the payment as client_reference_id (both the website's Stripe
+      // links and our own checkout set it), so it survives someone typing a
+      // different address into Stripe than the one they signed up with -
+      // which is the usual reason a purchase appears to vanish.
+      const refId = session.client_reference_id || session.metadata?.userId || '';
+      let user = null;
+      if (refId) user = await users.findById(refId).catch(() => null);
+      if (!user) user = await users.findByStripeCustomer(session.customer);
       if (!user && session.customer_email) user = await users.findByEmail(session.customer_email);
-      console.log('User found:', user ? user.email : 'NOT FOUND');
+      if (!user && session.customer_details?.email) user = await users.findByEmail(session.customer_details.email);
+      console.log('User found:', user ? user.email : 'NOT FOUND', refId ? `(ref ${refId})` : '(no ref)');
       if (user) {
         await users.update(user.id, {
           stripeCustomerId: session.customer,
@@ -236,8 +249,21 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
           subscriptionStatus: sub.status === 'active' ? 'active' : 'inactive',
         });
         console.log('User subscription updated to:', sub.status);
+        if (sub.status === 'active') {
+          // Monthly or yearly, read off what they actually bought rather than
+          // guessed, so the letter names the right price.
+          const interval = sub.items?.data?.[0]?.price?.recurring?.interval;
+          mail.sendPurchase({
+            email: user.email,
+            name: user.name,
+            plan: interval === 'year' ? 'annual' : 'monthly',
+          }).catch(() => {});
+        }
       } else {
-        console.log('WARNING: Could not find user for email:', session.customer_email);
+        // Worth shouting about: money has changed hands and we cannot say
+        // whose account it belongs to.
+        console.error('WARNING: paid checkout with no matching account. ref:', refId,
+          'customer:', session.customer, 'email:', session.customer_email || session.customer_details?.email);
       }
       break;
     }
@@ -388,6 +414,9 @@ app.post('/auth/signup', authLimiter, async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const isFreeUser = isAlwaysFree(email);
   const user = await users.create({ email, passwordHash, name: name || '', ...(isFreeUser ? { freeAccess: true } : {}) });
+  // Not awaited: a slow or misconfigured mailbox must not hold up the signup
+  // that just succeeded.
+  mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
   res.json({ token: makeToken(user), user: safeUser(user) });
 });
 
@@ -484,6 +513,9 @@ app.get('/auth/google/callback', async (req, res) => {
     if (!user) {
       const isFreeUser = isAlwaysFree(info.email);
       user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture, ...(isFreeUser ? { freeAccess: true } : {}) });
+      // Only on the sign-in that creates the account - signing in with Google
+      // again must not post the same letter every time.
+      mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
     } else if (!user.googleId) {
       await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
       user = await users.findById(user.id);
@@ -1035,24 +1067,43 @@ app.get('/checkout', async (req, res) => {
     priceId = process.env.STRIPE_PRICE_ID_ANNUAL;
   }
 
-  let customerEmail;
-  let stripeCustomerId;
+  // Nobody pays without an account to put it on. A subscription bought by an
+  // anonymous visitor has nothing to attach to: they come back, sign in, and
+  // find themselves still on the free plan having been charged - which is the
+  // one failure here that costs someone money. So the account comes first.
+  let payer = null;
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      const user = await users.findById(decoded.id);
-      if (user) {
-        customerEmail = user.email;
-        stripeCustomerId = user.stripeCustomerId || undefined;
-      }
+      payer = await users.findById(decoded.id);
     } catch (_) {}
   }
+  if (!payer) {
+    return res.status(401).send(`<!doctype html><meta charset="utf-8">
+      <title>Sign in first - Callisto AI</title>
+      <body style="margin:0;background:#05070f;color:#c9d6ff;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;display:grid;place-items:center;height:100vh;text-align:center">
+        <div style="max-width:380px;padding:24px">
+          <h1 style="font-size:21px;margin:0 0 10px;color:#eef3ff">Sign in first</h1>
+          <p style="font-size:14.5px;line-height:1.6;opacity:.8;margin:0 0 20px">
+            Premium is attached to a Callisto AI account, so you need to be signed in before you buy -
+            otherwise there is nowhere to put it.
+          </p>
+          <a href="${PUBLIC_URL}/account" style="display:inline-block;background:#3d5cff;color:#fff;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600;font-size:14px">Sign in</a>
+        </div>
+      </body>`);
+  }
+  const stripeCustomerId = payer.stripeCustomerId || undefined;
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       customer: stripeCustomerId,
-      customer_email: stripeCustomerId ? undefined : customerEmail,
+      customer_email: stripeCustomerId ? undefined : payer.email,
+      // Both of these ride along to the webhook, which uses them to find the
+      // account even if a different address is typed into Stripe.
+      client_reference_id: String(payer.id),
+      metadata: { userId: String(payer.id), plan: plan === 'annual' ? 'annual' : 'monthly' },
+      subscription_data: { metadata: { userId: String(payer.id) } },
       success_url: `${PUBLIC_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${PUBLIC_URL}/account`,
     });
@@ -1549,6 +1600,44 @@ async function checkDailyLimit(req, res, next) {
   }
 }
 
+// The same fifteen a day, for the desktop app.
+//
+// A "message" is one thing the person asked for, not one call to this server:
+// answering "what's the weather in Lisbon" can take a tool call and then a
+// stream, and charging that as two would mean the fifteen runs out at seven.
+// So the app marks the first call of each turn with `x-callisto-turn: 1` and
+// only that call is counted, while the *check* runs on every call - somebody
+// who is out of messages is stopped at whichever route they reach first.
+//
+// A build old enough not to send the header is not counted at all. That is
+// deliberate: those builds have never been limited, and silently charging them
+// mid-conversation would look like a fault rather than a plan.
+async function appMessageLimit(req, res, next) {
+  try {
+    if (!req.userId) return next();
+    const user = await users.findById(req.userId);
+    if (!user) return next();
+    if (user.freeAccess === true || user.subscriptionStatus === 'active' || isAlwaysFree(user.email)) return next();
+
+    const today = new Date().toISOString().slice(0, 10);
+    const count = user.msgCountDate === today ? (user.msgCount || 0) : 0;
+    if (count >= FREE_DAILY_LIMIT) {
+      return res.status(429).json({
+        error: 'daily_limit_reached',
+        limit: FREE_DAILY_LIMIT,
+        used: count,
+        upgrade: true,
+      });
+    }
+    if (req.headers['x-callisto-turn'] === '1') {
+      await users.update(user.id, { msgCount: count + 1, msgCountDate: today });
+    }
+    next();
+  } catch (_) {
+    next();   // never let a counting problem cost somebody their answer
+  }
+}
+
 // ── Guest voice endpoint — no auth, full Whisper STT → GPT → fable TTS ──────
 // ── Live stock / crypto quotes for the website (same data as the desktop app) ──
 const _stockCache = new Map();   // symbol -> { at, card }
@@ -1826,11 +1915,10 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
       }
     }
 
-    // Update message count (logged-in free users only)
-    if (!isActive && req.userId && user) {
-      const newCount = (user?.msgCountDate === today ? (user?.msgCount || 0) : 0) + 1;
-      await users.updateById(req.userId, { msgCount: newCount, msgCountDate: today });
-    }
+    // The count was already taken by checkGuestOrUserLimit before this handler
+    // ran. Counting again here charged website visitors twice - and called
+    // users.updateById, which does not exist, so the second count threw and was
+    // swallowed by the catch below after the reply had already been streamed.
 
     res.write(`data: ${JSON.stringify({ done: true, remaining, isPremium: isActive })}\n\n`);
     res.end();
@@ -1854,7 +1942,7 @@ app.get('/web/usage', authMiddleware, async (req, res) => {
 });
 
 // Chat completion (non-streaming, used for tool calls)
-app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
     const params = { model: model || 'gpt-4.1-mini', messages, max_tokens: max_tokens || 512, temperature: temperature ?? 0.2, top_p: 0.9 };
@@ -1867,7 +1955,7 @@ app.post('/ai/chat', authMiddleware, aiLimiter, async (req, res) => {
 });
 
 // Chat streaming (SSE)
-app.post('/ai/chat/stream', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
     const { messages, model, max_tokens, temperature } = req.body;
     res.setHeader('Content-Type', 'text/event-stream');

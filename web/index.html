@@ -1024,16 +1024,37 @@
     #clickToSpeak { font-family:var(--brand); font-size:9px; letter-spacing:3px; color:rgba(80,120,255,0.45); margin-top:8px; text-align:center; }
 
     /* Limit modal */
-    #limitModal { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; }
-    .lim-card { width: 340px; background: rgba(8,12,28,0.98); border: 1px solid var(--border2); border-radius: 18px; padding: 30px 26px; text-align: center; animation: fadeUp 0.22s ease; }
-    .lim-icon { font-size: 42px; margin-bottom: 12px; }
-    .lim-title { font-family: var(--brand); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 7px; }
-    .lim-sub { font-size: 12.5px; color: var(--text2); line-height: 1.65; margin-bottom: 18px; }
-    .lim-btn { width: 100%; padding: 11px; border-radius: 9px; font-family: var(--body); font-size: 13px; font-weight: 700; cursor: pointer; border: none; margin-bottom: 7px; transition: opacity 0.18s; }
-    .lim-btn.mo { background: linear-gradient(135deg,#f59e0b,#d97706); color: #000; }
-    .lim-btn.yr { background: var(--accent); color: #fff; }
-    .lim-btn.cl { background: transparent; color: var(--text2); border: 1px solid var(--border2); font-size: 12px; }
-    .lim-btn:hover { opacity: 0.88; }
+    /* The limit card, built like the app's Get Premium card so the two read as
+       one product: a glow behind a bordered panel lit from inside, the plan
+       chosen rather than guessed at, and one gradient call to action. */
+    #limitModal { position: fixed; inset: 0; z-index: 500; background: rgba(2,5,14,0.78); backdrop-filter: blur(9px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    #limitModal.hidden { display: none; }
+    .lim-glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 60% 55% at 50% 8%, rgba(139,92,246,0.28), rgba(61,92,255,0.10) 45%, transparent 72%); }
+    .lim-card { position: relative; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; background: rgba(9,13,28,0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 26px 24px 18px; box-shadow: 0 -20px 80px -20px rgba(134,134,240,0.22) inset, 0 28px 80px rgba(0,0,0,0.6); }
+    .lim-eyebrow { font-family: var(--brand); font-size: 9.5px; letter-spacing: 3px; text-transform: uppercase; color: #a78bfa; }
+    .lim-title { font-family: var(--brand); font-size: 25px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.14; color: #eaf1ff; margin: 8px 0 7px; }
+    .lim-sub { font-size: 13px; color: rgba(176,198,240,0.72); line-height: 1.55; margin-bottom: 18px; }
+    .lim-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .lim-plan { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 13px 14px 12px; border-radius: 13px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; text-align: left; font-family: var(--body); transition: border-color .18s ease, background .18s ease; }
+    .lim-plan:hover { background: rgba(255,255,255,0.05); }
+    .lim-plan[aria-pressed="true"] { border-color: rgba(139,92,246,0.65); background: linear-gradient(160deg, rgba(139,92,246,0.16), rgba(61,92,255,0.09)); box-shadow: 0 0 0 1px rgba(139,92,246,0.3), 0 8px 26px rgba(80,70,220,0.22); }
+    .lim-plan-name { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(170,195,240,0.6); }
+    .lim-plan-price { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; color: #eaf1ff; white-space: nowrap; }
+    .lim-plan-price .per { font-size: 12px; font-weight: 500; margin-left: 1px; color: rgba(170,195,240,0.62); }
+    .lim-plan-note { font-size: 11.5px; color: rgba(110,220,150,0.85); }
+    .lim-tag { position: absolute; top: -8px; right: 10px; padding: 2px 8px; border-radius: 999px; font-family: var(--brand); font-size: 8px; letter-spacing: 1.4px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg,#8b5cf6,#3d5cff); }
+    .lim-feat-head { font-family: var(--brand); font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(140,170,220,0.5); margin-bottom: 9px; }
+    .lim-feats { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; }
+    .lim-feats li { display: flex; align-items: flex-start; gap: 7px; font-size: 12.5px; line-height: 1.35; color: rgba(198,216,248,0.86); }
+    .lim-feats svg { flex: none; width: 15px; height: 15px; margin-top: 1px; color: #a78bfa; }
+    .lim-cta { display: block; width: 100%; padding: 13px 18px; border: none; border-radius: 11px; font-family: var(--body); font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; background: linear-gradient(135deg,#8b5cf6,#3d5cff); box-shadow: 0 0 0 2px rgba(10,14,30,1), 0 0 0 3px rgba(139,92,246,0.45), 0 10px 30px rgba(80,70,220,0.34); transition: transform .16s ease, box-shadow .2s ease; }
+    .lim-cta:hover { transform: scale(1.015); box-shadow: 0 0 0 2px rgba(10,14,30,1), 0 0 0 3px rgba(139,92,246,0.72), 0 12px 36px rgba(80,70,220,0.46); }
+    .lim-cta:active { transform: scale(0.985); }
+    .lim-dismiss { display: block; width: 100%; margin-top: 2px; padding: 9px; background: none; border: none; cursor: pointer; font-family: var(--body); font-size: 12.5px; font-weight: 600; color: rgba(150,175,220,0.5); }
+    .lim-dismiss:hover { color: rgba(195,218,255,0.85); }
+    .lim-note { font-size: 11.5px; line-height: 1.5; text-align: center; color: rgba(130,160,210,0.45); margin-top: 4px; }
+    @media (prefers-reduced-motion: reduce) { .lim-plan, .lim-cta { transition: none; } .lim-cta:hover, .lim-cta:active { transform: none; } }
+    @media (max-width: 430px) { .lim-plans, .lim-feats { grid-template-columns: 1fr; } }
 
     /* Premium success modal */
     #premModal { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; }
@@ -2390,14 +2411,43 @@
 
 
 <!-- LIMIT MODAL -->
-<div id="limitModal" class="hidden">
+<div id="limitModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="limTitle">
+  <div class="lim-glow" aria-hidden="true"></div>
   <div class="lim-card">
-    <div class="lim-icon">🚀</div>
-    <div class="lim-title">Daily limit reached</div>
-    <div class="lim-sub">You've used your 15 free messages. Upgrade for unlimited access.</div>
-    <button class="lim-btn mo" id="limMo">⭐ Monthly — CA$20/mo</button>
-    <button class="lim-btn yr" id="limYr">⭐ Yearly — CA$200/yr</button>
-    <button class="lim-btn cl" id="limCl">Maybe tomorrow</button>
+    <div class="lim-eyebrow">Pricing</div>
+    <h2 class="lim-title" id="limTitle">Get Premium Callisto AI</h2>
+    <p class="lim-sub">You&#39;ve used your 15 free messages for today. Premium removes the limit.</p>
+    <div class="lim-plans" role="group" aria-label="Choose a plan">
+      <button type="button" class="lim-plan" id="limPlanMo" data-plan="monthly" aria-pressed="true">
+        <span class="lim-tag">Popular</span>
+        <span class="lim-plan-name">Premium</span>
+        <span class="lim-plan-price">CA$20<span class="per">/mo</span></span>
+        <span class="lim-plan-note">&nbsp;</span>
+      </button>
+      <button type="button" class="lim-plan" id="limPlanYr" data-plan="annual" aria-pressed="false">
+        <span class="lim-plan-name">Yearly</span>
+        <span class="lim-plan-price">CA$200<span class="per">/yr</span></span>
+        <span class="lim-plan-note">Save CA$40</span>
+      </button>
+    </div>
+    <div class="lim-feat-head">Features</div>
+    <ul class="lim-feats">
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Unlimited messages</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Voice control</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Memory &amp; contacts</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Calendar sync</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Document creation</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Music control</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Vision</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Edit</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>3D Studio &mdash; 4 a day</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>AI video &mdash; 5 a day</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Post to socials</li>
+      <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Artifacts gallery</li>
+    </ul>
+    <button type="button" class="lim-cta" id="limBuy">Get Premium &mdash; CA$20/mo</button>
+    <button type="button" class="lim-dismiss" id="limCl">Maybe tomorrow</button>
+    <div class="lim-note">Premium is added to the account you are signed in with.</div>
   </div>
 </div>
 
@@ -2760,7 +2810,26 @@
   });
 
   // Stripe
-  const goStripe = url => { window.location.href = url + (user ? '?client_reference_id='+user.id : ''); };
+  // Premium is attached to an account, so a purchase needs one to land on.
+  // Sending a signed-out visitor to Stripe means they pay and then come back to
+  // find themselves still on the free plan, with no record tying the two
+  // together - so the sign-in box comes first and the purchase resumes after it.
+  let pendingBuy = null;
+  const goStripe = url => {
+    if (!user || !user.id) { pendingBuy = url; showAuthForced(); return; }
+    // The account id rides along to Stripe and comes back on the webhook, which
+    // is how the subscription finds this account even if a different address is
+    // typed into the payment form.
+    window.location.href = url + '?client_reference_id=' + encodeURIComponent(user.id);
+  };
+  // Called once signing in has set `user`. Returns true if it took over.
+  function resumeBuy() {
+    if (!pendingBuy || !user || !user.id) return false;
+    const url = pendingBuy;
+    pendingBuy = null;
+    window.location.href = url + '?client_reference_id=' + encodeURIComponent(user.id);
+    return true;
+  }
 
   // Premium dropdown
   document.getElementById('premBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('premiumDrop').classList.toggle('hidden');});
@@ -2776,8 +2845,20 @@
   document.getElementById('cnDropMo')?.addEventListener('click',()=>goStripe(STRIPE_MO));
   document.getElementById('cnDropYr')?.addEventListener('click',()=>goStripe(STRIPE_YR));
   document.getElementById('sbUpgrade')?.addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('limMo')?.addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('limYr')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  // The limit card picks a plan first, so the button can say what pressing it
+  // does instead of asking twice.
+  function limSetPlan(annual){
+    document.getElementById('limPlanMo')?.setAttribute('aria-pressed', annual?'false':'true');
+    document.getElementById('limPlanYr')?.setAttribute('aria-pressed', annual?'true':'false');
+    const cta=document.getElementById('limBuy');
+    if(cta) cta.textContent = annual ? 'Get Yearly — CA$200/yr' : 'Get Premium — CA$20/mo';
+  }
+  document.getElementById('limPlanMo')?.addEventListener('click',()=>limSetPlan(false));
+  document.getElementById('limPlanYr')?.addEventListener('click',()=>limSetPlan(true));
+  document.getElementById('limBuy')?.addEventListener('click',()=>{
+    const annual=document.getElementById('limPlanYr')?.getAttribute('aria-pressed')==='true';
+    goStripe(annual?STRIPE_YR:STRIPE_MO);
+  });
   document.getElementById('limCl')?.addEventListener('click',()=>document.getElementById('limitModal').classList.add('hidden'));
   document.getElementById('premCont')?.addEventListener('click',()=>{document.getElementById('premModal').classList.add('hidden');loadUsage();});
 
@@ -3180,12 +3261,12 @@
   document.getElementById('loginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('lErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();openChat();}catch{err.textContent='Connection error.';}
+    try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
   });
   document.getElementById('signupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('sErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();openChat();}catch{err.textContent='Connection error.';}
+    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
   });
 
   // Open chat — works even if not signed in yet

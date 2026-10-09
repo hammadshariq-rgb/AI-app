@@ -2236,6 +2236,13 @@
               <div class="profile-section">
                 <div class="profile-label">SUBSCRIPTION</div>
                 <div id="profileSub" class="profile-value"></div>
+                <!-- Only for accounts that are not on Premium. Someone who
+                     wants to upgrade should not have to hit the daily limit
+                     first to find out how. -->
+                <div id="profileUpgrade" class="hidden">
+                  <button type="button" id="profileUpgradeBtn">GET PREMIUM CALLISTO AI</button>
+                  <div id="profileUsage"></div>
+                </div>
               </div>
               <div class="profile-section">
                 <div class="profile-label">MEMBER SINCE</div>
@@ -2987,6 +2994,61 @@
   <script src="draw-studio.js"></script>
   <script src="gestures.js"></script>
   <script src="news-stage.js"></script>
+  <!-- Five seconds, bottom left, then it goes and waits in Account. -->
+  <div id="updateToast" class="update-toast hidden" role="status">
+    <span class="update-toast-dot"></span>
+    <span class="update-toast-text">Update ready <strong id="updateToastVersion"></strong></span>
+    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Restart</span></button>
+  </div>
+
+  <!-- Get Premium. Opened when the day's free messages run out, and from the
+       Subscription row in Account. Prices and wording match the website's
+       pricing section exactly. -->
+  <div id="paywallModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
+    <div class="paywall-glow" aria-hidden="true"></div>
+    <div class="paywall-card">
+      <div class="paywall-eyebrow">Pricing</div>
+      <h2 class="paywall-title" id="paywallTitle">Get Premium Callisto AI</h2>
+      <p class="paywall-sub" id="paywallSub">Unlimited messages and every feature unlocked.</p>
+
+      <!-- Picking the plan here means the button below can say exactly what is
+           about to happen, instead of asking twice. -->
+      <div class="paywall-plans" role="group" aria-label="Choose a plan">
+        <button type="button" class="plan-row" id="planMo" data-plan="monthly" aria-pressed="true">
+          <span class="plan-tag">Popular</span>
+          <span class="plan-name">Premium</span>
+          <span class="plan-price">CA$20<span class="per">/mo</span></span>
+          <span class="plan-note">&nbsp;</span>
+        </button>
+        <button type="button" class="plan-row" id="planYr" data-plan="annual" aria-pressed="false">
+          <span class="plan-name">Yearly</span>
+          <span class="plan-price">CA$200<span class="per">/yr</span></span>
+          <span class="plan-note">Save CA$40</span>
+        </button>
+      </div>
+
+      <div class="paywall-feat-head">Features</div>
+      <ul class="paywall-feats">
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Unlimited messages</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Voice control</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Memory &amp; contacts</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Calendar sync</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Document creation</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Music control</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Vision</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Edit</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>3D Studio &mdash; 4 a day</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>AI video &mdash; 5 a day</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Post to socials</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Artifacts gallery</li>
+      </ul>
+
+      <button type="button" class="paywall-cta" id="paywallBuy">Get Premium &mdash; CA$20/mo</button>
+      <button type="button" class="paywall-close" id="paywallClose">Maybe tomorrow</button>
+      <div class="paywall-note">Checkout opens in your browser. Premium is added to the account you are signed in with.</div>
+    </div>
+  </div>
+
   <script src="renderer.js?v=76"></script>
   <script src="tour.js"></script>
   <script src="particles.js?v=4"></script>
@@ -4169,12 +4231,6 @@
 
   <!-- MediaPipe Hands (loaded async — only used when gesture mode is turned on) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous" defer></script>
-  <!-- Five seconds, bottom left, then it goes and waits in Account. -->
-  <div id="updateToast" class="update-toast hidden" role="status">
-    <span class="update-toast-dot"></span>
-    <span class="update-toast-text">Update ready <strong id="updateToastVersion"></strong></span>
-    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Restart</span></button>
-  </div>
 
 </body>
 </html>

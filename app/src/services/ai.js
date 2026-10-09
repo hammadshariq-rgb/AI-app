@@ -12,28 +12,54 @@ function getToken() {
   catch { return raw; }
 }
 
+// The free plan allows fifteen messages a day, and a message is one thing the
+// person asked for - not one call to this server. Answering "what's the weather
+// in Lisbon" takes a tool call and then an answer, and charging that as two
+// would mean fifteen ran out at seven. So the first chat call of each turn is
+// marked, and the server counts only the marked ones.
+let _turnPending = false;
+function beginTurn() { _turnPending = true; }
+
 // Proxy all AI requests through the license server — OpenAI key stays server-side.
 async function serverFetch(endpoint, body, { timeout = 45000, retries = 2, raw = false } = {}) {
   let lastErr;
+  const isChat = /^chat/.test(endpoint);
+  const turnMark = isChat && _turnPending ? '1' : '0';
   for (let attempt = 1; attempt <= retries; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` };
+      if (isChat) headers['x-callisto-turn'] = turnMark;
       const res = await fetch(`${SERVER()}/ai/${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers,
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
+      // The server has now seen this turn, so the rest of its calls are free.
+      // Cleared only once a reply actually came back - a request that never
+      // arrived must not spend the mark.
+      if (isChat && turnMark === '1') _turnPending = false;
       if (!res.ok) {
         const errText = await res.text().catch(() => res.statusText);
+        // Out of messages for today. Tagged rather than described, because the
+        // app answers this with the upgrade card, not with an apology - and
+        // retrying would only be refused again.
+        if (res.status === 429 && errText.includes('daily_limit_reached')) {
+          const limitErr = new Error('daily_limit_reached');
+          limitErr.limitReached = true;
+          try { limitErr.detail = JSON.parse(errText); } catch (_) { limitErr.detail = {}; }
+          throw limitErr;
+        }
         throw new Error(`Server ${res.status}: ${errText}`);
       }
       return res;
     } catch (err) {
       clearTimeout(timer);
       lastErr = err;
+      if (err.limitReached) break;
       const retriable = err.name === 'AbortError' ||
         (err.message && (err.message.includes('Premature close') || err.message.includes('ECONNRESET') || err.message.includes('socket hang up')));
       if (retriable && attempt < retries) {
@@ -1280,6 +1306,7 @@ function mapToolCall(fnName, args) {
 }
 
 async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, userLocation = null, fast = false }) {
+  beginTurn();
   const local = tryLocalCommand(message);
   if (local) return { ...local, memory: null };
 
@@ -1384,6 +1411,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 
 // Stream response sentence-by-sentence via SSE
 async function respondStreaming({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', onSentence, attachments = [], skipToolFallback = false, userName = null, userTitle = null, userLocation = null }) {
+  beginTurn();
   const local = tryLocalCommand(message);
   if (local) { if (onSentence) onSentence(local.text); return { ...local, memory: null }; }
 

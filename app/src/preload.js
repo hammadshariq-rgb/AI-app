@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   openGoogleUrl: (url) => ipcRenderer.invoke('google:openUrl', url),
   placesNearby: (query, lat, lng, city) => ipcRenderer.invoke('places:nearby', { query, lat, lng, city }),
   openCheckout: (plan) => ipcRenderer.invoke('jarvis:openCheckout', plan),
+  getUsage: () => ipcRenderer.invoke('jarvis:usage'),
   connectorStatus: () => ipcRenderer.invoke('connector:status'),
   connectorConnect: (service) => ipcRenderer.invoke('connector:connect', service),
   connectorDisconnect: (service) => ipcRenderer.invoke('connector:disconnect', service),

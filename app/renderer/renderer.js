@@ -5607,6 +5607,10 @@ async function sendToJarvis(text) {
   if (!res || res.error) {
     if (res?.error === 'login_required') {
       addMessage('assistant', 'Session expired — please log in again.');
+    } else if (res?.error === 'daily_limit_reached') {
+      // Not an apology: there is nothing wrong, they have used today's fifteen.
+      addMessage('assistant', res.userMsg || "You've used your 15 free messages for today.");
+      showPaywall({ limit: res.limit || 15, reason: 'limit' });
     } else if (res?.userMsg) {
       // Structured error from classifyAIError — message already spoken via TTS in main.js
       addMessage('assistant', res.userMsg);
@@ -9088,12 +9092,26 @@ async function loadSettingsPane() {
   }
 
   const subEl = document.getElementById('profileSub');
+  const upgradeBox = document.getElementById('profileUpgrade');
   if (isActive) {
     subEl.textContent = '✓ ACTIVE — CA$20/month';
     subEl.className = 'profile-value profile-sub-active';
+    upgradeBox?.classList.add('hidden');
   } else {
     subEl.textContent = '✗ NOT SUBSCRIBED';
     subEl.className = 'profile-value profile-sub-inactive';
+    // A way to upgrade that does not require hitting the daily limit first.
+    upgradeBox?.classList.remove('hidden');
+    const usageEl = document.getElementById('profileUsage');
+    if (usageEl) {
+      usageEl.textContent = '';
+      window.jarvis?.getUsage?.().then(function (u) {
+        if (!u || !u.ok || u.isPremium) return;
+        const limit = u.limit || 15;
+        const left = Math.max(0, u.remaining == null ? limit - (u.used || 0) : u.remaining);
+        usageEl.textContent = left + ' of ' + limit + ' free messages left today';
+      }).catch(function () {});
+    }
   }
 
   // profileHistoryList removed from account pane — history lives in Chat History tab
@@ -11336,4 +11354,69 @@ if (window.jarvis.onMacNeedsAutomation) {
     })();
     return true;
   };
+})();
+
+
+// ===== GET PREMIUM =====
+// One card, opened from two places: the moment the day's fifteen free messages
+// run out, and the Subscription row in Account for anyone not on Premium. The
+// prices and the wording are the website's, so the two never disagree.
+function showPaywall(opts) {
+  const o = opts || {};
+  const modal = document.getElementById('paywallModal');
+  if (!modal) return;
+  const sub = document.getElementById('paywallSub');
+  if (sub) {
+    sub.textContent = o.reason === 'limit'
+      ? "You've used your " + (o.limit || 15) + ' free messages for today. Premium removes the limit.'
+      : 'Unlimited messages and every feature unlocked.';
+  }
+  _setPaywallPlan('monthly');
+  modal.classList.remove('hidden');
+}
+
+function hidePaywall() {
+  document.getElementById('paywallModal')?.classList.add('hidden');
+}
+
+// Keeping the choice on the button means it always says what pressing it does,
+// rather than sending someone to a checkout for the other plan.
+function _setPaywallPlan(plan) {
+  const annual = plan === 'annual';
+  document.getElementById('planMo')?.setAttribute('aria-pressed', annual ? 'false' : 'true');
+  document.getElementById('planYr')?.setAttribute('aria-pressed', annual ? 'true' : 'false');
+  const cta = document.getElementById('paywallBuy');
+  if (cta) {
+    cta.textContent = annual
+      ? 'Get Yearly — CA$200/yr'
+      : 'Get Premium — CA$20/mo';
+  }
+}
+
+// Whatever the card is actually showing as chosen.
+function _paywallPlan() {
+  return document.getElementById('planYr')?.getAttribute('aria-pressed') === 'true'
+    ? 'annual' : 'monthly';
+}
+
+(function wirePaywall() {
+  document.getElementById('planMo')?.addEventListener('click', function () { _setPaywallPlan('monthly'); });
+  document.getElementById('planYr')?.addEventListener('click', function () { _setPaywallPlan('annual'); });
+  document.getElementById('paywallBuy')?.addEventListener('click', function () {
+    hidePaywall();
+    // Opens in the browser, signed in as this account, so whatever is bought
+    // lands on it rather than on an anonymous Stripe customer.
+    window.jarvis?.openCheckout?.(_paywallPlan());
+  });
+  document.getElementById('paywallClose')?.addEventListener('click', hidePaywall);
+  // Clicking the dark area behind the card closes it; clicking the card does not.
+  document.getElementById('paywallModal')?.addEventListener('click', function (e) {
+    if (e.target && (e.target.id === 'paywallModal' || e.target.className === 'paywall-glow')) hidePaywall();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hidePaywall();
+  });
+  document.getElementById('profileUpgradeBtn')?.addEventListener('click', function () {
+    showPaywall({ reason: 'account' });
+  });
 })();

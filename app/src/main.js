@@ -1920,6 +1920,18 @@ function _sendTTS(sender, text) {
 
 function classifyAIError(err) {
   const msg = (err?.message || '').toLowerCase();
+  // Out of free messages for today. Checked before the general 429 below, which
+  // would otherwise turn this into "a temporary issue" - it is not temporary,
+  // and the answer to it is the upgrade card rather than "try again".
+  if (err?.limitReached || msg.includes('daily_limit_reached')) {
+    const d = err?.detail || {};
+    return {
+      error: 'daily_limit_reached',
+      limit: d.limit || 15,
+      used: d.used || d.limit || 15,
+      userMsg: `You've used your ${d.limit || 15} free messages for today.`,
+    };
+  }
   if (msg.includes('enotfound') || msg.includes('enetunreach') || msg.includes('econnrefused') || msg.includes('network') || msg.includes('dns')) {
     return { error: 'offline', userMsg: "I can't reach the internet right now. Check your connection and try again." };
   }
@@ -4014,6 +4026,25 @@ ipcMain.handle('jarvis:openInAppBrowser', (_e, url) => {
   });
   inAppBrowserWin.loadURL(url);
   inAppBrowserWin.on('closed', () => { inAppBrowserWin = null; });
+});
+
+// How many of today's free messages are left, for the Subscription row in
+// Account. Returns nulls rather than throwing when offline - the row simply
+// says nothing instead of showing a wrong number.
+ipcMain.handle('jarvis:usage', async () => {
+  try {
+    const token = loadAuthToken();
+    if (!token) return { ok: false };
+    const base = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+    const res = await require('node-fetch')(`${base}/web/usage`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { ok: false };
+    const d = await res.json();
+    return { ok: true, used: d.used, limit: d.limit, remaining: d.remaining, isPremium: !!d.isPremium };
+  } catch (_) {
+    return { ok: false };
+  }
 });
 
 ipcMain.handle('jarvis:openCheckout', (_e, plan) => {
