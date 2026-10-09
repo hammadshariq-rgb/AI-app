@@ -21,10 +21,20 @@ function fetch(url, opts = {}) {
 
 // ── In-memory cache — avoid repeat fetches for the same query within 60s ─────
 const _cache = new Map();
+// A hit is remembered; a miss is not. Caching a null meant one slow request
+// poisoned the next forty-five seconds: asking the gold price while the
+// network hiccuped returned nothing, and every retry inside the window
+// replayed that nothing without going to look. A failure gets a few seconds
+// of breathing room, enough to stop a hammering loop, and no more.
+const _MISS_TTL = 4000;
 function _cached(key, fn, ttlMs = 60000) {
   const hit = _cache.get(key);
-  if (hit && Date.now() - hit.ts < ttlMs) return Promise.resolve(hit.value);
-  return fn().then(v => { _cache.set(key, { value: v, ts: Date.now() }); return v; });
+  if (hit) {
+    const empty = hit.value === null || hit.value === undefined;
+    const age = Date.now() - hit.ts;
+    if (age < (empty ? _MISS_TTL : ttlMs)) return Promise.resolve(hit.value);
+  }
+  return fn().then((v) => { _cache.set(key, { value: v, ts: Date.now() }); return v; });
 }
 
 // ── Timed fetch helper ────────────────────────────────────────────────────────
@@ -1417,99 +1427,6 @@ const BROWSER_HEADERS = {
 const _SPORTS_TERMS = /\b((?<!\b(?:high|credit|test|exam|sat|ielts|gre|my|your)\s)scores?|scoreline|match|matches|fixtures?|vs\.?|versus|cricket|football|soccer|basketball|baseball|hockey|tennis|rugby|f1|formula.?1|nba|nfl|nhl|mlb|mls|ipl|psl|premier.?league|champions.?league|europa.?league|world.?cup|la.?liga|serie.?a|bundesliga|wicket|innings|odi|test.?match|t20|grand.?slam|motm|man of the match|full.?time|half.?time|kick.?off)\b/i;
 const SPORTS_REGEX = { test: (s) => _SPORTS_TERMS.test(s) && !/^\s*(?:remind|add|create|make|set|schedule|put|write|note|save|plan|book)\b/i.test(s) && !/\b(?:task|reminder|to-?do|calendar|meeting|appointment)\b/i.test(s) };
 
-// ESPN — search across recent dates for any sport/league
-async function espnFindMatch(query, sport, league) {
-  const vsMatch = query.match(/(.+?)\s+(?:vs?\.?|versus|against)\s+(.+)/i);
-  const words = vsMatch
-    ? [vsMatch[1].trim().toLowerCase(), vsMatch[2].trim().toLowerCase()]
-    : query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-
-  // Search today + past 21 days + next 7 days
-  const dates = [];
-  const today = new Date();
-  for (let i = -7; i <= 21; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10).replace(/-/g, ''));
-  }
-
-  for (const date of dates) {
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${date}`;
-      const res = await fetch(url, { timeout: 1500 });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const events = data?.events || [];
-
-      for (const ev of events) {
-        const comps = ev.competitions?.[0];
-        if (!comps) continue;
-        const teamNames = comps.competitors?.map(c => c.team.displayName.toLowerCase()) || [];
-        const matched = words.length >= 2
-          ? words.slice(0, 2).every(w => teamNames.some(t => t.includes(w.slice(0, 5)) || w.slice(0, 5).length > 2 && t.split(' ').some(p => w.includes(p.slice(0, 4)))))
-          : words.some(w => teamNames.some(t => t.includes(w.slice(0, 5))));
-        if (!matched) continue;
-
-        const completed = ev.status?.type?.completed === true;
-        const inProgress = ev.status?.type?.type === 'STATUS_IN_PROGRESS';
-        const scheduled = !completed && !inProgress;
-
-        const home = comps.competitors?.find(c => c.homeAway === 'home');
-        const away = comps.competitors?.find(c => c.homeAway === 'away');
-        const score1 = scheduled ? '–' : (home?.score ?? '?');
-        const score2 = scheduled ? '–' : (away?.score ?? '?');
-        const statusLabel = scheduled
-          ? `Upcoming — ${new Date(comps.date).toUTCString()}`
-          : inProgress ? 'LIVE' : 'Full Time';
-
-        // Fetch detailed summary for scorers + MOTM
-        let scorers = [];
-        let motm = null;
-        try {
-          const sumRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/summary?event=${ev.id}`, { timeout: 1500 });
-          if (sumRes.ok) {
-            const sum = await sumRes.json();
-            // Scoring plays
-            (sum.scoringPlays || []).forEach(p => {
-              const player = p.athletesInvolved?.[0]?.displayName || '';
-              const clock = p.clock?.displayValue || '';
-              const team = p.team?.displayName || '';
-              if (player) scorers.push({ team, detail: `${player} ${clock}`.trim() });
-            });
-            // MOTM / Player of the match
-            (sum.awards || []).forEach(a => {
-              if (/man.of.the.match|player.of.the.match|motm/i.test(a.name || '')) {
-                motm = a.winners?.[0]?.athlete?.displayName || a.winners?.[0]?.displayName || null;
-              }
-            });
-          }
-        } catch (_) {}
-
-        return {
-          type: 'sports',
-          team1: home?.team?.displayName || '',
-          score1: String(score1),
-          score2: String(score2),
-          team2: away?.team?.displayName || '',
-          logo1: home?.team?.logo || home?.team?.logos?.[0]?.href || home?.team?.logoDark || null,
-          logo2: away?.team?.logo || away?.team?.logos?.[0]?.href || away?.team?.logoDark || null,
-          league: data.leagues?.[0]?.name || league,
-          date: comps.date?.slice(0, 10) || '',
-          venue: comps.venue?.fullName || '',
-          status: statusLabel,
-          scorers,
-          motm,
-          headline: scheduled
-            ? `${home?.team?.displayName} vs ${away?.team?.displayName} — Not started yet`
-            : `${home?.team?.displayName} ${score1} - ${score2} ${away?.team?.displayName}`,
-          source: 'ESPN',
-          sourceUrl: `https://www.espn.com/${sport}/match?gameId=${ev.id}`,
-        };
-      }
-    } catch (_) { continue; }
-  }
-  return null;
-}
 
 // ESPN — search across all leagues, ±7 days of dates, international matches included
 async function espnSportsSearch(query) {
@@ -1605,33 +1522,52 @@ async function espnSportsSearch(query) {
     };
   }
 
-  for (const [sport, league] of leagues) {
-    // First try today's live scoreboard (fastest, no date param)
+  // Twenty-five leagues, each checked for today and then across fifteen
+  // separate dates, one request after another: up to four hundred sequential
+  // round trips. Portugal versus Norway is in the UEFA Nations League, ninth in
+  // the list, so it ground through about a hundred and thirty requests before
+  // reaching it - 32 seconds measured - while Spain versus Argentina came back
+  // in 168ms purely for sitting earlier in the list.
+  //
+  // ESPN accepts a month as well as a day: dates=202610 returns every fixture
+  // in October in one response. Fifteen date requests per league become two
+  // month requests, and every league is asked at once - three rounds at most.
+  const board = async (sport, league, when) => {
     try {
-      const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`, { signal: AbortSignal.timeout(4000) });
-      if (res.ok) {
-        const data = await res.json();
-        const leagueName = data.leagues?.[0]?.name;
-        for (const ev of (data.events || [])) {
-          const card = parseEvent(ev, sport, league, leagueName);
-          if (card) return card;
-        }
-      }
-    } catch (_) {}
+      const base = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
+      const res = await fetch(when ? `${base}?dates=${when}` : base, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return null;
+      return { sport, league, data: await res.json() };
+    } catch (_) { return null; }
+  };
 
-    // Then search ±7 days
-    for (const dateStr of dates) {
-      try {
-        const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${dateStr}`, { signal: AbortSignal.timeout(3000) });
-        if (!res.ok) continue;
-        const data = await res.json();
-        const leagueName = data.leagues?.[0]?.name;
-        for (const ev of (data.events || [])) {
-          const card = parseEvent(ev, sport, league, leagueName);
-          if (card) return card;
-        }
-      } catch (_) { continue; }
+  // A month holds dozens of fixtures and two sides can meet more than once, so
+  // the newest is the one meant by "Portugal versus Norway".
+  const scanPages = (pages) => {
+    for (const p of pages) {
+      if (!p || !p.data) continue;
+      const leagueName = p.data.leagues?.[0]?.name;
+      const events = [...(p.data.events || [])]
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      for (const ev of events) {
+        const card = parseEvent(ev, p.sport, p.league, leagueName);
+        if (card) return card;
+      }
     }
+    return null;
+  };
+
+  const ym = (offsetMonths) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + offsetMonths);
+    return String(d.getFullYear()) + String(d.getMonth() + 1).padStart(2, '0');
+  };
+
+  // Today first (catches anything live), then this month, then last month.
+  for (const when of [null, ym(0), ym(-1)]) {
+    const hit = scanPages(await Promise.all(leagues.map(([s, l]) => board(s, l, when))));
+    if (hit) return hit;
   }
   return null;
 }
