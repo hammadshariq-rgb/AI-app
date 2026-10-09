@@ -579,7 +579,12 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
     return { ok: true };
   } catch (err) {
     console.error('[capture:identify]', err.message);
-    sendToHud('hud:card', { type: 'info', text: 'Sorry, I couldn\'t identify that. ' + (err.message || '') });
+    // The reason goes to the log, not onto the screen - a fetch error names
+    // the server and the person can do nothing with it.
+    const _why = /ENOTFOUND|ENETUNREACH|ECONNREFUSED|getaddrinfo|FetchError|network|ETIMEDOUT/i.test(err.message || '')
+      ? "I can't connect to the internet right now."
+      : "Sorry, I couldn't identify that. Try again in a moment.";
+    sendToHud('hud:card', { type: 'info', text: _why });
     return { ok: false, error: err.message };
   }
 });
