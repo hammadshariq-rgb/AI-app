@@ -10566,11 +10566,18 @@ micBtn.addEventListener('click', () => {
       wrap.querySelector('.connector-pick-current strong').textContent = '@' + (current.username || current.igId);
     }
 
-    // Changing to an account this login cannot see means signing in again -
-    // a different Facebook account, or one with different Pages shared to it.
-    wrap.querySelector('#instagramChange').addEventListener('click', async () => {
+    // Reaching a different account means signing in again. It deliberately
+    // does NOT disconnect first: Facebook remembers who you are, so a
+    // disconnect-then-reconnect lands on "Continue as <you>" and puts the same
+    // account straight back - having thrown the working one away in between.
+    // The connection is only replaced once a new one actually succeeds.
+    wrap.querySelector('#instagramChange').addEventListener('click', () => {
+      addMessage('assistant',
+        'Opening Instagram sign-in. To use a different account, choose '
+        + '**Log into another account** on the Meta screen rather than Continue - '
+        + 'and that Instagram account has to be a Business or Creator account '
+        + 'with a Facebook Page.');
       try {
-        await window.jarvis.connectorDisconnect('instagram');
         if (typeof showConnectSteps === 'function') showConnectSteps('instagram');
         else document.getElementById('instagramBtn')?.click();
       } catch (_) {}
