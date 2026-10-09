@@ -1476,6 +1476,14 @@ async function respondStreaming({ message, history = [], assistantName, memories
       let buffer = '';
       let lineBuffer = '';
       const SENTENCE_END = /[.!?]+(\s|$)/;
+      // Every finished sentence used to go straight to speech. A short opener
+      // - "Yes, sir." - therefore became a clip of its own, with its own
+      // request, and the rest of the thought could not start until the next
+      // clip came back. That is the pause people hear as "yes... sir, how may
+      // I assist you today". Fragments wait and travel with the sentence
+      // after them, so a reply is spoken in whole breaths.
+      const MIN_SPOKEN = 45;
+      let pendingSpeech = '';
 
       try {
       for await (const rawChunk of res.body) {
@@ -1503,7 +1511,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
               const end = match.index + match[0].length;
               const sentence = buffer.slice(0, end).trim();
               buffer = buffer.slice(end);
-              if (sentence && onSentence) onSentence(sentence);
+              if (!sentence) continue;
+              const joined = (pendingSpeech ? pendingSpeech + ' ' : '') + sentence;
+              if (joined.length < MIN_SPOKEN) { pendingSpeech = joined; continue; }
+              pendingSpeech = '';
+              if (onSentence) onSentence(joined);
             }
           } catch {}
         }
@@ -1514,7 +1526,9 @@ async function respondStreaming({ message, history = [], assistantName, memories
         if (!fullText.trim()) throw err;
       }
 
-      const remaining = buffer.trim();
+      // Whatever is still held back is said now, joined to any tail.
+      const remaining = ((pendingSpeech ? pendingSpeech + ' ' : '') + buffer.trim()).trim();
+      pendingSpeech = '';
       if (remaining && onSentence) onSentence(remaining);
 
       const rememberMatch = fullText.match(/\[\[REMEMBER:\s*(.+?)\]\]/i);

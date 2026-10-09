@@ -2039,16 +2039,24 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
     const url = onYt
       ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
       : `https://www.google.com/search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`;
-    // Fire action AND TTS simultaneously — don't wait for one before the other
+    // Fire action AND TTS simultaneously — don't wait for one before the other.
+    // Say where it is going, not just that it is going: "Searching now" leaves
+    // somebody watching a browser appear without being told what opened it.
+    const _where = onYt ? 'YouTube' : 'Google';
+    const _said = q ? `Opening ${_where} search for ${q}.` : `Opening ${_where} search.`;
     commands.run('open_url', url).catch(() => {});
-    _sendTTS(_e.sender, 'Searching now.');
-    return { text: 'Searching now.', audio: null, card: null, hasAction: true };
+    _sendTTS(_e.sender, _said);
+    return { text: _said, audio: null, card: null, hasAction: true };
   }
   if (_urlM) {
     const url = _urlM[1].startsWith('http') ? _urlM[1] : `https://${_urlM[1]}`;
+    // Name the site rather than saying "Right away" to a blank screen.
+    let _host = '';
+    try { _host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
+    const _said2 = _host ? `Opening ${_host}.` : 'Right away.';
     commands.run('open_url', url).catch(() => {});
-    _sendTTS(_e.sender, 'Right away.');
-    return { text: 'Right away.', audio: null, card: null, hasAction: true };
+    _sendTTS(_e.sender, _said2);
+    return { text: _said2, audio: null, card: null, hasAction: true };
   }
   // "open my budget file", "open the essay document", "open resume.pdf" — a file,
   // found and opened (Finder/File Explorer's own search), not an app called "budget file".

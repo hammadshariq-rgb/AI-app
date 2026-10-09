@@ -400,7 +400,11 @@ async function wikiSearch(query) {
 async function getLatestNews(topic) {
   try {
     const query = encodeURIComponent(topic);
-    const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`, { timeout: 1500 });
+    // Six seconds, not 1.5. An RSS round trip rarely finished in time, the
+    // whole live-news path came back empty, and the model then answered from
+    // training data - which is how a story from last November was offered as
+    // "recent news". when:14d keeps the feed to the last fortnight.
+    const res = await fetch(`https://news.google.com/rss/search?q=${query}+when:14d&hl=en-US&gl=US&ceid=US:en`, { timeout: 6000 });
     const xml = await res.text();
     // Parse titles from RSS
     const titles = [];
@@ -414,7 +418,10 @@ async function getLatestNews(topic) {
         count++;
       }
     }
-    return titles.length > 0 ? `Latest news on "${topic}": ${titles.join(' | ')}` : null;
+    const fetchedOn = new Date().toISOString().slice(0, 10);
+    return titles.length > 0
+      ? `Latest news on "${topic}" (fetched ${fetchedOn}): ${titles.join(" | ")}`
+      : null;
   } catch (e) {
     return null;
   }
@@ -721,7 +728,15 @@ async function _fetchRealtimeContextInner(query) {
       ddgSearch(query),
     ]);
     const parts = [google, news, ddg].filter(Boolean);
-    return parts.length > 0 ? `REAL-TIME DATA:\n${parts.join('\n').slice(0, 900)}` : null;
+    if (parts.length > 0) return `REAL-TIME DATA:\n${parts.join('\n').slice(0, 900)}`;
+    // Nothing came back. Returning null here let the model answer from memory,
+    // and memory presented as today's news is worse than no answer: it is how
+    // an eleven-month-old story was read out as current. Say so instead.
+    return 'LIVE DATA: the news lookup returned nothing just now. You have NO current '
+      + 'information about this. Do NOT answer from your training data and do NOT state '
+      + 'any event, date or development as recent - what you remember may be a year old. '
+      + 'Say plainly that you could not get current news on it, then use open_url to run a '
+      + 'Google News search for the subject, saying out loud that you are opening it.';
   }
 
   // General factual question — only fetch live data for questions that need it
