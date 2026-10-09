@@ -1566,11 +1566,21 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
   try {
     return await stt.transcribe(Buffer.from(audioBufferBase64, 'base64'));
   } catch (err) {
+    // Never hand a raw fetch error to the person using this. It names the
+    // server, the path and the DNS failure - none of which is theirs to read
+    // or act on, and the address of the backend does not belong in a chat
+    // bubble. Say what happened in their terms instead.
     const msg = err.message || '';
-    if (err.name === 'AbortError' || msg.includes('Premature close') || msg.includes('ECONNRESET') || msg.includes('socket hang up') || msg.includes('timed out')) {
-      throw new Error('Voice recognition timed out. Please try again.');
+    if (err.name === 'AbortError' || /Premature close|ECONNRESET|socket hang up|timed? ?out|aborted/i.test(msg)) {
+      throw new Error('That took too long to hear. Please try again.');
     }
-    throw err;
+    if (/ENOTFOUND|ENETUNREACH|ECONNREFUSED|EAI_AGAIN|getaddrinfo|FetchError|ETIMEDOUT|network/i.test(msg)) {
+      throw new Error("I can't connect to the internet right now. Check your connection and try again.");
+    }
+    if (/(401|403)|unauthor/i.test(msg)) {
+      throw new Error('Your session expired. Please sign in again.');
+    }
+    throw new Error("I couldn't make that out. Please try again.");
   }
 });
 
@@ -2110,8 +2120,18 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
 
   const memories = store.get('memories') || [];
 
-  // Sports query — fetch ESPN card first; only open Google if no card found
-  const isSportsQuery = realtime.SPORTS_REGEX.test(message);
+  // Sports query — fetch ESPN card first; only open Google if no card found.
+  //
+  // A question naming a year that has already finished is history, not live
+  // data. "Who won the 1992 Pakistan versus India test series" was being sent
+  // down the live-score path: a network round trip to a scores service that
+  // has never heard of 1992, a wait while it looked, and then "I couldn't find
+  // live data for that match" - when the answer was ordinary knowledge the
+  // assistant already had. Let those fall through and simply be answered.
+  const _nowYear = new Date().getFullYear();
+  const _yearInQuestion = Number((message.match(/(19\d{2}|20\d{2})/) || [])[1] || 0);
+  const _isHistorical = _yearInQuestion > 0 && _yearInQuestion < _nowYear;
+  const isSportsQuery = realtime.SPORTS_REGEX.test(message) && !_isHistorical;
   if (isSportsQuery) {
     const cardData = await realtime.fetchCardData(message).catch(() => null);
 

@@ -349,7 +349,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'search_drive',
-      description: 'Search Google Drive for files. Use whenever the user mentions "Google Drive", "Drive", "my drive", "my cloud", "my documents on drive", asks what files they have, asks to open/find a specific file from Drive, or says "open [filename] from my Drive". NEVER use open_file for Drive requests — always use this tool instead.',
+      description: 'Search the user OWN Google Drive for a file they already have. Use only when they are pointing at their own storage: "Google Drive", "my drive", "my cloud", "my documents on drive", "find MY report", "open MY spreadsheet". NEVER use this to go and find them a document that they do not already own - "find me a document about X", "find me research on X", "get me a paper on X" are web searches, not Drive searches. The word that decides it is the possessive: MY document means their storage, A document means the web.',
       parameters: {
         type: 'object',
         properties: {
@@ -804,6 +804,16 @@ EMAIL & UPDATE RULES:
 - When EMAIL UPDATE data is provided, use it to give the user a full briefing — mention unread counts, important sender names and subjects.
 - For WhatsApp and Instagram: you cannot read message counts or content from these apps. Only mention them if the user specifically asks you to open one of them.
 - If no email accounts are connected, tell the user to click the 🔗 icon to connect Gmail or Outlook.
+- DOCUMENTS - the possessive decides which tool:
+  * "open my document", "find my notes", "where is my Netflix spreadsheet" -
+    they already own it. Look in their own places: open_file searches this
+    computer (Windows Explorer or Mac Finder), search_drive searches Google
+    Drive. If they named Drive, use search_drive; otherwise try open_file.
+  * "find me a document on X", "find research on X", "get me a paper about X" -
+    they do NOT own it and are asking you to go and find one for whatever they
+    are working on. That is a web search: open_url to Google with the subject,
+    and say out loud that you are opening Google to find it. Never answer this
+    with "Google Drive isn't connected" - they were not asking about Drive.
 - Never say "I couldn't find live data" — if you lack data, open Google silently (see LIVE / SPORTS / NEWS QUERIES rules below).
 
 EMAIL SENDING (CRITICAL — follow exactly):

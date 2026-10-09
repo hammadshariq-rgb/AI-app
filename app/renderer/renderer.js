@@ -2963,7 +2963,11 @@ window._checkQuickLaunch = async function(text) {
   // in Lahore". Only "near me" was understood, so anywhere the person was
   // not standing had no answer at all. The place becomes coordinates and
   // everything after that is the search that already exists.
-  const placesInM = /^(?:find\s+|show\s+(?:me\s+)?|list\s+|any\s+|best\s+|good\s+)?((?:hotels?|motels?|hostels?|airbnbs?|apartments?|flats?|places\s+to\s+stay|restaurants?|cafes?|coffee\s+shops?|bars?|pubs?|clubs?|gyms?|museums?|beaches?|parks?|hospitals?|pharmacies|schools?|universities|attractions|things\s+to\s+do))\s+in\s+([a-z][a-z\s,'.-]{2,60})$/i.exec(t);
+  // The prefix used to allow exactly one leading word, so "find me best hotels
+  // in toronto downtown" matched nothing and the request fell through to a
+  // plain Google search instead of the map card. Every part is optional now
+  // and they stack.
+  const placesInM = /^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:(?:find|show|list|get|search(?:\s+for)?|look\s+up|give|recommend|suggest)\s+)?(?:me\s+|us\s+)?(?:the\s+|some\s+|a\s+few\s+|any\s+)?(?:(?:best|good|top|cheap|cheapest|nearby|nice|popular|great)\s+)?((?:hotels?|motels?|hostels?|airbnbs?|apartments?|flats?|places\s+to\s+stay|restaurants?|cafes?|coffee\s+shops?|bars?|pubs?|clubs?|gyms?|museums?|beaches?|parks?|hospitals?|pharmacies|schools?|universities|attractions|things\s+to\s+do))\s+in\s+([a-z][a-z\s,'.-]{2,60})$/i.exec(t);
   if (!placesM && placesInM) {
     const what = placesInM[1].trim();
     const where = placesInM[2].trim().replace(/[.?!]+$/, '');
@@ -5818,8 +5822,8 @@ async function sendToJarvis(text) {
   if (res.card && !_wasHudRequest) showCard(res.card);
 
   // Sports fallback: open Google in the in-app browser panel
-  if (res.browserPanelUrl && typeof openBrowserPanel === 'function') {
-    openBrowserPanel(res.browserPanelUrl, 'Google Search', '🔍');
+  if (res.browserPanelUrl && typeof window.openBrowserPanel === 'function') {
+    window.openBrowserPanel(res.browserPanelUrl, 'Google Search', '🔍');
   }
 
   if (res.audio) {
@@ -6055,8 +6059,8 @@ if (window.jarvis.onSentenceText) {
   function showPaintingInSidebar(imageUrl, subject) {
     // Build a simple HTML page with the image centred
     const htmlPage = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;font-family:-apple-system,sans-serif}img{max-width:100%;max-height:80vh;border-radius:12px;box-shadow:0 0 60px rgba(0,0,0,0.8)}p{color:rgba(200,220,255,0.7);font-size:12px;letter-spacing:2px;text-transform:uppercase}</style></head><body><img src="${imageUrl}" alt="${subject}"/><p>✨ AI Painting — ${subject}</p></body></html>`)}`;
-    if (typeof openBrowserPanel === 'function') {
-      openBrowserPanel(htmlPage, subject, '🎨');
+    if (typeof window.openBrowserPanel === 'function') {
+      window.openBrowserPanel(htmlPage, subject, '🎨');
     }
   }
 
@@ -6302,6 +6306,11 @@ if (window.jarvis.onSentenceText) {
 
   let currentUrl = '';
 
+  // sendToJarvis and the artifact code live outside this IIFE and both want to
+  // open the panel. They guarded with `typeof openBrowserPanel === 'function'`,
+  // which for a name that was never in their scope is simply 'undefined' - so
+  // the guard quietly said no and the panel never opened. That is why asking
+  // for a Google search announced one and then did nothing.
   function openBrowserPanel(url, title, icon) {
     currentUrl = url;
     bpTitle.textContent = title || 'Search Results';
@@ -6366,6 +6375,7 @@ if (window.jarvis.onSentenceText) {
   // Hook into sendToJarvis — intercept after message is sent
   const _origSend = window._browserPanelHooked;
   if (!_origSend) {
+    window.openBrowserPanel = openBrowserPanel;
     window._browserPanelHooked = true;
     const origSendToJarvis = sendToJarvis;
     // Override sendToJarvis to also check for panel triggers
