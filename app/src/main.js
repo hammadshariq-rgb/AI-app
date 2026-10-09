@@ -872,9 +872,9 @@ app.whenReady().then(async () => {
       }
     });
 
-    autoUpdater.on('update-downloaded', () => {
+    autoUpdater.on('update-downloaded', (info) => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('update:ready');
+        overlayWindow.webContents.send('update:ready', { version: (info && info.version) || '' });
       }
     });
 

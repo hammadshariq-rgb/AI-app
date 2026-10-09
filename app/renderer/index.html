@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Callisto AI</title>
-  <link rel="stylesheet" href="style.css?v=73" />
+  <link rel="stylesheet" href="style.css?v=74" />
   <style>
     /* ── GLASS SIDEBAR ── */
     #historySidebar {
@@ -1209,6 +1209,90 @@
         inset  0    0    6px   6px   rgba(255,190,30,0.14),
         inset  0    0    2px   2px   rgba(255,190,30,0.10) !important;
     }
+
+    /* ===== UPDATE NOTICE ===== */
+    .update-toast {
+      position: fixed; left: 18px; bottom: 18px; z-index: 9400;
+      display: flex; align-items: center; gap: 11px;
+      padding: 11px 13px 11px 15px; border-radius: 16px;
+      background: rgba(10, 16, 32, 0.96);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 10px 34px rgba(0,0,0,0.5);
+      font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+      transform: translateY(14px); opacity: 0;
+      transition: transform .24s cubic-bezier(.3,1.2,.5,1), opacity .24s ease;
+    }
+    .update-toast.in { transform: translateY(0); opacity: 1; }
+    .update-toast.hidden { display: none; }
+    .update-toast-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex: none;
+      background: #3dffa0; box-shadow: 0 0 10px #3dffa0;
+    }
+    .update-toast-text { font-size: 12.5px; color: #dceaff; white-space: nowrap; }
+    .update-toast-text strong { color: #fff; font-weight: 600; }
+
+    .update-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      margin: 0 0 14px; padding: 13px 15px; border-radius: 14px;
+      background: rgba(61, 255, 160, 0.06);
+      border: 1px solid rgba(61, 255, 160, 0.22);
+    }
+    .update-row.hidden { display: none; }
+    .update-row-title { font-size: 13px; font-weight: 600; color: #eaf6ff; }
+    .update-row-sub { font-size: 11.5px; color: rgba(190, 212, 245, 0.6); margin-top: 2px; }
+
+    /* A border that sweeps round on its own. The colour follows the app's
+       accent rather than the orange it was written with. */
+    @property --gleam-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --gleam-offset { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --gleam-percent { syntax: "<percentage>"; initial-value: 5%; inherits: false; }
+    @property --gleam-shine { syntax: "<color>"; initial-value: #ffffff; inherits: false; }
+
+    button.gleam {
+      --gleam-base: #0b1220;
+      --gleam-accent: #3aa9ff;
+      --gleam-accent-soft: #9fd8ff;
+      isolation: isolate; position: relative; overflow: hidden; cursor: pointer;
+      padding: 10px 22px; border: 1px solid transparent; border-radius: 999px;
+      font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.2;
+      color: #fff;
+      background:
+        linear-gradient(var(--gleam-base), var(--gleam-base)) padding-box,
+        conic-gradient(
+          from calc(var(--gleam-angle) - var(--gleam-offset)),
+          transparent,
+          var(--gleam-accent) var(--gleam-percent),
+          var(--gleam-shine) calc(var(--gleam-percent) * 2),
+          var(--gleam-accent) calc(var(--gleam-percent) * 3),
+          transparent calc(var(--gleam-percent) * 4)
+        ) border-box;
+      box-shadow: inset 0 0 0 1px #1a1818;
+      transition: .8s cubic-bezier(.25,1,.5,1);
+      transition-property: --gleam-offset, --gleam-percent, --gleam-shine;
+      animation: gleamAngle 3s linear infinite;
+    }
+    button.gleam.gleam-sm { padding: 7px 16px; font-size: 12px; }
+    button.gleam span { position: relative; z-index: 1; }
+    button.gleam::before {
+      content: ''; position: absolute; inset-inline-start: 50%; inset-block-start: 50%;
+      translate: -50% -50%; pointer-events: none; z-index: -1;
+      width: calc(100% - 6px); height: calc(100% - 6px);
+      background: radial-gradient(circle at 2px 2px, #fff .5px, transparent 0) padding-box;
+      background-size: 4px 4px; background-repeat: space;
+      mask-image: conic-gradient(from calc(var(--gleam-angle) + 45deg), #000, transparent 10% 90%, #000);
+      border-radius: inherit; opacity: .4;
+    }
+    button.gleam:is(:hover, :focus-visible) {
+      --gleam-percent: 20%; --gleam-offset: 95deg; --gleam-shine: var(--gleam-accent-soft);
+    }
+    button.gleam:active { translate: 0 1px; }
+    @keyframes gleamAngle { to { --gleam-angle: 360deg; } }
+    /* A sweeping border is decoration; anyone who has asked for less movement
+       should not have to watch it. */
+    @media (prefers-reduced-motion: reduce) {
+      button.gleam, button.gleam::before { animation: none !important; }
+      .update-toast { transition: none; }
+    }
+
   </style>
 
   <!-- ══ ONBOARDING STYLES ══ -->
@@ -2075,6 +2159,17 @@
               <button class="settings-tab" id="settingsTabLanguage">LANGUAGE</button>
             </div>
             <div id="settingsAccountContent">
+              <!-- An update that has finished downloading waits here. It is the
+                   one place someone goes looking for "is there a new version",
+                   and it stays until it is pressed rather than disappearing
+                   with a toast nobody was watching for. -->
+              <div id="updateRow" class="update-row hidden">
+                <div class="update-row-text">
+                  <div class="update-row-title">Update ready</div>
+                  <div class="update-row-sub" id="updateRowVersion"></div>
+                </div>
+                <button type="button" class="gleam" id="updateRowBtn"><span>Restart &amp; update</span></button>
+              </div>
               <!-- Avatar — centred -->
               <div class="account-hero">
                 <div id="profileAvatar">👤</div>
@@ -2477,13 +2572,6 @@
           </div>
 
           <!-- ── Update notification button ── -->
-          <div id="updateWrap" class="glow-btn-wrap hidden" style="margin-top:10px;">
-            <div class="glow-ring"></div>
-            <button id="updateBtn" title="Restart to update">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              <span id="updateBtnLabel">Restart to update</span>
-            </button>
-          </div>
           <!-- Hidden sliders keep JS working; visible controls are in My Account -->
           <input type="range" id="voiceSpeedSlider" min="0.25" max="2.0" step="0.05" value="0.88" style="display:none">
           <span id="voiceSpeedVal" style="display:none"></span>
@@ -4081,5 +4169,12 @@
 
   <!-- MediaPipe Hands (loaded async — only used when gesture mode is turned on) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous" defer></script>
+  <!-- Five seconds, bottom left, then it goes and waits in Account. -->
+  <div id="updateToast" class="update-toast hidden" role="status">
+    <span class="update-toast-dot"></span>
+    <span class="update-toast-text">Update ready <strong id="updateToastVersion"></strong></span>
+    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Restart</span></button>
+  </div>
+
 </body>
 </html>

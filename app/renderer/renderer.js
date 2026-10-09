@@ -5095,32 +5095,60 @@ if (window.jarvis.onHudResponse) {
 }
 
 // ===================== AUTO-UPDATE =====================
-const updateWrap = document.getElementById('updateWrap');
-const updateBtn  = document.getElementById('updateBtn');
-const updateBtnLabel = document.getElementById('updateBtnLabel');
+//
+// The old button announced "Downloading v1.3.78..." and disabled itself. If
+// the download stalled, or the finished event never arrived, that is where it
+// stayed - naming a version long since superseded, with nothing to press. A
+// progress report nobody asked for, stuck.
+//
+// Nothing is said now until the update is on disk and ready. Then it appears
+// bottom left for five seconds, and afterwards waits in Account until someone
+// presses it - which is where a person looks when they wonder whether there
+// is a new version.
+(function () {
+  const toast = document.getElementById('updateToast');
+  const row = document.getElementById('updateRow');
+  let installing = false;
 
-// Step 1: update is downloading in background — show downloading state
-window.jarvis.onUpdateAvailable && window.jarvis.onUpdateAvailable(({ version }) => {
-  updateBtnLabel.textContent = `Downloading v${version}…`;
-  updateWrap.classList.remove('hidden');
-  updateBtn.disabled = true;
-  updateBtn.style.opacity = '0.6';
-});
+  function install() {
+    if (installing) return;
+    installing = true;
+    try {
+      document.querySelectorAll('#updateRowBtn span, #updateToastBtn span')
+        .forEach((el) => { el.textContent = 'Restarting...'; });
+    } catch (_) {}
+    window.jarvis.installUpdate();
+  }
 
-// Step 2: update downloaded — show restart prompt
-window.jarvis.onUpdateReady && window.jarvis.onUpdateReady(() => {
-  updateBtnLabel.textContent = 'Restart to update';
-  updateWrap.classList.remove('hidden');
-  updateBtn.disabled = false;
-  updateBtn.style.opacity = '1';
-});
+  function showReady(version) {
+    const v = version ? `v${version}` : '';
+    // Waiting in Account, from now until it is pressed.
+    if (row) {
+      const sub = document.getElementById('updateRowVersion');
+      if (sub) sub.textContent = v ? `${v} has downloaded and is ready to install.` : 'Downloaded and ready to install.';
+      row.classList.remove('hidden');
+    }
+    // And said once, briefly, in case they are nowhere near Account.
+    if (toast) {
+      const vEl = document.getElementById('updateToastVersion');
+      if (vEl) vEl.textContent = v;
+      toast.classList.remove('hidden');
+      requestAnimationFrame(() => toast.classList.add('in'));
+      setTimeout(() => {
+        toast.classList.remove('in');
+        setTimeout(() => toast.classList.add('hidden'), 260);
+      }, 5000);
+    }
+  }
 
-// Step 3: user clicks — restart and install
-updateBtn && updateBtn.addEventListener('click', () => {
-  updateBtnLabel.textContent = 'Restarting…';
-  updateBtn.disabled = true;
-  window.jarvis.installUpdate();
-});
+  document.getElementById('updateRowBtn')?.addEventListener('click', install);
+  document.getElementById('updateToastBtn')?.addEventListener('click', install);
+
+  // Downloading is Callisto's business, not the user's, so nothing is shown
+  // while it happens - which is also how the old message got stuck.
+  window.jarvis.onUpdateReady?.((d) => showReady(d && d.version));
+})();
+
 
 // Ctrl+Space — Clipboard AI: auto-fill the input with clipboard text and a prompt
 window.jarvis.onClipboardAI(({ text }) => {
@@ -6417,16 +6445,10 @@ function _updateBanner(html, cls) {
   return banner;
 }
 
-window.jarvis.onUpdateAvailable(({ version }) => {
-  const b = _updateBanner(`<span>Version ${version} is downloading in the background.</span>`);
-  setTimeout(() => { if (b.isConnected) b.remove(); }, 8000);
-});
-
-window.jarvis.onUpdateReady(() => {
-  _updateBanner('<span>An update is ready. It installs next time you close Callisto.</span>'
-    + '<button id="updateInstallBtn">Restart now</button>', 'update-ready');
-  document.getElementById('updateInstallBtn')?.addEventListener('click', () => window.jarvis.installUpdate());
-});
+// The banners that used to live here are gone. Between them and the button
+// in the corner, one update announced itself three times - once while
+// downloading, which is not the user's business, and twice when ready. It is
+// said once now, briefly, and then waits in Account.
 
 // Queue and play audio chunks in order — each starts as soon as the previous ends
 // This lets us play sentence 1 while sentence 2 is still being synthesized

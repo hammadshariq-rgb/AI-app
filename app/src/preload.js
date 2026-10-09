@@ -137,7 +137,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Auto-updater
   installUpdate: () => ipcRenderer.send('update:install'),
   onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, d) => cb(d)),
-  onUpdateReady: (cb) => ipcRenderer.on('update:ready', () => cb()),
+  onUpdateReady: (cb) => ipcRenderer.on('update:ready', (_e, d) => cb(d)),
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
   saveWordDoc: (d) => ipcRenderer.invoke('jarvis:saveWordDoc', d),
   sheetOpen: (p) => ipcRenderer.invoke('sheet:open', p),
