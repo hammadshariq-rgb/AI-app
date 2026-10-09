@@ -574,6 +574,24 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'find_sources',
+      description: 'Find real, citable sources on a subject and show them INSIDE the app - '
+        + 'scholarly papers with authors, years and DOIs, plus reference articles, each with a '
+        + 'ready-made citation line. Use this whenever someone wants reading, research, '
+        + 'references, citations, a bibliography, "websites and documents", "sources for my essay", '
+        + '"papers on X". Do NOT send them to Google for this - they asked you to do the finding.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subject: { type: 'string', description: 'Just the subject to search, with no filler. For "I need a bibliography for my paper on the American constitution" pass "American constitution".' },
+        },
+        required: ['subject'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_briefing',
       description: 'Give the user a morning briefing covering their day — calendar events, weather, and top news. Use when the user says "briefing", "morning briefing", "what\'s on today", "give me my day", "what do I have today".',
       parameters: {
@@ -1311,6 +1329,7 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'system_power')  return { type: 'system_power',  arg: `${args.action}|${args.delay ?? 10}` };
       else if (fnName === 'remember_fact') return { type: 'remember_fact', arg: args.fact };
       else if (fnName === 'forget_fact')   return { type: 'forget_fact',   arg: args.query };
+      else if (fnName === 'find_sources')  return { type: 'find_sources',  arg: args.subject };
       else if (fnName === 'get_briefing')  return { type: 'get_briefing',  arg: args.days || 1 };
   return null;
 }
@@ -1482,8 +1501,17 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // clip came back. That is the pause people hear as "yes... sir, how may
       // I assist you today". Fragments wait and travel with the sentence
       // after them, so a reply is spoken in whole breaths.
-      const MIN_SPOKEN = 45;
+      // Two thresholds, because the first clip and the rest want opposite
+      // things. The first should be short so speech starts almost at once.
+      // Everything after wants to be LONG: each clip is its own synthesis
+      // round trip, and a numbered list emitted item by item is a round trip
+      // per item - which is why an answer could speak three points, run the
+      // queue dry and stall for two seconds before point four. Fewer, longer
+      // clips mean fewer chances to run dry, and they sound less clipped.
+      const MIN_FIRST_SPOKEN = 45;
+      const MIN_SPOKEN = 220;
       let pendingSpeech = '';
+      let spokeOnce = false;
 
       try {
       for await (const rawChunk of res.body) {
@@ -1513,7 +1541,9 @@ async function respondStreaming({ message, history = [], assistantName, memories
               buffer = buffer.slice(end);
               if (!sentence) continue;
               const joined = (pendingSpeech ? pendingSpeech + ' ' : '') + sentence;
-              if (joined.length < MIN_SPOKEN) { pendingSpeech = joined; continue; }
+              const floor = spokeOnce ? MIN_SPOKEN : MIN_FIRST_SPOKEN;
+              if (joined.length < floor) { pendingSpeech = joined; continue; }
+              spokeOnce = true;
               pendingSpeech = '';
               if (onSentence) onSentence(joined);
             }

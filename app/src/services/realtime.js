@@ -2163,4 +2163,106 @@ async function searchImages(query) {
   } catch { return null; }
 }
 
-module.exports = { fetchRealtimeContext, roleHolderFact, wikipediaFact, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
+
+// ── Sources for a piece of research ──────────────────────────────────────────
+// Asking for "websites and documents I could paste in my bibliography" used to
+// end with a Google tab. That is the assistant handing the work back: the
+// person still has to read the results, pick the usable ones and copy the
+// details out. These come back inside the app, each one already written as a
+// line that can go straight into a bibliography.
+//
+// Two places, because they answer different halves of the question. Crossref
+// is the scholarly record - real papers and chapters with authors, years and a
+// DOI, which is what a marker expects to see. Wikipedia gives the overview
+// article, which is rarely citable itself but is where the good references
+// live. Neither needs a key.
+
+function _citation(src) {
+  const bits = [];
+  if (src.author) bits.push(src.author);
+  if (src.year) bits.push('(' + src.year + ')');
+  if (src.title) bits.push(src.title + '.');
+  if (src.container) bits.push(src.container + '.');
+  if (src.url) bits.push(src.url);
+  return bits.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+async function _crossrefSources(query) {
+  try {
+    const url = 'https://api.crossref.org/works?rows=5&select=title,URL,author,issued,container-title&query='
+      + encodeURIComponent(query);
+    const res = await _timedFetch(url, { headers: BROWSER_HEADERS }, 9000);
+    const data = await res.json();
+    return (data.message && data.message.items ? data.message.items : [])
+      .map((i) => {
+        const a = i.author && i.author[0];
+        return {
+          kind: 'paper',
+          title: (i.title || [''])[0] || '',
+          url: i.URL || '',
+          year: (i.issued && i.issued['date-parts'] && i.issued['date-parts'][0] || [])[0] || '',
+          author: a ? [a.family, a.given].filter(Boolean).join(', ') : '',
+          container: (i['container-title'] || [''])[0] || '',
+        };
+      })
+      .filter((x) => x.title && x.url);
+  } catch (_) { return []; }
+}
+
+async function _wikipediaSources(query) {
+  try {
+    const url = 'https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=3&format=json&srsearch='
+      + encodeURIComponent(query);
+    const res = await _timedFetch(url, { headers: BROWSER_HEADERS }, 8000);
+    const data = await res.json();
+    const hits = (data.query && data.query.search) || [];
+    return hits.map((h) => ({
+      kind: 'reference',
+      title: h.title,
+      url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(String(h.title).replace(/ /g, '_')),
+      author: 'Wikipedia contributors',
+      year: new Date().getFullYear(),
+      container: 'Wikipedia',
+      // The search snippet comes back with HTML highlighting in it.
+      snippet: String(h.snippet || '').replace(/<[^>]*>/g, '').trim(),
+    })).filter((x) => x.title);
+  } catch (_) { return []; }
+}
+
+// "constitution of America research paper" searched the words "research" and
+// "paper" too, and came back with the constitutions of Vietnam and Cadiz. Only
+// the subject should reach a search index.
+function _subjectOf(text) {
+  let q = String(text || '').toLowerCase();
+  // Keep only what a search index should see. Word boundaries matter here:
+  // without them 'a' and 'in' match inside other words and shred the string.
+  q = q.replace(/[^a-z0-9\s'-]/g, ' ');
+  q = q.replace(/\b(?:find|get|give|show|me|some|any|please|could|would|you|i|am|working|need|want|now|and|research|paper|essay|assignment|project|bibliography|citations?|references?|sources?|websites?|documents?|links?|articles?|which|that|paste|my|a|an|the|to|in|on|for|of)\b/g, ' ');
+  q = q.replace(/\s+/g, ' ').trim();
+  // If stripping took everything, the question was already just the subject.
+  return q.length >= 3 ? q : String(text || '').trim();
+}
+
+async function findSources(query) {
+  const raw = String(query || '').trim();
+  const q = _subjectOf(raw);
+  if (!q) return { query: raw, sources: [] };
+  const [papers, refs] = await Promise.all([
+    _crossrefSources(q),
+    _wikipediaSources(q),
+  ]);
+  // Reference works first - somebody starting a paper reads the overview
+  // before the journal articles - then the scholarly ones.
+  const seen = new Set();
+  const sources = [...refs, ...papers]
+    .filter((s) => { const k = s.url.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8)
+    .map((s) => {
+      let site = '';
+      try { site = new URL(s.url).hostname.replace(/^www\./, ''); } catch (_) {}
+      return { ...s, site, citation: _citation(s) };
+    });
+  return { query: raw || q, subject: q, sources };
+}
+
+module.exports = { findSources, fetchRealtimeContext, roleHolderFact, wikipediaFact, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };

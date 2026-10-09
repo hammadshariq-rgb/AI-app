@@ -4043,6 +4043,62 @@ function showCard(card) {
   if (!card) { cardPanel.classList.add('hidden'); return; }
   cardPanel.classList.remove('hidden');
 
+  // Sources for a piece of research. Shown here rather than in a browser tab:
+  // being sent to Google means the person still has to read the results, pick
+  // the usable ones and copy out the author, year and link. Each row arrives
+  // with its citation already written, a button to copy it, and a title that
+  // opens the source in the app's own browser panel.
+  if (card.type === 'sources') {
+    const rows = (card.sources || []).map((s, i) => {
+      const tag = s.kind === 'paper' ? 'PAPER' : 'REFERENCE';
+      const meta = [s.author, s.year, s.container].filter(Boolean).map(esc).join(' &middot; ');
+      return (
+        '<div class="src-row">'
+        + '<div class="src-num">' + (i + 1) + '</div>'
+        + '<div class="src-body">'
+        +   '<div class="src-top"><span class="src-tag ' + (s.kind === 'paper' ? 'paper' : 'ref') + '">' + tag + '</span>'
+        +     '<span class="src-site">' + esc(s.site || '') + '</span></div>'
+        +   '<a class="src-title" href="#" data-src-url="' + esc(s.url) + '">' + esc(s.title) + '</a>'
+        +   (meta ? '<div class="src-meta">' + meta + '</div>' : '')
+        +   '<div class="src-cite">' + esc(s.citation) + '</div>'
+        +   '<button type="button" class="src-copy" data-copy="' + esc(s.citation) + '">Copy citation</button>'
+        + '</div></div>'
+      );
+    }).join('');
+    cardContent.innerHTML =
+      '<div class="card-sources">'
+      + '<div class="src-head"><div class="src-eyebrow">SOURCES</div>'
+      +   '<div class="src-subject">' + esc(card.subject || '') + '</div>'
+      +   '<button type="button" class="src-copy-all" id="srcCopyAll">Copy all citations</button></div>'
+      + rows
+      + '</div>';
+    // Titles open in the app's own browser panel, not an external window -
+    // keeping this inside the app was the whole point.
+    const PAGE_ICON = String.fromCodePoint(0x1F4C4);
+    cardContent.querySelectorAll('[data-src-url]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const u = a.getAttribute('data-src-url');
+        if (typeof window.openBrowserPanel === 'function') window.openBrowserPanel(u, a.textContent.slice(0, 40), PAGE_ICON);
+        else window.jarvis?.openExternal?.(u);
+      });
+    });
+    const flash = (btn, word) => { const was = btn.textContent; btn.textContent = word; setTimeout(() => { btn.textContent = was; }, 1400); };
+    cardContent.querySelectorAll('[data-copy]').forEach((b) => {
+      b.addEventListener('click', () => {
+        navigator.clipboard.writeText(b.getAttribute('data-copy') || '')
+          .then(() => flash(b, 'Copied')).catch(() => flash(b, 'Could not copy'));
+      });
+    });
+    const all = cardContent.querySelector('#srcCopyAll');
+    if (all) all.addEventListener('click', () => {
+      const text = (card.sources || []).map((s) => s.citation).join('\n');
+      navigator.clipboard.writeText(text)
+        .then(() => flash(all, 'Copied all')).catch(() => flash(all, 'Could not copy'));
+    });
+    return;
+  }
+
   if (card.type === 'sports') {
     const scorersHtml = (card.scorers && card.scorers.length)
       ? `<div class="scorers-section"><div class="scorers-title">SCORERS</div>${card.scorers.map(s => `<div class="scorer-row"><span class="scorer-team">${esc(s.team)}</span><span class="scorer-detail">${esc(s.detail)}</span></div>`).join('')}</div>`

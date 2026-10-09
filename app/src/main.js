@@ -1884,7 +1884,10 @@ function resetTTS() {
 //
 // Three at a time keeps the first sentence just as quick - speech starts as
 // soon as sentence one is back - while the rest follow steadily behind.
-const TTS_MAX_IN_FLIGHT = 3;
+// Five, not three. Three was enough to keep up with short replies and not
+// with a long one: a list would speak a few points, drain the queue and sit
+// silent while the next clip was still being made.
+const TTS_MAX_IN_FLIGHT = 5;
 let _ttsInFlight = 0;
 const _ttsWaiting = [];
 
@@ -2978,6 +2981,32 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     _sendTTS(_e.sender, spokenText);
     // The in-app calendar gets it either way.
     return { text: spokenText, audio: null, card: null, hasAction: true, calendarEvent: eventArgs };
+  }
+
+  // Sources for a piece of research, shown here rather than in a browser tab.
+  // Being sent to Google is the assistant handing the work back: the person
+  // still has to read the results, pick the usable ones and copy out the
+  // author, year and link. These arrive with that already done.
+  if (finalAction?.type === 'find_sources') {
+    const subject = String(finalAction.arg || '').trim() || message;
+    const found = await realtime.findSources(subject).catch(() => null);
+    if (!found || !found.sources.length) {
+      const spokenText = `I couldn't find solid sources on ${subject} just now. Try narrowing the subject, or I can open a search for you.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const n = found.sources.length;
+    const papers = found.sources.filter((s) => s.kind === 'paper').length;
+    const spokenText = papers
+      ? `I found ${n} sources on ${found.subject}, ${papers} of them academic. Each one has a citation you can copy straight into your bibliography.`
+      : `I found ${n} sources on ${found.subject}. Each one has a citation you can copy straight into your bibliography.`;
+    _sendTTS(_e.sender, spokenText);
+    return {
+      text: spokenText,
+      audio: null,
+      card: { type: 'sources', subject: found.subject, sources: found.sources },
+      hasAction: true,
+    };
   }
 
   if (finalAction?.type === 'search_drive') {
