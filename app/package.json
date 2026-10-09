@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.3.79",
+  "version": "1.3.80",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -50,6 +50,8 @@
     ],
     "win": {
       "artifactName": "Callisto-AI-Setup-${version}.${ext}",
+      "_comment_executableName": "The binary keeps a name with no space in it. Signing runs a PowerShell step that does not quote the path, so 'Callisto AI.exe' was read as 'Callisto' and 'AI.exe' and the build failed. Only the file on disk is affected - the product is still called Callisto AI everywhere a person can see.",
+      "executableName": "Callisto",
       "target": [
         {
           "target": "nsis",
