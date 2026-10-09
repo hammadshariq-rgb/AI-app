@@ -5906,7 +5906,7 @@ function _beginReplyGate() {
   // If the message was handled without an AI reply (quick command, error), never
   // hold a card back for more than a few seconds.
   g.safety = setTimeout(() => {
-    if (_replyGate === g && !g.open && g.card) { showCard(g.card); g.card = null; }
+    if (_replyGate === g && !g.open && g.card) { if (_cardRelatesTo(g.card, g.text)) showCard(g.card); g.card = null; }
   }, 8000);
   _replyGate = g;
 }
@@ -5939,12 +5939,38 @@ function _finishReplyGate(finalText) {
   } else if (hasText) {
     el = addMessage('assistant', finalText);
   }
-  if (g && g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } }
+  if (g && g.card && _cardRelatesTo(g.card, finalText || g.text)) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } }
   if (typeof scrollToBottom === 'function') scrollToBottom();
   return el || null;
 }
 
 // Background cards call this instead of showCard directly.
+// A card is only worth showing if it is about the same thing the answer is
+// about. The subject is picked from the question while the answer is produced
+// separately, so a question misheard on the way in poisons the card: "Give me
+// an all-time footballer" arrived as "Dip me an all-time footballer", matched
+// the article for chips and dip, and sat next to a perfectly good answer about
+// Pele. Deliberately lenient - it drops a card only when nothing in its title
+// appears in the answer at all, so a loosely related card still gets through.
+const _CARD_STOPWORDS = new Set(['the','and','for','with','from','that','this','into','over','your','about','what','when','which','their','there']);
+function _cardRelatesTo(card, answer) {
+  if (!card || !answer) return true;            // nothing to judge against
+  // Only entity cards are picked by subject. Live data - weather, markets,
+  // places, sources - is fetched for the question and is right by construction.
+  const judged = ['person', 'animal', 'object', 'place', 'concept', 'wiki', 'visual'];
+  if (card.type && !judged.includes(card.type)) return true;
+  const title = String(card.name || card.title || '').trim();
+  if (!title) return true;
+  const norm = (s) => String(s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // Pele / Pelé
+    .toLowerCase();
+  const hay = norm(answer);
+  const words = norm(title).split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 3 && !_CARD_STOPWORDS.has(w));
+  if (!words.length) return true;               // title too short to judge
+  return words.some((w) => hay.includes(w));
+}
+
 function _showCardSynced(card) {
   if (_replyGate && !_replyGate.open) { _replyGate.card = card; return; }
   showCard(card);

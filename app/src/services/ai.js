@@ -334,7 +334,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'generate_image',
-      description: 'Generate a flat picture with AI. Use when the user asks to create, generate, make or design an image, picture, photo, illustration, artwork, logo, poster or wallpaper. Do NOT use this when they said draw, sketch or paint — those words mean the canvas, so call the draw tool instead. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
+      description: 'Generate a flat picture with AI. ONLY use this when the request names something visual - an image, picture, photo, illustration, artwork, drawing, logo, poster, wallpaper, render or design. The verb alone is NOT enough: "create", "make", "build" and "give me" are used far more often for things that are not pictures. "Create me an all-time football 11" is a list of players, "make me a plan" is a plan, "build me a table" is a table - answer those normally and do not generate anything. If no visual word appears, this is the wrong tool. Do NOT use this when they said draw, sketch or paint — those words mean the canvas, so call the draw tool instead. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
       parameters: {
         type: 'object',
         properties: {
@@ -822,6 +822,11 @@ EMAIL & UPDATE RULES:
 - When EMAIL UPDATE data is provided, use it to give the user a full briefing — mention unread counts, important sender names and subjects.
 - For WhatsApp and Instagram: you cannot read message counts or content from these apps. Only mention them if the user specifically asks you to open one of them.
 - If no email accounts are connected, tell the user to click the 🔗 icon to connect Gmail or Outlook.
+- A picture is only wanted when the person names one. "Create", "make", "build"
+  and "give me" are everyday verbs for lists, plans, teams, tables and ideas.
+  "Create me an all-time football 11" wants eleven players written out, not an
+  image of them. Generate a picture only when the words image, picture, photo,
+  drawing, art, logo, poster or wallpaper actually appear.
 - DOCUMENTS - the possessive decides which tool:
   * "open my document", "find my notes", "where is my Netflix spreadsheet" -
     they already own it. Look in their own places: open_file searches this

@@ -2143,6 +2143,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   const _yearInQuestion = Number((message.match(/(19\d{2}|20\d{2})/) || [])[1] || 0);
   const _isHistorical = _yearInQuestion > 0 && _yearInQuestion < _nowYear;
   const isSportsQuery = realtime.SPORTS_REGEX.test(message) && !_isHistorical;
+  let _sportsLiveMissing = false;
   if (isSportsQuery) {
     const cardData = await realtime.fetchCardData(message).catch(() => null);
 
@@ -2160,11 +2161,14 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
       return { text: spokenText, audio: null, card: cardData, hasAction: false };
     }
 
-    // No card found — open Google search in the in-app browser panel
-    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(message + ' score result')}`;
-    const spokenText = `I couldn't find live data for that match. Opening Google search for you now.`;
-    _sendTTS(_e.sender, spokenText);
-    return { text: spokenText, audio: null, card: null, browserPanelUrl: googleUrl, hasAction: true };
+    // No live card. This used to stop here: announce Google, open a panel,
+    // answer nothing. It was wrong twice over - most of these questions are
+    // answerable without any live data at all ("who won the 1992 final"),
+    // and the panel itself comes up blank because Google refuses to be
+    // embedded. A failed lookup should mean the answer is not enhanced, not
+    // that there is no answer. Fall through and answer it properly; the note
+    // below keeps it from inventing a scoreline it could not check.
+    _sportsLiveMissing = true;
   }
 
   // Asking Callisto to do something is never a request for a picture card:
@@ -2382,7 +2386,16 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
         + recent.map((a, i) => `${i + 1}. ${KIND[a.kind] || a.kind}: "${a.title}"`).join('\n');
     }
   } catch (_) {}
-  const combinedContext = [newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext, recentContext, drawContext].filter(Boolean).join('\n\n') || null;
+  // Said only when a live lookup was tried and came back empty.
+  const liveGapContext = _sportsLiveMissing
+    ? 'NOTE: a live scores lookup was attempted for this and returned nothing. '
+      + 'Answer from what you know. Historical and settled results - past finals, '
+      + 'past tournaments, records, players - you know and should state plainly and in full. '
+      + 'Only if they are asking about a match happening now or today should you say you '
+      + 'could not get the live score. Never invent a scoreline, scorer or date you are not sure of, '
+      + 'and never reply only with "I could not find live data".'
+    : null;
+  const combinedContext = [liveGapContext, newsContext, realtimeContext, emailContext, cardContext, vipContext, sheetContext, recentContext, drawContext].filter(Boolean).join('\n\n') || null;
   const language = store.get('language') || 'English';
   const userProfile = store.get('profile') || {};
   const userName = userProfile.displayName || null;
@@ -3370,7 +3383,14 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       imageCard = { type: 'image', imageUrl: imgRes.url, title: 'Generated Image', description: finalAction.arg, source: 'DALL-E 3', sourceUrl: null };
       if (imgRes.url) artifacts.add({ kind: 'image', url: imgRes.url, prompt: finalAction.arg, source: 'AI image' });
     } catch (e) {
-      finalText = 'Sorry, I couldn\'t generate that image. ' + (e.message || '');
+      // Not the raw server text. "Server 502: {error...}" is plumbing in a
+      // chat bubble: it tells the person nothing they can act on.
+      const _imgErr = String(e.message || '');
+      finalText = /content.?policy|safety|rejected/i.test(_imgErr)
+        ? "I can't make that one. Try describing it differently."
+        : /429|rate limit|quota/i.test(_imgErr)
+          ? "I've hit my picture limit for now. Try again in a little while."
+          : "Sorry, I couldn't make that picture just then. Try again in a moment.";
     }
     finalAction = null;
   }
