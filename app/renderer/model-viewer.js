@@ -33,7 +33,8 @@
 (function () {
   'use strict';
 
-  const GLTF_CDN = 'https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js';
+  // Shipped with the app, not fetched at runtime. See ensureLoader below.
+  const GLTF_LIB = 'vendor/GLTFLoader.js';
 
   const SWATCHES = [
     ['Crimson', '#c8102e'], ['Gold', '#d4a537'], ['Silver', '#c9ced6'], ['Black', '#111114'],
@@ -534,9 +535,19 @@
     if (loaderReady) return loaderReady;
     loaderReady = (async () => {
       try {
-        const src = await window.jarvis.fetchCdnScript(GLTF_CDN);
-        if (!src) return false;
-        (0, eval)(src);
+        // Loaded from the app's own files with an ordinary script tag.
+        // Downloading code at runtime and evaluating it is what a dropper
+        // does, and antivirus scores it that way - a signed installer with no
+        // reputation yet gets quarantined for it. It was also a real hole:
+        // the fetch took any URL at all, so anything that could run script in
+        // this window could have pointed it somewhere of its own choosing.
+        await new Promise((resolve, reject) => {
+          const tag = document.createElement('script');
+          tag.src = GLTF_LIB;
+          tag.onload = resolve;
+          tag.onerror = () => reject(new Error('GLTFLoader missing'));
+          document.head.appendChild(tag);
+        });
         return !!(window.THREE && window.THREE.GLTFLoader);
       } catch (_) { return false; }
     })();

@@ -3469,14 +3469,11 @@ ipcMain.handle('jarvis:chat', async (_e, args) => {
   return res;
 });
 
-// Utility: fetch a CDN script as text (used by tubes-cursor.js to bypass sandbox)
-ipcMain.handle('util:fetchCdnScript', async (_e, url) => {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch { return null; }
-});
+// util:fetchCdnScript is gone. It fetched any URL it was handed and the
+// renderer evaluated the result, which is both how a dropper behaves - enough
+// on its own to get a freshly signed installer quarantined - and a way for
+// anything that could run script in a window to execute code of its choosing
+// inside the app. The two libraries that used it now ship in renderer/vendor.
 
 // Chat history sessions
 ipcMain.handle('session:save', (_e, session) => {

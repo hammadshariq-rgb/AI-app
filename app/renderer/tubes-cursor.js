@@ -61,35 +61,18 @@
   // ── Library loading via IPC ──────────────────────────────────────────────────
   // The renderer runs in a sandboxed context; we ask the main process to
   // download the CDN file and return it as a string, then eval it.
+  // ── Library loading ────────────────────────────────────────────────────
+  // Shipped with the app and loaded with a plain script tag. It used to be
+  // downloaded from a CDN and evaluated, which is behaviour antivirus treats
+  // as a dropper - and the fetch behind it accepted any URL at all.
   function ensureLib() {
     return new Promise((resolve, reject) => {
       if (libReady && window.TubesCursor1) { resolve(); return; }
-
-      // Ask main process to fetch the CDN script text
-      window.jarvis.fetchCdnScript(
-        'https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js'
-      ).then(code => {
-        if (!code) throw new Error('empty response');
-        // eslint-disable-next-line no-new-func
-        const fn = new Function(code + '\nreturn typeof TubesCursor !== "undefined" ? TubesCursor : (typeof module !== "undefined" ? module.exports : undefined);');
-        // The library attaches to window or uses CommonJS exports — try both
-        try { fn(); } catch (_) {}
-
-        // The lib typically exposes itself as a global or default export.
-        // threejs-components tubes1 assigns window.TubesCursor or exports default.
-        // We inject it via a blob URL so its internal module.exports works.
-        const blob = new Blob([code], { type: 'text/javascript' });
-        const url  = URL.createObjectURL(blob);
-        const tag  = document.createElement('script');
-        tag.src = url;
-        tag.onload = () => {
-          URL.revokeObjectURL(url);
-          libReady = true;
-          resolve();
-        };
-        tag.onerror = reject;
-        document.head.appendChild(tag);
-      }).catch(reject);
+      const tag = document.createElement('script');
+      tag.src = 'vendor/tubes1.min.js';
+      tag.onload = () => { libReady = true; resolve(); };
+      tag.onerror = () => reject(new Error('tubes cursor library missing'));
+      document.head.appendChild(tag);
     });
   }
 
@@ -142,14 +125,6 @@
   function toggle() {
     active = !active;
     if (!active) { hideCanvas(); return; }
-
-    // Check IPC bridge is available (preload must expose fetchCdnScript)
-    if (!window.jarvis || !window.jarvis.fetchCdnScript) {
-      console.warn('[TubesCursor] window.jarvis.fetchCdnScript not available — add it to preload.js');
-      active = false;
-      toast('⚠ Tubes cursor unavailable — see console');
-      return;
-    }
 
     ensureLib()
       .then(() => {

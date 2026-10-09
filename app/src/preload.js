@@ -151,7 +151,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
   // Tubes cursor: fetch a CDN script via main process (bypasses sandbox restriction)
-  fetchCdnScript: (url) => ipcRenderer.invoke('util:fetchCdnScript', url),
   // Magic Editor
   magicEdit: (selectedText, instruction) => ipcRenderer.invoke('magic:edit', { selectedText, instruction }),
   onMagicEditStart: (cb) => ipcRenderer.on('jarvis:magic-edit-start', (_e, d) => cb(d)),
