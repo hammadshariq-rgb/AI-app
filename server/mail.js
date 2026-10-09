@@ -42,6 +42,21 @@ function ready() {
       service: 'gmail',
       auth: { user: MAIL_USER, pass: MAIL_PASS },
     });
+    // Say once, at startup, whether Gmail actually accepts these credentials.
+    // Without this the first sign of a wrong address or a revoked App Password
+    // is a letter that never arrives, with nothing in the logs until somebody
+    // happens to make an account.
+    transport.verify()
+      .then(() => console.log('[mail] Gmail accepted the credentials for', MAIL_USER))
+      .catch((err) => {
+        console.error('[mail] Gmail REFUSED the credentials for', MAIL_USER, '-', err.message);
+        if (/Username and Password not accepted|BadCredentials|535/i.test(err.message || '')) {
+          console.error('[mail] Check: (1) MAIL_USER must be an address you can sign into at ' +
+            'mail.google.com - a forwarding alias on your domain is not a Google account; ' +
+            '(2) MAIL_PASS must be a 16-character Google App Password, not the real password; ' +
+            '(3) 2-Step Verification must be on for that account.');
+        }
+      });
   }
   return transport;
 }
@@ -135,5 +150,10 @@ function sendPurchase({ email, name, plan }) {
     `Congratulations, ${who}.\n\nYour purchase went through and ${priced} is now active on this account.\n\nThe daily message limit is gone and every Premium feature is open.\n\nOpen the app and it will already know - if it still shows the free plan, sign out and back in once.\n\nEnjoy Callisto AI.`
   );
 }
+
+// Check at boot rather than on the first signup, so a wrong address or a
+// revoked App Password shows up in the deploy logs instead of as a letter
+// somebody never received.
+ready();
 
 module.exports = { sendWelcome, sendPurchase, configured: () => !!ready() };
