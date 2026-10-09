@@ -1055,7 +1055,41 @@ app.whenReady().then(async () => {
 
   // Auth is handled in the renderer on first open; nothing to check here at startup
 
-  // ── Reminder scheduler — checks every 30 seconds ──────────────────────────
+  // An event with a time on it should say something when it arrives.
+//
+// Putting it in two calendars is not the same as being told about it: Google
+// notifies a phone, and the in-app calendar notified nobody at all, so an
+// event added by voice could pass unmentioned on the very machine it was added
+// on. This puts it through the reminder scheduler, which already knows how to
+// speak and notify.
+function scheduleEventReminder(ev) {
+  try {
+    if (!ev || !ev.date || !ev.time) return;        // all-day events say nothing
+    const at = new Date(`${ev.date}T${ev.time}`).getTime();
+    if (!at || isNaN(at) || at < Date.now()) return;  // nothing to say about the past
+
+    const title = String(ev.title || 'your event').slice(0, 120);
+    const reminders = store.get('reminders') || [];
+    // Adding the same event twice should not mean hearing about it twice.
+    if (reminders.some((r) => r.fromEvent && r.datetime === at && r.text.includes(title))) return;
+
+    reminders.push({
+      id: `ev${Date.now()}`,
+      text: title,
+      datetime: at,
+      earlyMinutes: 15,       // a quarter of an hour is enough to get moving
+      triggered: false,
+      earlyTriggered: false,
+      fromEvent: true,
+    });
+    store.set('reminders', reminders);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('jarvis:reminder', { refresh: true });
+    }
+  } catch (_) { /* an event that cannot be timed simply goes unannounced */ }
+}
+
+// ── Reminder scheduler — checks every 30 seconds ──────────────────────────
   setInterval(async () => {
     const reminders = store.get('reminders') || [];
     if (!reminders.length) return;
@@ -1738,6 +1772,7 @@ async function runSecondaryAction(act, _e) {
       }
       // The in-app calendar gets it either way, exactly as the primary path does.
       if (sender && !sender.isDestroyed()) sender.send('calendar:add-local', eventArgs);
+      scheduleEventReminder(eventArgs);
       return;
     }
 
@@ -2870,6 +2905,19 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     // go. Refusing outright because Google was not connected meant the feature
     // did nothing at all for anyone who had not linked an account — and when
     // Google failed for any other reason, the event vanished entirely.
+    // "Add to my Google Calendar" names nothing to add. Left alone the model
+    // fills the gap with something - "Event", or the words of the request
+    // itself - and a junk entry appears in two calendars and announces itself
+    // later. Asking is the only honest answer to half a sentence.
+    const vague = !String(eventArgs.title || '').trim()
+      || /^(?:an?\s+)?(?:event|new event|appointment|reminder|calendar|google calendar|something)$/i.test(String(eventArgs.title).trim())
+      || /^add(?:\s+(?:this|that|it))?\s+to\s+(?:my\s+)?(?:google\s+)?calendar$/i.test(String(eventArgs.title).trim());
+    if (vague) {
+      const spoken = 'What should I put in the calendar, and when?';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, card: null, hasAction: false };
+    }
+
     let googleOk = false;
     let googleErr = null;
     if (calendar.isConnected()) {
@@ -2886,6 +2934,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         ? `I've put "${eventArgs.title}" on your calendar here for ${when}, but Google Calendar wouldn't take it. You may need to reconnect it.`
         : `I've put "${eventArgs.title}" on your calendar for ${when}. Connect Google Calendar if you'd like it on there too.`);
     if (googleErr) console.warn('[calendar] Google rejected the event:', googleErr);
+    scheduleEventReminder(eventArgs);
     _sendTTS(_e.sender, spokenText);
     // The in-app calendar gets it either way.
     return { text: spokenText, audio: null, card: null, hasAction: true, calendarEvent: eventArgs };
