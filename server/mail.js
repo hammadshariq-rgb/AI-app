@@ -245,8 +245,20 @@ async function status() {
         return { build: BUILD, transport: 'https', configured: true, verified: true,
                  reason: 'the email API accepted the key', from: MAIL_FROM };
       }
+      // A send-only key is not allowed to read /domains, so a 401 here does NOT
+      // mean the key is bad - it may be a perfectly good key with the narrower
+      // permission, which is the sensible one to give a server that only sends.
+      // Saying "rejected" sent the owner off regenerating a working key.
+      if (res.status === 401 || res.status === 403) {
+        return { build: BUILD, transport: 'https', configured: true, verified: 'unknown',
+                 from: MAIL_FROM,
+                 reason: 'the key cannot read /domains. That is expected for a send-only key, '
+                   + 'so it may still send perfectly well - make an account on the site to find out. '
+                   + 'If you gave it full access, then the key really is wrong.' };
+      }
       return { build: BUILD, transport: 'https', configured: true, verified: false,
-               reason: res.status === 401 ? 'the email API rejected the key' : 'the email API answered ' + res.status };
+               from: MAIL_FROM,
+               reason: 'the email API answered ' + res.status };
     } catch (err) {
       return { build: BUILD, transport: 'https', configured: true, verified: false,
                reason: 'could not reach the email API', detail: String(err.message).slice(0, 140) };
