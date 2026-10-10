@@ -3030,7 +3030,9 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   if (finalAction?.type === 'search_drive') {
     const driveToken = await connectors.getDriveToken();
     if (!driveToken) {
-      const spokenText = 'Google Drive isn\'t connected yet. Open the connectors panel and click Connect next to Google Drive.';
+      // Drive is withdrawn until the restricted-scope assessment is paid for,
+      // so there is no Connect button to send anyone to any more.
+      const spokenText = 'Google Drive is not available in this version. I can look on this computer instead, if you like.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
@@ -4185,7 +4187,18 @@ const GOOGLE_OAUTH_SCOPES = {
   // Connect button actually requests - the server has its own copy for the
   // browser flow, and both have to agree or the grant silently stays read-only.
   calendar:      'https://www.googleapis.com/auth/calendar.events',
-  drive:         'https://www.googleapis.com/auth/drive.readonly',
+  // Drive is off until the security assessment is paid for.
+  //
+  // drive.readonly is a RESTRICTED scope, not merely a sensitive one. Sensitive
+  // scopes need a review, which is free; restricted scopes need that plus a
+  // third-party security assessment renewed every year, which is not. Until it
+  // is done Google puts "Google hasn't verified this app" in front of anyone
+  // who tries to connect Drive.
+  //
+  // Asking for a scope the project cannot be approved for buys nothing, so it
+  // is not requested. To turn Drive back on after the assessment: restore the
+  // line below and re-enable the connector in connectors.js.
+  // drive:      'https://www.googleapis.com/auth/drive.readonly',
   // upload is needed so customers can post their videos to their own channel
   youtube:       'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
   analytics:     'https://www.googleapis.com/auth/analytics.readonly',

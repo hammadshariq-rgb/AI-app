@@ -345,21 +345,9 @@ const TOOLS = [
       },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'search_drive',
-      description: 'Search the user OWN Google Drive for a file they already have. Use only when they are pointing at their own storage: "Google Drive", "my drive", "my cloud", "my documents on drive", "find MY report", "open MY spreadsheet". NEVER use this to go and find them a document that they do not already own - "find me a document about X", "find me research on X", "get me a paper on X" are web searches, not Drive searches. The word that decides it is the possessive: MY document means their storage, A document means the web.',
-      parameters: {
-        type: 'object',
-        properties: {
-          filename: { type: 'string', description: 'The name or partial name of the file to find. Use empty string "" to list recent files when the user asks "what\'s in my Drive" or "show my files".' },
-          open: { type: 'boolean', description: 'Set true to open the found file in the browser. Set false to just list/show files without opening.' },
-        },
-        required: ['filename'],
-      },
-    },
-  },
+  // search_drive is gone while Drive is off. Offering a tool that can only
+  // answer "not connected", for something nobody can connect, wastes a turn
+  // and reads as a fault. Restore it with the scope after the assessment.
   {
     type: 'function',
     function: {
@@ -829,10 +817,10 @@ EMAIL & UPDATE RULES:
   drawing, art, logo, poster or wallpaper actually appear.
 - DOCUMENTS - the possessive decides which tool:
   * "open my document", "find my notes", "where is my Netflix spreadsheet" -
-    they already own it. Look in their own places: open_file searches this
-    computer (Windows Explorer or Mac Finder), search_drive searches Google
-    Drive. If they named Drive, use search_drive; otherwise try open_file.
-  * "find me a document on X", "find research on X", "get me a paper about X" -
+    they already own it. Look on this computer with open_file, which searches
+    Windows Explorer or Mac Finder. Google Drive is not available in this
+    version, so if they ask for Drive specifically, say plainly that Drive is
+    not connected in this version and offer to look on their computer instead.
     they do NOT own it and are asking you to go and find one for whatever they
     are working on. That is a web search: open_url to Google with the subject,
     and say out loud that you are opening Google to find it. Never answer this
@@ -1200,7 +1188,7 @@ function isKnowledgeQuestion(message) {
 const FAST_PATH_TOOLS = new Set([
   'open_url', 'open_folder', 'open_file', 'open_app', 'open_chat',
   'read_messages', 'send_message', 'make_call', 'place_phone_call',
-  'play_music', 'notify', 'generate_image', 'search_drive', 'get_analytics',
+  'play_music', 'notify', 'generate_image', 'get_analytics',
   'set_reminder', 'add_task', 'list_tasks', 'mark_emails_read', 'set_volume',
   'system_power', 'remember_fact', 'forget_fact', 'get_briefing',
 ]);
@@ -1320,7 +1308,6 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'get_events')    return { type: 'get_events',    arg: String(args.days || 7) };
       else if (fnName === 'add_event')     return { type: 'add_event',     arg: JSON.stringify(args) };
       else if (fnName === 'clear_schedule') return { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
-      else if (fnName === 'search_drive')  return { type: 'search_drive',   arg: args.filename };
       else if (fnName === 'post_stats')   return { type: 'post_stats',    arg: args.query || '' };
       else if (fnName === 'get_analytics') return { type: 'get_analytics',  arg: args.platform || 'all' };
       else if (fnName === 'set_reminder')  return { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };

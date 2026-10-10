@@ -5739,9 +5739,9 @@ async function sendToJarvis(text) {
           const hint = document.createElement('div');
           hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
           if (result.error === 'not_connected') {
-            hint.textContent = '⚠ Google Drive not connected. Connect it in Settings (🔗 icon).';
+            hint.textContent = '⚠ Google Drive is not available in this version.';
           } else if (result.error === 'scope_missing') {
-            hint.textContent = '⚠ Google Drive needs new permissions. Disconnect & reconnect Google Drive in Settings.';
+            hint.textContent = '⚠ Google Drive is not available in this version.';
           } else {
             hint.textContent = '⚠ Failed to create document: ' + (result.detail || 'unknown error');
           }
@@ -5783,9 +5783,9 @@ async function sendToJarvis(text) {
           const hint = document.createElement('div');
           hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
           if (result.error === 'not_connected') {
-            hint.textContent = '⚠ Google Drive not connected. Connect it in Settings (🔗 icon).';
+            hint.textContent = '⚠ Google Drive is not available in this version.';
           } else if (result.error === 'scope_missing') {
-            hint.textContent = '⚠ Google Drive needs new permissions. Disconnect & reconnect Google Drive in Settings.';
+            hint.textContent = '⚠ Google Drive is not available in this version.';
           } else {
             hint.textContent = '⚠ Failed to create presentation: ' + (result.detail || 'unknown error');
           }
