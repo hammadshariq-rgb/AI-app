@@ -187,6 +187,9 @@ ready();
 // not mean going hunting through deploy logs. It never returns the address or
 // the password - only whether Gmail accepted the credentials, and a short
 // reason when it did not.
+// Railway sets this; it is how we tell whether a push has actually rolled out.
+const BUILD = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'unknown';
+
 async function status() {
   if (!nodemailer) return { configured: false, verified: false, reason: 'nodemailer-not-installed' };
   if (!MAIL_USER || !MAIL_PASS) {
@@ -205,16 +208,18 @@ async function status() {
       ready().verify(),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timed out reaching Gmail')), 12000)),
     ]);
-    return { configured: true, verified: true, reason: 'Gmail accepted the credentials', domain: MAIL_USER.split('@')[1] || '' };
+    return { build: BUILD, configured: true, verified: true, reason: 'Gmail accepted the credentials', domain: MAIL_USER.split('@')[1] || '' };
   } catch (err) {
     const m = String(err.message || '');
     return {
+      build: BUILD,
       configured: true,
       verified: false,
       domain: MAIL_USER.split('@')[1] || '',
       reason: /535|BadCredentials|Username and Password not accepted/i.test(m)
         ? 'Gmail rejected the credentials - MAIL_USER must be an address that can sign in at mail.google.com, and MAIL_PASS must be a 16-character App Password'
-        : /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network|timed out/i.test(m) ? 'could not reach Gmail from the server - the host may be blocking outbound SMTP'
+        : /ENETUNREACH/i.test(m) ? 'no route to that address from this host - usually means an IPv6 address on a host with no IPv6'
+      : /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network|timed out/i.test(m) ? 'could not reach Gmail from the server - the host may be blocking outbound SMTP'
         : 'unknown',
       detail: m.slice(0, 140),
     };
