@@ -122,6 +122,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onTasksChanged: (cb) => ipcRenderer.on('jarvis:tasks-changed', () => cb()),
   onCalendarAddLocal: (cb) => ipcRenderer.on('calendar:add-local', (_e, d) => cb(d)),
   onReminder: (cb) => ipcRenderer.on('jarvis:reminder', (_e, d) => cb(d)),
+  onDocOpened: (cb) => ipcRenderer.on('jarvis:doc-opened', (_e, d) => cb(d)),
+  docAssist: (filePath, mode) => ipcRenderer.invoke('doc:assist', { filePath, mode }),
   calendarList: () => ipcRenderer.invoke('calendar:list'),
   calendarAdd: (event) => ipcRenderer.invoke('calendar:add', event),
   calendarDeleteEvent: (title, date) => ipcRenderer.invoke('calendar:delete', { title, date }),

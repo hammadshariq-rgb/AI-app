@@ -11574,6 +11574,76 @@ function _offerCalendarEvent(userText) {
   } catch (_) { /* an offer that cannot be made simply is not made */ }
 }
 
+// ===== HELP WITH A DOCUMENT THAT WAS JUST OPENED =====
+// The moment a document opens is the moment someone might want it read for
+// them, so the offer appears then rather than waiting to be asked. It is an
+// offer: nothing is read, sent or changed until a button is pressed.
+(function () {
+  if (!window.jarvis || !window.jarvis.onDocOpened) return;
+
+  window.jarvis.onDocOpened(function (info) {
+    if (!info || !info.path) return;
+    try {
+      // One at a time. Opening three files should not leave three offers.
+      document.querySelector('.doc-offer')?.remove();
+
+      const row = document.createElement('div');
+      row.className = 'msg-row assistant doc-offer';
+      const card = document.createElement('div');
+      card.className = 'cal-offer-card';
+
+      const text = document.createElement('div');
+      text.className = 'cal-offer-text';
+      text.textContent = 'Opened ' + info.name + '. Want me to summarise it, or check the spelling?';
+
+      const acts = document.createElement('div');
+      acts.className = 'cal-offer-acts';
+
+      const mk = (label, mode, cls) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = cls;
+        b.textContent = label;
+        b.addEventListener('click', async () => {
+          acts.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+          b.textContent = mode === 'spelling' ? 'Checking…' : 'Reading…';
+          let res = null;
+          try { res = await window.jarvis.docAssist(info.path, mode); } catch (_) {}
+          row.remove();
+          if (res && res.ok && res.text) {
+            const heading = mode === 'spelling'
+              ? 'Spelling in ' + info.name + ':'
+              : info.name + ':';
+            addMessage('assistant', heading + '\n\n' + res.text);
+            say(mode === 'spelling'
+              ? 'Here is what I found.'
+              : 'Here is the summary.');
+          } else {
+            addMessage('assistant', (res && res.error) || 'I could not read that one.');
+          }
+        });
+        return b;
+      };
+
+      acts.appendChild(mk('Summarise', 'summary', 'cal-offer-yes'));
+      acts.appendChild(mk('Check spelling', 'spelling', 'cal-offer-yes'));
+
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.className = 'cal-offer-no';
+      no.textContent = 'No thanks';
+      no.addEventListener('click', () => row.remove());
+      acts.appendChild(no);
+
+      card.appendChild(text);
+      card.appendChild(acts);
+      row.appendChild(card);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    } catch (_) { /* an offer that cannot be made simply is not made */ }
+  });
+})();
+
 // ===== GET PREMIUM =====
 // One card, opened from two places: the moment the day's fifteen free messages
 // run out, and the Subscription row in Account for anyone not on Premium. The

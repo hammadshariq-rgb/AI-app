@@ -205,4 +205,46 @@ async function writeAny({ kind, title, slides, sections, sheets }, dir) {
   return writeWord(title, body, dir);
 }
 
-module.exports = { writeWord, writeSlides, writeSheet, writeAny, parse };
+
+// ── Reading a document back ───────────────────────────────────────────────────
+// Enough to summarise or spell-check what somebody has just opened. A .docx is
+// a zip with its text in word/document.xml, and adm-zip is already a dependency
+// for other reasons - so Word files cost nothing new. PDFs would need a parser,
+// so they are refused honestly rather than returned empty.
+const READABLE = /\.(txt|md|markdown|csv|json|log|docx)$/i;
+
+function canRead(filePath) {
+  return READABLE.test(String(filePath || ''));
+}
+
+function readText(filePath) {
+  const p = String(filePath || '');
+  if (!p || !fs.existsSync(p)) return null;
+  try {
+    if (/\.docx$/i.test(p)) {
+      const AdmZip = require('adm-zip');
+      const entry = new AdmZip(p).getEntry('word/document.xml');
+      if (!entry) return null;
+      const xml = entry.getData().toString('utf8');
+      return xml
+        .replace(/<\/w:p>/g, '\n')          // a paragraph break is a line break
+        .replace(/<w:tab[^>]*\/>/g, '\t')
+        .replace(/<[^>]+>/g, '')            // everything else is markup
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+    // Plain text of some flavour. Capped, because a log file can be enormous
+    // and nobody wants a summary of a hundred megabytes.
+    return fs.readFileSync(p, 'utf8').slice(0, 200000);
+  } catch (_) {
+    return null;
+  }
+}
+
+
+module.exports = { readText, canRead, writeWord, writeSlides, writeSheet, writeAny, parse };

@@ -2076,6 +2076,12 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   if (_openM && /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(_openM[1].trim())) {
     const res = await commands.run('open_file', _openM[1].trim()).catch((e) => ({ ok: false, error: e.message }));
     const t = res?.ok ? `Opening ${path.basename(res.path)}.` : (res?.error || "I couldn't find that file.");
+    // A document that was just opened is the one thing the person is looking
+    // at, so this is the moment to offer. Only for files we can actually read;
+    // offering to summarise a PDF we cannot open would be a promise we break.
+    if (res?.ok && res.path && documents.canRead(res.path) && _e.sender && !_e.sender.isDestroyed()) {
+      _e.sender.send('jarvis:doc-opened', { path: res.path, name: path.basename(res.path) });
+    }
     _sendTTS(_e.sender, t);
     return { text: t, audio: null, card: null, hasAction: !!res?.ok };
   }
@@ -4405,6 +4411,41 @@ ipcMain.handle('reminder:delete', (_e, id) => {
   const reminders = (store.get('reminders') || []).filter(r => r.id !== id);
   store.set('reminders', reminders);
   return reminders;
+});
+
+// Summarising or proofreading a document the person opened. Both read the
+// same extracted text, so they share one channel.
+ipcMain.handle('doc:assist', async (_e, { filePath, mode }) => {
+  try {
+    const text = documents.readText(filePath);
+    if (!text || !text.trim()) return { error: 'I could not read any text out of that file.' };
+    // Long documents are trimmed rather than refused - the opening is almost
+    // always what somebody wants summarised, and the whole thing would cost a
+    // fortune in tokens for a worse answer.
+    const body = text.slice(0, 12000);
+    const spelling = mode === 'spelling';
+    const instruction = spelling
+      ? 'Proofread the document below. List ONLY genuine spelling and obvious typing mistakes, '
+      : 'Summarise the document below for the person who wrote or received it. ';
+    const detail = spelling
+      ? 'as a short list in the form: wrong -> right. Ignore names, brands, code, and anything '
+        + 'that is merely a style choice. If there are none, say so in one line and nothing else.'
+      : 'Lead with one sentence saying what it is, then the key points as a short list. '
+        + 'Be brief - they can read the document themselves.';
+    const res = await ai.serverFetch('chat', {
+      messages: [
+        { role: 'system', content: instruction + detail },
+        { role: 'user', content: body },
+      ],
+      max_tokens: 700,
+      temperature: 0.2,
+    }, { timeout: 60000, retries: 1 });
+    const data = await res.json();
+    const out = data?.choices?.[0]?.message?.content;
+    return out ? { ok: true, text: out } : { error: 'I could not make sense of that one.' };
+  } catch (err) {
+    return { error: 'I could not read that just now. Try again in a moment.' };
+  }
 });
 
 ipcMain.handle('calendar:list', async () => {
