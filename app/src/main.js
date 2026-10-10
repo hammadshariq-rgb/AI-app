@@ -4503,6 +4503,25 @@ async function _dmTick() {
     // would look new, so it is treated as already seen instead.
     if (!seen) return;
 
+    // A message either way can name an appointment. "Lets meet tomorrow at 12"
+    // is worth offering to diarise whether they said it or the other person
+    // did - arranging something is arranging it. Notifications stay as they
+    // were, for messages from other people only; this is a separate, quieter
+    // signal that the renderer decides what to do with.
+    for (const t of inbox.threads) {
+      const at = t.lastAt ? new Date(t.lastAt).getTime() : 0;
+      if (!at || at <= seen) continue;
+      const body = String(t.lastMessage || '').trim();
+      if (!body || (t.lastKind && t.lastKind !== 'text')) continue;
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('dm:event-candidate', {
+          name: t.name || 'Someone',
+          text: body.slice(0, 200),
+          fromMe: !!t.lastFromMe,
+        });
+      }
+    }
+
     for (const t of fresh.slice(0, 3)) {
       const payload = {
         platform: 'instagram',

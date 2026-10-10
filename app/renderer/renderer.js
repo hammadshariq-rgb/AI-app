@@ -11447,8 +11447,16 @@ function _detectEventMention(text, now) {
 
   if (/\b(?:add|put|schedule|book|create|set\s+up|remind)\b[^.?!]*\b(?:calendar|diary|schedule)\b/i.test(t)) return null;
   if (/^\s*(?:add|schedule|book|put)\b/i.test(t)) return null;
-  if (/^\s*(?:what|when|where|who|is|are|do|does|did|can|could|will)\b/i.test(t)) return null;
-  if (/\?\s*$/.test(t)) return null;
+  // Asking what is already in the diary is not proposing something new. But a
+  // question mark on its own means nothing - "lets meet tomorrow at 12 PM?" and
+  // "dinner tmr at 8?" are exactly how people arrange things, and rejecting
+  // every question threw those away along with the real queries.
+  const asksAboutDiary =
+    // "what's on tomorrow", "what have I got on" - asking to be read the diary.
+    /^\s*what(?:'s|s| is| have I got| do I have)?\s+on\b/i.test(t)
+    || (/^\s*(?:what|when|is|are|do|does|did|am|have)\b/i.test(t)
+        && /\b(?:calendar|diary|schedule[d]?|free|busy|anything|plans?|got on)\b/i.test(t));
+  if (asksAboutDiary) return null;
 
   const timeM = t.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
              || t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/i)
@@ -11635,6 +11643,85 @@ function _offerCalendarEvent(userText) {
       no.addEventListener('click', () => row.remove());
       acts.appendChild(no);
 
+      card.appendChild(text);
+      card.appendChild(acts);
+      row.appendChild(card);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    } catch (_) { /* an offer that cannot be made simply is not made */ }
+  });
+})();
+
+// ===== AN APPOINTMENT MENTIONED IN A DIRECT MESSAGE =====
+// Callisto already reads Instagram DMs every minute to count the unread ones,
+// so the text is already passing through. When a message names a day and a
+// time - "lets meet tomorrow at 12" - it offers to put it in the diary.
+//
+// Either direction counts: arranging something is arranging it whether they
+// proposed it or you did. Same detector as the chat offer, so the same strict
+// rules apply and the same things are ignored.
+(function () {
+  if (!window.jarvis || !window.jarvis.onDmEventCandidate) return;
+
+  window.jarvis.onDmEventCandidate(function (dm) {
+    try {
+      if (!dm || !dm.text) return;
+      if (typeof _detectEventMention !== 'function') return;
+      const ev = _detectEventMention(dm.text);
+      if (!ev) return;
+
+      // One at a time, and never two for the same arrangement.
+      const key = ev.title + '|' + ev.date + '|' + ev.time;
+      if (window._lastDmOfferKey === key) return;
+      window._lastDmOfferKey = key;
+      document.querySelector('.dm-offer')?.remove();
+
+      const who = dm.fromMe ? 'You' : (dm.name || 'Someone');
+      const row = document.createElement('div');
+      row.className = 'msg-row assistant dm-offer';
+      const card = document.createElement('div');
+      card.className = 'cal-offer-card';
+
+      const text = document.createElement('div');
+      text.className = 'cal-offer-text';
+      // Show the message itself, so it is obvious what this is about.
+      const quoted = dm.text.length > 70 ? dm.text.slice(0, 70) + '…' : dm.text;
+      text.textContent = who + ' said “' + quoted + '” on Instagram. '
+        + 'Put it in your calendar for ' + _eventWhenLabel(ev) + '?';
+
+      const acts = document.createElement('div');
+      acts.className = 'cal-offer-acts';
+
+      const yes = document.createElement('button');
+      yes.type = 'button';
+      yes.className = 'cal-offer-yes';
+      yes.textContent = 'Add it';
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.className = 'cal-offer-no';
+      no.textContent = 'No thanks';
+
+      no.addEventListener('click', () => row.remove());
+      yes.addEventListener('click', async () => {
+        yes.disabled = true;
+        yes.textContent = 'Adding…';
+        // Name the other person in the entry, so the diary says who it is with.
+        const titled = dm.fromMe || !dm.name ? ev.title : (ev.title + ' with ' + dm.name);
+        const entry = { ...ev, title: titled };
+        let ok = false;
+        try {
+          const res = await window.jarvis.calendarAdd(entry);
+          ok = !!(res && res.ok);
+        } catch (_) {}
+        try { window._handleAICalendarEvent && window._handleAICalendarEvent(entry); } catch (_) {}
+        text.textContent = ok
+          ? 'Added “' + titled + '” for ' + _eventWhenLabel(ev) + '.'
+          : 'Saved “' + titled + '” to your Callisto calendar. Google would not take it.';
+        acts.remove();
+      });
+
+      acts.appendChild(yes);
+      acts.appendChild(no);
       card.appendChild(text);
       card.appendChild(acts);
       row.appendChild(card);

@@ -165,6 +165,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   modelFromImage: (imageUrl, prompt, jobKey) => ipcRenderer.invoke('model:fromImage', { imageUrl, prompt, jobKey }),
   artifactAdd: (entry) => ipcRenderer.invoke('artifacts:add', entry),
   onDmIncoming: (cb) => ipcRenderer.on('dm:incoming', (_e, d) => cb(d)),
+  onDmEventCandidate: (cb) => ipcRenderer.on('dm:event-candidate', (_e, d) => cb(d)),
   instagramAccounts: () => ipcRenderer.invoke('instagram:accounts'),
   instagramUse: (igId) => ipcRenderer.invoke('instagram:use', igId),
   onModelResumed: (cb) => ipcRenderer.on('model:resumed', (_e, d) => cb(d)),
