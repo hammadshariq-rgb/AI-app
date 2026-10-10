@@ -47,7 +47,12 @@ function ready() {
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
+      // family alone was not enough - connections still went out to
+      // 2607:f8b0:... and died. Overriding the lookup forces the resolver
+      // itself to return A records only, so there is no IPv6 address to try.
       family: 4,
+      lookup: (hostname, options, callback) =>
+        require('dns').lookup(hostname, { ...options, family: 4, all: false }, callback),
       auth: { user: MAIL_USER, pass: MAIL_PASS },
       // Without these a blocked or stalled SMTP connection hangs rather than
       // failing, and every send sits open waiting on a socket that will never
