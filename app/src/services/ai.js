@@ -25,7 +25,13 @@ async function serverFetch(endpoint, body, { timeout = 45000, retries = 2, raw =
   let lastErr;
   const isChat = /^chat/.test(endpoint);
   const turnMark = isChat && _turnPending ? '1' : '0';
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  // `retries` is really an attempt count, and document work asks for 0 to mean
+  // "take your time, but do not retry". The loop then never ran at all: it fell
+  // straight through to `throw lastErr` with nothing assigned, so every
+  // document, deck and spreadsheet failed instantly, before touching the
+  // network, with an error that had no message to report. One attempt, always.
+  const attempts = Math.max(1, Number(retries) || 1);
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
@@ -62,14 +68,16 @@ async function serverFetch(endpoint, body, { timeout = 45000, retries = 2, raw =
       if (err.limitReached) break;
       const retriable = err.name === 'AbortError' ||
         (err.message && (err.message.includes('Premature close') || err.message.includes('ECONNRESET') || err.message.includes('socket hang up')));
-      if (retriable && attempt < retries) {
+      if (retriable && attempt < attempts) {
         await new Promise(r => setTimeout(r, 500));
         continue;
       }
       break;
     }
   }
-  throw lastErr;
+  // An error with no message reaches the person as "something went wrong",
+  // which tells them nothing and tells us less.
+  throw lastErr || new Error('The request could not be completed.');
 }
 
 // Tools the AI can call
