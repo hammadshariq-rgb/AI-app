@@ -1060,39 +1060,6 @@ app.whenReady().then(async () => {
 
   // Auth is handled in the renderer on first open; nothing to check here at startup
 
-  // An event with a time on it should say something when it arrives.
-//
-// Putting it in two calendars is not the same as being told about it: Google
-// notifies a phone, and the in-app calendar notified nobody at all, so an
-// event added by voice could pass unmentioned on the very machine it was added
-// on. This puts it through the reminder scheduler, which already knows how to
-// speak and notify.
-function scheduleEventReminder(ev) {
-  try {
-    if (!ev || !ev.date || !ev.time) return;        // all-day events say nothing
-    const at = new Date(`${ev.date}T${ev.time}`).getTime();
-    if (!at || isNaN(at) || at < Date.now()) return;  // nothing to say about the past
-
-    const title = String(ev.title || 'your event').slice(0, 120);
-    const reminders = store.get('reminders') || [];
-    // Adding the same event twice should not mean hearing about it twice.
-    if (reminders.some((r) => r.fromEvent && r.datetime === at && r.text.includes(title))) return;
-
-    reminders.push({
-      id: `ev${Date.now()}`,
-      text: title,
-      datetime: at,
-      earlyMinutes: 15,       // a quarter of an hour is enough to get moving
-      triggered: false,
-      earlyTriggered: false,
-      fromEvent: true,
-    });
-    store.set('reminders', reminders);
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('jarvis:reminder', { refresh: true });
-    }
-  } catch (_) { /* an event that cannot be timed simply goes unannounced */ }
-}
 
 // ── Reminder scheduler — checks every 30 seconds ──────────────────────────
   setInterval(async () => {
@@ -1934,6 +1901,45 @@ function _sendTTS(sender, text) {
       sender.send('jarvis:sentence-audio', { audio });
     }
   }).catch(() => {});
+}
+
+// Lives at module level deliberately. It was written inside the
+// app.whenReady() callback, where the chat handler - which is at module level
+// - could not see it, so every "add this to my calendar" ended in
+// "scheduleEventReminder is not defined" and the whole turn was lost to a
+// generic error. The event still reached Google; the reply never came back.
+  // An event with a time on it should say something when it arrives.
+//
+// Putting it in two calendars is not the same as being told about it: Google
+// notifies a phone, and the in-app calendar notified nobody at all, so an
+// event added by voice could pass unmentioned on the very machine it was added
+// on. This puts it through the reminder scheduler, which already knows how to
+// speak and notify.
+function scheduleEventReminder(ev) {
+  try {
+    if (!ev || !ev.date || !ev.time) return;        // all-day events say nothing
+    const at = new Date(`${ev.date}T${ev.time}`).getTime();
+    if (!at || isNaN(at) || at < Date.now()) return;  // nothing to say about the past
+
+    const title = String(ev.title || 'your event').slice(0, 120);
+    const reminders = store.get('reminders') || [];
+    // Adding the same event twice should not mean hearing about it twice.
+    if (reminders.some((r) => r.fromEvent && r.datetime === at && r.text.includes(title))) return;
+
+    reminders.push({
+      id: `ev${Date.now()}`,
+      text: title,
+      datetime: at,
+      earlyMinutes: 15,       // a quarter of an hour is enough to get moving
+      triggered: false,
+      earlyTriggered: false,
+      fromEvent: true,
+    });
+    store.set('reminders', reminders);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('jarvis:reminder', { refresh: true });
+    }
+  } catch (_) { /* an event that cannot be timed simply goes unannounced */ }
 }
 
 function classifyAIError(err) {

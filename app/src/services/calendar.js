@@ -72,74 +72,32 @@ async function getUpcomingEvents(days = 7) {
   end.setHours(23, 59, 59, 999);
 
   try {
-    // First get all calendars the user has
-    const calListRes = await fetch(
-      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+    // Straight to the primary calendar.
+    //
+    // This used to ask /users/me/calendarList first and fan out across every
+    // calendar. That needs a broader scope than calendar.events, so it
+    // answered 403 every single time, logged an error, and only then fell back
+    // to the primary calendar - a guaranteed-failing round trip on every
+    // "what's on my schedule". If the full calendar scope is ever granted,
+    // the fan-out is worth restoring; with calendar.events it cannot work.
+    const res = await fetch(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events?' +
+      `timeMin=${encodeURIComponent(now.toISOString())}&` +
+      `timeMax=${encodeURIComponent(end.toISOString())}&` +
+      'singleEvents=true&orderBy=startTime&maxResults=20',
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    const calListData = await calListRes.json();
-    console.log('Calendar list response:', JSON.stringify(calListData).slice(0, 500));
-    if (calListData.error) {
-      console.error('Calendar list error:', calListData.error);
-      // Fallback: try primary calendar only
-      const res = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-        `timeMin=${encodeURIComponent(now.toISOString())}&` +
-        `timeMax=${encodeURIComponent(end.toISOString())}&` +
-        `singleEvents=true&orderBy=startTime&maxResults=20`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = await res.json();
-      console.log('Primary calendar fallback:', JSON.stringify(data).slice(0, 500));
-      if (data.error) return { error: data.error.message };
-      const events = (data.items || []).map(e => ({
-        id: e.id, title: e.summary || '(no title)',
-        start: e.start?.dateTime || e.start?.date,
-        end: e.end?.dateTime || e.end?.date,
-        allDay: !e.start?.dateTime, location: e.location || null,
-      }));
-      return { ok: true, events };
-    }
-
-    const calendars = (calListData.items || []).filter(c =>
-      c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader'
-    );
-    console.log('Found calendars:', calendars.map(c => c.summary));
-
-    // Fetch events from all calendars in parallel
-    const allEventArrays = await Promise.all(
-      calendars.map(cal =>
-        fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
-          `timeMin=${encodeURIComponent(now.toISOString())}&` +
-          `timeMax=${encodeURIComponent(end.toISOString())}&` +
-          `singleEvents=true&orderBy=startTime&maxResults=20`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        ).then(r => r.json()).catch(() => ({ items: [] }))
-      )
-    );
-
-    // Merge and sort all events by start time
-    const events = allEventArrays
-      .flatMap(data => (data.items || []).map(e => ({
-        id: e.id,
-        title: e.summary || '(no title)',
-        start: e.start?.dateTime || e.start?.date,
-        end: e.end?.dateTime || e.end?.date,
-        allDay: !e.start?.dateTime,
-        location: e.location || null,
-      })))
-      .sort((a, b) => new Date(a.start) - new Date(b.start));
-
-    // Deduplicate by id (some events appear in multiple calendars)
-    const seen = new Set();
-    const unique = events.filter(e => {
-      if (seen.has(e.id)) return false;
-      seen.add(e.id);
-      return true;
-    });
-
-    return { ok: true, events: unique };
+    const data = await res.json();
+    if (data.error) return { error: data.error.message };
+    const events = (data.items || []).map((e) => ({
+      id: e.id,
+      title: e.summary || '(no title)',
+      start: e.start?.dateTime || e.start?.date,
+      end: e.end?.dateTime || e.end?.date,
+      allDay: !e.start?.dateTime,
+      location: e.location || null,
+    }));
+    return { ok: true, events };
   } catch (err) {
     return { error: err.message };
   }
@@ -218,6 +176,11 @@ async function clearSchedule(startDate, endDate) {
     const calendars = (calListData.items || []).filter(c =>
       c.accessRole === 'owner' || c.accessRole === 'writer'
     );
+    // calendarList needs a broader scope than calendar.events, so it returns
+    // nothing and this loop had no calendars to walk - "clear my schedule"
+    // reported success and deleted not one thing. The primary calendar is
+    // always there, the same fallback deleteEvent already makes.
+    if (!calendars.length) calendars.push({ id: 'primary' });
 
     let totalDeleted = 0;
     await Promise.all(calendars.map(async cal => {
