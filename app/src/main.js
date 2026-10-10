@@ -4733,6 +4733,127 @@ async function grabScreen(maxWidth = 1280) {
   return src.thumbnail.toDataURL();
 }
 
+// ── "Watch this" ──────────────────────────────────────────────────────────────
+// Reading the screen because someone asked, and then keeping an eye on it.
+//
+// Deliberately not a timer. Taking a screenshot is free; asking a model about
+// one is not, and on a five-second timer that runs to hundreds of pounds a
+// month per person. So the picture is taken often and compared here, on this
+// machine, for nothing - and the model is only asked when the screen has
+// actually changed and then settled, which is when there is something new to
+// say. A session also stops by itself, because an assistant watching your
+// screen an hour after you forgot about it is not a feature.
+const WATCH = {
+  on: false,
+  timer: null,
+  lastHash: null,
+  stableSince: 0,
+  lastReadAt: 0,
+  reads: 0,
+  startedAt: 0,
+  sender: null,
+};
+const WATCH_TICK_MS = 4000;        // how often we look, locally and free
+const WATCH_SETTLE_MS = 2500;      // the screen must hold still this long
+const WATCH_MIN_GAP_MS = 20000;    // never two paid reads closer than this
+const WATCH_MAX_READS = 25;        // a session cannot cost more than this
+const WATCH_MAX_MS = 20 * 60 * 1000;
+
+// A coarse fingerprint of the image, good enough to tell "they switched to
+// another window" from "the cursor blinked". Cheap on purpose.
+function _screenHash(dataUrl) {
+  const b64 = String(dataUrl || '').split(',')[1] || '';
+  if (!b64) return null;
+  const buf = Buffer.from(b64.slice(0, 40000), 'base64');
+  let h = 5381;
+  for (let i = 0; i < buf.length; i += 16) h = ((h * 33) ^ buf[i]) >>> 0;
+  return h;
+}
+
+async function _readScreenOnce(question) {
+  const shot = await grabScreen(1600);
+  if (!shot) return { error: 'I could not capture the screen.' };
+  try {
+    const res = await ai.serverFetch('screen-read', { imageBase64: shot, question }, { timeout: 60000, retries: 1 });
+    const data = await res.json();
+    return data && data.text ? { ok: true, text: data.text } : { error: 'I could not make sense of that screen.' };
+  } catch (err) {
+    return { error: 'I could not read the screen just then.' };
+  }
+}
+
+function _watchSend(channel, payload) {
+  const w = WATCH.sender;
+  if (w && !w.isDestroyed()) w.send(channel, payload);
+}
+
+function stopWatching(reason) {
+  if (!WATCH.on) return { ok: false };
+  WATCH.on = false;
+  if (WATCH.timer) clearInterval(WATCH.timer);
+  WATCH.timer = null;
+  _watchSend('screen:watch-ended', { reason: reason || 'stopped', reads: WATCH.reads });
+  return { ok: true, reads: WATCH.reads };
+}
+
+async function _watchTick() {
+  if (!WATCH.on) return;
+  try {
+    if (Date.now() - WATCH.startedAt > WATCH_MAX_MS) return void stopWatching('time');
+    if (WATCH.reads >= WATCH_MAX_READS) return void stopWatching('budget');
+
+    // Free: a small grab, hashed here. Nothing leaves the machine.
+    const probe = await grabScreen(320);
+    const h = _screenHash(probe);
+    if (h == null) return;
+
+    if (h !== WATCH.lastHash) {
+      WATCH.lastHash = h;
+      WATCH.stableSince = Date.now();   // it is still moving; wait for it to settle
+      return;
+    }
+    // Unchanged since the last tick. Has it been still long enough, and is it
+    // long enough since we last spent anything?
+    if (!WATCH.stableSince) return;
+    if (Date.now() - WATCH.stableSince < WATCH_SETTLE_MS) return;
+    if (Date.now() - WATCH.lastReadAt < WATCH_MIN_GAP_MS) return;
+
+    WATCH.stableSince = 0;
+    WATCH.lastReadAt = Date.now();
+    WATCH.reads += 1;
+    const out = await _readScreenOnce('The screen has changed. What is on it now, and what should I do about it? If nothing is worth saying, reply with exactly: NOTHING');
+    if (!WATCH.on) return;
+    if (out.ok && out.text && !/^\s*NOTHING\s*$/i.test(out.text)) {
+      _watchSend('screen:watch-update', { text: out.text, reads: WATCH.reads, max: WATCH_MAX_READS });
+    }
+  } catch (_) { /* a failed look is not worth ending the session over */ }
+}
+
+ipcMain.handle('screen:watch-start', async (e, { question } = {}) => {
+  WATCH.sender = e.sender;
+  if (WATCH.on) stopWatching('restarted');
+  WATCH.on = true;
+  WATCH.lastHash = null;
+  WATCH.stableSince = 0;
+  WATCH.lastReadAt = Date.now();
+  WATCH.reads = 1;
+  WATCH.startedAt = Date.now();
+
+  const first = await _readScreenOnce(question);
+  if (WATCH.on) WATCH.timer = setInterval(_watchTick, WATCH_TICK_MS);
+  return first.ok
+    ? { ok: true, text: first.text, watching: WATCH.on }
+    : { ok: false, error: first.error, watching: WATCH.on };
+});
+
+ipcMain.handle('screen:watch-stop', () => stopWatching('stopped'));
+ipcMain.handle('screen:watch-state', () => ({
+  watching: WATCH.on, reads: WATCH.reads, max: WATCH_MAX_READS,
+}));
+
+// One look, no session - for "what is on my screen?"
+ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenOnce(question));
+
 // The most recent reading, so an ordinary chat turn can use it as context.
 let lastScreenContext = null;
 

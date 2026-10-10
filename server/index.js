@@ -2218,6 +2218,72 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
   }
 });
 
+// ── Reading the screen because someone asked ──────────────────────────────────
+// Different job from the ambient watcher above, and so a different endpoint.
+//
+// The watcher's prompt tells it to stay quiet and return null most of the time,
+// which is right when nobody asked. Here somebody did ask, so staying quiet is
+// a failure. It reads the image at full detail rather than 'low' - small text
+// is usually the whole point, an error message or a form field - and is allowed
+// room to answer properly.
+//
+// It costs several times an ambient look, which is affordable precisely because
+// it only happens when a person asks for it.
+app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
+  try {
+    const { imageBase64, question } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      max_tokens: 700,
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are looking at a screenshot of the user\'s screen because they asked you to.',
+            'Read everything on it, including small text: error messages, field labels, button text,',
+            'file names, line numbers, figures in a table. Those details are usually the point.',
+            '',
+            'Answer in two parts, as plain prose with no headings:',
+            '1. One or two sentences on what is on screen and what they appear to be doing.',
+            '2. What you would actually do about it. Be specific to THIS screen - name the',
+            '   button, the field, the file, the exact error. "Check your settings" is useless;',
+            '   "the Reply-To field is empty, which is why it is bouncing" is not.',
+            '',
+            'If something is plainly wrong - an error, a failed step, a mistake in their work -',
+            'lead with that and say how to fix it.',
+            'If nothing needs doing, say so in one line rather than inventing advice.',
+            'Never pad. Three good sentences beat ten hedged ones.',
+            'Only say what you can actually see. If text is too small or cut off, say so',
+            'rather than guessing at it.',
+            '',
+            'PRIVACY: if a password field, card number, bank account or similar is visible,',
+            'do not read it, repeat it, or describe its contents. Say that something sensitive',
+            'is on screen and answer around it.',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: question && String(question).trim()
+              ? String(question).slice(0, 300)
+              : 'What is on my screen, and what should I do about it?' },
+            { type: 'image_url', image_url: { url: imageBase64, detail: 'high' } },
+          ],
+        },
+      ],
+    });
+
+    const text = r.choices?.[0]?.message?.content || '';
+    res.json({ ok: true, text: String(text).trim() });
+  } catch (err) {
+    console.error('[screen-read]', err.message);
+    res.status(500).json({ error: 'I could not read the screen just then.' });
+  }
+});
+
 app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { imageBase64, instruction } = req.body;

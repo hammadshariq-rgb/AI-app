@@ -10362,3 +10362,36 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 @media (prefers-reduced-motion: reduce) {
   .cal-offer-yes, .cal-offer-no { transition: none; }
 }
+
+
+/* ===== WATCHING YOUR SCREEN =====
+   Visible the entire time it is looking, with the count and a way to stop.
+   Something reading your screen should never be doing it quietly. */
+#watchBanner {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: 18px; z-index: 9500;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border-radius: 999px;
+  background: rgba(10, 16, 32, 0.96);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+  font-family: 'Rajdhani', sans-serif;
+}
+.watch-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: #8b5cf6;
+  animation: watchPulse 1.8s ease-in-out infinite;
+}
+@keyframes watchPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.watch-text { font-size: 13px; font-weight: 600; color: #e6edff; white-space: nowrap; }
+.watch-count { font-size: 11.5px; color: rgba(170,195,240,0.6); white-space: nowrap; }
+.watch-stop {
+  margin-left: 2px; padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.16); border-radius: 999px;
+  background: rgba(255,255,255,0.06); color: rgba(210,225,255,0.9);
+  font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.watch-stop:hover { background: rgba(255,255,255,0.14); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .watch-dot { animation: none; } }

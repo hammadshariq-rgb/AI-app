@@ -2728,6 +2728,20 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // "Watch this" - read the screen and keep an eye on it. Handled here so it
+  // never reaches the model, which cannot see the screen anyway.
+  if (typeof _WATCH_STOP !== 'undefined' && _WATCH_STOP.test(t)) {
+    window.jarvis?.watchStop?.();
+    _watchBanner(false);
+    addMessage('assistant', 'Stopped watching your screen.');
+    say('Stopped watching.');
+    return true;
+  }
+  if (typeof _WATCH_START !== 'undefined' && _WATCH_START.test(t)) {
+    await _startWatching(t);
+    return true;
+  }
+
   // ── Google Calendar: "show my calendar" → full overlay ───────────────────
   // Seeing the calendar only — "add X to my calendar" adds, and "what's on my
   // calendar" reads the events out (both below).
@@ -11730,6 +11744,69 @@ function _offerCalendarEvent(userText) {
     } catch (_) { /* an offer that cannot be made simply is not made */ }
   });
 })();
+
+// ===== "WATCH THIS" =====
+// Reading the screen because the person asked, and then keeping an eye on it
+// until they say stop. Asking is what makes this acceptable: they know it is
+// looking, because they told it to.
+const _WATCH_START = /^(?:hey\s+\w+[,\s]+)?(?:can\s+you\s+|please\s+)?(?:watch|look\s+at|read|check)\s+(?:this(?:\s+screen)?|my\s+screen|the\s+screen)\s*[.!?]?\s*$|^(?:what(?:'s| is)\s+on\s+my\s+screen|help\s+me\s+with\s+this(?:\s+screen)?)\s*[.!?]?\s*$/i;
+const _WATCH_STOP = /^(?:stop|quit|end)\s+(?:watching|looking|the\s+watch)\b|^stop\s+watching\s+my\s+screen\b/i;
+
+function _watchBanner(on, reads, max) {
+  let b = document.getElementById('watchBanner');
+  if (!on) { b?.remove(); return; }
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'watchBanner';
+    b.innerHTML = '<span class="watch-dot"></span>'
+      + '<span class="watch-text">Watching your screen</span>'
+      + '<span class="watch-count"></span>'
+      + '<button type="button" class="watch-stop">Stop</button>';
+    b.querySelector('.watch-stop').addEventListener('click', async () => {
+      await window.jarvis.watchStop();
+      _watchBanner(false);
+      addMessage('assistant', 'Stopped watching your screen.');
+    });
+    document.body.appendChild(b);
+  }
+  const c = b.querySelector('.watch-count');
+  if (c) c.textContent = reads ? reads + ' of ' + max + ' looks' : '';
+}
+
+async function _startWatching(question) {
+  addMessage('assistant', 'Looking at your screen…');
+  _watchBanner(true, 1, 25);
+  let res = null;
+  try { res = await window.jarvis.watchStart(question); } catch (_) {}
+  document.querySelectorAll('.msg-row.assistant').forEach((r) => {
+    const s = r.querySelector('.msg-text');
+    if (s && s.textContent === 'Looking at your screen…') r.remove();
+  });
+  if (res && res.ok && res.text) {
+    addMessage('assistant', res.text);
+    say(res.text);
+  } else {
+    _watchBanner(false);
+    addMessage('assistant', (res && res.error) || 'I could not read your screen.');
+  }
+  return true;
+}
+
+if (window.jarvis && window.jarvis.onWatchUpdate) {
+  // Only speaks when the screen has changed and settled, so it is never a
+  // running commentary.
+  window.jarvis.onWatchUpdate(function (d) {
+    if (!d || !d.text) return;
+    addMessage('assistant', d.text);
+    say(d.text);
+    _watchBanner(true, d.reads, d.max);
+  });
+  window.jarvis.onWatchEnded(function (d) {
+    _watchBanner(false);
+    if (d && d.reason === 'budget') addMessage('assistant', "I've stopped watching - that's as many looks as one session gets. Say “watch this” to start again.");
+    else if (d && d.reason === 'time') addMessage('assistant', "I've stopped watching your screen after twenty minutes.");
+  });
+}
 
 // ===== GET PREMIUM =====
 // One card, opened from two places: the moment the day's fifteen free messages
