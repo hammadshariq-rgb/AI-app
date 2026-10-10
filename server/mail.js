@@ -41,6 +41,13 @@ function ready() {
     transport = nodemailer.createTransport({
       service: 'gmail',
       auth: { user: MAIL_USER, pass: MAIL_PASS },
+      // Without these a blocked or stalled SMTP connection hangs rather than
+      // failing, and every send sits open waiting on a socket that will never
+      // answer. Some hosts block outbound SMTP entirely; better to find that
+      // out in ten seconds than never.
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
     // Say once, at startup, whether Gmail actually accepts these credentials.
     // Without this the first sign of a wrong address or a revoked App Password
@@ -172,7 +179,12 @@ async function status() {
     };
   }
   try {
-    await ready().verify();
+    // Bounded, so a hanging socket reports as a hang instead of timing out the
+    // request and telling us nothing.
+    await Promise.race([
+      ready().verify(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timed out reaching Gmail')), 12000)),
+    ]);
     return { configured: true, verified: true, reason: 'Gmail accepted the credentials', domain: MAIL_USER.split('@')[1] || '' };
   } catch (err) {
     const m = String(err.message || '');
@@ -182,7 +194,7 @@ async function status() {
       domain: MAIL_USER.split('@')[1] || '',
       reason: /535|BadCredentials|Username and Password not accepted/i.test(m)
         ? 'Gmail rejected the credentials - MAIL_USER must be an address that can sign in at mail.google.com, and MAIL_PASS must be a 16-character App Password'
-        : /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network/i.test(m) ? 'could not reach Gmail from the server'
+        : /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network|timed out/i.test(m) ? 'could not reach Gmail from the server - the host may be blocking outbound SMTP'
         : 'unknown',
       detail: m.slice(0, 140),
     };
