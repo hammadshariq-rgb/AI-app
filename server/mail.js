@@ -13,6 +13,13 @@
 //   MAIL_PASS  a Google App Password for that account - NOT the real password
 // Google only issues App Passwords to accounts with 2-Step Verification on.
 
+// This container has no route to IPv6. Node otherwise prefers AAAA records,
+// so every connection to smtp.gmail.com went to 2607:f8b0:... and died with
+// ENETUNREACH before Gmail was ever reached. Setting the resolution order is
+// the blunt version of the per-socket lookup below; both are here because the
+// per-socket one alone did not take.
+try { require('dns').setDefaultResultOrder('ipv4first'); } catch (_) {}
+
 let nodemailer = null;
 try {
   nodemailer = require('nodemailer');
