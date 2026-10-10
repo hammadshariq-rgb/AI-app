@@ -52,8 +52,13 @@ function ready() {
       //   connect ENETUNREACH 2607:f8b0:4023:c03::6d:465
       // before it ever spoke to Gmail. family:4 keeps it on IPv4.
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      // 587 with STARTTLS rather than 465 with implicit TLS. Once the IPv6
+      // problem was out of the way, 465 reported a plain connection timeout -
+      // the port is filtered outbound here. 587 is the one hosts usually
+      // leave open, and Gmail serves the same thing on it.
+      port: 587,
+      secure: false,
+      requireTLS: true,
       // family alone was not enough - connections still went out to
       // 2607:f8b0:... and died. Overriding the lookup forces the resolver
       // itself to return A records only, so there is no IPv6 address to try.
