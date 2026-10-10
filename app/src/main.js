@@ -39,7 +39,6 @@ const commands = require('./services/commands');
 const documents = require('./services/documents');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
-const calling = require('./services/calling');
 const shopping = require('./services/shopping');
 const modeling = require('./services/modeling');
 const video = require('./services/video');
@@ -2474,12 +2473,22 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   }
 
+  // This turn's generation, so sentences from an older one can be dropped.
+  const _textGen = _ttsGeneration;
   const result = needsAction
     ? await ai.respond(aiParams)
     : await ai.respondStreaming({
         ...aiParams,
         skipToolFallback: isEmailSendRequest,
         onSentence: (sentence) => {
+          // Only if this answer is still the one being waited for. The reply
+          // gate in the renderer is a single object, so a sentence still
+          // arriving from the previous question lands in the new question's
+          // bubble - which is how asking "what are my markets showing" came
+          // back with three paragraphs about Bhagat Singh. resetTTS() bumps
+          // the generation at the start of every turn, so a stale sentence is
+          // simply not sent.
+          if (_textGen !== _ttsGeneration) return;
           // Let the chat show the reply as it's spoken (card + bubble + voice together)
           if (_e.sender && !_e.sender.isDestroyed()) {
             _e.sender.send('jarvis:sentence-text', { text: sentence.replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '') });
@@ -2678,42 +2687,6 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
 
   // For call actions — check saved contacts first and dial directly
-  if (result.action?.type === 'make_call') {
-    const parts = result.action.arg.split('|');
-    const platform = parts[0].toLowerCase().trim();
-    const contactName = (parts[1] || '').trim().toLowerCase();
-
-    // Safety net: the user didn't name an app and this isn't a saved contact, so
-    // it's almost certainly a business ("call Zakir Tikka"). Don't open WhatsApp —
-    // ask what the call is for, and the next turn places a real phone call.
-    const namedApp = /\b(whatsapp|facetime|viber|telegram|signal|skype|discord|messenger|instagram|teams|zoom|snapchat|line|facebook)\b/i.test(message);
-    if (contactName && !namedApp && !_findContact(contactName)) {
-      const pretty = (parts[1] || '').trim();
-      const ask = `Sure — I can phone ${pretty} for you. What should I ask or book? For example, "book a table for 4 at 8pm".`;
-      _sendTTS(_e.sender, ask);
-      return { text: ask, audio: null, card: null, hasAction: false };
-    }
-
-    // Callisto's own saved contacts come first; commands.makeCall falls back to
-    // the system address book. tel: rings through the user's iPhone on a Mac
-    // (Continuity) and Phone Link on Windows.
-    const DIALLABLE = ['whatsapp', 'viber', 'facetime', 'facetime-audio', 'phone', 'mobile', 'cell', 'tel'];
-    if (contactName && DIALLABLE.includes(platform)) {
-      const contacts = store.get('contacts') || [];
-      const match = contacts.find(c => c.name.toLowerCase().includes(contactName) || contactName.includes(c.name.toLowerCase()));
-      if (match && match.phone) {
-        const clean = match.phone.replace(/[^+\d]/g, '');
-        const urlMap = {
-          whatsapp: `whatsapp://call?phone=${clean}`,
-          viber: `viber://call?number=${clean}`,
-          facetime: `facetime://${clean}`,
-          'facetime-audio': `facetime-audio://${clean}`,
-          phone: `tel:${clean}`, mobile: `tel:${clean}`, cell: `tel:${clean}`, tel: `tel:${clean}`,
-        };
-        finalAction = { type: 'open_url', arg: urlMap[platform] };
-      }
-    }
-  }
 
   // 3D model generation — the renderer opens the viewer and drives the job itself,
   // because generation takes 40-90s and we don't want to hold the chat turn open.
@@ -2903,33 +2876,6 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
 
   // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
-  if (finalAction?.type === 'place_phone_call') {
-    // Don't dial with no purpose — "call Zakir Tikka" alone should ask what to do.
-    const p = finalAction.payload || {};
-    const goal = String(p.goal || '').trim();
-    const vague = !goal || goal.length < 15 || /^(call|phone|ring|contact|speak to|talk to)\b[^,.]*$/i.test(goal)
-      || !/\b(book|reserv|order|ask|check|find out|appointment|table|cancel|confirm|enquir|inquir|price|open|availab|deliver|pick ?up|takeaway|quote|schedul|change|move)\w*/i.test(goal + ' ' + message);
-    if (vague) {
-      const who = p.contactName || 'them';
-      const ask = `Sure — I can phone ${who} for you. What should I ask or book? For example, "book a table for 4 at 8pm".`;
-      _sendTTS(_e.sender, ask);
-      return { text: ask, audio: null, card: null, hasAction: false };
-    }
-    const started = await _startPhoneCall(p);
-    if (!started.ok) {
-      _sendTTS(_e.sender, started.error);
-      return { text: started.error, audio: null, card: null, hasAction: false };
-    }
-    const who = started.businessName || started.phone;
-    const spokenText = `Calling ${who} now. I'll check with you if anything needs your decision.`;
-    _sendTTS(_e.sender, spokenText);
-    return {
-      text: spokenText,
-      audio: null,
-      card: { type: 'call', callId: started.callId, businessName: started.businessName, phone: started.phone, goal: (finalAction.payload || {}).goal || '', status: 'dialing' },
-      hasAction: true,
-    };
-  }
 
   // Handle calendar actions
   if (finalAction?.type === 'get_events') {
@@ -3654,70 +3600,7 @@ async function _lookupBusinessPhone(name, token) {
   }
 }
 
-async function _startPhoneCall({ contactName, phone, goal, constraints }) {
-  const token = loadAuthToken();
-  if (!token) return { ok: false, error: 'Please sign in first.' };
 
-  let number = String(phone || '').trim();
-  let business = String(contactName || '').trim();
-
-  if (!number && business) {
-    const match = _findContact(business);
-    if (match?.phone) {
-      number = match.phone;
-      business = match.name || business;
-    } else {
-      // Not a saved contact — look the business up near the user.
-      const found = await _lookupBusinessPhone(business, token);
-      if (!found.phone) {
-        return { ok: false, error: found.noPhone
-          ? `I found ${found.name || business}, but it doesn't list a phone number. Tell me the number and I'll call.`
-          : `I couldn't find a phone number for "${business}" near you. Tell me the number and I'll call.` };
-      }
-      number = found.phone;
-      business = found.name || business;
-    }
-  }
-  if (!number) return { ok: false, error: 'I need a phone number to call. Add the contact in the sidebar first.' };
-
-  const profile = store.get('profile') || {};
-  try {
-    const r = await calling.startCall({
-      token,
-      phone: number,
-      goal,
-      constraints,
-      businessName: business,
-      userName: profile.name || store.get('userName') || '',
-      defaultCountry: store.get('defaultCountryCode') || '',
-    }, _sendCallEvent);
-    return { ok: true, callId: r.callId, businessName: business, phone: number };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
-
-ipcMain.handle('call:start', (_e, payload) => _startPhoneCall(payload || {}));
-ipcMain.handle('call:respond', async (_e, { callId, approved, note }) => {
-  const token = loadAuthToken();
-  if (!token) return { ok: false, error: 'Not signed in.' };
-  try { return await calling.respond({ token, callId, approved, note }); }
-  catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('call:hangup', async (_e, { callId }) => {
-  const token = loadAuthToken();
-  if (!token) return { ok: false, error: 'Not signed in.' };
-  try { return await calling.hangup({ token, callId }); }
-  catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('call:enabled', async () => {
-  const token = loadAuthToken();
-  return token ? await calling.isEnabled(token) : false;
-});
-ipcMain.handle('call:history', async () => {
-  const token = loadAuthToken();
-  return token ? await calling.history(token) : [];
-});
 
 // ── Text-to-3D ────────────────────────────────────────────────────────────────
 ipcMain.handle('model:enabled', async () => {

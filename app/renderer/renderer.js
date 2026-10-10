@@ -3977,31 +3977,6 @@ function wireCallCard() {
 }
 
 // Live updates pushed from the main process while a call is running.
-if (window.jarvis && window.jarvis.onCallEvent) {
-  window.jarvis.onCallEvent((ev) => {
-    if (!ev || !_activeCallCard || ev.callId !== _activeCallId) return;
-
-    if (ev.type === 'status') {
-      _activeCallCard.status = ev.status || _activeCallCard.status;
-    } else if (ev.type === 'approval_needed') {
-      _activeCallCard.approval = ev.approval || null;
-    } else if (ev.type === 'approval_resolved') {
-      _activeCallCard.approval = null;
-    } else if (ev.type === 'ended') {
-      _activeCallCard.status = ev.status === 'failed' ? 'failed' : 'ended';
-      _activeCallCard.approval = null;
-      _activeCallCard.summary = ev.summary || '';
-      _activeCallCard.reason = ev.reason || '';
-    } else if (ev.type === 'error') {
-      _activeCallCard.status = 'failed';
-      _activeCallCard.reason = ev.error || '';
-    }
-
-    cardPanel.classList.remove('hidden');
-    cardContent.innerHTML = renderCallCard(_activeCallCard);
-    wireCallCard();
-  });
-}
 
 // "2h", "Tue", "14:05" — whichever reads best for how old the message is.
 // A reel, photo or voice note inside a bubble: show it, and let it open in

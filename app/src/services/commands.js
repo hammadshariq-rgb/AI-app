@@ -808,11 +808,6 @@ async function run(action, arg) {
       return { ok: true };
     }
 
-    case 'make_call': {
-      const parts = String(arg).split('|');
-      await makeCall(parts[0].toLowerCase().trim(), parts[1] ? parts[1].trim() : null);
-      return { ok: true };
-    }
 
     case 'open_folder': {
       const name = String(arg).trim();

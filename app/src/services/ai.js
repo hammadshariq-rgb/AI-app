@@ -233,21 +233,6 @@ const TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'make_call',
-      description: 'Call a PERSON (friend, family, colleague) — on a normal phone line or through a calling app. Use when the user names a platform ("call Ahmed on WhatsApp"), asks for an ordinary call ("call Balaj", "ring mum", "give dad a call"), or clearly means a personal contact. For a plain call with no app named, use platform "phone" — on a Mac that rings through their iPhone, on Windows through Phone Link. Do NOT use this for businesses — restaurants, shops, clinics, salons, hotels or any place name; those are place_phone_call. Pass the contact name exactly as the user said it.',
-      parameters: {
-        type: 'object',
-        properties: {
-          platform: { type: 'string', description: 'Platform: phone (a normal call — the default when they do not name an app), facetime, facetime-audio, whatsapp, instagram, telegram, discord, skype, signal, viber, messenger, teams, zoom, snapchat, line, facebook' },
-          contact_name: { type: 'string', description: 'The name of the person to call, exactly as the user said it (e.g. "Ahmed", "mum", "John Smith")' },
-        },
-        required: ['platform'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'run_command',
       description:
         "Propose a terminal command for the user's own project — git (status, add, commit, push, pull, branch, log, diff), npm/yarn/pnpm, build and test commands, and deploy tools like netlify, vercel or railway. Use when they ask to commit, push, deploy, install a package, run tests or build. Callisto shows the exact command and folder on a card and runs it only when the user presses Run, so proposing one is safe. One command per call; propose the next one after seeing the output. Never propose anything that deletes work or rewrites history unless the user asked for exactly that.",
@@ -305,36 +290,6 @@ const TOOLS = [
           },
         },
         required: ['prompt'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'place_phone_call',
-      description:
-        'Place a REAL outbound phone call where the AI speaks to a business on the user\'s behalf to accomplish a task — booking a table, making a reservation or appointment, asking about availability, opening hours, or prices. Use this whenever the user asks to call a BUSINESS or place (restaurant, takeaway, shop, clinic, salon, hotel — including names you don\'t recognise, like "call Zakir Tikka"), e.g. "call Luigi\'s and book a table for two at 6pm tomorrow". The number is found automatically (saved contacts, then a local business search), so never ask for it. If the user did not say what the call is for, do NOT call yet — ask them in one short sentence what you should ask or book. Do NOT use it for dialling a friend on WhatsApp/FaceTime — that is make_call.',
-      parameters: {
-        type: 'object',
-        properties: {
-          contact_name: {
-            type: 'string',
-            description: 'The business or contact to call, exactly as the user said it (e.g. "Luigi\'s", "the dentist"). Looked up in the user\'s saved contacts.',
-          },
-          phone: {
-            type: 'string',
-            description: 'The phone number, only if the user said it out loud in this message. Leave empty to use the saved contact.',
-          },
-          goal: {
-            type: 'string',
-            description: 'What the call must accomplish, written as a clear instruction for the calling assistant. Include every specific the user gave: date, time, number of people, name for the booking. E.g. "Book a table for 2 people at 6:00 PM tomorrow, Tuesday 16 September, under the name Hammad."',
-          },
-          constraints: {
-            type: 'string',
-            description: 'What the assistant may agree to WITHOUT asking the user first, and what it must not. Derive from what the user said. If they gave no flexibility, say so. E.g. "Only the exact time requested. Any other time, date, or extra cost needs the user\'s approval."',
-          },
-        },
-        required: ['goal'],
       },
     },
   },
@@ -833,6 +788,20 @@ EMAIL & UPDATE RULES:
     are working on. That is a web search: open_url to Google with the subject,
     and say out loud that you are opening Google to find it. Never answer this
     with "Google Drive isn't connected" - they were not asking about Drive.
+- RANKED LISTS OF RECORDS THAT ARE STILL BEING SET. Before giving a "most
+  wins", "top scorers", "best of all time" list for any sport or contest that
+  is still running, go through the people currently competing and check each
+  one belongs where you have put them - or whether they belong on the list at
+  all. Asked for the top five Formula One winners, Callisto once listed
+  Hamilton, Schumacher, Vettel, Prost and Senna, then said in the very next
+  breath that Verstappen had 72 wins, which would have placed him third. It
+  knew the number and still left him out. A list that contradicts your own
+  next answer is worse than no list.
+  Anyone still active is the first thing to check, because theirs are the only
+  numbers that have moved since you learned them. Where a total may have grown
+  since, say so in a few words - "as of my last update" - rather than stating a
+  stale figure as today's. Never pad a list to five if you are only sure of
+  three.
 - Never say "I couldn't find live data" — if you lack data, open Google silently (see LIVE / SPORTS / NEWS QUERIES rules below).
 
 EMAIL SENDING (CRITICAL — follow exactly):
@@ -1195,7 +1164,7 @@ function isKnowledgeQuestion(message) {
 // to come out well.
 const FAST_PATH_TOOLS = new Set([
   'open_url', 'open_folder', 'open_file', 'open_app', 'open_chat',
-  'read_messages', 'send_message', 'make_call', 'place_phone_call',
+  'read_messages', 'send_message', 
   'play_music', 'notify', 'generate_image', 'get_analytics',
   'set_reminder', 'add_task', 'list_tasks', 'mark_emails_read', 'set_volume',
   'system_power', 'remember_fact', 'forget_fact', 'get_briefing',
@@ -1305,8 +1274,6 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'open_chat')     return { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
       else if (fnName === 'read_messages') return { type: 'read_messages', payload: { from: args.from || '' } };
       else if (fnName === 'send_message')  return { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
-      else if (fnName === 'make_call')     return { type: 'make_call',     arg: `${args.platform}|${args.contact_name || ''}` };
-      else if (fnName === 'place_phone_call') return { type: 'place_phone_call', payload: { contactName: args.contact_name || '', phone: args.phone || '', goal: args.goal || '', constraints: args.constraints || '' } };
       else if (fnName === 'play_music')    return { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
       else if (fnName === 'notify')        return { type: 'notify',        arg: args.message };
       else if (fnName === 'generate_image') return { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
