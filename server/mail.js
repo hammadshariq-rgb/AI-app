@@ -127,21 +127,60 @@ function wrap(heading, bodyHtml) {
 </body></html>`;
 }
 
+// ── Sending over HTTPS instead of SMTP ────────────────────────────────────────
+// Railway gives this container no route to IPv6 and will not let an SMTP
+// connection out on 465 either, so Gmail by SMTP cannot work here however it is
+// configured - measured, not assumed:
+//
+//   465 over IPv4 -> connection timeout
+//   587 over IPv6 -> ENETUNREACH 2607:f8b0:...
+//
+// An email API answers on 443, which is the one port every host leaves open.
+// Set RESEND_API_KEY and this is used; leave it unset and the SMTP path below
+// still runs, for anywhere that does allow it.
+const RESEND_KEY = process.env.RESEND_API_KEY || '';
+
+async function sendViaHttp(to, subject, html, text) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + RESEND_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from: MAIL_FROM, to: [to], subject, html, text }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const why = (body && (body.message || body.error)) || ('HTTP ' + res.status);
+    throw new Error(String(why).slice(0, 200));
+  }
+  return body;
+}
+
 async function send(to, subject, heading, bodyHtml, bodyText) {
+  if (!to) return false;
+  const html = wrap(heading, bodyHtml);
+
+  // HTTPS first where it is configured, because it is the one that works here.
+  if (RESEND_KEY) {
+    try {
+      await sendViaHttp(to, subject, html, bodyText);
+      console.log('[mail] sent over HTTPS:', subject, '->', to);
+      return true;
+    } catch (err) {
+      console.error('[mail] HTTPS send failed for', to, '-', err.message);
+      return false;
+    }
+  }
+
   const t = ready();
-  if (!t || !to) return false;
+  if (!t) return false;
   try {
-    await t.sendMail({
-      from: MAIL_FROM,
-      to,
-      subject,
-      text: bodyText,
-      html: wrap(heading, bodyHtml),
-    });
-    console.log('[mail] sent:', subject, '->', to);
+    await t.sendMail({ from: MAIL_FROM, to, subject, text: bodyText, html });
+    console.log('[mail] sent over SMTP:', subject, '->', to);
     return true;
   } catch (err) {
-    console.error('[mail] could not send to', to, '-', err.message);
+    console.error('[mail] SMTP send failed for', to, '-', err.message);
     return false;
   }
 }
@@ -196,6 +235,23 @@ ready();
 const BUILD = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'unknown';
 
 async function status() {
+  // HTTPS, when configured, is the one that actually works on this host.
+  if (RESEND_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/domains', {
+        headers: { Authorization: 'Bearer ' + RESEND_KEY },
+      });
+      if (res.ok) {
+        return { build: BUILD, transport: 'https', configured: true, verified: true,
+                 reason: 'the email API accepted the key', from: MAIL_FROM };
+      }
+      return { build: BUILD, transport: 'https', configured: true, verified: false,
+               reason: res.status === 401 ? 'the email API rejected the key' : 'the email API answered ' + res.status };
+    } catch (err) {
+      return { build: BUILD, transport: 'https', configured: true, verified: false,
+               reason: 'could not reach the email API', detail: String(err.message).slice(0, 140) };
+    }
+  }
   if (!nodemailer) return { configured: false, verified: false, reason: 'nodemailer-not-installed' };
   if (!MAIL_USER || !MAIL_PASS) {
     return {
