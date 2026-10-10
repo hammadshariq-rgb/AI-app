@@ -50,6 +50,12 @@
       foot: `While it is on, Callisto can see your screen too — so <em>"combine these two PDFs"</em> or <em>"what is this?"</em> work without you sending anything. ${MOD}${KEY('Shift')}${KEY('G')} adds your hands on top.`,
     },
     {
+      targets: ['#micWrap'],
+      title: 'Ask it to look at your screen',
+      body: 'Say <em>"watch this"</em> and Callisto reads your whole screen — the error, the form, the small print — and tells you what it would do about it. It names the actual button or field, rather than giving you vague advice. Then it keeps watching while you work, and speaks up when something changes.',
+      foot: 'A bar shows at the bottom the whole time it is looking, with a <b>Stop</b> button — or just say <em>"stop watching"</em>. It only ever looks because you asked, and never reads password or payment fields.',
+    },
+    {
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
       body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point to move the cursor, pinch your thumb and finger together to press what it is over, and turn your hand over to move on. On your other hand, point to speak and make a fist to stop.`,
