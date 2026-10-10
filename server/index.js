@@ -280,6 +280,17 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Whether outgoing mail actually works, so a silent mailbox can be diagnosed
+// from outside instead of by reading deploy logs. Returns no address and no
+// password - only whether Gmail accepted the credentials, and why not.
+app.get('/health/mail', async (_req, res) => {
+  try {
+    res.json(await mail.status());
+  } catch (err) {
+    res.status(500).json({ configured: false, verified: false, reason: 'status check failed' });
+  }
+});
+
 // ── Reviews on the website ────────────────────────────────────────────────────
 const reviews = require('./reviews');
 

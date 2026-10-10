@@ -156,4 +156,37 @@ function sendPurchase({ email, name, plan }) {
 // somebody never received.
 ready();
 
-module.exports = { sendWelcome, sendPurchase, configured: () => !!ready() };
+// A yes/no the health endpoint can report, so diagnosing a silent mailbox does
+// not mean going hunting through deploy logs. It never returns the address or
+// the password - only whether Gmail accepted the credentials, and a short
+// reason when it did not.
+async function status() {
+  if (!nodemailer) return { configured: false, verified: false, reason: 'nodemailer-not-installed' };
+  if (!MAIL_USER || !MAIL_PASS) {
+    return {
+      configured: false,
+      verified: false,
+      reason: !MAIL_USER && !MAIL_PASS ? 'MAIL_USER and MAIL_PASS are both unset'
+        : !MAIL_USER ? 'MAIL_USER is unset'
+        : 'MAIL_PASS is unset',
+    };
+  }
+  try {
+    await ready().verify();
+    return { configured: true, verified: true, reason: 'Gmail accepted the credentials', domain: MAIL_USER.split('@')[1] || '' };
+  } catch (err) {
+    const m = String(err.message || '');
+    return {
+      configured: true,
+      verified: false,
+      domain: MAIL_USER.split('@')[1] || '',
+      reason: /535|BadCredentials|Username and Password not accepted/i.test(m)
+        ? 'Gmail rejected the credentials - MAIL_USER must be an address that can sign in at mail.google.com, and MAIL_PASS must be a 16-character App Password'
+        : /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|network/i.test(m) ? 'could not reach Gmail from the server'
+        : 'unknown',
+      detail: m.slice(0, 140),
+    };
+  }
+}
+
+module.exports = { sendWelcome, sendPurchase, status, configured: () => !!ready() };
