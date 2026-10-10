@@ -283,6 +283,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Whether outgoing mail actually works, so a silent mailbox can be diagnosed
 // from outside instead of by reading deploy logs. Returns no address and no
 // password - only whether Gmail accepted the credentials, and why not.
+// Sends one real letter to MAIL_TEST_TO and reports what the email API said.
+// The recipient is fixed in the environment, never taken from the request.
+app.get('/health/mail/test', async (_req, res) => {
+  try {
+    res.json(await mail.sendTest());
+  } catch (err) {
+    res.status(500).json({ ok: false, reason: 'test failed to run' });
+  }
+});
+
 app.get('/health/mail', async (_req, res) => {
   try {
     res.json(await mail.status());

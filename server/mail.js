@@ -299,4 +299,25 @@ async function status() {
   }
 }
 
-module.exports = { sendWelcome, sendPurchase, status, configured: () => !!ready() };
+// Sends one real letter and reports exactly what came back, so a silent
+// mailbox can be diagnosed instead of guessed at. The recipient is fixed by
+// MAIL_TEST_TO and cannot be chosen by the caller - an endpoint that sends
+// anywhere on request is a spam relay with extra steps.
+async function sendTest() {
+  const to = process.env.MAIL_TEST_TO || '';
+  if (!to) return { ok: false, reason: 'MAIL_TEST_TO is not set, so there is nowhere safe to send a test.' };
+  if (!RESEND_KEY) return { ok: false, reason: 'RESEND_API_KEY is not set.' };
+  try {
+    const r = await sendViaHttp(
+      to,
+      'Callisto AI test',
+      '<p>This is a test from your Callisto server. If you are reading it, outgoing email works.</p>',
+      'This is a test from your Callisto server. If you are reading it, outgoing email works.'
+    );
+    return { ok: true, to, from: MAIL_FROM, id: r && r.id, reason: 'accepted by the email API' };
+  } catch (err) {
+    return { ok: false, to, from: MAIL_FROM, reason: String(err.message).slice(0, 300) };
+  }
+}
+
+module.exports = { sendWelcome, sendPurchase, status, sendTest, configured: () => !!ready() };
