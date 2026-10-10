@@ -39,7 +39,15 @@ function ready() {
   }
   if (!transport) {
     transport = nodemailer.createTransport({
-      service: 'gmail',
+      // Spelled out rather than service:'gmail', so the address family can be
+      // pinned. Node resolves smtp.gmail.com to IPv6 first and the container
+      // has no IPv6 route, so every connection died with
+      //   connect ENETUNREACH 2607:f8b0:4023:c03::6d:465
+      // before it ever spoke to Gmail. family:4 keeps it on IPv4.
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      family: 4,
       auth: { user: MAIL_USER, pass: MAIL_PASS },
       // Without these a blocked or stalled SMTP connection hangs rather than
       // failing, and every send sits open waiting on a socket that will never
