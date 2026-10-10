@@ -63,6 +63,12 @@ jobs:
 
       # --publish always uploads the installer AND latest.yml, the file the
       # installed app reads to discover updates. Without it auto-update can't work.
+      # The timestamp is not optional. Trusted Signing issues certificates that
+      # live about three days; without a countersigned timestamp the signature
+      # dies with the certificate, and every installer already downloaded goes
+      # from "verified publisher" back to a SmartScreen warning. Checked on a
+      # shipped build: signature valid, no timestamp, certificate expiring the
+      # next day.
       # Signs through Azure Trusted Signing when its secrets are present,
       # otherwise builds unsigned as before. AZURE_TENANT_ID / AZURE_CLIENT_ID /
       # AZURE_CLIENT_SECRET are read by electron-builder itself; the rest describe
@@ -88,7 +94,9 @@ jobs:
             npx electron-builder --win --publish always \
               --config.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" \
               --config.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" \
-              --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE"
+              --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE" \
+              --config.win.azureSignOptions.timestampRfc3161="http://timestamp.acs.microsoft.com" \
+              --config.win.azureSignOptions.timestampDigest=SHA256
           else
             echo "No Azure signing secrets set — building unsigned."
             unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
