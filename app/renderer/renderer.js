@@ -5867,6 +5867,11 @@ async function sendToJarvis(text) {
     }
   }
 
+  // If they mentioned something diary-shaped without asking for it to be added,
+  // offer. Never when the assistant has just added one itself - that would be
+  // asking whether to do the thing it has already done.
+  if (!res.calendarEvent) _offerCalendarEvent(text);
+
   // Show card if returned — but NOT when this request came via Ctrl+Shift+C
   // (HUD mode): in that case the card should appear only in the floating HUD
   // overlay on top of the user's other app, not here in the main Callisto window.
@@ -6049,7 +6054,7 @@ if (window.jarvis.onSentenceText) {
       // sitting in Creations could not be animated at all - the request
       // quietly became a fresh video made from the words instead.
       let seedUrl = null;
-      if (!imageBase64 && /(it|this|that|the (?:image|picture|photo|sketch|drawing))/i.test(text)) {
+      if (!imageBase64 && /\b(it|this|that|the (?:image|picture|photo|sketch|drawing))\b/i.test(text)) {
         seedUrl = window._lastGeneratedImageUrl || null;
         if (!seedUrl) {
           try {
@@ -11448,6 +11453,151 @@ if (window.jarvis.onMacNeedsAutomation) {
   };
 })();
 
+
+// ===== OFFERING TO PUT SOMETHING IN THE DIARY =====
+// Mentioning an appointment is not the same as asking for one to be made, so
+// Callisto offers rather than acts: a line under the reply with a button, and
+// nothing happens unless it is pressed.
+//
+// Deliberately hard to trigger. It wants a day AND a clock time before it says
+// anything, ignores questions, and stays quiet when the message was already an
+// instruction ("add X to my calendar") because that path handles itself. A
+// wrong offer is a prompt nobody asked for, which is worse than missing one.
+const _EVENT_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function _detectEventMention(text, now) {
+  now = now || new Date();
+  const t = String(text || '').trim();
+  if (!t || t.length > 200) return null;
+
+  if (/\b(?:add|put|schedule|book|create|set\s+up|remind)\b[^.?!]*\b(?:calendar|diary|schedule)\b/i.test(t)) return null;
+  if (/^\s*(?:add|schedule|book|put)\b/i.test(t)) return null;
+  if (/^\s*(?:what|when|where|who|is|are|do|does|did|can|could|will)\b/i.test(t)) return null;
+  if (/\?\s*$/.test(t)) return null;
+
+  const timeM = t.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+             || t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/i)
+             || t.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (!timeM) return null;
+
+  let hour = parseInt(timeM[1], 10);
+  const mins = timeM[2] ? parseInt(timeM[2], 10) : 0;
+  const ampm = (timeM[3] || '').toLowerCase();
+  if (hour > 23 || mins > 59) return null;
+  if (ampm === 'pm' && hour < 12) hour += 12;
+  if (ampm === 'am' && hour === 12) hour = 0;
+  // A bare hour has to be guessed at. "Tonight at 8" is plainly the evening, and
+  // so is "at 6" - nobody says that about six in the morning without saying so.
+  // Eight to eleven with no evening word is left alone, since "at 9" is as
+  // likely to be a morning standup as a night out.
+  const evening = /\b(?:tonight|this\s+evening|dinner|drinks|supper)\b/i.test(t);
+  if (!ampm && hour >= 1 && hour <= 11 && evening) hour += 12;
+  else if (!ampm && hour >= 1 && hour <= 7) hour += 12;
+
+  const d = new Date(now);
+  let dayFound = false;
+  if (/\btomorrow\b|\btmr\b|\btmrw\b/i.test(t)) { d.setDate(d.getDate() + 1); dayFound = true; }
+  else if (/\btoday\b|\btonight\b|\bthis\s+evening\b/i.test(t)) { dayFound = true; }
+  else {
+    const dayM = t.match(/\b(?:on\s+|next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i);
+    if (dayM) {
+      const want = _EVENT_DAYS.indexOf(dayM[1].toLowerCase());
+      let delta = (want - d.getDay() + 7) % 7;
+      if (delta === 0) delta = 7;
+      if (/\bnext\s+/i.test(dayM[0])) delta = delta === 7 ? 7 : delta + 7;
+      d.setDate(d.getDate() + delta);
+      dayFound = true;
+    }
+  }
+  if (!dayFound) return null;
+
+  let title = t
+    .replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/ig, ' ')
+    .replace(/\b(?:tomorrow|tmr|tmrw|today|tonight|this evening|next|on)\b/ig, ' ')
+    .replace(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/ig, ' ')
+    .replace(/\b(?:i|we|he|she|they|you|have|has|had|got|a|an|the|is|are|am|was|were|will|be|going|to|with|and|there|that|about|for|my|our)\b/ig, ' ')
+    .replace(/[^\w\s'&-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!title || title.length < 3) return null;
+  if (title.split(' ').length > 8) title = title.split(' ').slice(0, 8).join(' ');
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    title,
+    date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
+    time: pad(hour) + ':' + pad(mins),
+  };
+}
+
+// How the offer reads: "tomorrow at 6:00 pm", not "2026-10-11T18:00".
+function _eventWhenLabel(ev) {
+  const d = new Date(ev.date + 'T' + ev.time);
+  if (isNaN(d)) return ev.date + ' at ' + ev.time;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const that = new Date(d); that.setHours(0, 0, 0, 0);
+  const days = Math.round((that - today) / 86400000);
+  const day = days === 0 ? 'today'
+    : days === 1 ? 'tomorrow'
+    : d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return day + ' at ' + time;
+}
+
+function _offerCalendarEvent(userText) {
+  try {
+    const ev = _detectEventMention(userText);
+    if (!ev) return;
+    // One offer at a time; a second would just stack up unanswered.
+    document.querySelector('.cal-offer')?.remove();
+
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant cal-offer';
+    const card = document.createElement('div');
+    card.className = 'cal-offer-card';
+    const text = document.createElement('div');
+    text.className = 'cal-offer-text';
+    text.textContent = 'Put "' + ev.title + '" in your calendar for ' + _eventWhenLabel(ev) + '?';
+    const acts = document.createElement('div');
+    acts.className = 'cal-offer-acts';
+
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'cal-offer-yes';
+    yes.textContent = 'Add it';
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'cal-offer-no';
+    no.textContent = 'No thanks';
+
+    no.addEventListener('click', () => row.remove());
+    yes.addEventListener('click', async () => {
+      yes.disabled = true;
+      yes.textContent = 'Adding…';
+      let ok = false;
+      try {
+        const res = await window.jarvis.calendarAdd(ev);
+        ok = !!(res && res.ok);
+      } catch (_) {}
+      // The in-app calendar gets it either way, so the event is never lost just
+      // because Google was unreachable.
+      try { window._handleAICalendarEvent && window._handleAICalendarEvent(ev); } catch (_) {}
+      text.textContent = ok
+        ? 'Added "' + ev.title + '" for ' + _eventWhenLabel(ev) + '.'
+        : 'Saved "' + ev.title + '" to your Callisto calendar. Google would not take it.';
+      acts.remove();
+    });
+
+    acts.appendChild(yes);
+    acts.appendChild(no);
+    card.appendChild(text);
+    card.appendChild(acts);
+    row.appendChild(card);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  } catch (_) { /* an offer that cannot be made simply is not made */ }
+}
 
 // ===== GET PREMIUM =====
 // One card, opened from two places: the moment the day's fifteen free messages

@@ -625,7 +625,7 @@ async function sendInstagramMessage(recipientId, text) {
       // other failure was reported as a closed 24-hour window, even on a
       // message that had just arrived, and the real reason never showed.
       const outsideWindow = sub === 2534022
-        || /24[- ]?hours?/i.test(m)
+        || /\b24[- ]?hours?\b/i.test(m)
         || /outside\s+(?:of\s+)?(?:the\s+)?allowed\s+window/i.test(m)
         || /messaging\s+window/i.test(m);
       if (outsideWindow) {

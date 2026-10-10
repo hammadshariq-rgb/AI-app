@@ -10317,3 +10317,48 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
   cursor: pointer; transition: background .18s ease;
 }
 .src-copy:hover { background: rgba(255,255,255,0.12); }
+
+
+/* ===== "SHALL I PUT THAT IN THE DIARY?" =====
+   An offer, not an action. It sits in the conversation like a reply rather
+   than arriving as a dialog over the top of everything, because nothing has
+   happened yet and nothing will until it is pressed. */
+.cal-offer-card {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-left: 42px;                       /* clears the assistant avatar */
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(139,92,246,0.10), rgba(61,92,255,0.07));
+  border: 1px solid rgba(139,92,246,0.3);
+}
+.cal-offer-text {
+  flex: 1 1 220px; min-width: 0;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; line-height: 1.4;
+  color: rgba(222,233,255,0.92);
+}
+.cal-offer-acts { display: flex; gap: 8px; flex: none; }
+.cal-offer-yes, .cal-offer-no {
+  padding: 7px 14px; border-radius: 999px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.3px;
+  cursor: pointer; border: none;
+  transition: background .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.cal-offer-yes {
+  color: #fff;
+  background: linear-gradient(135deg, #8b5cf6, #3d5cff);
+  box-shadow: 0 4px 14px rgba(80,70,220,0.32);
+}
+.cal-offer-yes:hover { box-shadow: 0 6px 20px rgba(80,70,220,0.5); }
+.cal-offer-yes:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+.cal-offer-no {
+  color: rgba(185,205,240,0.75);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.cal-offer-no:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-offer-yes, .cal-offer-no { transition: none; }
+}

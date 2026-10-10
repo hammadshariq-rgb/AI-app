@@ -1549,7 +1549,7 @@ ipcMain.handle('jarvis:transcribe', async (_e, audioBufferBase64) => {
     if (/ENOTFOUND|ENETUNREACH|ECONNREFUSED|EAI_AGAIN|getaddrinfo|FetchError|ETIMEDOUT|network/i.test(msg)) {
       throw new Error("I can't connect to the internet right now. Check your connection and try again.");
     }
-    if (/(401|403)|unauthor/i.test(msg)) {
+    if (/\b(401|403)\b|unauthor/i.test(msg)) {
       throw new Error('Your session expired. Please sign in again.');
     }
     throw new Error("I couldn't make that out. Please try again.");
@@ -2151,7 +2151,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // live data for that match" - when the answer was ordinary knowledge the
   // assistant already had. Let those fall through and simply be answered.
   const _nowYear = new Date().getFullYear();
-  const _yearInQuestion = Number((message.match(/(19\d{2}|20\d{2})/) || [])[1] || 0);
+  const _yearInQuestion = Number((message.match(/\b(19\d{2}|20\d{2})\b/) || [])[1] || 0);
   const _isHistorical = _yearInQuestion > 0 && _yearInQuestion < _nowYear;
   const isSportsQuery = realtime.SPORTS_REGEX.test(message) && !_isHistorical;
   let _sportsLiveMissing = false;
@@ -2437,7 +2437,7 @@ async function _chatHandler(_e, { message, history, attachments = [] }) {
   // prompt and must call a tool at once, and "check my Instagram messages"
   // came back as a follower count - it saw "Instagram" and reached for
   // analytics. The full prompt knows an inbox from a follower.
-  const _aboutMessages = /(messages?|dms?|inbox|messaged)/i.test(String(message || ''));
+  const _aboutMessages = /\b(messages?|dms?|inbox|messaged)\b/i.test(String(message || ''));
 
   const _lastAssistant = [...(history || [])].reverse().find((h) => h && h.role === 'assistant');
   const _answeringQuestion = !!(_lastAssistant
