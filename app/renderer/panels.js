@@ -662,9 +662,10 @@ function escCal(str) {
       fromGcal: true
     };
     window.gcAddLocalEvent(ev);
-    // Put it on screen where it was added, so "add gym on Friday" is visibly
-    // done rather than silently filed away in a month nobody is looking at.
-    if (window.showCalendarOverlay) window.showCalendarOverlay(dateStr);
+    // The calendar does NOT open by itself. Showing it on every add meant that
+    // asking to put something in the diary threw a full-screen panel over
+    // whatever the person was doing, uninvited. The spoken confirmation says
+    // it landed; the calendar opens when it is asked for.
   };
 
   // An event asked for alongside other things arrives on its own channel,

@@ -4200,22 +4200,49 @@
       }).join('');
     }
 
-    async function openCalo() {
-      curYear  = new Date().getFullYear();
-      curMonth = new Date().getMonth();
-      selectedDay = new Date().getDate();
+    // Takes an optional date so adding an event can bring the right month into
+    // view, instead of always landing the person on today.
+    async function openCalo(dateStr) {
+      const focus = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+      const when = isNaN(focus) ? new Date() : focus;
+      curYear  = when.getFullYear();
+      curMonth = when.getMonth();
+      selectedDay = when.getDate();
       overlay.classList.add('calo-open');
       window.calendarOverlayOpen = true;
       renderGrid();
       evList.innerHTML = '<div class="calo-event-empty">Loading events…</div>';
+
+      // Events added here, kept by the panel in localStorage. They show even
+      // when Google is slow, unreachable or not connected at all.
+      let local = [];
+      try {
+        local = JSON.parse(localStorage.getItem('jarvis_cal_events') || '[]')
+          .filter((e) => e && e.date)
+          .map((e) => ({
+            id: e.id,
+            title: e.title || '(no title)',
+            start: e.time ? e.date + 'T' + e.time : e.date + 'T00:00:00',
+            local: true,
+          }));
+      } catch (_) {}
+
       try {
         const res = await window.jarvis.calendarList();
-        allEvents = (res && !res.error && Array.isArray(res)) ? res : [];
-        renderGrid();
-        renderEvents(selectedDay);
-      } catch(_) {
-        evList.innerHTML = '<div class="calo-event-empty">Could not load events.</div>';
+        // calendar:list answers { ok, events: [...] }, not a bare array. This
+        // only accepted an array, so every lookup fell to [] and the calendar
+        // was empty no matter what was in it.
+        const remote = Array.isArray(res) ? res
+          : (res && !res.error && Array.isArray(res.events)) ? res.events
+          : [];
+        // An event added here is also sent to Google, so it can arrive twice.
+        const seen = new Set(remote.map((e) => (e.title || '') + '|' + String(e.start || '').slice(0, 16)));
+        allEvents = remote.concat(local.filter((e) => !seen.has(e.title + '|' + String(e.start).slice(0, 16))));
+      } catch (_) {
+        allEvents = local;
       }
+      renderGrid();
+      renderEvents(selectedDay);
     }
 
     function closeCalo() {
