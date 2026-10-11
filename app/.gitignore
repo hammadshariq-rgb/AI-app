@@ -3,3 +3,8 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Scratch files from debugging sessions
+*.tmp.js
+*.tmp.json
+*.out.txt

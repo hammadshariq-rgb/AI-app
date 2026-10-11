@@ -2229,13 +2229,39 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
 // assistant to narrate their own screen back at them. So the prompt now leads
 // with what CALLISTO can do about what it sees, and it returns a real action
 // the app can carry out, not only prose.
-const SCREEN_READ_ACTIONS = ['add_to_calendar', 'set_reminder', 'summarise_document', 'draft_reply', 'none'];
+// The things Callisto can offer about what is on screen. The three "fix" kinds
+// carry a replacement: the corrected sum, the corrected spelling, the rewritten
+// paragraph. It cannot type into somebody else's window, so a yes puts that
+// replacement on the clipboard for them to paste - which is the honest version
+// of "fix it for me" from outside the app.
+const SCREEN_READ_ACTIONS = [
+  'add_to_calendar', 'set_reminder', 'summarise_document', 'draft_reply',
+  'fix_mistake', 'fix_spelling', 'rephrase', 'none',
+];
 
 app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
-    const { imageBase64, question, today } = req.body;
+    const { imageBase64, question, today, mode } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
     const dateLine = today ? `Today is ${String(today).slice(0, 40)}.` : '';
+
+    // Watching is a different job from being asked. Nobody asked a question, so
+    // the default answer is silence, and anything that is not worth a prompt
+    // over the top of their work has to come back as exactly NOTHING.
+    const watching = mode === 'watch';
+    const watchRules = watching ? [
+      '',
+      'YOU ARE WATCHING, NOT ANSWERING. They did not ask you anything. Whatever',
+      'you say appears over the top of their work, so silence is the default and',
+      'the bar for speaking is high.',
+      'If there is nothing clearly worth interrupting for, reply with exactly:',
+      '{"text": "NOTHING", "action": null}',
+      'These are all NOTHING: a blank or idle screen, a page still loading, a',
+      'desktop, a video playing, somebody reading, ordinary work in progress,',
+      'anything you cannot read properly. Do not offer to look again, do not ask',
+      'what they would like, do not describe what you see. Say NOTHING and stop.',
+      'Never end with a question back to them.',
+    ] : [];
 
     const r = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
@@ -2251,7 +2277,7 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             '',
             'Reply as JSON:',
             '{"text": string, "action": {"kind": string, "label": string, "title": string,',
-            ' "date": string, "time": string} | null}',
+            ' "date": string, "time": string, "replacement": string} | null}',
             '',
             '"text" is what you say to them. Two or three sentences, no more.',
             'Lead with the single most useful thing YOU can do about what is on screen.',
@@ -2267,6 +2293,13 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             'An error -> say what is wrong and the fix, naming the exact message.',
             'A form with something missing -> name the field.',
             'A long document -> offer to summarise it.',
+            'A wrong answer in their work -> fix_mistake. Say what the right answer',
+            '  is and why in one line, and put the right answer in "replacement".',
+            '  Check the arithmetic yourself before you call it wrong.',
+            'A misspelt word -> fix_spelling, with the correct spelling in',
+            '  "replacement". Only for a real mistake, not a name or a style choice.',
+            'A paragraph that reads like a machine wrote it -> rephrase, with your',
+            '  rewrite in "replacement". Keep their meaning and their voice.',
             'Nothing worth doing -> say so in one line. That is a fine answer.',
             '',
             `"action" is what you are offering to do. kind is one of: ${SCREEN_READ_ACTIONS.join(', ')}.`,
@@ -2279,6 +2312,7 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             'Only say what you can actually see. If text is too small or cut off, say so.',
             'PRIVACY: if a password, card number or bank detail is visible, do not read',
             'or repeat it. Say something sensitive is on screen and answer around it.',
+            ...watchRules,
           ].filter(Boolean).join('\n'),
         },
         {
@@ -2296,16 +2330,26 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
     let out = {};
     try { out = JSON.parse(r.choices?.[0]?.message?.content || '{}'); } catch (_) {}
     const a = out.action;
-    const action = a && SCREEN_READ_ACTIONS.includes(a.kind) && a.kind !== 'none'
+    let action = a && SCREEN_READ_ACTIONS.includes(a.kind) && a.kind !== 'none'
       ? {
           kind: a.kind,
           label: String(a.label || '').slice(0, 40),
           title: String(a.title || '').slice(0, 120),
           date: String(a.date || '').slice(0, 10),
           time: String(a.time || '').slice(0, 5),
+          replacement: String(a.replacement || '').slice(0, 2000),
         }
       : null;
-    res.json({ ok: true, text: String(out.text || '').trim().slice(0, 1200), action });
+    // A fix with nothing to paste is just criticism, so it is not an offer.
+    if (action && /^(fix_mistake|fix_spelling|rephrase)$/.test(action.kind) && !action.replacement) {
+      action = null;
+    }
+    let text = String(out.text || '').trim().slice(0, 1200);
+    // Watching: anything that reads like an opening gambit rather than something
+    // worth saying is silence. The model drifts into "shall I check again?" on a
+    // quiet screen, and that is the one thing it must never do while watching.
+    if (watching && !action && /\?\s*$/.test(text)) text = 'NOTHING';
+    res.json({ ok: true, text, action });
   } catch (err) {
     console.error('[screen-read]', err.message);
     res.status(500).json({ error: 'I could not read the screen just then.' });

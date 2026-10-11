@@ -4790,7 +4790,9 @@ function _screenHash(dataUrl) {
   return h;
 }
 
-async function _readScreenOnce(question) {
+// `mode: 'watch'` means nobody asked a question - it is looking over their
+// shoulder - so the server holds it to a much higher bar for speaking at all.
+async function _readScreenOnce(question, { mode } = {}) {
   const shot = await grabScreen(1600);
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
@@ -4798,7 +4800,7 @@ async function _readScreenOnce(question) {
     const today = new Date().toLocaleDateString('en-CA', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
-    const res = await ai.serverFetch('screen-read', { imageBase64: shot, question, today }, { timeout: 60000, retries: 1 });
+    const res = await ai.serverFetch('screen-read', { imageBase64: shot, question, today, mode }, { timeout: 60000, retries: 1 });
     const data = await res.json();
     return data && data.text
       ? { ok: true, text: data.text, action: data.action || null }
@@ -4892,24 +4894,30 @@ ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenO
 // are in another program - if Callisto itself has focus you are already talking
 // to it and do not need a floating prompt - and nothing ever happens without
 // the tick being pressed.
-const ASSIST = { on: false, timer: null, lastHash: null, stableSince: 0, lastAskAt: 0, asks: 0, startedAt: 0 };
+const ASSIST = { on: false, timer: null, lastHash: null, stableSince: 0, lastAskAt: 0,
+                 asks: 0, startedAt: 0, ticks: 0, changes: 0, offers: 0, quiet: 0, lastResult: '' };
 const ASSIST_TICK_MS = 4000;
 const ASSIST_SETTLE_MS = 3000;
 const ASSIST_MIN_GAP_MS = 25000;   // never two offers closer than this
 const ASSIST_MAX_ASKS = 40;        // a day's worth of looks, not a month's bill
+const ASSIST_FORCE_MS = 45000;     // look anyway if nothing has settled this long
 const ASSIST_MAX_MS = 60 * 60 * 1000;
 
 // Offers waiting on a tick, by id.
 const _hudPending = new Map();
 
-function askHud({ text, yesLabel, doneLabel, seconds }, onYes) {
+// The field names here are the card's, not this file's: it needs a title to
+// render at all and reads the button from buttonText. Sending `text`/`yesLabel`
+// looked right from in here and drew nothing at all.
+function askHud({ title, description, buttonText, doneLabel, tone, icon, seconds }, onYes) {
   if (!hudWindow || hudWindow.isDestroyed()) return false;
+  if (!title) return false;
   const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
   _hudPending.set(id, { onYes, at: Date.now() });
   // Nothing should sit in here for ever if the window goes away.
   setTimeout(() => _hudPending.delete(id), 60000);
   hudWindow.webContents.send('hud:prompt', {
-    id, text, yesLabel, doneLabel, seconds: seconds || 3,
+    id, title, description, buttonText, doneLabel, tone, icon, seconds: seconds || 3,
   });
   return true;
 }
@@ -4921,11 +4929,60 @@ ipcMain.on('hud:prompt-answer', async (_e, { id, yes } = {}) => {
   try { await entry.onYes(); } catch (err) { console.error('[assist] action failed:', err && err.message); }
 });
 
+// What the card says. A short title you can read at a glance while you carry
+// on working, the detail underneath, and a button that names what pressing it
+// does. Only a real mistake gets the red treatment - everything else is an
+// offer, and a card that shouts every time gets switched off within the hour.
+function _assistCard(a, text) {
+  const detail = String(text || '').slice(0, 160);
+  switch (a.kind) {
+    case 'add_to_calendar':
+      return { title: a.title ? 'Diarise "' + a.title + '"?' : 'Add this to your calendar?',
+               description: [a.date, a.time].filter(Boolean).join(' at ') || detail,
+               buttonText: a.label || 'Add to calendar', doneLabel: 'In your calendar.', icon: '📅' };
+    case 'set_reminder':
+      return { title: a.title ? 'Remind you about "' + a.title + '"?' : 'Set a reminder?',
+               description: [a.date, a.time].filter(Boolean).join(' at ') || detail,
+               buttonText: a.label || 'Remind me', doneLabel: 'Reminder set.', icon: '⏰' };
+    case 'fix_mistake':
+      return { title: 'That answer looks wrong.', description: detail,
+               buttonText: a.label || 'Copy the right answer', doneLabel: 'Copied.',
+               tone: 'alert', icon: '⚠' };
+    case 'fix_spelling':
+      return { title: 'Spelling.', description: detail,
+               buttonText: a.label || 'Copy the correction', doneLabel: 'Copied.', icon: '✎' };
+    case 'rephrase':
+      return { title: 'That reads like a machine wrote it.', description: detail,
+               buttonText: a.label || 'Copy my version', doneLabel: 'Copied.', icon: '✎' };
+    case 'summarise_document':
+      return { title: 'Summarise this?', description: detail,
+               buttonText: a.label || 'Summarise it', doneLabel: 'Opening.', icon: '📄' };
+    case 'draft_reply':
+      return { title: 'Draft a reply?', description: detail,
+               buttonText: a.label || 'Draft one', doneLabel: 'Opening.', icon: '✉' };
+    default:
+      return { title: detail.slice(0, 70) || 'Something I can do?',
+               description: detail.length > 70 ? detail.slice(70) : '',
+               buttonText: a.label || 'Go on', doneLabel: 'Opening.' };
+  }
+}
+
 // Carrying out what was offered. Everything here already exists elsewhere in
 // the app; assist mode is a way of reaching it without stopping what you are
 // doing, not a second implementation of it.
 async function _doAssistAction(action) {
   if (!action || !action.kind) return;
+  // It cannot type into somebody else's window, so a fix goes to the clipboard
+  // and they paste it where it belongs. Honest, and one keystroke for them.
+  if (/^(fix_mistake|fix_spelling|rephrase)$/.test(action.kind) && action.replacement) {
+    require('electron').clipboard.writeText(action.replacement);
+    sendToHud('hud:card', {
+      type: 'info',
+      text: 'Copied — press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V to put it in:\n\n'
+        + String(action.replacement).slice(0, 400),
+    });
+    return;
+  }
   if (action.kind === 'add_to_calendar' && action.date) {
     const ev = { title: action.title || 'Event', date: action.date, time: action.time || '' };
     await calendar.addEvent(ev).catch(() => null);
@@ -4987,13 +5044,20 @@ async function _assistTick() {
     const probe = await grabScreen(320);
     const h = _screenHash(probe);
     if (h == null) return;
-    if (h !== ASSIST.lastHash) {
+    const changed = h !== ASSIST.lastHash;
+    if (changed) {
       ASSIST.lastHash = h;
       ASSIST.stableSince = Date.now();
-      return;
     }
-    if (!ASSIST.stableSince) return;
-    if (Date.now() - ASSIST.stableSince < ASSIST_SETTLE_MS) return;
+    const settled = ASSIST.stableSince && Date.now() - ASSIST.stableSince >= ASSIST_SETTLE_MS;
+    // Some screens never hold still. A page with a video on it, or Instagram
+    // with its stories moving, changes on every single tick - so waiting for
+    // quiet meant waiting for ever and never looking once. After a while, look
+    // anyway: a slightly blurred moment is worth more than silence.
+    const overdue = Date.now() - ASSIST.lastAskAt > ASSIST_FORCE_MS;
+    ASSIST.ticks += 1;
+    if (changed) ASSIST.changes += 1;
+    if (!settled && !overdue) return;
     if (Date.now() - ASSIST.lastAskAt < ASSIST_MIN_GAP_MS) return;
 
     ASSIST.stableSince = 0;
@@ -5005,22 +5069,28 @@ async function _assistTick() {
       + 'is clearly worth doing: an arrangement to diarise, a wrong answer in their homework, '
       + 'a spelling mistake, a paragraph that reads like it was written by a machine, a file '
       + 'to combine or tidy. If there is nothing worth interrupting for, set action to null '
-      + 'and text to exactly: NOTHING'
+      + 'and text to exactly: NOTHING',
+      { mode: 'watch' }
     );
-    if (!ASSIST.on || !out.ok) return;
-    if (/^\s*NOTHING\s*$/i.test(out.text || '')) return;
+    if (!ASSIST.on) return;
+    if (!out.ok) {
+      ASSIST.lastResult = 'could not read the screen';
+      console.warn('[assist] read failed:', out.error);
+      return;
+    }
+    if (/^\s*NOTHING\s*$/i.test(out.text || '')) {
+      ASSIST.lastResult = 'looked, nothing worth offering';
+      ASSIST.quiet += 1;
+      console.log('[assist] looked, nothing to offer');
+      return;
+    }
+    ASSIST.offers += 1;
+    ASSIST.lastResult = 'offered: ' + String(out.text || '').slice(0, 80);
+    console.log('[assist] offering:', ASSIST.lastResult);
 
     const a = out.action;
-    const label = a && a.label ? a.label : null;
-    const line = a
-      ? (a.kind === 'add_to_calendar' && a.title
-          ? 'Put "' + a.title + '" in your calendar?'
-          : (label || out.text).slice(0, 120))
-      : String(out.text || '').slice(0, 120);
-
     if (a) {
-      askHud({ text: line, yesLabel: label || 'Do it', doneLabel: 'Done.' },
-             () => _doAssistAction(a));
+      askHud(_assistCard(a, out.text), () => _doAssistAction(a));
     } else {
       // Nothing to press, so it is just something worth knowing.
       sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 300) });
@@ -5035,6 +5105,11 @@ function startAssist() {
   ASSIST.stableSince = 0;
   ASSIST.lastAskAt = 0;
   ASSIST.asks = 0;
+  ASSIST.ticks = 0;
+  ASSIST.changes = 0;
+  ASSIST.offers = 0;
+  ASSIST.quiet = 0;
+  ASSIST.lastResult = '';
   ASSIST.startedAt = Date.now();
   ASSIST.timer = setInterval(_assistTick, ASSIST_TICK_MS);
   sendToHud('hud:card', {
@@ -5048,7 +5123,13 @@ function startAssist() {
 }
 
 ipcMain.handle('assist:toggle', () => (ASSIST.on ? stopAssist('toggled') : startAssist()));
-ipcMain.handle('assist:state', () => ({ on: ASSIST.on, asks: ASSIST.asks, max: ASSIST_MAX_ASKS }));
+ipcMain.handle('assist:state', () => ({
+  on: ASSIST.on, asks: ASSIST.asks, max: ASSIST_MAX_ASKS,
+  // Enough to tell "it is working and had nothing to say" from "it is broken".
+  ticks: ASSIST.ticks, changes: ASSIST.changes, offers: ASSIST.offers,
+  quiet: ASSIST.quiet, lastResult: ASSIST.lastResult,
+  secondsSinceLook: ASSIST.lastAskAt ? Math.round((Date.now() - ASSIST.lastAskAt) / 1000) : null,
+}));
 
 // The most recent reading, so an ordinary chat turn can use it as context.
 let lastScreenContext = null;
