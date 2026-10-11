@@ -361,7 +361,10 @@ function dismiss(el, instant = false) {
   --hp-pill: linear-gradient(135deg, #8b5cf6, #3d5cff);
   --hp-pill-ink: #fff;
   position: relative;
-  margin: 8px 10px 0 auto;
+  /* It belongs where the other cards come up, at the bottom, not away at the
+     top of the screen on its own. It goes into the same stack, so it lines up
+     with them and never lands on top of one. */
+  margin: 0 0 0 auto;
   width: 262px;
   padding: 9px 10px 11px 11px;
   border-radius: 12px;
@@ -463,7 +466,7 @@ function _closeHudPrompt() {
 function _showHudPrompt(d) {
   if (!d || !d.id || !d.title) return;
   _closeHudPrompt();
-  const secs = Math.max(2, Math.min(15, Number(d.seconds) || 3));
+  const secs = Math.max(2, Math.min(15, Number(d.seconds) || 5));
 
   const el = document.createElement('div');
   el.className = 'hud-prompt' + (d.tone === 'alert' ? ' alert' : '');
@@ -529,7 +532,7 @@ function _showHudPrompt(d) {
   el.appendChild(actions);
   el.appendChild(bar);
   el._row = row;
-  document.body.appendChild(el);
+  (document.getElementById('stack') || document.body).appendChild(el);
   _hudPromptEl = el;
 
   // Running out of time is a no.

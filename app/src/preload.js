@@ -151,6 +151,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   savePresentation: (d) => ipcRenderer.invoke('jarvis:savePresentation', d),
   docSave: (d) => ipcRenderer.invoke('doc:save', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
+  // Assist mode: what it worked out from the screen, and whether it is running.
+  onAssistResult: (cb) => ipcRenderer.on('assist:result', (_e, d) => cb(d)),
+  onAssistHandoff: (cb) => ipcRenderer.on('assist:handoff', (_e, d) => cb(d)),
+  onAssistState: (cb) => ipcRenderer.on('assist:state', (_e, d) => cb(d)),
   onNewsHeadlines: (cb) => ipcRenderer.on('jarvis:news-headlines', (_e, d) => cb(d)),
   // Tubes cursor: fetch a CDN script via main process (bypasses sandbox restriction)
   // Magic Editor

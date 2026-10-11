@@ -5216,6 +5216,22 @@ window.jarvis.onClipboardAI(({ text }) => {
   }
 });
 
+// Assist mode worked something out from the screen while you were in another
+// app. The card over that app is gone in a few seconds, so the same answer
+// lands in here too — somewhere it can be read properly and copied from.
+window.jarvis.onAssistResult?.(({ title, text }) => {
+  if (!text) return;
+  addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
+});
+
+// Something offered from the screen that is really a conversation. Put it in
+// the box rather than sending it, so they can change it before it goes.
+window.jarvis.onAssistHandoff?.((a) => {
+  if (!a) return;
+  const ask = a.title || a.label || 'Help me with what was on my screen';
+  if (userInput) { userInput.value = ask; userInput.focus(); }
+});
+
 // ===================== ATTACH FILES =====================
 let pendingAttachments = [];
 

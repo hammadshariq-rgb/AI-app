@@ -2236,7 +2236,7 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
 // of "fix it for me" from outside the app.
 const SCREEN_READ_ACTIONS = [
   'add_to_calendar', 'set_reminder', 'summarise_document', 'draft_reply',
-  'fix_mistake', 'fix_spelling', 'rephrase', 'none',
+  'fix_mistake', 'fix_spelling', 'rephrase', 'combine_pdfs', 'delete_file', 'none',
 ];
 
 app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
@@ -2261,6 +2261,9 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
       'anything you cannot read properly. Do not offer to look again, do not ask',
       'what they would like, do not describe what you see. Say NOTHING and stop.',
       'Never end with a question back to them.',
+      'Callisto\'s own cards may be sitting in a corner of the screen - the dark',
+      'card with the Callisto mark, or a small prompt with a button. Those are',
+      'yours, not theirs. Ignore them completely and never comment on them.',
     ] : [];
 
     const r = await openai.chat.completions.create({
@@ -2277,7 +2280,7 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             '',
             'Reply as JSON:',
             '{"text": string, "action": {"kind": string, "label": string, "title": string,',
-            ' "date": string, "time": string, "replacement": string} | null}',
+            ' "date": string, "time": string, "replacement": string, "files": string[]} | null}',
             '',
             '"text" is what you say to them. Two or three sentences, no more.',
             'Lead with the single most useful thing YOU can do about what is on screen.',
@@ -2300,6 +2303,12 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             '  "replacement". Only for a real mistake, not a name or a style choice.',
             'A paragraph that reads like a machine wrote it -> rephrase, with your',
             '  rewrite in "replacement". Keep their meaning and their voice.',
+            'PDFs they look like they are trying to join -> combine_pdfs, with their',
+            '  names exactly as shown on screen in "files" and a name for the result',
+            '  in "title". Only when two or more are clearly selected or together.',
+            'A file they are plainly finished with -> delete_file, one name in "files".',
+            '  Be very reluctant with this one. Never offer it for anything that looks',
+            '  like work in progress, and never guess at which file they meant.',
             'Nothing worth doing -> say so in one line. That is a fine answer.',
             '',
             `"action" is what you are offering to do. kind is one of: ${SCREEN_READ_ACTIONS.join(', ')}.`,
@@ -2338,12 +2347,18 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
           date: String(a.date || '').slice(0, 10),
           time: String(a.time || '').slice(0, 5),
           replacement: String(a.replacement || '').slice(0, 2000),
+          files: Array.isArray(a.files)
+            ? a.files.slice(0, 12).map((f) => String(f || '').slice(0, 260)).filter(Boolean)
+            : [],
         }
       : null;
     // A fix with nothing to paste is just criticism, so it is not an offer.
     if (action && /^(fix_mistake|fix_spelling|rephrase)$/.test(action.kind) && !action.replacement) {
       action = null;
     }
+    // Nor is an offer about files that names none, or a join of one thing.
+    if (action && action.kind === 'delete_file' && action.files.length !== 1) action = null;
+    if (action && action.kind === 'combine_pdfs' && action.files.length < 2) action = null;
     let text = String(out.text || '').trim().slice(0, 1200);
     // Watching: anything that reads like an opening gambit rather than something
     // worth saying is silence. The model drifts into "shall I check again?" on a

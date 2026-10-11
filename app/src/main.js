@@ -37,6 +37,7 @@ const stt = require('./services/stt');
 const tts = require('./services/tts');
 const commands = require('./services/commands');
 const documents = require('./services/documents');
+const pdfs = require('./services/pdfs');
 const authService = require('./services/auth');
 const connectors = require('./services/connectors');
 const shopping = require('./services/shopping');
@@ -367,9 +368,13 @@ function createOverlayWindow() {
 function createHudWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   hudWindow = new BrowserWindow({
-    width: 370,
+    // The card stack is 360 wide sitting 28 in from the right, which needs 388
+    // before its shadow. At 370 the cards were being sliced down their left
+    // edge - the Callisto mark on them was half missing. The right edge stays
+    // where it was, so nothing moves; there is simply room for the card now.
+    width: 460,
     height: height,
-    x: width - 380,
+    x: width - 470,
     y: 0,
     show: false,
     frame: false,
@@ -4792,8 +4797,12 @@ function _screenHash(dataUrl) {
 
 // `mode: 'watch'` means nobody asked a question - it is looking over their
 // shoulder - so the server holds it to a much higher bar for speaking at all.
-async function _readScreenOnce(question, { mode } = {}) {
-  const shot = await grabScreen(1600);
+async function _readScreenOnce(question, { mode, width } = {}) {
+  // 1600 wide takes about 3.3s end to end; 1280 takes 2.3s and reads exactly
+  // the same things, down to the name on the message. Below 1000 it starts
+  // losing detail, so watching uses 1280 and a read they actually asked for
+  // keeps the full grab, where the small print is the point.
+  const shot = await grabScreen(width || 1600);
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
     // It has to know what day it is, or "tomorrow at 5" cannot become a date.
@@ -4896,8 +4905,8 @@ ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenO
 // the tick being pressed.
 const ASSIST = { on: false, timer: null, lastHash: null, stableSince: 0, lastAskAt: 0,
                  asks: 0, startedAt: 0, ticks: 0, changes: 0, offers: 0, quiet: 0, lastResult: '' };
-const ASSIST_TICK_MS = 4000;
-const ASSIST_SETTLE_MS = 3000;
+const ASSIST_TICK_MS = 2000;
+const ASSIST_SETTLE_MS = 1500;
 const ASSIST_MIN_GAP_MS = 25000;   // never two offers closer than this
 const ASSIST_MAX_ASKS = 40;        // a day's worth of looks, not a month's bill
 const ASSIST_FORCE_MS = 45000;     // look anyway if nothing has settled this long
@@ -4917,7 +4926,7 @@ function askHud({ title, description, buttonText, doneLabel, tone, icon, seconds
   // Nothing should sit in here for ever if the window goes away.
   setTimeout(() => _hudPending.delete(id), 60000);
   hudWindow.webContents.send('hud:prompt', {
-    id, title, description, buttonText, doneLabel, tone, icon, seconds: seconds || 3,
+    id, title, description, buttonText, doneLabel, tone, icon, seconds: seconds || 5,
   });
   return true;
 }
@@ -4977,6 +4986,15 @@ function _assistCard(a, text) {
     case 'rephrase':
       return { title: 'That reads like a machine wrote it.', description: detail,
                buttonText: a.label || 'Copy my version', doneLabel: 'Copied.', icon: '✎' };
+    case 'combine_pdfs':
+      return { title: 'Join these ' + (a.files || []).length + ' PDFs?',
+               description: (a.files || []).join(', ').slice(0, 110) || detail,
+               buttonText: a.label || 'Combine them', doneLabel: 'Combining…', icon: '📎' };
+    case 'delete_file':
+      // Said plainly, because the bin is where it goes and nowhere worse.
+      return { title: 'Move to the recycle bin?',
+               description: (a.files || [])[0] || detail,
+               buttonText: a.label || 'Bin it', doneLabel: 'In the bin.', tone: 'alert', icon: '🗑' };
     case 'summarise_document':
       return { title: 'Summarise this?', description: detail,
                buttonText: a.label || 'Summarise it', doneLabel: 'Opening.', icon: '📄' };
@@ -5006,6 +5024,28 @@ async function _doAssistAction(action) {
     });
     return;
   }
+  if (action.kind === 'combine_pdfs') {
+    sendToHud('hud:card', { type: 'info', text: 'Joining those PDFs…' });
+    const r = await pdfs.combine(action.files, action.title || 'Combined');
+    sendToHud('hud:card', {
+      type: 'info',
+      text: r.ok
+        ? 'Made ' + require('path').basename(r.path) + ' — ' + r.pages + ' pages from ' + r.count + ' files. The originals are untouched.'
+        : r.error,
+    });
+    if (r.ok) require('electron').shell.showItemInFolder(r.path);
+    return;
+  }
+  if (action.kind === 'delete_file') {
+    const r = await pdfs.toBin((action.files || [])[0]);
+    sendToHud('hud:card', {
+      type: 'info',
+      text: r.ok
+        ? require('path').basename(r.path) + ' is in the recycle bin. Restore it from there if you want it back.'
+        : r.error,
+    });
+    return;
+  }
   if (action.kind === 'add_to_calendar' && action.date) {
     const ev = { title: action.title || 'Event', date: action.date, time: action.time || '' };
     await calendar.addEvent(ev).catch(() => null);
@@ -5029,6 +5069,27 @@ async function _doAssistAction(action) {
     }
     return;
   }
+  // Summarising and drafting need the screen, and right now is the only moment
+  // it is still in front of them - a second later they are looking at Callisto
+  // and whatever it was has gone. So it is read here, before anything is shown.
+  if (action.kind === 'summarise_document' || action.kind === 'draft_reply') {
+    const summarising = action.kind === 'summarise_document';
+    sendToHud('hud:card', { type: 'info', text: summarising ? 'Reading it…' : 'Drafting…' });
+    const out = await _readScreenOnce(summarising
+      ? 'Summarise what is on the screen for them. The substance of it, in a few short '
+        + 'sentences - not a description of the window it is in. Set action to null.'
+      : 'Draft a reply to the message on screen, in their voice, ready to send. Give the '
+        + 'reply itself and nothing else - no preamble, no options. Set action to null.');
+    const body = out.ok && out.text ? out.text : (out.error || 'I could not read that.');
+    sendToHud('hud:card', { type: 'info', text: body });
+    // And in the window too, so it is somewhere they can copy it from.
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('assist:result', {
+        kind: action.kind, title: summarising ? 'From your screen' : 'A reply you could send', text: body,
+      });
+    }
+    return;
+  }
   // Anything else is a conversation, so it goes to the window where one can
   // be had, rather than being half-done over the top of someone's work.
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -5044,7 +5105,9 @@ function stopAssist(reason) {
   if (ASSIST.timer) clearInterval(ASSIST.timer);
   ASSIST.timer = null;
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
-  sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
+  // Only as the other half of the one introduction. After that it stops
+  // quietly - they pressed the key, so they know.
+  if (ASSIST.announced) sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('assist:state', { on: false, reason: reason || 'stopped' });
   }
@@ -5072,6 +5135,9 @@ async function _assistTick() {
       ASSIST.lastHash = h;
       ASSIST.stableSince = Date.now();
     }
+    // The very first look is free: they just pressed the key while looking at
+    // the thing they want help with, so there is nothing to wait for.
+    if (ASSIST.firstLook) { ASSIST.firstLook = false; ASSIST.stableSince = 1; }
     const settled = ASSIST.stableSince && Date.now() - ASSIST.stableSince >= ASSIST_SETTLE_MS;
     // Some screens never hold still. A page with a video on it, or Instagram
     // with its stories moving, changes on every single tick - so waiting for
@@ -5093,7 +5159,7 @@ async function _assistTick() {
       + 'a spelling mistake, a paragraph that reads like it was written by a machine, a file '
       + 'to combine or tidy. If there is nothing worth interrupting for, set action to null '
       + 'and text to exactly: NOTHING',
-      { mode: 'watch' }
+      { mode: 'watch', width: 1280 }
     );
     if (!ASSIST.on) return;
     if (!out.ok) {
@@ -5133,10 +5199,21 @@ function startAssist() {
   ASSIST.lastResult = '';
   ASSIST.startedAt = Date.now();
   ASSIST.timer = setInterval(_assistTick, ASSIST_TICK_MS);
-  sendToHud('hud:card', {
-    type: 'info',
-    text: 'Assist mode on. I am watching your screen and will offer things as they come up. Alt+Shift+C to stop.',
-  });
+  // Waiting a tick and then three more seconds for the screen to settle meant
+  // seven seconds of nothing after pressing the key, which feels broken. The
+  // screen they were looking at when they pressed it is the screen they meant,
+  // so the first look happens now and skips the settling.
+  ASSIST.firstLook = true;
+  setTimeout(() => { if (ASSIST.on) _assistTick(); }, 250);
+  // Explaining it every single time is nagging. Once is telling them.
+  ASSIST.announced = !store.get('assistIntroShown');
+  if (ASSIST.announced) {
+    store.set('assistIntroShown', true);
+    sendToHud('hud:card', {
+      type: 'info',
+      text: 'Assist mode on. I am watching your screen and will offer things as they come up. Alt+Shift+C to stop.',
+    });
+  }
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('assist:state', { on: true });
   }
