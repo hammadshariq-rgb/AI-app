@@ -385,6 +385,10 @@ function dismiss(el, instant = false) {
 
 .hp-row { display: flex; align-items: center; gap: 8px; }
 .hp-main { flex: 1; min-width: 0; }
+/* The button sits under the text, not beside it. In a 262px card a worded
+   button and a sentence cannot share a line: the button wins the space and
+   the offer itself gets squeezed down to "That ans...", which is unanswerable. */
+.hp-actions { display: flex; margin-top: 8px; }
 
 .hp-icon {
   flex: none; width: 22px; height: 22px; border-radius: 50%;
@@ -402,10 +406,13 @@ function dismiss(el, instant = false) {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.hp-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-desc {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 .hp-pill {
-  flex: none; padding: 5px 11px;
+  flex: 1; padding: 6px 11px;
   border: none; border-radius: 999px;
   background: var(--hp-pill); color: var(--hp-pill-ink);
   font-family: inherit; font-size: 11.5px; font-weight: 700;
@@ -493,7 +500,7 @@ function _showHudPrompt(d) {
     ipcRenderer.send('hud:prompt-answer', { id: d.id, yes: ok });
     if (!ok) return _closeHudPrompt();
     // Say it landed, rather than vanishing as though nothing happened.
-    pill.remove(); bar.remove(); x.remove(); desc.remove();
+    actions.remove(); bar.remove(); x.remove(); desc.remove();
     icon.textContent = '✓';
     title.className = 'hp-done';
     title.textContent = d.doneLabel || 'Done.';
@@ -502,7 +509,8 @@ function _showHudPrompt(d) {
   pill.addEventListener('click', () => answer(true));
   x.addEventListener('click', () => answer(false));
 
-  // One row, so it reads in a glance and takes almost no room over their work.
+  // What it is on the top line with the way out, what pressing it does
+  // underneath. Small enough to ignore, legible enough to answer.
   const row = document.createElement('div');
   row.className = 'hp-row';
   const main = document.createElement('div');
@@ -511,9 +519,14 @@ function _showHudPrompt(d) {
   if (d.description) main.appendChild(desc);
   if (d.icon !== false) row.appendChild(icon);
   row.appendChild(main);
-  row.appendChild(pill);
   row.appendChild(x);
+
+  const actions = document.createElement('div');
+  actions.className = 'hp-actions';
+  actions.appendChild(pill);
+
   el.appendChild(row);
+  el.appendChild(actions);
   el.appendChild(bar);
   el._row = row;
   document.body.appendChild(el);

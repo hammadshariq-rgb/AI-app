@@ -4933,16 +4933,39 @@ ipcMain.on('hud:prompt-answer', async (_e, { id, yes } = {}) => {
 // on working, the detail underneath, and a button that names what pressing it
 // does. Only a real mistake gets the red treatment - everything else is an
 // offer, and a card that shouts every time gets switched off within the hour.
+// "2026-10-12 at 17:00" is a database row. On a card you glance at for three
+// seconds it wants to say tomorrow, and it wants to say 5 pm.
+function _whenLabel(date, time) {
+  if (!date) return '';
+  const d = new Date(date + 'T00:00:00');
+  if (isNaN(d)) return [date, time].filter(Boolean).join(' at ');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((d - today) / 86400000);
+  const day = days === 0 ? 'Today'
+    : days === 1 ? 'Tomorrow'
+    : days > 1 && days < 7 ? d.toLocaleDateString(undefined, { weekday: 'long' })
+    : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (!time) return day;
+  const [hRaw, m] = String(time).split(':');
+  const h = Number(hRaw);
+  if (isNaN(h)) return day;
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  const clock = hour + (m && m !== '00' ? ':' + m : '') + (h < 12 ? ' am' : ' pm');
+  return day + ' at ' + clock;
+}
+
 function _assistCard(a, text) {
-  const detail = String(text || '').slice(0, 160);
+  // The card is 262px wide, so this is two lines of room, not a paragraph.
+  const detail = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const when = _whenLabel(a.date, a.time);
   switch (a.kind) {
     case 'add_to_calendar':
       return { title: a.title ? 'Diarise "' + a.title + '"?' : 'Add this to your calendar?',
-               description: [a.date, a.time].filter(Boolean).join(' at ') || detail,
+               description: when || detail,
                buttonText: a.label || 'Add to calendar', doneLabel: 'In your calendar.', icon: '📅' };
     case 'set_reminder':
       return { title: a.title ? 'Remind you about "' + a.title + '"?' : 'Set a reminder?',
-               description: [a.date, a.time].filter(Boolean).join(' at ') || detail,
+               description: when || detail,
                buttonText: a.label || 'Remind me', doneLabel: 'Reminder set.', icon: '⏰' };
     case 'fix_mistake':
       return { title: 'That answer looks wrong.', description: detail,
@@ -5078,23 +5101,21 @@ async function _assistTick() {
       console.warn('[assist] read failed:', out.error);
       return;
     }
-    if (/^\s*NOTHING\s*$/i.test(out.text || '')) {
+    // Nothing to press means nothing to say. It still describes a quiet screen
+    // now and again instead of returning NOTHING, and a card reading "the
+    // screen is blank or idle" over the top of someone's work is the whole
+    // reason people turn a thing like this off. No action, no interruption.
+    const a = out.action;
+    if (!a) {
       ASSIST.lastResult = 'looked, nothing worth offering';
       ASSIST.quiet += 1;
       console.log('[assist] looked, nothing to offer');
       return;
     }
     ASSIST.offers += 1;
-    ASSIST.lastResult = 'offered: ' + String(out.text || '').slice(0, 80);
+    ASSIST.lastResult = 'offered: ' + a.kind + ' — ' + String(out.text || '').slice(0, 70);
     console.log('[assist] offering:', ASSIST.lastResult);
-
-    const a = out.action;
-    if (a) {
-      askHud(_assistCard(a, out.text), () => _doAssistAction(a));
-    } else {
-      // Nothing to press, so it is just something worth knowing.
-      sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 300) });
-    }
+    askHud(_assistCard(a, out.text), () => _doAssistAction(a));
   } catch (_) { /* a failed look is not worth ending the session over */ }
 }
 
