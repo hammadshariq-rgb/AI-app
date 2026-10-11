@@ -969,6 +969,20 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
   });
 
+  // Alt+Shift+W starts or stops watching the screen. Alt because that is what
+  // was asked for, and Shift+W because a modifier on its own cannot be a
+  // shortcut and bare Alt+W would be taken from every other program on the
+  // machine. On a Mac Electron maps Alt to Option, so it is Option+Shift+W
+  // there - nothing standard uses either.
+  const watchKey = globalShortcut.register('Alt+Shift+W', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    // Bring it up first, or the answer arrives somewhere nobody is looking.
+    if (overlayWindow.isMinimized()) overlayWindow.restore();
+    if (!overlayWindow.isVisible()) overlayWindow.show();
+    overlayWindow.webContents.send('screen:watch-toggle');
+  });
+  if (!watchKey) console.warn('[shortcut] Alt+Shift+W is already taken by something else');
+
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
   const magicEditRegistered = globalShortcut.register('CommandOrControl+Shift+E', async () => {
     // Second press while the editor is open: stop the mic and apply the edit,
@@ -4774,9 +4788,15 @@ async function _readScreenOnce(question) {
   const shot = await grabScreen(1600);
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
-    const res = await ai.serverFetch('screen-read', { imageBase64: shot, question }, { timeout: 60000, retries: 1 });
+    // It has to know what day it is, or "tomorrow at 5" cannot become a date.
+    const today = new Date().toLocaleDateString('en-CA', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const res = await ai.serverFetch('screen-read', { imageBase64: shot, question, today }, { timeout: 60000, retries: 1 });
     const data = await res.json();
-    return data && data.text ? { ok: true, text: data.text } : { error: 'I could not make sense of that screen.' };
+    return data && data.text
+      ? { ok: true, text: data.text, action: data.action || null }
+      : { error: 'I could not make sense of that screen.' };
   } catch (err) {
     return { error: 'I could not read the screen just then.' };
   }
@@ -4824,7 +4844,7 @@ async function _watchTick() {
     const out = await _readScreenOnce('The screen has changed. What is on it now, and what should I do about it? If nothing is worth saying, reply with exactly: NOTHING');
     if (!WATCH.on) return;
     if (out.ok && out.text && !/^\s*NOTHING\s*$/i.test(out.text)) {
-      _watchSend('screen:watch-update', { text: out.text, reads: WATCH.reads, max: WATCH_MAX_READS });
+      _watchSend('screen:watch-update', { text: out.text, action: out.action || null, reads: WATCH.reads, max: WATCH_MAX_READS });
     }
   } catch (_) { /* a failed look is not worth ending the session over */ }
 }
@@ -4842,7 +4862,7 @@ ipcMain.handle('screen:watch-start', async (e, { question } = {}) => {
   const first = await _readScreenOnce(question);
   if (WATCH.on) WATCH.timer = setInterval(_watchTick, WATCH_TICK_MS);
   return first.ok
-    ? { ok: true, text: first.text, watching: WATCH.on }
+    ? { ok: true, text: first.text, action: first.action || null, watching: WATCH.on }
     : { ok: false, error: first.error, watching: WATCH.on };
 });
 

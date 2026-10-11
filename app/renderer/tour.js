@@ -53,7 +53,7 @@
       targets: ['#micWrap'],
       title: 'Ask it to look at your screen',
       body: 'Say <em>"watch this"</em> and Callisto reads your whole screen — the error, the form, the small print — and tells you what it would do about it. It names the actual button or field, rather than giving you vague advice. Then it keeps watching while you work, and speaks up when something changes.',
-      foot: 'A bar shows at the bottom the whole time it is looking, with a <b>Stop</b> button — or just say <em>"stop watching"</em>. It only ever looks because you asked, and never reads password or payment fields.',
+      foot: 'Or press <b>Alt+Shift+W</b> from any app — Option+Shift+W on a Mac. A bar shows at the bottom the whole time it is looking, with a <b>Stop</b> button. You can give it a job too: <em>"watch my screen and tell me how to add this scope"</em>.',
     },
     {
       targets: ['#gestureToggleBtn'],

@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   readScreenOnce: (question) => ipcRenderer.invoke('screen:read-once', { question }),
   onWatchUpdate: (cb) => ipcRenderer.on('screen:watch-update', (_e, d) => cb(d)),
   onWatchEnded: (cb) => ipcRenderer.on('screen:watch-ended', (_e, d) => cb(d)),
+  onWatchToggle: (cb) => ipcRenderer.on('screen:watch-toggle', () => cb()),
   instagramAccounts: () => ipcRenderer.invoke('instagram:accounts'),
   instagramUse: (igId) => ipcRenderer.invoke('instagram:use', igId),
   onModelResumed: (cb) => ipcRenderer.on('model:resumed', (_e, d) => cb(d)),

@@ -2737,9 +2737,14 @@ window._checkQuickLaunch = async function(text) {
     say('Stopped watching.');
     return true;
   }
-  if (typeof _WATCH_START !== 'undefined' && _WATCH_START.test(t)) {
-    await _startWatching(t);
-    return true;
+  if (typeof _WATCH_START !== 'undefined') {
+    const _wm = _WATCH_START.exec(t);
+    if (_wm) {
+      // Anything after "watch my screen and ..." is the actual job: "tell me
+      // how to add this scope". Without it, it can only guess what you wanted.
+      await _startWatching((_wm[1] || _wm[2] || '').trim());
+      return true;
+    }
   }
 
   // ── Google Calendar: "show my calendar" → full overlay ───────────────────
@@ -11749,7 +11754,7 @@ function _offerCalendarEvent(userText) {
 // Reading the screen because the person asked, and then keeping an eye on it
 // until they say stop. Asking is what makes this acceptable: they know it is
 // looking, because they told it to.
-const _WATCH_START = /^(?:hey\s+\w+[,\s]+)?(?:can\s+you\s+|please\s+)?(?:watch|look\s+at|read|check)\s+(?:this(?:\s+screen)?|my\s+screen|the\s+screen)\s*[.!?]?\s*$|^(?:what(?:'s| is)\s+on\s+my\s+screen|help\s+me\s+with\s+this(?:\s+screen)?)\s*[.!?]?\s*$/i;
+const _WATCH_START = /^(?:hey\s+\w+[,\s]+)?(?:can\s+you\s+|please\s+)?(?:watch|look\s+at|read|check)\s+(?:this(?:\s+screen)?|my\s+screen|the\s+screen)(?:\s*(?:,|\.|\?|and|then|&)\s+(.+))?\s*$|^(?:what(?:'s| is)\s+on\s+my\s+screen|help\s+me\s+with\s+this(?:\s+screen)?)(?:\s*(?:,|\.|\?|and|then|&)\s+(.+))?\s*$/i;
 const _WATCH_STOP = /^(?:stop|quit|end)\s+(?:watching|looking|the\s+watch)\b|^stop\s+watching\s+my\s+screen\b/i;
 
 function _watchBanner(on, reads, max) {
@@ -11773,6 +11778,83 @@ function _watchBanner(on, reads, max) {
   if (c) c.textContent = reads ? reads + ' of ' + max + ' looks' : '';
 }
 
+// An offer that came from looking at the screen. Seeing something and only
+// describing it is not help - "there is a meeting at 5pm in this chat" is
+// worth nothing next to a button that puts it in the diary.
+function _screenActionOffer(action) {
+  try {
+    if (!action || !action.kind) return;
+    document.querySelector('.screen-offer')?.remove();
+
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant screen-offer';
+    const card = document.createElement('div');
+    card.className = 'cal-offer-card';
+    const text = document.createElement('div');
+    text.className = 'cal-offer-text';
+
+    const dated = action.date && action.time
+      ? _eventWhenLabel({ date: action.date, time: action.time })
+      : '';
+    if (action.kind === 'add_to_calendar' || action.kind === 'set_reminder') {
+      const what = action.kind === 'set_reminder' ? 'Remind you about' : 'Put';
+      text.textContent = what + ' "' + (action.title || 'this')
+        + (dated ? '" ' + (action.kind === 'set_reminder' ? 'at ' : 'in your calendar for ') + dated : '"') + '?';
+    } else {
+      text.textContent = action.label || 'Shall I do that?';
+    }
+
+    const acts = document.createElement('div');
+    acts.className = 'cal-offer-acts';
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'cal-offer-yes';
+    yes.textContent = action.label || 'Yes';
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'cal-offer-no';
+    no.textContent = 'No thanks';
+    no.addEventListener('click', () => row.remove());
+
+    yes.addEventListener('click', async () => {
+      yes.disabled = true;
+      yes.textContent = 'Doing it…';
+      let done = false;
+      try {
+        if (action.kind === 'add_to_calendar' && action.date) {
+          const entry = { title: action.title || 'Event', date: action.date, time: action.time || '' };
+          const r = await window.jarvis.calendarAdd(entry);
+          done = !!(r && r.ok);
+          try { window._handleAICalendarEvent && window._handleAICalendarEvent(entry); } catch (_) {}
+          text.textContent = done
+            ? 'Added "' + entry.title + '"' + (dated ? ' for ' + dated : '') + '.'
+            : 'Saved "' + entry.title + '" to your Callisto calendar. Google would not take it.';
+        } else if (action.kind === 'set_reminder' && action.date) {
+          const r = await window.jarvis.addReminder?.({
+            text: action.title || 'Reminder',
+            datetime: new Date(action.date + 'T' + (action.time || '09:00')).getTime(),
+          });
+          done = !!r;
+          text.textContent = done ? 'Reminder set' + (dated ? ' for ' + dated : '') + '.' : 'I could not set that reminder.';
+        } else {
+          text.textContent = 'I cannot do that one yet.';
+        }
+      } catch (_) {
+        text.textContent = 'That did not work. Try asking me directly.';
+      }
+      acts.remove();
+    });
+
+    acts.appendChild(yes);
+    acts.appendChild(no);
+    card.appendChild(text);
+    card.appendChild(acts);
+    row.appendChild(card);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  } catch (_) { /* an offer that cannot be made simply is not made */ }
+}
+
 async function _startWatching(question) {
   addMessage('assistant', 'Looking at your screen…');
   _watchBanner(true, 1, 25);
@@ -11785,11 +11867,29 @@ async function _startWatching(question) {
   if (res && res.ok && res.text) {
     addMessage('assistant', res.text);
     say(res.text);
+    if (res.action) _screenActionOffer(res.action);
   } else {
     _watchBanner(false);
     addMessage('assistant', (res && res.error) || 'I could not read your screen.');
   }
   return true;
+}
+
+window.startWatchingScreen = _startWatching;
+
+if (window.jarvis && window.jarvis.onWatchToggle) {
+  // Alt+Shift+W from anywhere, so it works while you are in the app you need
+  // help with rather than only when Callisto has focus.
+  window.jarvis.onWatchToggle(async () => {
+    const st = await window.jarvis.watchState().catch(() => null);
+    if (st && st.watching) {
+      await window.jarvis.watchStop();
+      _watchBanner(false);
+      addMessage('assistant', 'Stopped watching your screen.');
+    } else {
+      await _startWatching('');
+    }
+  });
 }
 
 if (window.jarvis && window.jarvis.onWatchUpdate) {
@@ -11799,6 +11899,7 @@ if (window.jarvis && window.jarvis.onWatchUpdate) {
     if (!d || !d.text) return;
     addMessage('assistant', d.text);
     say(d.text);
+    if (d.action) _screenActionOffer(d.action);
     _watchBanner(true, d.reads, d.max);
   });
   window.jarvis.onWatchEnded(function (d) {

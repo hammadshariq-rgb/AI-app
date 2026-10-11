@@ -2219,65 +2219,93 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
 });
 
 // ── Reading the screen because someone asked ──────────────────────────────────
-// Different job from the ambient watcher above, and so a different endpoint.
+// Different job from the ambient watcher above, so a different endpoint. The
+// watcher is told to stay quiet and return null most of the time, which is
+// right when nobody asked and useless when someone did.
 //
-// The watcher's prompt tells it to stay quiet and return null most of the time,
-// which is right when nobody asked. Here somebody did ask, so staying quiet is
-// a failure. It reads the image at full detail rather than 'low' - small text
-// is usually the whole point, an error message or a form field - and is allowed
-// room to answer properly.
-//
-// It costs several times an ambient look, which is affordable precisely because
-// it only happens when a person asks for it.
+// The first version of this described the screen and then explained how to use
+// the app that was on it - "type your reply in the Message box and press
+// Enter" - to a person who plainly knew how Instagram worked. Nobody asks an
+// assistant to narrate their own screen back at them. So the prompt now leads
+// with what CALLISTO can do about what it sees, and it returns a real action
+// the app can carry out, not only prose.
+const SCREEN_READ_ACTIONS = ['add_to_calendar', 'set_reminder', 'summarise_document', 'draft_reply', 'none'];
+
 app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
-    const { imageBase64, question } = req.body;
+    const { imageBase64, question, today } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+    const dateLine = today ? `Today is ${String(today).slice(0, 40)}.` : '';
 
     const r = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
-      max_tokens: 700,
+      max_tokens: 600,
       temperature: 0.2,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
           content: [
-            'You are looking at a screenshot of the user\'s screen because they asked you to.',
-            'Read everything on it, including small text: error messages, field labels, button text,',
-            'file names, line numbers, figures in a table. Those details are usually the point.',
+            'You are Callisto, looking at the user\'s screen because they asked you to.',
+            dateLine,
             '',
-            'Answer in two parts, as plain prose with no headings:',
-            '1. One or two sentences on what is on screen and what they appear to be doing.',
-            '2. What you would actually do about it. Be specific to THIS screen - name the',
-            '   button, the field, the file, the exact error. "Check your settings" is useless;',
-            '   "the Reply-To field is empty, which is why it is bouncing" is not.',
+            'Reply as JSON:',
+            '{"text": string, "action": {"kind": string, "label": string, "title": string,',
+            ' "date": string, "time": string} | null}',
             '',
-            'If something is plainly wrong - an error, a failed step, a mistake in their work -',
-            'lead with that and say how to fix it.',
-            'If nothing needs doing, say so in one line rather than inventing advice.',
-            'Never pad. Three good sentences beat ten hedged ones.',
-            'Only say what you can actually see. If text is too small or cut off, say so',
-            'rather than guessing at it.',
+            '"text" is what you say to them. Two or three sentences, no more.',
+            'Lead with the single most useful thing YOU can do about what is on screen.',
             '',
-            'PRIVACY: if a password field, card number, bank account or similar is visible,',
-            'do not read it, repeat it, or describe its contents. Say that something sensitive',
-            'is on screen and answer around it.',
-          ].join('\n'),
+            'NEVER do these:',
+            '- Do not narrate the screen back at them. They can see it.',
+            '- Do not explain how to use the app they are already using. Telling someone',
+            '  to "type in the message box and press Enter" is worthless.',
+            '- Do not list what is on screen unless they asked what is on screen.',
+            '',
+            'DO this: find the thing that is actually worth acting on, and offer it.',
+            'An arrangement in a chat -> offer to put it in their calendar.',
+            'An error -> say what is wrong and the fix, naming the exact message.',
+            'A form with something missing -> name the field.',
+            'A long document -> offer to summarise it.',
+            'Nothing worth doing -> say so in one line. That is a fine answer.',
+            '',
+            `"action" is what you are offering to do. kind is one of: ${SCREEN_READ_ACTIONS.join(', ')}.`,
+            'Use null when there is nothing to offer - most of the time there is not.',
+            'For add_to_calendar and set_reminder: "title" is what the thing is,',
+            '"date" is YYYY-MM-DD resolved against today, "time" is HH:MM in 24 hour.',
+            'Resolve "tomorrow", "friday" and so on yourself into a real date.',
+            '"label" is the button, under 6 words, e.g. "Add to calendar".',
+            '',
+            'Only say what you can actually see. If text is too small or cut off, say so.',
+            'PRIVACY: if a password, card number or bank detail is visible, do not read',
+            'or repeat it. Say something sensitive is on screen and answer around it.',
+          ].filter(Boolean).join('\n'),
         },
         {
           role: 'user',
           content: [
             { type: 'text', text: question && String(question).trim()
               ? String(question).slice(0, 300)
-              : 'What is on my screen, and what should I do about it?' },
+              : 'What can you do about what is on my screen?' },
             { type: 'image_url', image_url: { url: imageBase64, detail: 'high' } },
           ],
         },
       ],
     });
 
-    const text = r.choices?.[0]?.message?.content || '';
-    res.json({ ok: true, text: String(text).trim() });
+    let out = {};
+    try { out = JSON.parse(r.choices?.[0]?.message?.content || '{}'); } catch (_) {}
+    const a = out.action;
+    const action = a && SCREEN_READ_ACTIONS.includes(a.kind) && a.kind !== 'none'
+      ? {
+          kind: a.kind,
+          label: String(a.label || '').slice(0, 40),
+          title: String(a.title || '').slice(0, 120),
+          date: String(a.date || '').slice(0, 10),
+          time: String(a.time || '').slice(0, 5),
+        }
+      : null;
+    res.json({ ok: true, text: String(out.text || '').trim().slice(0, 1200), action });
   } catch (err) {
     console.error('[screen-read]', err.message);
     res.status(500).json({ error: 'I could not read the screen just then.' });
