@@ -1317,7 +1317,10 @@ async function respond({ message, history = [], assistantName, memories = [], re
       ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
       { role: 'user', content: message },
     ];
-    const fastBody = { model: 'gpt-4o-mini', max_tokens: 150, messages: fastMessages, tools: toolsFor(message), tool_choice: 'required' };
+    // The router only has to pick the right tool, which the mini does as well
+    // as anything and faster - about 980ms against 1200-1500 for gpt-4o-mini,
+    // on the same tool definitions. Speed is what matters on this one.
+    const fastBody = { model: 'gpt-5.4-mini', max_tokens: 150, messages: fastMessages, tools: toolsFor(message), tool_choice: 'required' };
     try {
       const fastRes = await serverFetch('chat', fastBody, { timeout: 15000, retries: 1 });
       const fastData = await fastRes.json();
@@ -1451,8 +1454,12 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // and being cut off mid-explanation is worse than not starting one.
       const deepSubject = EDUCATIONAL_REGEX.test(message) || BUSINESS_REGEX.test(message);
       const streamTokens = deepSubject ? 4000 : (isKnowledgeQuestion(message) ? 2000 : 900);
+      // The answer itself, where what the model actually knows shows. gpt-4o-mini
+      // was three generations behind, which is most of why answers read as out
+      // of date. The server turns max_tokens into max_completion_tokens for a
+      // model of this era; temperature it still takes.
       const res = await serverFetch('chat/stream', {
-        model: 'gpt-4o-mini', max_tokens: streamTokens, temperature: 0.3, messages,
+        model: 'gpt-5.4', max_tokens: streamTokens, temperature: 0.3, messages,
       }, { timeout: 25000, retries: 1 });
 
       // Keep a fresh AbortController so we can cancel body read on timeout

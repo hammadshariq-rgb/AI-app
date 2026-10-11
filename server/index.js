@@ -1963,10 +1963,19 @@ app.get('/web/usage', authMiddleware, async (req, res) => {
 });
 
 // Chat completion (non-streaming, used for tool calls)
+// Models after the GPT-4 line refuse max_tokens and want max_completion_tokens
+// instead - the request is rejected outright, not quietly ignored. Temperature
+// and top_p they still take. Deciding it here means the app can name any model
+// without every call site having to know which era it belongs to.
+function tokenCap(model, n) {
+  return /^gpt-[34]/.test(String(model || '')) ? { max_tokens: n } : { max_completion_tokens: n };
+}
+
 app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
-    const params = { model: model || 'gpt-4.1-mini', messages, max_tokens: max_tokens || 512, temperature: temperature ?? 0.2, top_p: 0.9 };
+    const chosen = model || 'gpt-4.1-mini';
+    const params = { model: chosen, messages, ...tokenCap(chosen, max_tokens || 512), temperature: temperature ?? 0.2, top_p: 0.9 };
     if (tools) { params.tools = tools; params.tool_choice = tool_choice || 'required'; }
     const result = await openai.chat.completions.create(params);
     res.json(result);
@@ -1982,10 +1991,11 @@ app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (r
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    const chosen = model || 'gpt-4.1-mini';
     const stream = await openai.chat.completions.create({
-      model: model || 'gpt-4.1-mini',
+      model: chosen,
       messages,
-      max_tokens: max_tokens || 1024,
+      ...tokenCap(chosen, max_tokens || 1024),
       temperature: temperature ?? 0.2,
       top_p: 0.9,
       stream: true,
