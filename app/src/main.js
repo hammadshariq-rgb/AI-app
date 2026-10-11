@@ -4912,6 +4912,25 @@ const ASSIST_MAX_ASKS = 40;        // a day's worth of looks, not a month's bill
 const ASSIST_FORCE_MS = 45000;     // look anyway if nothing has settled this long
 const ASSIST_MAX_MS = 60 * 60 * 1000;
 
+// The forty-look budget is per session, and a session begins every time the
+// key is pressed - so it never bounded a day's spending at all. Somebody who
+// toggled it off and on could look as often as they liked. A look costs about
+// a tenth of a penny (1930 tokens in, 66 out, measured), so this ceiling is
+// roughly 26p a day: generous for anyone really using it, and nowhere near a
+// month's subscription however hard it is pushed.
+const ASSIST_DAILY_MAX = 300;
+
+function _assistDayCount() {
+  const today = new Date().toLocaleDateString('en-CA');
+  const seen = store.get('assistDay');
+  if (seen !== today) { store.set('assistDay', today); store.set('assistDayAsks', 0); return 0; }
+  return Number(store.get('assistDayAsks')) || 0;
+}
+
+function _assistCountLook() {
+  store.set('assistDayAsks', _assistDayCount() + 1);
+}
+
 // Offers waiting on a tick, by id.
 const _hudPending = new Map();
 
@@ -5107,7 +5126,16 @@ function stopAssist(reason) {
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
   // Only as the other half of the one introduction. After that it stops
   // quietly - they pressed the key, so they know.
-  if (ASSIST.announced) sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
+  if (reason === 'daily') {
+    // Always said, introduction or not: otherwise it just stops responding and
+    // looks broken.
+    sendToHud('hud:card', {
+      type: 'info',
+      text: 'That is as much screen watching as one day gets. It starts again tomorrow.',
+    });
+  } else if (ASSIST.announced) {
+    sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
+  }
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('assist:state', { on: false, reason: reason || 'stopped' });
   }
@@ -5119,6 +5147,7 @@ async function _assistTick() {
   try {
     if (Date.now() - ASSIST.startedAt > ASSIST_MAX_MS) return void stopAssist('time');
     if (ASSIST.asks >= ASSIST_MAX_ASKS) return void stopAssist('budget');
+    if (_assistDayCount() >= ASSIST_DAILY_MAX) return void stopAssist('daily');
 
     // Only while they are in something else. With Callisto in front of them
     // they can simply ask, and a floating prompt over its own window is silly.
@@ -5152,6 +5181,7 @@ async function _assistTick() {
     ASSIST.stableSince = 0;
     ASSIST.lastAskAt = Date.now();
     ASSIST.asks += 1;
+    _assistCountLook();
 
     const out = await _readScreenOnce(
       'You are watching over their shoulder while they work. Offer something only if it '
