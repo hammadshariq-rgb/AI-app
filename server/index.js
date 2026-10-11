@@ -2175,8 +2175,12 @@ app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
 
     const r = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      max_tokens: 220,
+      // Same job as /ai/screen-read, so the same model: reading a screen and
+      // deciding whether anything on it is worth saying. 220 was tight even
+      // before; Luna is less terse, so give it room rather than have it cut
+      // off mid-sentence.
+      model: 'gpt-6-luna',
+      max_completion_tokens: 600,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -2407,8 +2411,11 @@ Only list files you can actually read on screen. If none, use an empty array.
 ` : null;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4.1',
-      max_tokens: 1200,
+      // Circle-and-ask is a screen read as well, and this was on full gpt-4.1
+      // at $2.00/$8.00 per million - the dearest call in the app for a job
+      // Luna does at $0.10/$0.50.
+      model: 'gpt-6-luna',
+      max_completion_tokens: 1600,
       messages: [{
         role: 'user',
         content: [
