@@ -174,12 +174,20 @@ jobs:
           # finished in five minutes instead of twenty.
           echo "Apple secrets seen by this build:"
           for pair in "APPLE_CERT_P12:$APPLE_CERT_P12" "APPLE_CERT_PASSWORD:$APPLE_CERT_PASSWORD" \
-                      "APPLE_ID:$APPLE_ID_SECRET" "APPLE_APP_SPECIFIC_PASSWORD:$APPLE_APP_PASSWORD" \
-                      "APPLE_TEAM_ID:$APPLE_TEAM"; do
+                      "APPLE_TEAM_ID:$APPLE_TEAM" \
+                      "APPLE_API_KEY_P8:$APPLE_API_KEY_P8" "APPLE_API_KEY_ID:$APPLE_API_KEY_ID_SECRET" \
+                      "APPLE_API_ISSUER:$APPLE_API_ISSUER_SECRET" \
+                      "APPLE_ID:$APPLE_ID_SECRET" "APPLE_APP_SPECIFIC_PASSWORD:$APPLE_APP_PASSWORD"; do
             name="${pair%%:*}"; value="${pair#*:}"
             if [ -n "$value" ]; then echo "  $name: set (${#value} characters)"; else echo "  $name: MISSING"; fi
           done
-          if [ -n "$APPLE_CERT_P12" ] && [ -n "$APPLE_ID_SECRET" ]; then
+          # Either way of identifying to Apple will do: an App Store Connect key,
+          # or an Apple ID with an app-specific password. This asked only for the
+          # Apple ID, so a repo set up the modern way - key, key id, issuer, all
+          # present and correct - failed the test and fell through to the ad-hoc
+          # signature without a word. That is what happened here, for ten
+          # releases: nothing was missing, the question was wrong.
+          if [ -n "$APPLE_CERT_P12" ] && { [ -n "$APPLE_ID_SECRET" ] || [ -n "$APPLE_API_KEY_P8" ]; }; then
             echo "Signing with Developer ID and notarising."
             # The certificate is imported here rather than through CSC_LINK:
             # electron-builder makes its own keychain with one password and then
@@ -268,7 +276,7 @@ jobs:
               exit 1
             fi
           else
-            echo "::warning::Building with the ad-hoc signature: APPLE_CERT_P12 and APPLE_ID must both be set as repository secrets on this repo (Settings → Secrets and variables → Actions → Repository secrets). Mac auto-update does not work on an ad-hoc build, and Gatekeeper warns on first open."
+            echo "::warning::Building with the ad-hoc signature: this needs APPLE_CERT_P12, plus either APPLE_API_KEY_P8 (with APPLE_API_KEY_ID and APPLE_API_ISSUER) or APPLE_ID (with APPLE_APP_SPECIFIC_PASSWORD), as repository secrets on this repo. Mac auto-update does not work on an ad-hoc build, and Gatekeeper warns on first open."
             echo "No Apple credentials set — building with the ad-hoc signature."
             unset CSC_LINK CSC_KEY_PASSWORD
             export CSC_IDENTITY_AUTO_DISCOVERY=false
