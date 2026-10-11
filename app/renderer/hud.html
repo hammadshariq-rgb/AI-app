@@ -344,5 +344,190 @@ function dismiss(el, instant = false) {
   setTimeout(() => el.remove(), 280);
 }
 </script>
+<style>
+/* ── A small offer, over whatever you are working in ────────────────────────
+   Built from the AlertCard the owner picked - the lifted rounded card, the
+   pulsing icon in its own circle, the pill to act on - but shrunk to a single
+   glanceable line, because it appears over somebody's work rather than in a
+   page of its own. Big enough to read without looking away from what you were
+   doing; small enough to ignore.
+   Its red is kept for things that are genuinely wrong - a wrong answer, a
+   failing step. An offer to diarise something is not a warning, so those come
+   up in the app's own violet. A card that shouts every time gets switched off.
+   Three seconds, and letting it run out is a no. Nothing happens unasked. */
+.hud-prompt {
+  --hp-bg: linear-gradient(150deg, #241a4d, #151b38);
+  --hp-edge: rgba(139, 92, 246, 0.5);
+  --hp-pill: linear-gradient(135deg, #8b5cf6, #3d5cff);
+  --hp-pill-ink: #fff;
+  position: relative;
+  margin: 8px 10px 0 auto;
+  width: 262px;
+  padding: 9px 10px 11px 11px;
+  border-radius: 12px;
+  background: var(--hp-bg);
+  border: 1px solid var(--hp-edge);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.25);
+  font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #f2f5ff;
+  pointer-events: auto;
+  overflow: hidden;
+  animation: hpIn .3s cubic-bezier(.2,1.3,.4,1);
+}
+.hud-prompt.alert {
+  --hp-bg: linear-gradient(150deg, #5b1526, #3a1020);
+  --hp-edge: rgba(248, 113, 113, 0.55);
+  --hp-pill: #fff;
+  --hp-pill-ink: #7f1d2e;
+}
+@keyframes hpIn { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
+.hud-prompt.going { opacity: 0; transform: translateY(8px) scale(.98); transition: opacity .18s, transform .18s; }
+
+.hp-row { display: flex; align-items: center; gap: 8px; }
+.hp-main { flex: 1; min-width: 0; }
+
+.hp-icon {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  display: grid; place-items: center; font-size: 11px;
+  animation: hpPulse 1.6s ease-in-out infinite;
+}
+@keyframes hpPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+.hp-title { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+.hp-desc  { margin-top: 1px; font-size: 11px; line-height: 1.3; color: rgba(242,245,255,0.72); }
+/* The title may run to two lines. Clipping it loses the very thing being
+   offered - "Meeting at 5 PM tomorr..." is not something anyone can answer. */
+.hp-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hp-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.hp-pill {
+  flex: none; padding: 5px 11px;
+  border: none; border-radius: 999px;
+  background: var(--hp-pill); color: var(--hp-pill-ink);
+  font-family: inherit; font-size: 11.5px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  transition: transform .12s ease, filter .16s ease;
+}
+.hp-pill:hover { filter: brightness(1.1); }
+.hp-pill:active { transform: scale(.96); }
+
+.hp-x {
+  flex: none; width: 22px; height: 22px;
+  border: none; border-radius: 6px;
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.65);
+  font-size: 11px; line-height: 1; cursor: pointer;
+  display: grid; place-items: center;
+}
+.hp-x:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+.hp-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255,255,255,0.08); }
+.hp-bar i {
+  display: block; height: 100%; width: 100%;
+  background: var(--hp-pill); transform-origin: left center;
+  animation: hpCount var(--secs, 3s) linear forwards;
+}
+@keyframes hpCount { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.hp-done { font-size: 12px; font-weight: 600; color: #9ee6b4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-prompt { animation: none; }
+  .hp-icon { animation: none; }
+}
+</style>
+<script>
+// Offers raised while watching the screen. One at a time - a stack of these
+// over somebody's work would be worse than saying nothing.
+let _hudPromptEl = null;
+let _hudPromptTimer = null;
+
+function _closeHudPrompt() {
+  if (_hudPromptTimer) { clearTimeout(_hudPromptTimer); _hudPromptTimer = null; }
+  const el = _hudPromptEl;
+  _hudPromptEl = null;
+  if (!el) return;
+  el.classList.add('going');
+  setTimeout(() => el.remove(), 220);
+}
+
+function _showHudPrompt(d) {
+  if (!d || !d.id || !d.title) return;
+  _closeHudPrompt();
+  const secs = Math.max(2, Math.min(15, Number(d.seconds) || 3));
+
+  const el = document.createElement('div');
+  el.className = 'hud-prompt' + (d.tone === 'alert' ? ' alert' : '');
+  el.style.setProperty('--secs', secs + 's');
+  el.setAttribute('role', 'alert');
+
+  const x = document.createElement('button');
+  x.className = 'hp-x';
+  x.textContent = '✕';
+  x.title = 'Dismiss';
+
+  const icon = document.createElement('div');
+  icon.className = 'hp-icon';
+  icon.textContent = d.icon || (d.tone === 'alert' ? '⚠' : '✨');
+
+  const title = document.createElement('div');
+  title.className = 'hp-title';
+  title.textContent = d.title;
+
+  const desc = document.createElement('div');
+  desc.className = 'hp-desc';
+  desc.textContent = d.description || '';
+
+  const pill = document.createElement('button');
+  pill.className = 'hp-pill';
+  pill.textContent = d.buttonText || 'Yes, do it';
+
+  const bar = document.createElement('div');
+  bar.className = 'hp-bar';
+  bar.appendChild(document.createElement('i'));
+
+  const answer = (ok) => {
+    if (_hudPromptTimer) { clearTimeout(_hudPromptTimer); _hudPromptTimer = null; }
+    ipcRenderer.send('hud:prompt-answer', { id: d.id, yes: ok });
+    if (!ok) return _closeHudPrompt();
+    // Say it landed, rather than vanishing as though nothing happened.
+    pill.remove(); bar.remove(); x.remove(); desc.remove();
+    icon.textContent = '✓';
+    title.className = 'hp-done';
+    title.textContent = d.doneLabel || 'Done.';
+    setTimeout(_closeHudPrompt, 1300);
+  };
+  pill.addEventListener('click', () => answer(true));
+  x.addEventListener('click', () => answer(false));
+
+  // One row, so it reads in a glance and takes almost no room over their work.
+  const row = document.createElement('div');
+  row.className = 'hp-row';
+  const main = document.createElement('div');
+  main.className = 'hp-main';
+  main.appendChild(title);
+  if (d.description) main.appendChild(desc);
+  if (d.icon !== false) row.appendChild(icon);
+  row.appendChild(main);
+  row.appendChild(pill);
+  row.appendChild(x);
+  el.appendChild(row);
+  el.appendChild(bar);
+  el._row = row;
+  document.body.appendChild(el);
+  _hudPromptEl = el;
+
+  // Running out of time is a no.
+  _hudPromptTimer = setTimeout(() => {
+    ipcRenderer.send('hud:prompt-answer', { id: d.id, yes: false, timedOut: true });
+    _closeHudPrompt();
+  }, secs * 1000);
+}
+
+ipcRenderer.on('hud:prompt', (_e, d) => _showHudPrompt(d));
+ipcRenderer.on('hud:prompt-close', _closeHudPrompt);
+</script>
 </body>
 </html>

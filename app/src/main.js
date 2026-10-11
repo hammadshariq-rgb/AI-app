@@ -982,6 +982,12 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send('screen:watch-toggle');
   });
   if (!watchKey) console.warn('[shortcut] Alt+Shift+W is already taken by something else');
+  // Alt+Shift+C is assist mode: Callisto watching while you work in something
+  // else, and offering things in the floating window rather than in its own.
+  const assistKey = globalShortcut.register('Alt+Shift+C', () => {
+    try { ASSIST.on ? stopAssist('shortcut') : startAssist(); } catch (_) {}
+  });
+  if (!assistKey) console.warn('[shortcut] Alt+Shift+C is already taken by something else');
 
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
   const magicEditRegistered = globalShortcut.register('CommandOrControl+Shift+E', async () => {
@@ -4873,6 +4879,176 @@ ipcMain.handle('screen:watch-state', () => ({
 
 // One look, no session - for "what is on my screen?"
 ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenOnce(question));
+
+// ── Assist mode ───────────────────────────────────────────────────────────────
+// Callisto watching over your shoulder while you work in something else.
+//
+// Alt+Shift+C turns it on, and from then on it is looking at the screen and
+// offering things in the little window that floats over your apps: put that in
+// your calendar, that answer is wrong, this paragraph reads like it was written
+// by a machine. Three seconds, a tick and a cross; running out of time is a no.
+//
+// Two rules make it bearable rather than intrusive. It only offers while you
+// are in another program - if Callisto itself has focus you are already talking
+// to it and do not need a floating prompt - and nothing ever happens without
+// the tick being pressed.
+const ASSIST = { on: false, timer: null, lastHash: null, stableSince: 0, lastAskAt: 0, asks: 0, startedAt: 0 };
+const ASSIST_TICK_MS = 4000;
+const ASSIST_SETTLE_MS = 3000;
+const ASSIST_MIN_GAP_MS = 25000;   // never two offers closer than this
+const ASSIST_MAX_ASKS = 40;        // a day's worth of looks, not a month's bill
+const ASSIST_MAX_MS = 60 * 60 * 1000;
+
+// Offers waiting on a tick, by id.
+const _hudPending = new Map();
+
+function askHud({ text, yesLabel, doneLabel, seconds }, onYes) {
+  if (!hudWindow || hudWindow.isDestroyed()) return false;
+  const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
+  _hudPending.set(id, { onYes, at: Date.now() });
+  // Nothing should sit in here for ever if the window goes away.
+  setTimeout(() => _hudPending.delete(id), 60000);
+  hudWindow.webContents.send('hud:prompt', {
+    id, text, yesLabel, doneLabel, seconds: seconds || 3,
+  });
+  return true;
+}
+
+ipcMain.on('hud:prompt-answer', async (_e, { id, yes } = {}) => {
+  const entry = _hudPending.get(id);
+  _hudPending.delete(id);
+  if (!entry || !yes) return;
+  try { await entry.onYes(); } catch (err) { console.error('[assist] action failed:', err && err.message); }
+});
+
+// Carrying out what was offered. Everything here already exists elsewhere in
+// the app; assist mode is a way of reaching it without stopping what you are
+// doing, not a second implementation of it.
+async function _doAssistAction(action) {
+  if (!action || !action.kind) return;
+  if (action.kind === 'add_to_calendar' && action.date) {
+    const ev = { title: action.title || 'Event', date: action.date, time: action.time || '' };
+    await calendar.addEvent(ev).catch(() => null);
+    scheduleEventReminder(ev);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('calendar:add-local', ev);
+    }
+    return;
+  }
+  if (action.kind === 'set_reminder' && action.date) {
+    const at = new Date(action.date + 'T' + (action.time || '09:00')).getTime();
+    if (!at || isNaN(at)) return;
+    const reminders = store.get('reminders') || [];
+    reminders.push({
+      id: 'as' + Date.now(), text: action.title || 'Reminder', datetime: at,
+      earlyMinutes: 10, triggered: false, earlyTriggered: false,
+    });
+    store.set('reminders', reminders);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('jarvis:reminder', { refresh: true });
+    }
+    return;
+  }
+  // Anything else is a conversation, so it goes to the window where one can
+  // be had, rather than being half-done over the top of someone's work.
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    if (overlayWindow.isMinimized()) overlayWindow.restore();
+    overlayWindow.show();
+    overlayWindow.webContents.send('assist:handoff', action);
+  }
+}
+
+function stopAssist(reason) {
+  if (!ASSIST.on) return { ok: false };
+  ASSIST.on = false;
+  if (ASSIST.timer) clearInterval(ASSIST.timer);
+  ASSIST.timer = null;
+  if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
+  sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('assist:state', { on: false, reason: reason || 'stopped' });
+  }
+  return { ok: true, asks: ASSIST.asks };
+}
+
+async function _assistTick() {
+  if (!ASSIST.on) return;
+  try {
+    if (Date.now() - ASSIST.startedAt > ASSIST_MAX_MS) return void stopAssist('time');
+    if (ASSIST.asks >= ASSIST_MAX_ASKS) return void stopAssist('budget');
+
+    // Only while they are in something else. With Callisto in front of them
+    // they can simply ask, and a floating prompt over its own window is silly.
+    const ourWindowFocused =
+      (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isFocused()) ||
+      (hudWindow && !hudWindow.isDestroyed() && hudWindow.isFocused());
+    if (ourWindowFocused) return;
+
+    const probe = await grabScreen(320);
+    const h = _screenHash(probe);
+    if (h == null) return;
+    if (h !== ASSIST.lastHash) {
+      ASSIST.lastHash = h;
+      ASSIST.stableSince = Date.now();
+      return;
+    }
+    if (!ASSIST.stableSince) return;
+    if (Date.now() - ASSIST.stableSince < ASSIST_SETTLE_MS) return;
+    if (Date.now() - ASSIST.lastAskAt < ASSIST_MIN_GAP_MS) return;
+
+    ASSIST.stableSince = 0;
+    ASSIST.lastAskAt = Date.now();
+    ASSIST.asks += 1;
+
+    const out = await _readScreenOnce(
+      'You are watching over their shoulder while they work. Offer something only if it '
+      + 'is clearly worth doing: an arrangement to diarise, a wrong answer in their homework, '
+      + 'a spelling mistake, a paragraph that reads like it was written by a machine, a file '
+      + 'to combine or tidy. If there is nothing worth interrupting for, set action to null '
+      + 'and text to exactly: NOTHING'
+    );
+    if (!ASSIST.on || !out.ok) return;
+    if (/^\s*NOTHING\s*$/i.test(out.text || '')) return;
+
+    const a = out.action;
+    const label = a && a.label ? a.label : null;
+    const line = a
+      ? (a.kind === 'add_to_calendar' && a.title
+          ? 'Put "' + a.title + '" in your calendar?'
+          : (label || out.text).slice(0, 120))
+      : String(out.text || '').slice(0, 120);
+
+    if (a) {
+      askHud({ text: line, yesLabel: label || 'Do it', doneLabel: 'Done.' },
+             () => _doAssistAction(a));
+    } else {
+      // Nothing to press, so it is just something worth knowing.
+      sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 300) });
+    }
+  } catch (_) { /* a failed look is not worth ending the session over */ }
+}
+
+function startAssist() {
+  if (ASSIST.on) return stopAssist('toggled');
+  ASSIST.on = true;
+  ASSIST.lastHash = null;
+  ASSIST.stableSince = 0;
+  ASSIST.lastAskAt = 0;
+  ASSIST.asks = 0;
+  ASSIST.startedAt = Date.now();
+  ASSIST.timer = setInterval(_assistTick, ASSIST_TICK_MS);
+  sendToHud('hud:card', {
+    type: 'info',
+    text: 'Assist mode on. I am watching your screen and will offer things as they come up. Alt+Shift+C to stop.',
+  });
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('assist:state', { on: true });
+  }
+  return { ok: true };
+}
+
+ipcMain.handle('assist:toggle', () => (ASSIST.on ? stopAssist('toggled') : startAssist()));
+ipcMain.handle('assist:state', () => ({ on: ASSIST.on, asks: ASSIST.asks, max: ASSIST_MAX_ASKS }));
 
 // The most recent reading, so an ordinary chat turn can use it as context.
 let lastScreenContext = null;
