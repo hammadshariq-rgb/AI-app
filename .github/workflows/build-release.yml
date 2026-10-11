@@ -250,17 +250,25 @@ jobs:
             # matters for opening the file with no internet.
             for dmg in dist/*.dmg; do
               echo "Notarising $(basename "$dmg")…"
+              # Test the exit status directly. This was
+              #   NOTARISED=$(xcrun notarytool submit … && echo yes || echo no)
+              # which captures notarytool's own output too, so NOTARISED held a
+              # whole progress report with "yes" on the end and never equalled
+              # the bare word. Every submission therefore looked like a failure:
+              # nothing was ever stapled, the warning below fired every time
+              # however well it had gone, and the log lost the progress this was
+              # meant to print.
               if [ -n "$APPLE_API_KEY_P8" ]; then
-                NOTARISED=$(xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
-                  --issuer "$APPLE_API_ISSUER" --wait --timeout 20m && echo yes || echo no)
+                xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
+                  --issuer "$APPLE_API_ISSUER" --wait --timeout 20m && NOTARISED=yes || NOTARISED=no
               else
-                NOTARISED=$(xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
-                  --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m && echo yes || echo no)
+                xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
+                  --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m && NOTARISED=yes || NOTARISED=no
               fi
               if [ "$NOTARISED" = yes ] && xcrun stapler staple "$dmg" && xcrun stapler validate "$dmg"; then
                 echo "$(basename "$dmg") is notarised and stapled."
               else
-                echo "::warning::Apple hasn't finished notarising $(basename "$dmg") — shipping it signed. Macs check with Apple online, so it opens cleanly once Apple finishes (usually within a few hours). The submission id is in the log above."
+                echo "::warning::Apple has not finished notarising $(basename "$dmg") - shipping it signed. Macs check with Apple online, so it opens cleanly once Apple finishes. The submission id is in the log above."
               fi
             done
             # electron-builder published nothing this time, so upload the files.
