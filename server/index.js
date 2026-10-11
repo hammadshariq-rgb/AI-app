@@ -2267,9 +2267,15 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
     ] : [];
 
     const r = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      max_tokens: 600,
-      temperature: 0.2,
+      // Measured against gpt-4.1-mini on the screens this actually sees: Luna
+      // caught the wrong sum and returned a clean "15" to paste, answered a
+      // blank screen with exactly NOTHING, and read the Instagram message the
+      // same. gpt-4.1-mini missed the sum altogether and chattered about the
+      // blank one. It is also $0.10/$0.50 per million against $0.40/$1.60, so
+      // a look costs about a quarter of what it did.
+      model: 'gpt-6-luna',
+      // Newer models take max_completion_tokens, and reject a temperature.
+      max_completion_tokens: 600,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -2299,6 +2305,9 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             'A wrong answer in their work -> fix_mistake. Say what the right answer',
             '  is and why in one line, and put the right answer in "replacement".',
             '  Check the arithmetic yourself before you call it wrong.',
+            '"replacement" is pasted straight over what they had, so it is only the',
+            'corrected thing itself - "15", or the corrected sentence. Never the',
+            'question, never a number with working around it, never a preamble.',
             'A misspelt word -> fix_spelling, with the correct spelling in',
             '  "replacement". Only for a real mistake, not a name or a style choice.',
             'A paragraph that reads like a machine wrote it -> rephrase, with your',
