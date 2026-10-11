@@ -103,7 +103,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onActionFired: (cb) => ipcRenderer.on('jarvis:action-fired', (_e, d) => cb(d)),
   onVoiceTrigger: (cb) => ipcRenderer.on('jarvis:voice-trigger', () => cb()),
   onHudVoiceTrigger: (cb) => ipcRenderer.on('jarvis:hud-voice-trigger', () => cb()),
-  onConvoToggle: (cb) => ipcRenderer.on('jarvis:convo-toggle', () => cb()),
   onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
   onSentenceAudio: (cb) => ipcRenderer.on('jarvis:sentence-audio', (_e, d) => cb(d)),
   onSentenceText: (cb) => ipcRenderer.on('jarvis:sentence-text', (_e, d) => cb(d)),
@@ -152,6 +151,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   docSave: (d) => ipcRenderer.invoke('doc:save', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   // Assist mode: what it worked out from the screen, and whether it is running.
+  assistToggle: () => ipcRenderer.invoke('assist:toggle'),
   onAssistResult: (cb) => ipcRenderer.on('assist:result', (_e, d) => cb(d)),
   onAssistHandoff: (cb) => ipcRenderer.on('assist:handoff', (_e, d) => cb(d)),
   onAssistState: (cb) => ipcRenderer.on('assist:state', (_e, d) => cb(d)),

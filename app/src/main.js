@@ -261,6 +261,12 @@ function createOverlayWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // Assist mode listens from this window while the person is working in
+      // another app, so this window is hidden exactly when it has the most to
+      // do. Chromium throttles timers in a hidden window to about one a
+      // minute, which would stop the listening loop restarting the microphone
+      // and leave it deaf for the whole session.
+      backgroundThrottling: false,
     },
   });
   overlayWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
@@ -957,16 +963,10 @@ app.whenReady().then(async () => {
     sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {});
   });
 
-  // Win+Alt+C (Ctrl+Option+C on a Mac) — conversation mode: Callisto listens,
-  // answers when the person stops speaking, then listens again, until it's
-  // switched off. Windows+Alt on its own can't be registered by any app: the OS
-  // only hands over a combination that includes a real key.
-  const convoAccel = process.platform === 'darwin' ? 'Control+Alt+C' : 'Super+Alt+C';
-  const convoRegistered = globalShortcut.register(convoAccel, () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    overlayWindow.webContents.send('jarvis:convo-toggle');
-  });
-  if (!convoRegistered) console.warn(`[SHORTCUT] ${convoAccel} is taken by another app — conversation mode won't toggle.`);
+  // Conversation mode used to live on Win+Alt+C: listening on its own, with no
+  // sense of what was on screen. Assist mode does both from one key, so that
+  // shortcut is gone rather than left as a second way in that behaves almost
+  // but not quite the same.
 
   // Ctrl+Shift+G — Toggle gesture control
   globalShortcut.register('CommandOrControl+Shift+G', () => {
@@ -5136,9 +5136,7 @@ function stopAssist(reason) {
   } else if (ASSIST.announced) {
     sendToHud('hud:card', { type: 'info', text: 'Assist mode off.' });
   }
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('assist:state', { on: false, reason: reason || 'stopped' });
-  }
+  _tellOverlayAssist({ on: false, reason: reason || 'stopped' });
   return { ok: true, asks: ASSIST.asks };
 }
 
@@ -5215,6 +5213,16 @@ async function _assistTick() {
   } catch (_) { /* a failed look is not worth ending the session over */ }
 }
 
+// The overlay may have only just been created for this, in which case its
+// renderer is not listening yet and a plain send goes nowhere - which would
+// leave the screen being watched while the microphone never opened.
+function _tellOverlayAssist(payload) {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  const wc = overlayWindow.webContents;
+  if (wc.isLoading()) wc.once('did-finish-load', () => wc.send('assist:state', payload));
+  else wc.send('assist:state', payload);
+}
+
 function startAssist() {
   if (ASSIST.on) return stopAssist('toggled');
   ASSIST.on = true;
@@ -5229,6 +5237,10 @@ function startAssist() {
   ASSIST.lastResult = '';
   ASSIST.startedAt = Date.now();
   ASSIST.timer = setInterval(_assistTick, ASSIST_TICK_MS);
+  // The microphone lives in the overlay's renderer, so that window has to
+  // exist for assist mode to hear anything - but it stays hidden, because the
+  // whole point is that they are working somewhere else.
+  if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
   // Waiting a tick and then three more seconds for the screen to settle meant
   // seven seconds of nothing after pressing the key, which feels broken. The
   // screen they were looking at when they pressed it is the screen they meant,
@@ -5244,9 +5256,7 @@ function startAssist() {
       text: 'Assist mode on. I am watching your screen and will offer things as they come up. Alt+Shift+C to stop.',
     });
   }
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('assist:state', { on: true });
-  }
+  _tellOverlayAssist({ on: true });
   return { ok: true };
 }
 

@@ -20,11 +20,7 @@
   const KEY = (k) => `<span class="tour-kbd">${k}</span>`;
   // Mac shows Cmd wherever Windows shows Ctrl.
   const MOD = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl');
-  // Conversation mode is the one shortcut that differs in shape, not just in
-  // the modifier key's name.
-  const CONVO = (window.jarvis && window.jarvis.platform) === 'darwin'
-    ? `${KEY('⌃ Ctrl')}${KEY('⌥ Alt')}${KEY('C')}`
-    : `${KEY('Win')}${KEY('Alt')}${KEY('C')}`;
+  const ALT = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌥ Option' : 'Alt');
 
   // Each step names what to light up (one or more selectors, joined into one
   // highlight) and what to say about it.
@@ -45,12 +41,6 @@
     },
     {
       targets: ['#micWrap'],
-      title: 'Never stop talking',
-      body: `Press ${CONVO} for conversation mode. No shortcut each time, no button — just talk, and Callisto answers whenever you pause. It keeps going until you say <em>"stop listening"</em>.`,
-      foot: `While it is on, Callisto can see your screen too — so <em>"combine these two PDFs"</em> or <em>"what is this?"</em> work without you sending anything. ${MOD}${KEY('Shift')}${KEY('G')} adds your hands on top.`,
-    },
-    {
-      targets: ['#micWrap'],
       title: 'Ask it to look at your screen',
       body: 'Say <em>"watch this"</em> and Callisto reads your whole screen — the error, the form, the small print — and tells you what it would do about it. It names the actual button or field, rather than giving you vague advice. Then it keeps watching while you work, and speaks up when something changes.',
       foot: 'Or press <b>Alt+Shift+W</b> from any app — Option+Shift+W on a Mac. A bar shows at the bottom the whole time it is looking, with a <b>Stop</b> button. You can give it a job too: <em>"watch my screen and tell me how to add this scope"</em>.',
@@ -58,14 +48,14 @@
     {
       targets: ['#micWrap'],
       title: 'Or let it watch while you work',
-      body: 'Press <b>Alt+Shift+C</b> — Option+Shift+C on a Mac — and Callisto keeps half an eye on your screen while you get on with something else. When it spots something worth doing it puts a small card in the corner: <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em>.',
-      foot: 'The card lasts three seconds and does nothing unless you press it — letting it run out is a no. Corrections go to your clipboard, ready to paste. It only ever appears over <em>other</em> apps, never over Callisto itself, and it stays quiet when there is nothing worth saying. Alt+Shift+C again to stop.',
+      body: `Press ${ALT}${KEY('Shift')}${KEY('C')} and Callisto watches your screen <em>and</em> listens, until you press it again. Talk to it normally — <em>"how do I add this scope?"</em>, <em>"combine these two PDFs"</em> — and it answers about what it can see, without you sending it anything.`,
+      foot: 'It also speaks up on its own when something is worth doing: <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em>. Those cards last five seconds and do nothing unless you press them — letting one run out is a no. Corrections land on your clipboard, ready to paste.',
     },
     {
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
       body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point to move the cursor, pinch your thumb and finger together to press what it is over, and turn your hand over to move on. On your other hand, point to speak and make a fist to stop.`,
-      foot: 'It works in conversation mode too — there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
+      foot: 'It works in assist mode too — there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
     },
     {
       targets: ['#gestureToggleBtn'],

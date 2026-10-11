@@ -11,7 +11,7 @@ function keys(combo) {
   if (combo === 'Ctrl+Space') return 'Control+Space';
   // Alt IS the Option key on a Mac, and every other Ctrl here becomes Cmd, so
   // spell this one out: "Ctrl" next to a row of Cmd shortcuts reads as Command.
-  if (combo === 'Win+Alt+C') return 'Control+Option+C';   // conversation mode
+  // Alt is already the Option key on a Mac, so Alt+Shift+C needs no remapping.
   return combo.replace(/\bCtrl\+/g, 'Cmd+');
 }
 window.keys = keys;
@@ -9526,10 +9526,12 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   }
 });
 
-// ===================== CONVERSATION MODE =====================
-// Win+Alt+C (Ctrl+Option+C on a Mac) starts a running conversation: Callisto
-// listens, answers as soon as the person stops speaking, then listens again,
-// until it's switched off. Ctrl+Shift+C still works as the one-shot it always was.
+// ===================== CONTINUOUS LISTENING =====================
+// Callisto listens, answers as soon as the person stops speaking, then listens
+// again, until it is switched off. This used to be its own thing on Win+Alt+C;
+// it now belongs to assist mode, which opens the microphone and watches the
+// screen together on Alt+Shift+C. Ctrl+Shift+C is still the one-shot it always
+// was. The _convo names below are this machinery, not a mode of its own.
 window._convoMode = false;
 let _convoBusy = false;     // a question is with the AI right now
 let _vad = null;            // when the person started, how loud the room is, when they last spoke
@@ -9575,7 +9577,7 @@ function convoBanner(on) {
   el = document.createElement('div');
   el.id = 'convoBanner';
   el.innerHTML = `<span class="cb-dot"></span><span id="cbText">Listening</span>`
-    + `<span class="cb-hint">${keys('Win+Alt+C')} to stop</span>`;
+    + `<span class="cb-hint">${keys('Alt+Shift+C')} to stop</span>`;
   el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:99998;'
     + 'display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:999px;'
     + 'background:rgba(10,14,35,0.92);border:1px solid rgba(0,200,255,0.35);backdrop-filter:blur(14px);'
@@ -9600,29 +9602,28 @@ function convoListen() {
   startRecording().then(() => window.jarvis.hudMicState?.(isRecording, true));
 }
 
+// Continuous listening belongs to assist mode now. There is no separate
+// conversation mode to turn on: Alt+Shift+C watches the screen and opens the
+// microphone together, which is what people expected of it anyway - they press
+// it because they want help with what is in front of them, and then they want
+// to be able to ask about it out loud.
 function convoStart() {
+  if (window._convoMode) return;
   window._convoMode = true;
   convoBanner(true);
   window._refreshGestureHint?.();
-  // Screen watching runs with conversation mode, never on its own.
-  window.jarvis.screenWatchStart?.().then((r) => {
-    if (r?.ok) screenWatchBadge(true, 0, r.seconds || 5);
-  }).catch(() => {});
-  addMessage('assistant', `🎙 Conversation mode is on — talk to me normally, I'll answer each time you pause. Say "stop listening", or press ${keys('Win+Alt+C')} again, to end it.`);
   if (!isRecording) convoListen();
 }
 
 function convoStop(spoken) {
+  if (!window._convoMode) return;
   window._convoMode = false;
   _vad = null;
   convoBanner(false);
   window.jarvis.hudMicState?.(false, true);
   if (isRecording) { window._discardRecording = true; stopRecording(); }
-  addMessage('assistant', '🎙 Conversation mode off.');
   if (spoken) say('Okay, I\'ve stopped listening.');
-  window.jarvis.screenWatchStop?.().catch(() => {});
   window._refreshGestureHint?.();
-  screenWatchBadge(false);
   document.getElementById('screenSuggest')?.remove();
 }
 
@@ -9646,7 +9647,7 @@ function screenWatchBadge(on, frames = 0, seconds = 5) {
     el = document.createElement('div');
     el.id = 'screenWatchBadge';
     el.className = 'sw-badge';
-    el.title = 'Callisto is reading your screen while conversation mode is on';
+    el.title = 'Callisto is reading your screen while assist mode is on';
     el.innerHTML = '<span class="sw-dot"></span> Watching your screen <span class="sw-count"></span>';
     document.body.appendChild(el);
   }
@@ -9743,11 +9744,24 @@ setInterval(() => {
   convoListen();
 }, 250);
 
-if (window.jarvis.onConvoToggle) {
-  window.jarvis.onConvoToggle(() => (window._convoMode ? convoStop(false) : convoStart()));
-  // A custom gesture can toggle conversation mode too.
-  window._convoToggle = () => (window._convoMode ? convoStop(false) : convoStart());
-}
+// Assist mode is the only thing that opens the microphone for a stretch now.
+// Main tells us when it goes on and off, including when it stops itself on the
+// hour or on the day's limit, so the mic can never be left listening after the
+// watching has stopped.
+window.jarvis.onAssistState?.(({ on, reason }) => {
+  if (on) {
+    convoStart();
+    addMessage('assistant', `👀 Assist mode is on — I am watching your screen and listening. Say what you need, or just carry on and I will offer things as they come up. ${keys('Alt+Shift+C')} again to stop.`);
+  } else {
+    convoStop(reason === 'spoken');
+    addMessage('assistant', reason === 'daily'
+      ? '👀 That is as much screen watching as one day gets. It starts again tomorrow.'
+      : '👀 Assist mode off.');
+  }
+});
+
+// A custom gesture can still toggle it.
+window._convoToggle = () => window.jarvis.assistToggle?.();
 
 // ===================== RECORDING =====================
 function arrayBufferToBase64(buffer) {
@@ -10054,9 +10068,11 @@ async function stopRecording() {
       || leakHits >= 3;
 
     if (!isGarbage) {
-      // "Stop listening" ends the conversation rather than being answered.
-      if (window._convoMode && /^(?:ok(?:ay)?[,\s]+)?(?:stop listening|stop the conversation|end the conversation|that'?s all|that'?s it|thanks?,? that'?s all|goodbye|bye for now)\b/i.test(trimmed)) {
-        convoStop(true);
+      // "Stop listening" ends the whole mode rather than being answered - the
+      // watching as well as the microphone, since they are one thing now.
+      if (window._convoMode && /^(?:ok(?:ay)?[,\s]+)?(?:stop listening|stop watching|stop the conversation|end the conversation|that'?s all|that'?s it|thanks?,? that'?s all|goodbye|bye for now)\b/i.test(trimmed)) {
+        say('Okay, I\'ve stopped listening.');
+        window.jarvis.assistToggle?.();
         setState('idle');
         return;
       }
