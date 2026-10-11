@@ -362,7 +362,11 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'notify',
-      description: 'Show a desktop notification to the user.',
+      // One line of description made this the bin for anything that did not
+      // fit: asked to send an email - which Callisto cannot do - a model would
+      // pop up a notification and call the job done. The tool must say what it
+      // is not, because the fast router is made to choose something.
+      description: 'Show a desktop notification, and ONLY when the user asked to be notified or alerted about something. It is a small banner on their desktop and nothing else: it sends nothing, tells nobody, and does not carry out the request. Never reach for it because nothing else fits. If what they asked for is not something you have a tool for - sending an email, for instance, which Callisto cannot do - do not call this; leave it and let the answer explain.',
       parameters: {
         type: 'object',
         properties: {
