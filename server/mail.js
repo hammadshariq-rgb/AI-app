@@ -214,7 +214,7 @@ function sendPurchase({ email, name, plan }) {
     'Congratulations on your purchase - Callisto AI Premium',
     `Congratulations, ${esc(who)}.`,
     `Your purchase went through and <strong>${esc(priced)}</strong> is now active on this account.
-     <br><br>The daily message limit is gone, and everything is open: voice control, memory and contacts, Google Calendar sync, music control,
+     <br><br>The daily message limit is gone, and everything is open: voice control, memory, Google Calendar sync, music control,
      document creation, Magic Vision, Magic Edit, 3D Studio, AI video, and posting straight to YouTube, Instagram and TikTok.
      <br><br>Open the app and it will already know - if it still shows the free plan, sign out and back in once.
      <br><br>Enjoy Callisto AI.`,
