@@ -191,6 +191,155 @@
     #waveCanvas { margin-bottom: -72px; } /* pull buttons up so they float on the wave */
     #orbActions { position: relative; z-index: 10; }
 
+    /* ── Hero nav — same glass as the desktop app ─────────────────────────
+       These were flat inline-styled boxes and looked nothing like the app's
+       left nav. This is the app's .lnav-tab treatment: a glass fill, the
+       layered inset highlight stack that gives it an edge, and the same blue
+       for the active tab and gold for Favourites. Inline styles win over a
+       stylesheet, so these have to be !important - which is how the app's own
+       nav is written too. */
+    #heroNavPanel #hnavHistory,
+    #heroNavPanel #hnavFavs,
+    #heroNavPanel #hnavConn,
+    #heroNavPanel #hnavAcct {
+      border-radius: 14px !important;
+      padding: 13px 16px !important;
+      gap: 13px !important;
+      background: rgba(255,255,255,0.055) !important;
+      border: 1px solid rgba(255,255,255,0.10) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      color: rgba(190,200,220,0.60) !important;
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        0 2px 6px rgba(0,0,0,0.10),
+        inset  3px  3px 0.5px -3.5px rgba(255,255,255,0.09),
+        inset -3px -3px 0.5px -3.5px rgba(255,255,255,0.85),
+        inset  1px  1px   1px -0.5px rgba(255,255,255,0.55),
+        inset -1px -1px   1px -0.5px rgba(255,255,255,0.55),
+        inset  0    0    6px   6px   rgba(255,255,255,0.10),
+        inset  0    0    2px   2px   rgba(255,255,255,0.05),
+        0 0 14px rgba(0,0,0,0.18) !important;
+      transition: transform .22s cubic-bezier(0.22,1,0.36,1), box-shadow .22s ease,
+                  background .18s ease, border-color .18s ease, color .18s ease !important;
+    }
+    #heroNavPanel #hnavHistory span,
+    #heroNavPanel #hnavFavs span,
+    #heroNavPanel #hnavConn span,
+    #heroNavPanel #hnavAcct span {
+      font-family: 'Inter', sans-serif !important;
+      font-size: 15.5px !important;
+      font-weight: 400 !important;
+    }
+    #heroNavPanel #hnavHistory:hover,
+    #heroNavPanel #hnavConn:hover,
+    #heroNavPanel #hnavAcct:hover {
+      background: rgba(255,255,255,0.085) !important;
+      border-color: rgba(255,255,255,0.16) !important;
+      color: rgba(220,232,255,0.88) !important;
+      transform: scale(1.015) !important;
+    }
+    /* The open tab, in the app's blue. */
+    #heroNavPanel #hnavHistory {
+      background: rgba(80,120,255,0.18) !important;
+      border-color: rgba(120,160,255,0.28) !important;
+      box-shadow:
+        0 0 8px rgba(0,0,0,0.06),
+        inset  3px  3px 0.5px -3.5px rgba(140,180,255,0.15),
+        inset -3px -3px 0.5px -3.5px rgba(140,180,255,0.90),
+        inset  1px  1px   1px -0.5px rgba(160,200,255,0.65),
+        inset -1px -1px   1px -0.5px rgba(160,200,255,0.65),
+        inset  0    0    6px   6px   rgba(100,150,255,0.12),
+        0 0 24px rgba(80,120,255,0.22) !important;
+    }
+    #heroNavPanel #hnavHistory span { color: rgba(220,235,255,0.96) !important; font-weight: 500 !important; }
+    /* Favourites keeps the app's gold edge. */
+    #heroNavPanel #hnavFavs {
+      border-color: rgba(255,200,50,0.55) !important;
+      box-shadow:
+        0 0 0 1px rgba(255,195,40,0.18),
+        0 0 16px rgba(255,185,20,0.28),
+        0 4px 18px rgba(0,0,0,0.28),
+        inset  3px  3px 0.5px -3.5px rgba(255,220,80,0.18),
+        inset -3px -3px 0.5px -3.5px rgba(255,220,80,0.70),
+        inset  1px  1px   1px -0.5px rgba(255,230,100,0.55),
+        inset -1px -1px   1px -0.5px rgba(255,230,100,0.55),
+        inset  0    0    6px   6px   rgba(255,190,30,0.08) !important;
+    }
+    #heroNavPanel #hnavFavs span { color: rgba(255,220,120,0.90) !important; }
+    #heroNavPanel #hnavFavs:hover {
+      border-color: rgba(255,210,60,0.80) !important;
+      transform: scale(1.015) !important;
+    }
+
+    /* ── Demo recordings ──────────────────────────────────────────────────
+       Three tiles above the features. The tile keeps its shape whether or not
+       a file is there yet, so the page never looks half-built while the
+       recordings are still being made. */
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 22px;
+      max-width: 1180px;
+      margin: 38px auto 0;
+      padding: 0 20px;
+    }
+    .demo-card { margin: 0; }
+    .demo-frame {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      border-radius: 18px;
+      overflow: hidden;
+      background: linear-gradient(160deg, #0b1024, #070a18);
+      border: 1px solid rgba(100,140,255,0.16);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .demo-video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #070a18;
+    }
+    /* Sits behind the video, so it only shows while there is nothing to play. */
+    .demo-fallback {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--brand);
+      font-size: 10px; letter-spacing: 3px; font-weight: 700;
+      color: rgba(120,160,255,0.35);
+      pointer-events: none;
+    }
+    .demo-cap {
+      display: block;
+      margin-top: 14px;
+      padding: 0 2px;
+    }
+    .demo-num {
+      display: inline-block;
+      font-family: var(--brand);
+      font-size: 9px; letter-spacing: 3px; font-weight: 700;
+      color: rgba(100,140,255,0.55);
+      margin-bottom: 6px;
+    }
+    .demo-cap b {
+      display: block;
+      font-size: 15px; font-weight: 700;
+      color: rgba(228,238,255,0.95);
+      margin-bottom: 4px;
+    }
+    .demo-cap span:last-child {
+      display: block;
+      font-size: 13px; line-height: 1.5;
+      color: rgba(150,175,230,0.6);
+    }
+    body.light .demo-frame { background: #e8ecf8; border-color: rgba(61,92,255,0.18); }
+    body.light .demo-cap b { color: #0a1235; }
+    body.light .demo-cap span:last-child { color: rgba(40,60,120,0.65); }
+    @media (max-width: 720px) {
+      .demo-grid { grid-template-columns: 1fr; gap: 26px; }
+    }
+
     /* ── Combined Calendar+Reminders panel (matches desktop app) ── */
     #calPanel {
       position:absolute; bottom:18px; right:18px;
@@ -1604,6 +1753,82 @@
     </div>
   </div>
 
+  <!-- ══════════ SEE IT WORKING ══════════
+       Three demo recordings, above the features, because showing it working
+       persuades people that a list of capabilities does not. Drop the files in
+       as assets/demo/demo-1.mp4 … demo-3.mp4 and they appear; until then each
+       tile shows its own poster and nothing is broken. -->
+  <div class="glow-div"></div>
+  <div class="section" id="demos">
+    <div class="sec-eyebrow">SEE IT WORKING</div>
+    <h2 class="sec-title">Watch it actually do things</h2>
+    <p class="sec-sub">Real recordings, no edits. This is Callisto on an ordinary laptop.</p>
+
+    <div class="demo-grid">
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="metadata"
+                 poster="assets/demo/demo-1.jpg">
+            <source src="assets/demo/demo-1.mp4" type="video/mp4">
+          </video>
+          <div class="demo-fallback">Demo coming shortly</div>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">01</span>
+          <b>Watching your screen</b>
+          <span>It spots the wrong answer and offers the fix, without being asked.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="metadata"
+                 poster="assets/demo/demo-2.jpg">
+            <source src="assets/demo/demo-2.mp4" type="video/mp4">
+          </video>
+          <div class="demo-fallback">Demo coming shortly</div>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">02</span>
+          <b>Talking to it</b>
+          <span>Ask out loud and it answers, in any app, without switching away.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="metadata"
+                 poster="assets/demo/demo-3.jpg">
+            <source src="assets/demo/demo-3.mp4" type="video/mp4">
+          </video>
+          <div class="demo-fallback">Demo coming shortly</div>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">03</span>
+          <b>Making things</b>
+          <span>Documents, slides, 3D models and video — from one sentence.</span>
+        </figcaption>
+      </figure>
+    </div>
+    <script>
+      // Until a recording is actually there, an empty <video> draws a dead
+      // player at 0:00, which looks broken rather than unfinished. Each one
+      // stays hidden until it has loaded something; if the file is missing the
+      // tile just shows its caption.
+      document.querySelectorAll('.demo-card .demo-video').forEach(function (v) {
+        v.style.visibility = 'hidden';
+        var show = function () { v.style.visibility = 'visible'; v.setAttribute('controls', ''); };
+        v.addEventListener('loadeddata', show, { once: true });
+        // A poster alone is worth showing even before the video is played.
+        if (v.getAttribute('poster')) {
+          var img = new Image();
+          img.onload = show;
+          img.src = v.getAttribute('poster');
+        }
+      });
+    </script>
+  </div>
+
   <!-- FEATURES -->
   <div class="glow-div"></div>
   <div class="section" id="features">
@@ -2502,112 +2727,129 @@
   setInterval(updateClock,1000); updateClock();
 
   // Wave canvas — glowing fiber-optic strands like the app
-  function startAppWave(canvas){
-    /* canvas passed in — same strands on the voice and typing screens */
+function startAppWave(canvas){
+    /* The website drew this on a 2D canvas while the app renders it in WebGL
+       with a shader, so the two looked nothing like each other. This is the
+       app's renderer, lifted across unchanged, so the wave on the site is the
+       wave in the product. */
     if(!canvas)return;
-    const ctx=canvas.getContext('2d');
-    let w,h,t=0;
-    function resize(){w=canvas.width=canvas.offsetWidth;h=canvas.height=canvas.offsetHeight||160;} canvas._calResize=resize;
-    resize(); window.addEventListener('resize',resize);
-    // Define strands: each has baseline y offset, amplitude, frequency, phase, speed
-    const strands=[
-      {y:0.3,amp:0.22,freq:1.4,phase:0,speed:0.18,bright:true},
-      {y:0.45,amp:0.18,freq:1.7,phase:1.2,speed:0.14,bright:false},
-      {y:0.5,amp:0.25,freq:1.2,phase:2.4,speed:0.22,bright:true},
-      {y:0.55,amp:0.15,freq:2.0,phase:0.7,speed:0.12,bright:false},
-      {y:0.65,amp:0.20,freq:1.5,phase:3.1,speed:0.16,bright:true},
-      {y:0.4,amp:0.28,freq:1.0,phase:1.8,speed:0.10,bright:false},
-      {y:0.6,amp:0.16,freq:1.8,phase:4.0,speed:0.20,bright:false},
-      {y:0.35,amp:0.22,freq:1.3,phase:2.8,speed:0.15,bright:true},
-    ];
-    // Light mode: filled layered cloth/fabric waves
-    // Light mode — the app's look: a soft cyan mist with a bundle of fine cyan
-    // strands that fan out from a single ribbon.
-    const lightBands=[
-      {y:0.58,amp:0.14,freq:1.1,phase:0,   speed:0.09, color:'rgba(120,215,245,0.10)'},
-      {y:0.64,amp:0.16,freq:1.3,phase:1.1, speed:0.07, color:'rgba(100,205,240,0.09)'},
-      {y:0.52,amp:0.18,freq:0.9,phase:2.2, speed:0.11, color:'rgba(150,225,250,0.07)'},
-      {y:0.70,amp:0.12,freq:1.5,phase:0.8, speed:0.08, color:'rgba(130,215,245,0.08)'},
-    ];
-    const lightLines=Array.from({length:14},(_,i)=>({
-      y:0.50+i*0.006, amp:0.16+i*0.012, freq:1.05, phase:0.4+i*0.09, speed:0.14,
-      color:'rgba(0,190,235,'+(0.55-i*0.03).toFixed(2)+')', width:i===0?1.2:0.8,
-    }));
+    const VS = `
+    attribute vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+  `;
+    const FS = `
+    precision highp float;
+    uniform float iTime;
+    uniform vec3  iResolution;
+    uniform vec3  uColor;
+    uniform float uAmplitude;
+    uniform float uDistance;
+    uniform vec2  uMouse;
+    #define PI 3.1415926538
+    const int   u_line_count = 40;
+    const float u_line_width = 7.0;
+    const float u_line_blur  = 10.0;
+    float Perlin2D(vec2 P) {
+      vec2 Pi = floor(P);
+      vec4 Pf = P.xyxy - vec4(Pi, Pi + 1.0);
+      vec4 Pt = vec4(Pi.xy, Pi.xy + 1.0);
+      Pt = Pt - floor(Pt * (1.0/71.0)) * 71.0;
+      Pt += vec2(26.0,161.0).xyxy; Pt *= Pt;
+      Pt = Pt.xzxz * Pt.yyww;
+      vec4 hx = fract(Pt*(1.0/951.135664));
+      vec4 hy = fract(Pt*(1.0/642.949883));
+      vec4 gx = hx - 0.49999, gy = hy - 0.49999;
+      vec4 gr = inversesqrt(gx*gx + gy*gy) * (gx*Pf.xzxz + gy*Pf.yyww);
+      gr *= 1.4142135623730950;
+      vec2 b = Pf.xy*Pf.xy*Pf.xy*(Pf.xy*(Pf.xy*6.0-15.0)+10.0);
+      vec4 b2 = vec4(b, 1.0-b);
+      return dot(gr, b2.zxzx * b2.wwyy);
+    }
+    float px(float c, vec2 r) { return (1.0/max(r.x,r.y))*c; }
+    float lineFn(vec2 st, float w, float perc, float off, vec2 mouse, float t, float amp, float dist) {
+      float sp = 0.1 + perc*0.4;
+      float an = smoothstep(sp, 0.7, st.x) * 0.5 * amp * (1.0+(mouse.y-0.5)*0.2);
+      float ts = t/10.0 + (mouse.x-0.5);
+      float bl = smoothstep(sp, sp+0.05, st.x) * perc;
+      float xn = mix(Perlin2D(vec2(ts,st.x+perc)*2.5),
+                     Perlin2D(vec2(ts,st.x+ts)*3.5)/1.5, st.x*0.3);
+      float y  = 0.5 + (perc-0.5)*dist + xn/2.0*an;
+      float ls = smoothstep(y+(w/2.0)+(u_line_blur*px(1.0,iResolution.xy)*bl), y, st.y);
+      float le = smoothstep(y, y-(w/2.0)-(u_line_blur*px(1.0,iResolution.xy)*bl), st.y);
+      return clamp((ls-le)*(1.0-smoothstep(0.0,1.0,pow(perc,0.3))), 0.0, 1.0);
+    }
+    void main() {
+      vec2 uv = gl_FragCoord.xy / iResolution.xy;
+      float s = 1.0;
+      for (int i = 0; i < u_line_count; i++) {
+        float p = float(i)/float(u_line_count);
+        s *= 1.0 - lineFn(uv, u_line_width*px(1.0,iResolution.xy)*(1.0-p), p,
+                          PI*p, uMouse, iTime, uAmplitude, uDistance);
+      }
+      float v = 1.0 - s;
+      gl_FragColor = vec4(uColor * v, v);
+    }
+  `;
 
-    function waveY(band,x){
-      const progress=x/w;
-      return h*band.y + Math.sin(progress*Math.PI*band.freq*2+band.phase+t*band.speed)*h*band.amp;
+    function compileShader(gl, type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src); gl.compileShader(sh);
+      return sh;
     }
-    function drawLightBand(b){
-      // Draw a filled ribbon between the wave and the bottom of canvas
-      ctx.beginPath();
-      ctx.moveTo(0,waveY(b,0));
-      for(let x=1;x<=w;x+=2) ctx.lineTo(x,waveY(b,x));
-      ctx.lineTo(w,h+10); ctx.lineTo(0,h+10);
-      ctx.closePath();
-      ctx.fillStyle=b.color;
-      ctx.fill();
+
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) return;
+    gl.clearColor(0,0,0,0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compileShader(gl, gl.VERTEX_SHADER,   VS));
+    gl.attachShader(prog, compileShader(gl, gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    const posLoc = gl.getAttribLocation(prog, 'position');
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uTime = gl.getUniformLocation(prog, 'iTime');
+    const uRes  = gl.getUniformLocation(prog, 'iResolution');
+    const uCol  = gl.getUniformLocation(prog, 'uColor');
+    const uAmp  = gl.getUniformLocation(prog, 'uAmplitude');
+    const uDist = gl.getUniformLocation(prog, 'uDistance');
+    const uMou  = gl.getUniformLocation(prog, 'uMouse');
+
+    // Cyan, the same accent as the app (#00c8ff)
+    let _waveColor = [0.0, 0.784, 1.0];
+    gl.uniform3fv(uCol,  _waveColor);
+    gl.uniform1f(uAmp,   1.6);
+    gl.uniform1f(uDist,  0.22);
+    gl.uniform2fv(uMou,  [0.5, 0.5]);
+    window._wave = { setColor(rgb) { _waveColor = rgb; gl.uniform3fv(uCol, rgb); } };
+
+    function resize() {
+      const w = canvas.offsetWidth  || (canvas.parentElement && canvas.parentElement.clientWidth)  || 800;
+      const h = canvas.offsetHeight || 160;
+      canvas.width = w; canvas.height = h;
+      gl.viewport(0, 0, w, h);
+      gl.uniform3fv(uRes, [w, h, w / (h || 1)]);
     }
-    function drawLightLine(l){
-      ctx.beginPath();
-      ctx.moveTo(0,waveY(l,0));
-      for(let x=1;x<=w;x+=2) ctx.lineTo(x,waveY(l,x));
-      ctx.shadowColor='rgba(80,190,255,0.25)';
-      ctx.shadowBlur=6;
-      ctx.strokeStyle=l.color;
-      ctx.lineWidth=l.width;
-      ctx.stroke();
-      ctx.shadowBlur=0;
+    canvas._calResize = resize;
+    window.addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(() => requestAnimationFrame(resize));
+
+    function frame(t) {
+      requestAnimationFrame(frame);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform1f(uTime, t * 0.001);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
-    function drawStrand(s){
-      const baseY=h*s.y;
-      const ampY=h*s.amp;
-      ctx.beginPath();
-      for(let x=0;x<=w;x+=1){
-        const progress=x/w;
-        const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
-        x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-      }
-      // Dark mode: teal/cyan neon
-      if(s.bright){
-        ctx.shadowColor='rgba(0,200,255,0.6)';
-        ctx.shadowBlur=18;
-        ctx.strokeStyle='rgba(0,210,255,0.25)';
-        ctx.lineWidth=4;
-        ctx.stroke();
-        ctx.beginPath();
-        for(let x=0;x<=w;x+=1){
-          const progress=x/w;
-          const y=baseY+Math.sin(progress*Math.PI*s.freq*2+s.phase+t*s.speed)*ampY;
-          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-        }
-        ctx.shadowColor='rgba(0,220,255,0.9)';
-        ctx.shadowBlur=8;
-        ctx.strokeStyle='rgba(80,220,255,0.9)';
-        ctx.lineWidth=1.2;
-        ctx.stroke();
-      } else {
-        ctx.shadowColor='rgba(40,100,255,0.5)';
-        ctx.shadowBlur=12;
-        ctx.strokeStyle='rgba(60,140,255,0.5)';
-        ctx.lineWidth=1;
-        ctx.stroke();
-      }
-      ctx.shadowBlur=0;
-    }
-    function draw(){
-      ctx.clearRect(0,0,w,h);
-      if(document.body.classList.contains('light')){
-        // Sort bands by y so deeper ones draw first (bottom = front)
-        lightBands.slice().sort((a,b)=>a.y-b.y).forEach(b=>drawLightBand(b));
-        lightLines.forEach(l=>drawLightLine(l));
-      } else {
-        strands.forEach(s=>drawStrand(s));
-      }
-      t+=0.012;
-      requestAnimationFrame(draw);
-    }
-    draw();
+    requestAnimationFrame(frame);
   }
   startAppWave(document.getElementById('waveCanvas'));
 

@@ -1,18 +1,28 @@
 // ===================== RIGHT PANEL STACKING =====================
+// They used to be fixed to the viewport, so they slid down the whole page as
+// you scrolled and sat on top of the features. They now live inside the hero,
+// stacked downwards from the top in the same order as the desktop app -
+// reminders, then the calendar, then the portfolio - and scroll away with it.
 function positionRightPanels() {
-  var FIN_BOTTOM = 22;
+  var TOP = 86;          // clear of the fixed header
   var GAP = 10;
   var finPanel = document.getElementById('finPanel');
   var cal = document.getElementById('glassCalendar');
   var rem = document.getElementById('remindersPanel');
   if (!finPanel || !cal || !rem) return;
 
-  var finH = finPanel.classList.contains('fp-hidden') ? 0 : finPanel.offsetHeight;
-  var calBottom = FIN_BOTTOM + finH + (finH > 0 ? GAP : 0);
-  cal.style.bottom = calBottom + 'px';
+  // Anchored from the top now, so bottom must not also be set or the panel is
+  // stretched between the two.
+  rem.style.bottom = cal.style.bottom = finPanel.style.bottom = 'auto';
+
+  rem.style.top = TOP + 'px';
+  var remH = rem.classList.contains('rp-hidden') ? 0 : rem.offsetHeight;
+
+  var calTop = TOP + remH + (remH > 0 ? GAP : 0);
+  cal.style.top = calTop + 'px';
 
   var calH = cal.offsetHeight;
-  rem.style.bottom = (calBottom + calH + GAP) + 'px';
+  finPanel.style.top = (calTop + calH + GAP) + 'px';
 }
 
 // Keep the stack honest. The portfolio grows as stocks load and the calendar

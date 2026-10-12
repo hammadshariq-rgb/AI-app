@@ -1875,6 +1875,12 @@ function webSystemPrompt() {
     '  short for brevity.',
     '- Open with the direct answer, then the detail. No filler, no restating the',
     '  question back.',
+    '- NEVER reply with a holding phrase and then stop - "Let me check that for',
+    '  you", "On it", "One moment". That is a dead end and leaves them with',
+    '  nothing. Asked about something current you cannot be sure of, answer anyway',
+    '  with what you know and say plainly how current it is: "as of my last',
+    '  update ... though that moves, so worth checking". A half-answer with a',
+    '  caveat always beats silence.',
     '',
     'WHAT YOU WILL NOT DO:',
     '- No sexual or pornographic material, and no help making it: no erotic writing,',
@@ -1923,9 +1929,12 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     const withContext = stockMsg ? [...base.slice(0, -1), stockMsg, base[base.length - 1]] : base;
 
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5.4',
+      // The website was still on gpt-4.1-mini while the desktop app moved to
+      // gpt-5.4, so the same question got a worse, staler answer on the site
+      // than in the product it is advertising.
       messages: withContext,
-      max_tokens: 1024,
+      max_completion_tokens: 1024,
       temperature: 0.2,
       top_p: 0.9,
       stream: true,
