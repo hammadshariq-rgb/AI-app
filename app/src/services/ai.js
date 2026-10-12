@@ -953,7 +953,12 @@ CURRENT EVENTS & NEWS (CRITICAL):
 - You receive LIVE NEWS HEADLINES from BBC, Reuters, and Sky News — refreshed every 20 minutes. When REAL-TIME DATA or NEWS HEADLINES are injected above, treat them as absolute ground truth.
 - If a major event happened recently — a death, election result, attack, disaster, arrest, announcement — it will be in your live headlines. Use that data to answer confidently.
 - Never say "I don't have access to real-time information" when live data has been provided to you. That data IS real-time. Use it.
-- If asked about something current and no live data was provided, say "Let me check that for you" and open Google search.
+- If asked about something current and no live data was provided, ANSWER ANYWAY with
+  what you know, and say plainly how current it is - "as of my last update, the iPhone 17
+  started at about $799, though prices move, so check Apple for today's". NEVER reply with
+  "Let me check that for you", "On it", "One moment" or any other holding phrase and then
+  stop: that is a dead end, and the person is left with nothing. You either answer, or you
+  say what you cannot answer and why. A half-answer with a caveat always beats silence.
 - Today's date is always provided to you — use it. If someone asks "what happened today" or "any news today", pull from the live headlines.
 
 WHAT YOU KNOW VS WHAT YOU DON'T (follow this precisely):
@@ -1235,7 +1240,7 @@ function tryLocalCommand(raw) {
   return null;
 }
 
-const LIVE_KEYWORDS = /\b(score|scores|standings|leaderboard|fixture|fixtures|kick.?off|half.?time|full.?time|highlights|latest|live|news|breaking|today.?s|tonight.?s|last.?night.?s|this.?morning.?s|transfer|signing|signed|injured|injury|suspension|banned|vs\.?|versus|right now|at the moment|currently|current|prime.?minister|chief.?minister|governor|chancellor|elected|appointed|in.?office|in.?power|in.?charge|parliament|senate|congress|election|elections|voted|votes|polling|poll|inflation|interest.?rate|exchange.?rate|died|dead|death|killed|passed.?away|arrested|jailed|resigned|fired|sacked|sworn.?in|inaugurated)\b/i;
+const LIVE_KEYWORDS = /\b(score|scores|standings|leaderboard|fixture|fixtures|kick.?off|half.?time|full.?time|highlights|latest|live|news|breaking|today.?s|tonight.?s|last.?night.?s|this.?morning.?s|transfer|signing|signed|injured|injury|suspension|banned|vs\.?|versus|right now|at the moment|currently|current|prime.?minister|chief.?minister|governor|chancellor|elected|appointed|in.?office|in.?power|in.?charge|parliament|senate|congress|election|elections|voted|votes|polling|poll|inflation|interest.?rate|exchange.?rate|died|dead|death|killed|passed.?away|arrested|jailed|resigned|fired|sacked|sworn.?in|inaugurated|price|prices|pricing|cost|costs|how much|worth|rrp|msrp|released|release.?date|launch|launched|announced|out yet|available|in stock|cheapest|best deal|discount|stock price|share price|market cap)\b/i;
 
 function buildUserContent(message, attachments = []) {
   const images = attachments.filter(a => a.kind === 'image');

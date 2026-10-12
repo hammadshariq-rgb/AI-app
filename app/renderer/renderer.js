@@ -5659,7 +5659,11 @@ async function sendToJarvis(text) {
 
   let res;
   try {
-    res = await window.jarvis.chat(text, history.slice(-30), attachments.filter(a => a.kind !== 'video'));
+    const _myTurn = _replyGate && _replyGate.turn;
+    res = await window.jarvis.chat(text, history.slice(-30), attachments.filter(a => a.kind !== 'video'), _myTurn);
+    // The answer to a question the person has already moved on from must not
+    // land under their newer one.
+    if (_myTurn != null && _replyGate && _replyGate.turn !== _myTurn) return;
   } catch (err) {
     // IPC-level throw (e.g. main process crashed) — classify and show
     const msg = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
@@ -5915,9 +5919,15 @@ window.jarvis.onSentenceAudio(({ audio }) => {
 // voice), and the card is shown at that same moment.
 let _replyGate = null;
 
+// Each turn gets a number, and every sentence the main process sends back
+// carries the number of the turn it belongs to. Without this a slow answer
+// streamed its sentences into whatever bubble was open when they arrived -
+// which is how "who is Midas in Fortnite" came back about Daft Punk.
+let _turnSeq = 0;
+
 function _beginReplyGate() {
   if (_replyGate) clearTimeout(_replyGate.safety);
-  const g = { open: false, card: null, text: '', el: null, timer: null };
+  const g = { open: false, card: null, text: '', el: null, timer: null, turn: ++_turnSeq };
   // If the message was handled without an AI reply (quick command, error), never
   // hold a card back for more than a few seconds.
   g.safety = setTimeout(() => {
@@ -5992,9 +6002,13 @@ function _showCardSynced(card) {
 }
 
 if (window.jarvis.onSentenceText) {
-  window.jarvis.onSentenceText(({ text }) => {
+  window.jarvis.onSentenceText(({ text, turn }) => {
     const g = _replyGate;
     if (!g || !text) return;
+    // A sentence from a turn that has been superseded belongs to an answer
+    // nobody is waiting for. Dropping it is right; showing it under the new
+    // question is not.
+    if (turn != null && g.turn != null && turn !== g.turn) return;
     g.text += (g.text ? ' ' : '') + text;
     if (g.open && g.el) {
       const span = g.el.querySelector('.msg-text');
@@ -6636,23 +6650,45 @@ function drainAudioQueue() {
     // makes a voice sound deeper without touching how fast it speaks, which
     // is the part that was making DEEP and SPEED indistinguishable.
     const depth = Math.max(0, Math.min(1, (1 - voicePitch) / 0.4));   // 0 off, 1 full
+    const built = [source, gain];
     if (depth > 0.02) {
+      // Three bands rather than two, and harder than before: lift the chest,
+      // pull the nasal middle down, and take the rasp off the top. The old
+      // pair was too polite to hear as "deep" on a laptop speaker.
       const low = ctx.createBiquadFilter();
       low.type = 'lowshelf';
-      low.frequency.value = 220;
-      low.gain.value = 14 * depth;          // chest
+      low.frequency.value = 250;
+      low.gain.value = 18 * depth;          // chest
+      const mid = ctx.createBiquadFilter();
+      mid.type = 'peaking';
+      mid.frequency.value = 1800;
+      mid.Q.value = 0.8;
+      mid.gain.value = -5 * depth;          // less nasal
       const high = ctx.createBiquadFilter();
       high.type = 'highshelf';
-      high.frequency.value = 2600;
-      high.gain.value = -11 * depth;        // less rasp
+      high.frequency.value = 3000;
+      high.gain.value = -13 * depth;        // less rasp
       source.connect(low);
-      low.connect(high);
+      low.connect(mid);
+      mid.connect(high);
       high.connect(gain);
+      built.push(low, mid, high);
     } else {
       source.connect(gain);
     }
     gain.connect(ctx.destination);
-  } catch (_) {
+    // Nothing used to be disconnected, so every sentence left its nodes live on
+    // the one shared context and they piled up across an answer. Tearing the
+    // chain down when the clip ends keeps the graph the same size on sentence
+    // twenty as on sentence one.
+    const teardown = () => { for (const n of built) { try { n.disconnect(); } catch (_) {} } };
+    audio.addEventListener('ended', teardown, { once: true });
+    audio.addEventListener('error', teardown, { once: true });
+  } catch (err) {
+    // This is the branch where the voice loses its depth partway through an
+    // answer - the clip still plays, just flat - so say so rather than failing
+    // silently and leaving it a mystery.
+    console.warn('[voice] depth/volume chain unavailable, playing flat:', err && err.message);
     // No boost available; the clip still plays through the element itself.
   }
   audio.onended = () => drainAudioQueue();

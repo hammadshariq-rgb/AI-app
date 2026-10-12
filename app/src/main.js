@@ -270,6 +270,9 @@ function createOverlayWindow() {
     },
   });
   overlayWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // If an update finished downloading while this window was still loading - or
+  // before it existed at all - tell it now that it can listen.
+  overlayWindow.webContents.once('did-finish-load', () => sendUpdateReady());
   overlayWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
     const allowed = ['media', 'microphone', 'audioCapture', 'geolocation'];
     callback(allowed.includes(permission));
@@ -368,6 +371,16 @@ function createOverlayWindow() {
       }
     });
   }
+}
+
+// An update that finished downloading before the window was listening. Replayed
+// once it is, so the prompt is never lost to a race at startup.
+let _updateReady = null;
+function sendUpdateReady() {
+  if (!_updateReady || !overlayWindow || overlayWindow.isDestroyed()) return;
+  const wc = overlayWindow.webContents;
+  if (wc.isLoading()) wc.once('did-finish-load', () => wc.send('update:ready', _updateReady));
+  else wc.send('update:ready', _updateReady);
 }
 
 // ── HUD overlay window — always-on-top transparent card overlay ─────────────
@@ -877,6 +890,7 @@ app.whenReady().then(async () => {
   setTimeout(sendNewsToRenderer, 10000);
 
   // ── Auto-updater ─────────────────────────────────────────────────────────────
+
   if (app.isPackaged) {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
@@ -888,9 +902,12 @@ app.whenReady().then(async () => {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('update:ready', { version: (info && info.version) || '' });
-      }
+      // Held on to, not just fired. The first check runs at startup, which is
+      // usually before the window has finished loading and registered its
+      // listener - so the "restart to update" prompt went nowhere and the
+      // update installed silently on the next quit instead.
+      _updateReady = { version: (info && info.version) || '' };
+      sendUpdateReady();
     });
 
     // Don't crash on update errors, but do say why — a silent catch is what made
@@ -1998,7 +2015,7 @@ function classifyAIError(err) {
   return { error: 'unknown', userMsg: "Something went wrong on my end. Please try again." };
 }
 
-async function _chatHandler(_e, { message, history, attachments = [] }) {
+async function _chatHandler(_e, { message, history, attachments = [], turn = null }) {
   console.log('[CHAT] received:', message?.slice(0, 60));
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);
@@ -2522,7 +2539,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
           if (_textGen !== _ttsGeneration) return;
           // Let the chat show the reply as it's spoken (card + bubble + voice together)
           if (_e.sender && !_e.sender.isDestroyed()) {
-            _e.sender.send('jarvis:sentence-text', { text: sentence.replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '') });
+            _e.sender.send('jarvis:sentence-text', { turn, text: sentence.replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '') });
           }
           // Formatted answers: speak the prose, skip tables/code, and only read the
           // opening of long answers — the full version is on screen.

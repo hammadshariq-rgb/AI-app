@@ -9,7 +9,7 @@ function filePathOf(file) {
 contextBridge.exposeInMainWorld('jarvis', {
   onActivated: (cb) => ipcRenderer.on('jarvis:activated', (_e, payload) => cb(payload)),
   transcribe: (audioBase64) => ipcRenderer.invoke('jarvis:transcribe', audioBase64),
-  chat: (message, history, attachments) => ipcRenderer.invoke('jarvis:chat', { message, history, attachments: attachments || [] }),
+  chat: (message, history, attachments, turn) => ipcRenderer.invoke('jarvis:chat', { message, history, attachments: attachments || [], turn }),
   speak: (text) => ipcRenderer.invoke('jarvis:speak', text),
   stopSpeaking: () => ipcRenderer.invoke('jarvis:stopSpeaking'),
   isFocused: () => ipcRenderer.invoke('jarvis:isFocused'),

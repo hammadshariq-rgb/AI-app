@@ -205,6 +205,31 @@
       color: rgba(150, 175, 230, 0.55);
       text-transform: none;
     }
+    /* Shortcuts: the same card as a quick command, but these are keys to press
+       rather than things to click, so they are not buttons. */
+    .sw-key {
+      display: block;
+      padding: 11px 15px;
+      margin-bottom: 7px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(120,150,230,0.14);
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      color: rgba(215, 230, 255, 0.9);
+    }
+    .sw-key b {
+      display: inline-block;
+      margin-right: 8px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #8b5cf6, #3d5cff);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
     .sw-cmd.chrome-btn {
       display: block !important;
       width: 100% !important;
@@ -1891,6 +1916,21 @@
                   try { input.setSelectionRange(at, at); } catch (_) {}
                 }));
               </script>
+            </div>
+
+            <!-- ── SHORTCUTS ── the keys that work from inside any other app -->
+            <div class="sidebar-widget" id="widgetShortcuts">
+              <div class="sw-title">⌨ SHORTCUTS</div>
+              <div class="sw-key"><b data-keys="Ctrl+Shift+X">Ctrl+Shift+X</b> Magic Cursor
+                <span class="sw-cmd-note">Circle anything on screen and Callisto tells you what it is</span></div>
+              <div class="sw-key"><b data-keys="Ctrl+Shift+C">Ctrl+Shift+C</b> Ask from anywhere
+                <span class="sw-cmd-note">Speak a question in any app; the answer appears on a small card over it</span></div>
+              <div class="sw-key"><b data-keys="Ctrl+Shift+E">Ctrl+Shift+E</b> Magic Edit
+                <span class="sw-cmd-note">Highlight text first, then say how to change it and it rewrites it</span></div>
+              <div class="sw-key"><b data-keys="Alt+Shift+C">Alt+Shift+C</b> Assist mode
+                <span class="sw-cmd-note">Watches your screen and listens, and offers things as they come up. Press again to stop</span></div>
+              <div class="sw-key"><b data-keys="Alt+Shift+W">Alt+Shift+W</b> Watch this
+                <span class="sw-cmd-note">Reads your whole screen once and tells you what it would do about it</span></div>
             </div>
           </div>
 

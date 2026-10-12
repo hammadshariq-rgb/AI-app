@@ -2748,7 +2748,7 @@ body.light-mode .auth-select-wrap select option { background: #f4f5fa; color: #1
   min-width: 32px;
   text-align: right;
 }
-#profileSpeedSlider, #profileVolSlider {
+#profileSpeedSlider, #profileVolSlider, #profilePitchSlider {
   -webkit-appearance: none;
   appearance: none;
   flex: 1;
@@ -2759,7 +2759,8 @@ body.light-mode .auth-select-wrap select option { background: #f4f5fa; color: #1
   cursor: pointer;
 }
 #profileSpeedSlider::-webkit-slider-thumb,
-#profileVolSlider::-webkit-slider-thumb {
+#profileVolSlider::-webkit-slider-thumb,
+#profilePitchSlider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 13px;
   height: 13px;
@@ -2774,6 +2775,19 @@ body.light-mode .auth-select-wrap select option { background: #f4f5fa; color: #1
   border-radius: 2px;
 }
 
+/* DEEP has its own track - violet sinking into deep blue, dark where the
+   voice is deepest. The other two stay cyan; this one should read as depth
+   at a glance rather than being a third identical bar. */
+#profilePitchSlider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, rgba(139,92,246,0.85), rgba(61,92,255,0.55), rgba(14,20,60,0.85));
+  border-radius: 2px;
+}
+#profilePitchSlider { background: rgba(120,90,240,0.22); }
+#profilePitchSlider::-webkit-slider-thumb {
+  background: #a78bfa;
+  box-shadow: 0 0 10px rgba(139,92,246,0.85);
+}
+
 /* ── Profile sliders — light mode (black theme) ── */
 body.light-mode .profile-slider-row {
   background: rgba(0,0,0,0.82);
@@ -2782,9 +2796,11 @@ body.light-mode .profile-slider-row {
 body.light-mode .profile-slider-label,
 body.light-mode .profile-slider-val { color: rgba(255,255,255,0.7); }
 body.light-mode #profileSpeedSlider,
-body.light-mode #profileVolSlider { background: rgba(255,255,255,0.15); }
+body.light-mode #profileVolSlider,
+body.light-mode #profilePitchSlider { background: rgba(255,255,255,0.15); }
 body.light-mode #profileSpeedSlider::-webkit-slider-thumb,
-body.light-mode #profileVolSlider::-webkit-slider-thumb {
+body.light-mode #profileVolSlider::-webkit-slider-thumb,
+body.light-mode #profilePitchSlider::-webkit-slider-thumb {
   background: #fff;
   box-shadow: 0 0 6px rgba(255,255,255,0.6);
 }
