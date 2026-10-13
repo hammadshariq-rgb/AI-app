@@ -184,11 +184,18 @@
     #orbStatus { font-family: var(--brand); font-size: 11px; font-weight: 500; letter-spacing: 5px; color: rgba(80,130,255,0.5); margin-top: 4px; }
 
     /* Wave canvas — sits flush, no gap between wave and buttons */
-    #waveCanvas { width: 100%; height: 160px; margin-top: 10px; display: block; }
+    /* In the app this is a background layer across the whole window, not a
+       strip under the orb - which is why a 160px band never looked like it.
+       Same geometry here: behind the hero, full bleed, nothing in the flow. */
+    #waveCanvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      display: block; pointer-events: none; z-index: 0;
+    }
 
     /* Unified wave+buttons zone */
     #orbWrap { display: flex; flex-direction: column; align-items: center; }
-    #waveCanvas { margin-bottom: -72px; } /* pull buttons up so they float on the wave */
+    /* the wave is a background layer now, so nothing needs pulling up */
     #orbActions { position: relative; z-index: 10; }
 
     /* ── Hero nav — same glass as the desktop app ─────────────────────────
@@ -423,18 +430,20 @@
     .glow-div { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(50,100,255,0.2) 30%, rgba(0,200,255,0.15) 50%, rgba(50,100,255,0.2) 70%, transparent); margin: 0; position: relative; z-index: 1; }
 
     /* ═══ FEATURES — BLACK & WHITE LIQUID METAL ═══ */
-    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+    /* Tighter columns and less air inside. They were large enough that three
+       filled a screen, which made a long list of capabilities feel like a
+       toybox rather than a product. */
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 13px; }
 
     /* Card shell — deep black base with white-metal sheen */
     .feat-card {
       position: relative; overflow: hidden;
-      border-radius: 20px; padding: 24px 22px 20px;
-      background: linear-gradient(160deg, #141414 0%, #0a0a0a 60%, #111 100%);
-      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px; padding: 17px 16px 15px;
+      background: linear-gradient(165deg, rgba(20,22,32,0.92) 0%, rgba(10,12,20,0.96) 100%);
+      border: 1px solid rgba(255,255,255,0.055);
       box-shadow:
-        0 2px 0 rgba(255,255,255,0.04) inset,
-        0 -1px 0 rgba(0,0,0,0.9) inset,
-        0 6px 28px rgba(0,0,0,0.7);
+        0 1px 0 rgba(255,255,255,0.03) inset,
+        0 10px 30px rgba(0,0,0,0.45);
       transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
                   box-shadow 0.3s ease, border-color 0.3s ease;
       cursor: default;
@@ -514,13 +523,14 @@
 
     .feat-icon { font-size: 20px; }
     .feat-name {
-      font-family: var(--brand); font-size: 14px; font-weight: 700;
-      color: rgba(255,255,255,0.9); letter-spacing: 1.5px; margin-bottom: 9px;
+      font-family: var(--brand); font-size: 10.5px; font-weight: 700;
+      color: rgba(190,210,255,0.78); letter-spacing: 2.2px; margin-bottom: 7px;
+      text-transform: uppercase;
       position: relative; z-index: 2;
     }
     .feat-card.hand-card .feat-name { color: #fff; }
     .feat-desc {
-      font-size: 12.5px; color: rgba(180,180,180,0.6); line-height: 1.72;
+      font-size: 12px; color: rgba(165,180,205,0.56); line-height: 1.62;
       position: relative; z-index: 2;
     }
     .feat-desc strong { color: rgba(220,220,220,0.9); font-weight: 600; }
@@ -1697,10 +1707,12 @@
 
   <!-- HERO — app-style -->
   <div id="hero">
+    <!-- The app draws this behind everything, full bleed. -->
+    <canvas id="waveCanvas"></canvas>
     <!-- corner brackets + hand button, as in the app -->
     <span class="app-corner app-corner-l" aria-hidden="true"></span><span class="app-corner app-corner-r" aria-hidden="true"></span>
     <!-- ORB -->
-    <div id="orbWrap" style="position:relative;width:100%">
+    <div id="orbWrap" style="position:relative;width:100%;z-index:1">
       <div style="position:relative;display:flex;align-items:center;justify-content:center">
         <div class="orb-ring"></div>
         <div class="orb-ring"></div>
@@ -1709,7 +1721,6 @@
       <div id="orbName">CALLISTO</div>
       <div id="orbStatus">STANDBY</div>
       <!-- wave -->
-      <canvas id="waveCanvas"></canvas>
       <!-- Voice chat bubbles -->
       <div id="voiceChat"></div>
       <!-- actions -->
@@ -1775,11 +1786,10 @@
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">01</span>
-          <b>Watching your screen</b>
-          <span>It spots the wrong answer and offers the fix, without being asked.</span>
+          <b>Talk to it</b>
+          <span>Ask out loud in any app and it answers, without switching away.</span>
         </figcaption>
       </figure>
-
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="metadata"
@@ -1790,11 +1800,10 @@
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">02</span>
-          <b>Talking to it</b>
-          <span>Ask out loud and it answers, in any app, without switching away.</span>
+          <b>Watching your screen</b>
+          <span>It spots the wrong answer and offers the fix, unasked.</span>
         </figcaption>
       </figure>
-
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="metadata"
@@ -1805,8 +1814,36 @@
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">03</span>
-          <b>Making things</b>
-          <span>Documents, slides, 3D models and video — from one sentence.</span>
+          <b>Creating things</b>
+          <span>Documents, slides, 3D models and video, from one sentence.</span>
+        </figcaption>
+      </figure>
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="metadata"
+                 poster="assets/demo/demo-4.jpg">
+            <source src="assets/demo/demo-4.mp4" type="video/mp4">
+          </video>
+          <div class="demo-fallback">Demo coming shortly</div>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">04</span>
+          <b>Hand control</b>
+          <span>Point to move, pinch to click. The camera reads it on your machine.</span>
+        </figcaption>
+      </figure>
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="metadata"
+                 poster="assets/demo/demo-5.jpg">
+            <source src="assets/demo/demo-5.mp4" type="video/mp4">
+          </video>
+          <div class="demo-fallback">Demo coming shortly</div>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">05</span>
+          <b>Running your machine</b>
+          <span>Music, volume, files, calendar, apps — it actually does them.</span>
         </figcaption>
       </figure>
     </div>
@@ -2727,130 +2764,9 @@
   setInterval(updateClock,1000); updateClock();
 
   // Wave canvas — glowing fiber-optic strands like the app
-function startAppWave(canvas){
-    /* The website drew this on a 2D canvas while the app renders it in WebGL
-       with a shader, so the two looked nothing like each other. This is the
-       app's renderer, lifted across unchanged, so the wave on the site is the
-       wave in the product. */
-    if(!canvas)return;
-    const VS = `
-    attribute vec2 position;
-    void main() { gl_Position = vec4(position, 0.0, 1.0); }
-  `;
-    const FS = `
-    precision highp float;
-    uniform float iTime;
-    uniform vec3  iResolution;
-    uniform vec3  uColor;
-    uniform float uAmplitude;
-    uniform float uDistance;
-    uniform vec2  uMouse;
-    #define PI 3.1415926538
-    const int   u_line_count = 40;
-    const float u_line_width = 7.0;
-    const float u_line_blur  = 10.0;
-    float Perlin2D(vec2 P) {
-      vec2 Pi = floor(P);
-      vec4 Pf = P.xyxy - vec4(Pi, Pi + 1.0);
-      vec4 Pt = vec4(Pi.xy, Pi.xy + 1.0);
-      Pt = Pt - floor(Pt * (1.0/71.0)) * 71.0;
-      Pt += vec2(26.0,161.0).xyxy; Pt *= Pt;
-      Pt = Pt.xzxz * Pt.yyww;
-      vec4 hx = fract(Pt*(1.0/951.135664));
-      vec4 hy = fract(Pt*(1.0/642.949883));
-      vec4 gx = hx - 0.49999, gy = hy - 0.49999;
-      vec4 gr = inversesqrt(gx*gx + gy*gy) * (gx*Pf.xzxz + gy*Pf.yyww);
-      gr *= 1.4142135623730950;
-      vec2 b = Pf.xy*Pf.xy*Pf.xy*(Pf.xy*(Pf.xy*6.0-15.0)+10.0);
-      vec4 b2 = vec4(b, 1.0-b);
-      return dot(gr, b2.zxzx * b2.wwyy);
-    }
-    float px(float c, vec2 r) { return (1.0/max(r.x,r.y))*c; }
-    float lineFn(vec2 st, float w, float perc, float off, vec2 mouse, float t, float amp, float dist) {
-      float sp = 0.1 + perc*0.4;
-      float an = smoothstep(sp, 0.7, st.x) * 0.5 * amp * (1.0+(mouse.y-0.5)*0.2);
-      float ts = t/10.0 + (mouse.x-0.5);
-      float bl = smoothstep(sp, sp+0.05, st.x) * perc;
-      float xn = mix(Perlin2D(vec2(ts,st.x+perc)*2.5),
-                     Perlin2D(vec2(ts,st.x+ts)*3.5)/1.5, st.x*0.3);
-      float y  = 0.5 + (perc-0.5)*dist + xn/2.0*an;
-      float ls = smoothstep(y+(w/2.0)+(u_line_blur*px(1.0,iResolution.xy)*bl), y, st.y);
-      float le = smoothstep(y, y-(w/2.0)-(u_line_blur*px(1.0,iResolution.xy)*bl), st.y);
-      return clamp((ls-le)*(1.0-smoothstep(0.0,1.0,pow(perc,0.3))), 0.0, 1.0);
-    }
-    void main() {
-      vec2 uv = gl_FragCoord.xy / iResolution.xy;
-      float s = 1.0;
-      for (int i = 0; i < u_line_count; i++) {
-        float p = float(i)/float(u_line_count);
-        s *= 1.0 - lineFn(uv, u_line_width*px(1.0,iResolution.xy)*(1.0-p), p,
-                          PI*p, uMouse, iTime, uAmplitude, uDistance);
-      }
-      float v = 1.0 - s;
-      gl_FragColor = vec4(uColor * v, v);
-    }
-  `;
-
-    function compileShader(gl, type, src) {
-      const sh = gl.createShader(type);
-      gl.shaderSource(sh, src); gl.compileShader(sh);
-      return sh;
-    }
-
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (!gl) return;
-    gl.clearColor(0,0,0,0);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-    const prog = gl.createProgram();
-    gl.attachShader(prog, compileShader(gl, gl.VERTEX_SHADER,   VS));
-    gl.attachShader(prog, compileShader(gl, gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(prog);
-    gl.useProgram(prog);
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
-    const posLoc = gl.getAttribLocation(prog, 'position');
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
-    const uTime = gl.getUniformLocation(prog, 'iTime');
-    const uRes  = gl.getUniformLocation(prog, 'iResolution');
-    const uCol  = gl.getUniformLocation(prog, 'uColor');
-    const uAmp  = gl.getUniformLocation(prog, 'uAmplitude');
-    const uDist = gl.getUniformLocation(prog, 'uDistance');
-    const uMou  = gl.getUniformLocation(prog, 'uMouse');
-
-    // Cyan, the same accent as the app (#00c8ff)
-    let _waveColor = [0.0, 0.784, 1.0];
-    gl.uniform3fv(uCol,  _waveColor);
-    gl.uniform1f(uAmp,   1.6);
-    gl.uniform1f(uDist,  0.22);
-    gl.uniform2fv(uMou,  [0.5, 0.5]);
-    window._wave = { setColor(rgb) { _waveColor = rgb; gl.uniform3fv(uCol, rgb); } };
-
-    function resize() {
-      const w = canvas.offsetWidth  || (canvas.parentElement && canvas.parentElement.clientWidth)  || 800;
-      const h = canvas.offsetHeight || 160;
-      canvas.width = w; canvas.height = h;
-      gl.viewport(0, 0, w, h);
-      gl.uniform3fv(uRes, [w, h, w / (h || 1)]);
-    }
-    canvas._calResize = resize;
-    window.addEventListener('resize', resize);
-    resize();
-    requestAnimationFrame(() => requestAnimationFrame(resize));
-
-    function frame(t) {
-      requestAnimationFrame(frame);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform1f(uTime, t * 0.001);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    }
-    requestAnimationFrame(frame);
-  }
+  // The wave now lives in wave-app.js, lifted whole from the desktop app, and
+  // starts itself on load. Kept as a no-op so existing call sites still work.
+  function startAppWave(){ /* see wave-app.js */ }
   startAppWave(document.getElementById('waveCanvas'));
 
 
@@ -4379,13 +4295,14 @@ function startAppWave(canvas){
 })();
 </script>
 <script src="/panels/bridge.js?v=1"></script>
-<script src="/panels/panels.js?v=1"></script>
+<script src="/wave-app.js?v=1"></script>
+  <script src="/panels/panels.js?v=1"></script>
 <script src="/panels/portfolio.js?v=1"></script>
 <script src="/gates.js?v=1"></script>
 <script src="/create-web.js?v=1"></script>
 <script src="/draw-studio.js?v=4"></script>
 <script src="/draw-web.js?v=1"></script>
-<script src="/news-web.js?v=1"></script>
+<!-- news-web.js built a second headline bar at the foot of the page, on top of the ticker already in the hero. One is enough. -->
 <script src="/documents-web.js?v=1"></script>
 <script src="/gestures.js?v=1"></script>
 <script src="/gestures-web.js?v=1"></script>
