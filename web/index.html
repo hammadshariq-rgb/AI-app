@@ -369,15 +369,6 @@
       display: block;
       background: #070a18;
     }
-    /* Sits behind the video, so it only shows while there is nothing to play. */
-    .demo-fallback {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--brand);
-      font-size: 10px; letter-spacing: 3px; font-weight: 700;
-      color: rgba(120,160,255,0.35);
-      pointer-events: none;
-    }
     .demo-cap {
       display: block;
       margin-top: 14px;
@@ -1845,10 +1836,10 @@
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="metadata"
+                 controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
                  poster="assets/demo/demo-1.jpg">
             <source src="assets/demo/demo-1.mp4" type="video/mp4">
           </video>
-          <div class="demo-fallback">Demo coming shortly</div>
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">01</span>
@@ -1859,10 +1850,10 @@
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="metadata"
+                 controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
                  poster="assets/demo/demo-2.jpg">
             <source src="assets/demo/demo-2.mp4" type="video/mp4">
           </video>
-          <div class="demo-fallback">Demo coming shortly</div>
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">02</span>
