@@ -346,6 +346,12 @@
       margin: 38px auto 0;
       padding: 0 20px;
     }
+    /* Two of them, so they are held to a sensible width rather than stretched
+       across the page as a pair of billboards. */
+    .demo-grid-two {
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      max-width: 880px;
+    }
     .demo-card { margin: 0; }
     .demo-frame {
       position: relative;
@@ -1835,7 +1841,7 @@
     <h2 class="sec-title">Watch it actually do things</h2>
     <p class="sec-sub">Real recordings, no edits. This is Callisto on an ordinary laptop.</p>
 
-    <div class="demo-grid">
+    <div class="demo-grid demo-grid-two">
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="metadata"
@@ -1846,8 +1852,8 @@
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">01</span>
-          <b>Ask it anything</b>
-          <span>It answers out loud, in its own voice, wherever you are.</span>
+          <b>Making things</b>
+          <span>Documents, slides, 3D models and video &mdash; from one sentence.</span>
         </figcaption>
       </figure>
       <figure class="demo-card">
@@ -1860,50 +1866,8 @@
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">02</span>
-          <b>Making things</b>
-          <span>Documents, slides, 3D models and video, from one sentence.</span>
-        </figcaption>
-      </figure>
-      <figure class="demo-card">
-        <div class="demo-frame">
-          <video class="demo-video" playsinline muted loop preload="metadata"
-                 poster="assets/demo/demo-3.jpg">
-            <source src="assets/demo/demo-3.mp4" type="video/mp4">
-          </video>
-          <div class="demo-fallback">Demo coming shortly</div>
-        </div>
-        <figcaption class="demo-cap">
-          <span class="demo-num">03</span>
           <b>Hand control</b>
-          <span>Point to move, pinch to click. The camera reads it on your own machine.</span>
-        </figcaption>
-      </figure>
-      <figure class="demo-card">
-        <div class="demo-frame">
-          <video class="demo-video" playsinline muted loop preload="metadata"
-                 poster="assets/demo/demo-4.jpg">
-            <source src="assets/demo/demo-4.mp4" type="video/mp4">
-          </video>
-          <div class="demo-fallback">Demo coming shortly</div>
-        </div>
-        <figcaption class="demo-cap">
-          <span class="demo-num">04</span>
-          <b>Running your machine</b>
-          <span>Music, volume, files, apps and your calendar - it does them, not describes them.</span>
-        </figcaption>
-      </figure>
-      <figure class="demo-card">
-        <div class="demo-frame">
-          <video class="demo-video" playsinline muted loop preload="metadata"
-                 poster="assets/demo/demo-5.jpg">
-            <source src="assets/demo/demo-5.mp4" type="video/mp4">
-          </video>
-          <div class="demo-fallback">Demo coming shortly</div>
-        </div>
-        <figcaption class="demo-cap">
-          <span class="demo-num">05</span>
-          <b>Everything you use</b>
-          <span>Gmail, Calendar, Spotify, Instagram, YouTube, TikTok and more, in one place.</span>
+          <span>Point to move, pinch to click. The camera is read on your own machine.</span>
         </figcaption>
       </figure>
     </div>
