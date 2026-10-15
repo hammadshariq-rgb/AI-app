@@ -5894,7 +5894,10 @@ async function sendToJarvis(text) {
     window._lastImage = { url: res.card.imageUrl, title: String(res.card.description || res.card.title || 'image').slice(0, 60) };
     window.jarvis.setLatestMedia?.('image', window._lastImage);
   }
-  if (res.card && !_wasHudRequest) showCard(res.card);
+  // The same check the other two card paths make. This one did not, so a card
+  // about a pop singer could sit beside an answer about countries - the guard
+  // existed and simply was not asked.
+  if (res.card && !_wasHudRequest && _cardRelatesTo(res.card, res.text || text)) showCard(res.card);
 
   // Sports fallback: open Google in the in-app browser panel
   if (res.browserPanelUrl && typeof window.openBrowserPanel === 'function') {

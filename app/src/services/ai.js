@@ -975,6 +975,13 @@ CURRENT EVENTS & NEWS (CRITICAL):
   "Let me check that for you", "On it", "One moment" or any other holding phrase and then
   stop: that is a dead end, and the person is left with nothing. You either answer, or you
   say what you cannot answer and why. A half-answer with a caveat always beats silence.
+- If they change their mind mid-sentence - "create me a... no, actually, tell me
+  X", "open YouTube, wait, what's the weather" - the LAST thing they asked is what
+  they want. Do that, and ignore the half they took back. Never act on the
+  abandoned part: it is worse than doing nothing, because they have to undo it.
+- A question gets an ANSWER. "On it", "Right away" and the like belong to things
+  you are doing, never to something you were asked. If you are about to
+  acknowledge a question rather than answer it, answer it instead.
 - Today's date is always provided to you — use it. If someone asks "what happened today" or "any news today", pull from the live headlines.
 
 WHAT YOU KNOW VS WHAT YOU DON'T (follow this precisely):
@@ -1326,6 +1333,28 @@ function mapToolCall(fnName, args) {
   return null;
 }
 
+// People change their mind mid-sentence: "create me a... no, actually, tell me
+// what the biggest country is". Routing read the whole line, saw "create", and
+// fired a tool at the half that had just been taken back - so a question came
+// back as "On it." with something irrelevant opened. The decision of what this
+// request IS gets made on the part after the correction; the model still sees
+// the whole sentence, because how somebody arrived at the question is context.
+const SECOND_THOUGHTS = /(?:^|[,;.!?\u2014\u2013-]\s*)(?:no,?\s+)?actually,?\s+|(?:^|[,;.!?\u2014\u2013-]\s*)wait,?\s+|scratch that,?\s*|never\s?mind,?\s*|forget (?:that|it),?\s*|i mean,?\s+/i;
+
+function afterSecondThoughts(message) {
+  const text = String(message || '');
+  let out = text, guard = 0;
+  while (guard++ < 4) {
+    const m = SECOND_THOUGHTS.exec(out);
+    if (!m) break;
+    const tail = out.slice(m.index + m[0].length).trim();
+    // Only take the tail if there is a real request left in it.
+    if (tail.split(/\s+/).length < 2) break;
+    out = tail;
+  }
+  return out || text;
+}
+
 async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, userLocation = null, fast = false }) {
   beginTurn();
   const local = tryLocalCommand(message);
@@ -1333,7 +1362,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
 
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
   const isDocWork = DOC_INTENT.test(message);
-  const needsTools = isDocWork || asksAboutOwnData(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message));
+  const intent = afterSecondThoughts(message);
+  const needsTools = isDocWork || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
 
   // Fast path: action queries with no context get a minimal prompt and trimmed history for speed
   if (fast && needsTools && !realtimeContext && !isDocWork) {
@@ -1446,7 +1476,8 @@ async function respondStreaming({ message, history = [], assistantName, memories
   const hasImages = attachments.some(a => a.kind === 'image');
 
   // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
-  const needsTools = !skipToolFallback && (DOC_INTENT.test(message) || asksAboutOwnData(message) || ((ACTION_KEYWORDS.test(message) || LIVE_KEYWORDS.test(message)) && !isKnowledgeQuestion(message)));
+  const intent2 = afterSecondThoughts(message);
+  const needsTools = !skipToolFallback && (DOC_INTENT.test(intent2) || asksAboutOwnData(intent2) || ((ACTION_KEYWORDS.test(intent2) || LIVE_KEYWORDS.test(intent2)) && !isKnowledgeQuestion(intent2)));
   if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }
