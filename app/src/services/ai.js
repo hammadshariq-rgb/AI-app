@@ -4,6 +4,20 @@ const store = new Store();
 
 const { safeStorage } = require('electron');
 const SERVER = () => process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+// The server hands back a renewed token when the old one is close to or just
+// past expiry. Nothing was reading it, so the renewal never actually happened
+// and sign-ins only survived because tokens lasted a year. They last thirty
+// days now, so this has to work.
+function saveToken(token) {
+  if (!token) return;
+  try {
+    const enc = safeStorage.isEncryptionAvailable()
+      ? safeStorage.encryptString(token).toString('base64')
+      : token;
+    store.set('authToken', enc);
+  } catch (_) { /* a failed save just means signing in again sooner */ }
+}
+
 function getToken() {
   const raw = store.get('authToken');
   if (!raw) return null;
@@ -44,6 +58,8 @@ async function serverFetch(endpoint, body, { timeout = 45000, retries = 2, raw =
         signal: ctrl.signal,
       });
       clearTimeout(timer);
+      const renewed = res.headers && res.headers.get && res.headers.get('X-Refresh-Token');
+      if (renewed) saveToken(renewed);
       // The server has now seen this turn, so the rest of its calls are free.
       // Cleared only once a reply actually came back - a request that never
       // arrived must not spend the mark.

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
 // ── Shared OAuth success page ─────────────────────────────────────────────────
 function connectedPage(serviceName) {
@@ -200,12 +201,20 @@ function getPublicUrl(req) {
 const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
-// AI phone calling (Vapi) — routes live in calling.js. Mounted after
-// authMiddleware is defined, near the bottom of this file.
-
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:4000').split(',').map(s => s.trim());
 
 const app = express();
+// Security headers. This is a JSON API that also serves a couple of static
+// pages, so the defaults are right apart from the resource policy: the app and
+// the site are different origins from this server, and cross-origin reads have
+// to keep working. No CSP is set here - the pages it serves are Callisto's own
+// and the site is hosted elsewhere.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(cors({
   origin: (origin, cb) => {
     // Allow requests with no origin (Electron app, curl) or whitelisted origins
@@ -357,8 +366,16 @@ app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', '
 app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+// Thirty days, not a year. A token is a key to the account, and the only thing
+// stopping a stolen one being used for ever is how long it lives.
+const TOKEN_TTL = '30d';
+// How long after expiry a token may still be traded for a fresh one. Inside the
+// window somebody who uses Callisto regularly is never asked to sign in again;
+// outside it, a token lifted months ago is dead.
+const REFRESH_GRACE_MS = 14 * 24 * 60 * 60 * 1000;
+
 function makeToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '365d' });
+  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
 
 function safeUser(user) {
@@ -375,17 +392,22 @@ function authMiddleware(req, res, next) {
     req.userId = req.user.id;
     next();
   } catch (err) {
-    // If the token is merely expired (not tampered), try to reissue silently
-    // so long-running installs don't break mid-session
+    // An expired token could be traded for a fresh year-long one no matter how
+    // old it was, so a token stolen once worked for ever and signing out
+    // changed nothing. It is still swapped silently, so nobody using Callisto
+    // regularly is asked to sign in again - but only for a fortnight past
+    // expiry. After that they log in, and a stale token is worthless.
     if (err.name === 'TokenExpiredError') {
       try {
         const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
-        req.user = decoded;
-        req.userId = decoded.id;
-        // Attach a fresh token in the response header so the client can persist it
-        const freshToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, { expiresIn: '365d' });
-        res.setHeader('X-Refresh-Token', freshToken);
-        return next();
+        const expiredFor = Date.now() - (decoded.exp || 0) * 1000;
+        if (expiredFor <= REFRESH_GRACE_MS) {
+          req.user = decoded;
+          req.userId = decoded.id;
+          const freshToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+          res.setHeader('X-Refresh-Token', freshToken);
+          return next();
+        }
       } catch {}
     }
     res.status(401).json({ error: 'Invalid or expired token' });
@@ -431,6 +453,18 @@ function isAlwaysFree(email) {
 app.post('/auth/signup', authLimiter, async (req, res) => {
   const { email, password, name } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  // There was no rule at all, so "a" was a valid password. The likeliest way
+  // into anyone's account is still their own password, and that is the
+  // customer's data and our AI bill behind it.
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Please use a password of at least 8 characters.' });
+  }
+  if (/^(?:password|12345678|qwerty|letmein|callisto)/i.test(password)) {
+    return res.status(400).json({ error: 'That password is too easy to guess. Please pick another.' });
+  }
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
   const isFreeUser = isAlwaysFree(email);
@@ -2737,11 +2771,11 @@ No preamble, no quotes around the text, no markdown fences.`
   }
 });
 
-// ── AI phone calling ──────────────────────────────────────────────────────────
-require('./calling').mountCalling(app, {
-  authMiddleware,
-  resolvePublicUrl: getPublicUrl,
-});
+// Phone calling was taken out of the app in October 2026, but its routes stayed
+// mounted here - including POST /calls/tool, which only checks a secret when
+// CALL_WEBHOOK_SECRET is set and that was never set after the removal. So an
+// endpoint nothing could reach was answering anyone, and holding the connection
+// open while it waited. Unmounted, and calling.js deleted with it.
 
 // ── Shopping search (real product results) ────────────────────────────────────
 require('./shopping').mountShopping(app, { authMiddleware });

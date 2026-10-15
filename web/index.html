@@ -2833,6 +2833,17 @@
   const STRIPE_YR = 'https://buy.stripe.com/3cI9AS2RqeYW2uM1fja7C01';
 
   let token = localStorage.getItem('cal_tok') || null;
+
+  // Tokens last thirty days now rather than a year, and the server renews them
+  // in a header when one is close to or just past expiry. Nothing was reading
+  // that header, so the renewal never happened - this keeps regular visitors
+  // signed in without a token that is good for ever.
+  function keepRenewedToken(res) {
+    try {
+      const fresh = res && res.headers && res.headers.get('X-Refresh-Token');
+      if (fresh) { token = fresh; localStorage.setItem('cal_tok', fresh); }
+    } catch (_) {}
+  }
   let user = null, isPrem = false, usage = {used:0,limit:15};
   let msgs = [], sessions = JSON.parse(localStorage.getItem('cal_sess')||'[]'), sessId = null, busy = false;
 
@@ -3747,6 +3758,7 @@
       const headers={'Content-Type':'application/json'};
       if(token) headers['Authorization']=`Bearer ${token}`;
       const r=await fetch(`${SERVER}/web/chat`,{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
+      keepRenewedToken(r);
 
       // Handle 401 — needs sign in
       if(r.status===401){msgs.pop();document.getElementById('tRow')?.remove();showAuth();busy=false;sBt.disabled=false;return;}
