@@ -184,6 +184,58 @@
     #orbStatus { font-family: var(--brand); font-size: 11px; font-weight: 500; letter-spacing: 5px; color: rgba(80,130,255,0.5); margin-top: 4px; }
 
     /* Wave canvas — sits flush, no gap between wave and buttons */
+    /* ── Help rows and quick commands in the hero nav ────────────────────
+       The same shapes as the desktop app's sidebar: a key pill on a quiet
+       card, and command buttons you press to fill the box. */
+    .hnav-sec-label {
+      font-family: var(--brand); font-size: 8px; letter-spacing: 3px;
+      font-weight: 700; color: rgba(90,110,160,0.45); margin-bottom: 10px;
+    }
+    .hnav-key {
+      display: block; padding: 10px 12px; margin-bottom: 7px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(120,150,230,0.14);
+      font-size: 12px; font-weight: 600; color: rgba(215,230,255,0.9);
+    }
+    .hnav-key b {
+      display: inline-block; margin-right: 8px; padding: 2px 7px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #8b5cf6, #3d5cff);
+      color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .hnav-key span {
+      display: block; margin-top: 4px;
+      font-size: 11px; font-weight: 400; line-height: 1.45;
+      color: rgba(150,175,230,0.6);
+    }
+    #hnavQuickCmds { display: flex; flex-direction: column; gap: 6px; }
+    .hnav-cmd {
+      display: block; width: 100%; text-align: left;
+      padding: 10px 13px; border-radius: 11px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(120,150,230,0.14);
+      color: rgba(205,222,255,0.86);
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: background .15s, border-color .15s, transform .15s;
+    }
+    .hnav-cmd:hover {
+      background: rgba(80,120,255,0.14);
+      border-color: rgba(120,160,255,0.3);
+      transform: translateX(2px);
+    }
+    .hnav-cmd-note {
+      display: block; margin-top: 3px;
+      font-size: 10px; font-weight: 400; color: rgba(150,175,230,0.5);
+    }
+
+    /* The app pins this to the viewport at z-index 0, under everything. */
+    #shaderBg {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 0; display: block; pointer-events: none;
+    }
+
     /* In the app this is a background layer across the whole window, not a
        strip under the orb - which is why a 160px band never looked like it.
        Same geometry here: behind the hero, full bleed, nothing in the flow. */
@@ -208,7 +260,8 @@
     #heroNavPanel #hnavHistory,
     #heroNavPanel #hnavFavs,
     #heroNavPanel #hnavConn,
-    #heroNavPanel #hnavAcct {
+    #heroNavPanel #hnavAcct,
+    #heroNavPanel #hnavHelp {
       border-radius: 14px !important;
       padding: 13px 16px !important;
       gap: 13px !important;
@@ -233,14 +286,16 @@
     #heroNavPanel #hnavHistory span,
     #heroNavPanel #hnavFavs span,
     #heroNavPanel #hnavConn span,
-    #heroNavPanel #hnavAcct span {
+    #heroNavPanel #hnavAcct span,
+    #heroNavPanel #hnavHelp span {
       font-family: 'Inter', sans-serif !important;
       font-size: 15.5px !important;
       font-weight: 400 !important;
     }
     #heroNavPanel #hnavHistory:hover,
     #heroNavPanel #hnavConn:hover,
-    #heroNavPanel #hnavAcct:hover {
+    #heroNavPanel #hnavAcct:hover,
+    #heroNavPanel #hnavHelp:hover {
       background: rgba(255,255,255,0.085) !important;
       border-color: rgba(255,255,255,0.16) !important;
       color: rgba(220,232,255,0.88) !important;
@@ -407,7 +462,10 @@
     .cp-new-event:hover { color:#fff; }
 
     /* Buttons under orb — float on top of wave via z-index, no extra margin needed */
-    #orbActions { display: flex; align-items: center; gap: 16px; margin-top: 0; }
+    /* The app leaves a good stretch of wave between the orb and these; on the
+       site they sat straight under it with nothing between, so the orb had no
+       room to breathe. */
+    #orbActions { display: flex; align-items: center; gap: 18px; margin-top: 170px; }
     .orb-btn {
       width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--border2);
       background: rgba(10,15,40,0.8); backdrop-filter: blur(12px);
@@ -1707,8 +1765,10 @@
 
   <!-- HERO — app-style -->
   <div id="hero">
-    <!-- The app draws this behind everything, full bleed. -->
+    <!-- The app draws both of these behind everything, full bleed: the dot
+         field, and the line strands sweeping across it. -->
     <canvas id="waveCanvas"></canvas>
+    <canvas id="shaderBg"></canvas>
     <!-- corner brackets + hand button, as in the app -->
     <span class="app-corner app-corner-l" aria-hidden="true"></span><span class="app-corner app-corner-r" aria-hidden="true"></span>
     <!-- ORB -->
@@ -2256,6 +2316,10 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Account</span>
     </div>
+    <div id="hnavHelp" onclick="switchHeroTab('help')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;border:1px solid rgba(90,110,160,0.22);background:transparent;cursor:pointer;transition:all .15s">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Help</span>
+    </div>
   </div>
   <div style="height:1px;background:rgba(255,255,255,0.05);flex-shrink:0;margin:0 14px 0"></div>
   <div id="hnavScrollBody" style="flex:1;min-height:0;overflow-y:auto;padding:14px 14px 20px">
@@ -2263,6 +2327,19 @@
       <div style="font-family:var(--brand);font-size:8px;letter-spacing:3px;font-weight:700;color:rgba(90,110,160,0.4);margin-bottom:10px">EARLIER</div>
       <div id="hnavHistList" style="display:flex;flex-direction:column;gap:5px">
         <div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.3);font-size:11.5px">No history yet</div>
+      </div>
+
+      <!-- Quick commands, the same set and shape as the desktop app's. -->
+      <div class="hnav-sec-label" style="margin-top:18px">&#127897; QUICK COMMANDS</div>
+      <div id="hnavQuickCmds">
+        <button class="hnav-cmd" data-cmd="Open my calendar">"Open my calendar"</button>
+        <button class="hnav-cmd" data-cmd="Show me my markets">"Show me my markets"</button>
+        <button class="hnav-cmd" data-cmd="What's on my schedule?">"What's on my schedule?"</button>
+        <button class="hnav-cmd" data-cmd="Add a task to " data-caret="14">"Add a task to&#8230;"</button>
+        <button class="hnav-cmd" data-cmd="Play " data-caret="5">"Play [song name]"<span class="hnav-cmd-note">after connecting Spotify</span></button>
+        <button class="hnav-cmd" data-cmd="Create me a 3D model of " data-caret="24">"Create me a 3D model of&#8230;"</button>
+        <button class="hnav-cmd" data-cmd="Sketch me a box">"Sketch me a box"</button>
+        <button class="hnav-cmd" data-cmd="What is the news today?">"What is the news today?"</button>
       </div>
       <button onclick="closeNavPanel();openChat();" style="margin-top:12px;padding:9px 12px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.25);color:rgba(130,170,255,0.85);font-size:12.5px;font-weight:600;cursor:pointer;width:100%">＋ New Chat</button>
     </div>
@@ -2275,6 +2352,25 @@
         <div onclick="closeNavPanel();openChat();" style="padding:11px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:13px;color:rgba(160,185,230,0.75);cursor:pointer">"Set a reminder for..."</div>
       </div>
     </div>
+    <!-- Help: the shortcuts, same list the desktop app shows. -->
+    <div id="hnavPanelHelp" style="display:none">
+      <div class="hnav-sec-label">SHORTCUTS</div>
+      <div class="hnav-key"><b>Ctrl+Shift+X</b> Magic Cursor
+        <span>Circle anything on screen and Callisto tells you what it is</span></div>
+      <div class="hnav-key"><b>Ctrl+Shift+C</b> Ask from anywhere
+        <span>Speak a question in any app; the answer appears on a card over it</span></div>
+      <div class="hnav-key"><b>Ctrl+Shift+E</b> Magic Edit
+        <span>Highlight text, say how to change it, and it rewrites it</span></div>
+      <div class="hnav-key"><b>Alt+Shift+C</b> Assist mode
+        <span>Watches your screen and listens, offering things as they come up</span></div>
+      <div class="hnav-key"><b>Alt+Shift+W</b> Watch this
+        <span>Reads your whole screen once and says what it would do</span></div>
+      <div class="hnav-sec-label" style="margin-top:16px">NEED A HAND?</div>
+      <div class="hnav-key" style="font-weight:400">
+        <span style="margin:0">These shortcuts work in the desktop app. On the web, use the
+        microphone or type below. Email <b style="background:none;padding:0;color:rgba(190,215,255,0.9)">support@callistoai.net</b>.</span></div>
+    </div>
+
     <div id="hnavPanelConn" style="display:none">
       <div style="display:flex;flex-direction:column;gap:7px">
         <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(66,133,244,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📅</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">GOOGLE CAL...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
@@ -3046,7 +3142,7 @@
 
   // Sidebar tab switcher
   function switchSbTab(tab){
-    ['history','favs','conn','acct'].forEach(t=>{
+    ['history','favs','conn','acct','help'].forEach(t=>{
       document.getElementById('sbPanel'+t.charAt(0).toUpperCase()+t.slice(1)).style.display='none';
       document.getElementById('nav'+t.charAt(0).toUpperCase()+t.slice(1)).classList.remove('active');
     });
@@ -3393,9 +3489,10 @@
     favs:   {border:'1px solid rgba(245,158,11,0.45)',bg:'transparent',color:'rgba(245,158,11,0.9)', stroke:'rgba(245,158,11,0.9)'},
     conn:   {border:'1px solid rgba(90,110,160,0.22)',bg:'transparent',color:'rgba(130,150,195,0.6)',stroke:'rgba(130,150,195,0.55)'},
     acct:   {border:'1px solid rgba(90,110,160,0.22)',bg:'transparent',color:'rgba(130,150,195,0.6)',stroke:'rgba(130,150,195,0.55)'},
+    help:   {border:'1px solid rgba(90,110,160,0.22)',bg:'transparent',color:'rgba(130,150,195,0.6)',stroke:'rgba(130,150,195,0.55)'},
   };
   function switchHeroTab(tab){
-    ['history','favs','conn','acct'].forEach(t=>{
+    ['history','favs','conn','acct','help'].forEach(t=>{
       const p=document.getElementById('hnavPanel'+t.charAt(0).toUpperCase()+t.slice(1));
       const n=document.getElementById('hnav'+t.charAt(0).toUpperCase()+t.slice(1));
       if(p){ p.style.display='none'; }
@@ -4296,6 +4393,7 @@
 </script>
 <script src="/panels/bridge.js?v=1"></script>
 <script src="/wave-app.js?v=1"></script>
+  <script src="/wave-lines.js?v=1"></script>
   <script src="/panels/panels.js?v=1"></script>
 <script src="/panels/portfolio.js?v=1"></script>
 <script src="/gates.js?v=1"></script>
@@ -4429,5 +4527,20 @@
     load();
   })();
   </script>
+<script>
+  // Quick commands fill the box and put the cursor where the user types.
+  document.querySelectorAll('#hnavQuickCmds .hnav-cmd').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var input = document.getElementById('chatInput') || document.getElementById('userInput')
+               || document.querySelector('#chatApp input[type=text], #chatApp textarea');
+      if (typeof closeNavPanel === 'function') closeNavPanel();
+      if (!input) return;
+      input.value = b.dataset.cmd;
+      input.focus();
+      var at = b.dataset.caret ? Number(b.dataset.caret) : input.value.length;
+      try { input.setSelectionRange(at, at); } catch (_) {}
+    });
+  });
+</script>
 </body>
 </html>
