@@ -728,6 +728,22 @@ const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, lan
     ? `\n\nUSER'S NAME: The person you are speaking with is called "${userName}". Address them by name naturally — use it once at the start of a reply when it feels right, not in every single sentence. If they have a title preference, address them as "${userTitle && userTitle !== 'none' ? userTitle + ' ' + userName : userName}".`
     : '';
 
+  // Everything volatile goes at the END. The clock used to sit about ten lines
+  // into a prompt of roughly thirteen thousand tokens, and a prompt cache
+  // matches on a stable prefix - so a string that changes every minute meant
+  // the whole thing was reprocessed on every request instead of being cached.
+  // Moved down here, the instructions above are identical from one request to
+  // the next and can be cached whole.
+  const sessionBlock = `
+
+SESSION:
+- Today is ${dateStr}.
+- The current time is ${timeStr}.`
+    + (userLocation
+        ? `
+- The user is in ${userLocation.city}, ${userLocation.country} (${userLocation.lat?.toFixed(2)}, ${userLocation.lon?.toFixed(2)}). Use this for anything location-based - weather, nearest places, local time. Never assume another city.`
+        : '');
+
   const realtimeBlock = realtimeContext
     ? `\n\nREAL-TIME DATA (use this to answer the user's question accurately):\n${realtimeContext}`
     : '';
@@ -739,10 +755,7 @@ SELF-AWARENESS:
 - Your name is ${assistantName}. You exist solely to serve this user with excellence.
 - Personality: calm under pressure, razor-sharp, quietly witty, deeply loyal. You understate rather than overstate. You say "Right away." not "On it!" or "Sure thing!" You occasionally deliver a dry remark — never a joke. Think of a composed, highly capable assistant to someone who is always busy - never a chatbot.
 
-CURRENT TIME & DATE:
-- Today is ${dateStr}.
-- The current time is ${timeStr}.
-${userLocation ? `- The user's current location is ${userLocation.city}, ${userLocation.country} (coordinates: ${userLocation.lat?.toFixed(2)}, ${userLocation.lon?.toFixed(2)}). Use this for all location-based questions — weather, nearest places, local time, etc. Never assume a different city.` : ''}
+CURRENT TIME & DATE: given at the end of these instructions, under SESSION.
 
 IDENTITY & ORIGIN:
 - You were created by Shariquen — a forward-thinking technology company specialising in intelligent systems, ambient computing, and human-AI integration. Your architecture, personality, and capabilities were engineered entirely by Shariquen's AI division.
@@ -1151,7 +1164,7 @@ REPLY STYLE:
 - CONTRIBUTE, DON'T JUST ANSWER: after a substantive answer or finished task, add ONE short, specific next step the user would genuinely value — an idea, a better way to do it, something they may have missed, or one question that would let you help further. Make it concrete to what they just asked (e.g. after a budget: "Want me to add a savings goal so you can see how far off you are?"; after explaining depreciation: "I can work through your own asset if you give me the cost and useful life."). Never generic ("Let me know if you need anything else"), never more than one, and skip it entirely for quick commands (opening apps, playing music, volume, reminders set) and small talk.
 - When opening or launching something, respond with short, composed phrases: "Right away.", "Consider it done.", "Opening that for you now." Never over-explain. Never end a response with "Understood." as a standalone word or sentence.
 - Speak with quiet confidence. Never sound eager or casual. Never use slang, exclamation marks, or filler words like "Sure!", "Of course!", "Absolutely!" or "Great question!".
-- Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${userNameBlock}${reminderBlock}${memoryBlock}${realtimeBlock}`;
+- Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${sessionBlock}${userNameBlock}${reminderBlock}${memoryBlock}${realtimeBlock}`;
 };
 
 // Keywords that suggest the user wants to perform an action
@@ -1538,7 +1551,12 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // per item - which is why an answer could speak three points, run the
       // queue dry and stall for two seconds before point four. Fewer, longer
       // clips mean fewer chances to run dry, and they sound less clipped.
-      const MIN_FIRST_SPOKEN = 45;
+      // The screen waits for this many characters before showing anything, so
+      // it is the gap between asking and seeing a reply begin. 45 held the
+      // answer back about a second for no benefit: the first clause is enough
+      // to start reading, and the voice catches up. Later chunks stay long,
+      // because breaking speech into short pieces is what made it stutter.
+      const MIN_FIRST_SPOKEN = 22;
       const MIN_SPOKEN = 220;
       let pendingSpeech = '';
       let spokeOnce = false;

@@ -383,6 +383,27 @@ function sendUpdateReady() {
   else wc.send('update:ready', _updateReady);
 }
 
+// On a Mac, Cmd+Shift+X and Cmd+Shift+E register without complaint and then
+// never fire - something else on the system has them, and Electron reports
+// success either way. Option+Shift is free there, and is already what assist
+// mode uses, so each shortcut is offered its usual combination first and an
+// Option+Shift one after. Whichever binds is the one the UI should name, so it
+// is remembered rather than guessed at.
+const BOUND_KEYS = {};
+function bindShortcut(name, candidates, handler) {
+  for (const accel of candidates) {
+    try {
+      if (globalShortcut.register(accel, handler) && globalShortcut.isRegistered(accel)) {
+        BOUND_KEYS[name] = accel;
+        return accel;
+      }
+    } catch (_) { /* try the next one */ }
+  }
+  console.warn('[shortcut] nothing could be bound for ' + name + ' — tried ' + candidates.join(', '));
+  return null;
+}
+ipcMain.handle('shortcuts:bound', () => BOUND_KEYS);
+
 // ── HUD overlay window — always-on-top transparent card overlay ─────────────
 function createHudWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -955,7 +976,10 @@ app.whenReady().then(async () => {
 
   // Ctrl+Shift+X — Magic Cursor: open screen-capture lasso overlay (circle anything → AI identifies it).
   // Pressing it again while the cursor is up puts it away.
-  globalShortcut.register('CommandOrControl+Shift+X', () => {
+  bindShortcut('magicCursor',
+    process.platform === 'darwin'
+      ? ['Alt+Shift+X', 'CommandOrControl+Shift+X']
+      : ['CommandOrControl+Shift+X', 'Alt+Shift+X'], () => {
     if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) { closeCaptureOverlay(); return; }
     // Where the user was decides where the answer goes (see capture:identify).
     captureFromApp = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
@@ -991,19 +1015,8 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
   });
 
-  // Alt+Shift+W starts or stops watching the screen. Alt because that is what
-  // was asked for, and Shift+W because a modifier on its own cannot be a
-  // shortcut and bare Alt+W would be taken from every other program on the
-  // machine. On a Mac Electron maps Alt to Option, so it is Option+Shift+W
-  // there - nothing standard uses either.
-  const watchKey = globalShortcut.register('Alt+Shift+W', () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    // Bring it up first, or the answer arrives somewhere nobody is looking.
-    if (overlayWindow.isMinimized()) overlayWindow.restore();
-    if (!overlayWindow.isVisible()) overlayWindow.show();
-    overlayWindow.webContents.send('screen:watch-toggle');
-  });
-  if (!watchKey) console.warn('[shortcut] Alt+Shift+W is already taken by something else');
+  // Alt+Shift+W is gone. Two keys that both watched the screen was one
+  // too many; Alt+Shift+C does the watching now, and the listening with it.
   // Alt+Shift+C is assist mode: Callisto watching while you work in something
   // else, and offering things in the floating window rather than in its own.
   const assistKey = globalShortcut.register('Alt+Shift+C', () => {
@@ -1012,7 +1025,10 @@ app.whenReady().then(async () => {
   if (!assistKey) console.warn('[shortcut] Alt+Shift+C is already taken by something else');
 
   // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
-  const magicEditRegistered = globalShortcut.register('CommandOrControl+Shift+E', async () => {
+  const magicEditRegistered = bindShortcut('magicEdit',
+    process.platform === 'darwin'
+      ? ['Alt+Shift+E', 'CommandOrControl+Shift+E']
+      : ['CommandOrControl+Shift+E', 'Alt+Shift+E'], async () => {
     // Second press while the editor is open: stop the mic and apply the edit,
     // rather than starting over (which used to wipe what the user just said).
     if (magicEditActive) {
@@ -2203,7 +2219,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const isSportsQuery = realtime.SPORTS_REGEX.test(message) && !_isHistorical;
   let _sportsLiveMissing = false;
   if (isSportsQuery) {
-    const cardData = await realtime.fetchCardData(message).catch(() => null);
+    const cardData = await _cap(realtime.fetchCardData(message).catch(() => null), 2000);
 
     if (cardData) {
       // We have a card — speak the result, no browser needed
@@ -2252,7 +2268,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const CURRENT_LEADER_REGEX = /\b(prime minister of|president of|pm of|chancellor of|who('s| is) the (current |new |present )?(?:prime minister|president|pm|chancellor|leader)|current (?:prime minister|president|pm|chancellor)|who leads|who runs|head of state|head of government)\b/i;
   const isCurrentLeader = CURRENT_LEADER_REGEX.test(message);
   if (PERSON_FAST_REGEX.test(message) && !isCurrentLeader && !_isActionRequest) {
-    const personCard = await realtime.fetchCardData(message).catch(() => null);
+    const personCard = await _cap(realtime.fetchCardData(message).catch(() => null), 2000);
     if (personCard?.imageUrl || personCard?.heroImage) {
       const p = personCard;
       const spokenText = _speakable(p.bio || p.subtitle || p.summary || p.description || p.name || '');
@@ -2281,7 +2297,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // Historical/art/food/flag/fashion/nature queries — show card directly
   const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like|game|video game|minecraft|fortnite|call of duty|pokemon|zelda|mario|fifa|gta|game character|brand|clothing|outfit|dress|fashion|sneakers|shoes|shirt|jacket|plant|flower|tree|rose|tulip|sunflower|oak|pine|cherry blossom|cactus|orchid|colour|color|shade of|hue|tone of|red|blue|green|yellow|purple|orange|pink|black|white|brown|park|garden|beach|mountain|lake|river|forest|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|stadium|monument|national park|nature reserve|zoo|museum|island|valley|canyon|coast)\b/i;
   if ((VISUAL_CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest) {
-    const visualCard = await realtime.fetchCardData(message).catch(() => null);
+    const visualCard = await _cap(realtime.fetchCardData(message).catch(() => null), 2000);
     if (visualCard && (visualCard.imageUrl || visualCard.heroImage || visualCard.poster)) {
       const spokenText = _speakable(visualCard.summary || visualCard.subtitle || visualCard.description || visualCard.plot || visualCard.title || '');
       if (spokenText) _sendTTS(_e.sender, spokenText);
@@ -2311,6 +2327,11 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const needsNews = !isEmailQuery && NEWS_REGEX.test(message);
 
   // Run ALL data fetches in parallel — don't wait for one before starting another
+  // Every one of these races the answer. Measured: a card lookup took between
+  // 1.4 and 4.6 seconds and ran BEFORE a word was spoken, so a question could
+  // sit for the better part of five seconds waiting on a picture. Capped, the
+  // worst case is two. A card that does not arrive in time is a card nobody
+  // gets - which is the right trade against the answer itself being late.
   function _cap(p, ms) { return Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]); }
 
   // For pure action queries (open, play, search), skip all fetches — they just add latency
@@ -2322,7 +2343,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
     isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 4000) : Promise.resolve(null),
-    (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
+    (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 1500) : Promise.resolve(null),
     (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 4000) : Promise.resolve(null),
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
