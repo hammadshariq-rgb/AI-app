@@ -149,6 +149,14 @@ jobs:
       # lets the app launch on Apple silicon but still shows Gatekeeper's
       # "unidentified developer" prompt on first open. Note that macOS
       # auto-update only works once the app is signed with a Developer ID.
+      # Ask a real Mac which shortcuts it will actually hand over. Reported as
+      # annotations rather than log lines, because annotations can be read back
+      # without a token and logs cannot. Never fails the build.
+      - name: Check which shortcuts bind on macOS
+        working-directory: app
+        continue-on-error: true
+        run: npx electron build/mac-shortcut-probe.js || true
+
       - name: Build and publish Mac DMG
         working-directory: app
         shell: bash
