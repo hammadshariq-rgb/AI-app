@@ -732,6 +732,35 @@ function _plainPreview(md) {
     .replace(/[ \t]+$/gm, '');
 }
 
+// Markdown that is still being written. The tail of a stream is usually
+// half-finished — a "##" with its heading not typed yet, an opened "**" — and
+// showing those raw for a moment is exactly the mess this is meant to avoid.
+function _streamSafeMarkdown(md) {
+  let s = String(md || '');
+  // An unclosed code fence would swallow everything after it into one block.
+  if (((s.match(/```/g) || []).length) % 2 === 1) s += '\n```';
+  // A marker on the last line with nothing after it yet.
+  s = s.replace(/\n[ \t]*(?:#{1,6}|[-*+]|\d+[.)])[ \t]*$/, '');
+  // A bold run that has been opened and not yet closed.
+  if (((s.match(/\*\*/g) || []).length) % 2 === 1) s = s.replace(/\*\*(?=[^*]*$)/, '');
+  return s;
+}
+
+// Lay the bubble out properly on every chunk, rather than streaming flattened
+// text and only formatting it once the answer is complete.
+function _paintStreamingText(el, md) {
+  const span = el && el.querySelector('.msg-text');
+  if (!span) return;
+  const src = _streamSafeMarkdown(md);
+  if (_looksLikeMarkdown(src)) {
+    span.classList.add('msg-rich');
+    span.innerHTML = _renderChatMarkdown(src);   // HTML is escaped first
+  } else {
+    span.classList.remove('msg-rich');
+    span.textContent = src;
+  }
+}
+
 function _looksLikeMarkdown(t) {
   return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(t);
 }
@@ -5219,9 +5248,23 @@ window.jarvis.onClipboardAI(({ text }) => {
 // Assist mode worked something out from the screen while you were in another
 // app. The card over that app is gone in a few seconds, so the same answer
 // lands in here too — somewhere it can be read properly and copied from.
-window.jarvis.onAssistResult?.(({ title, text }) => {
+window.jarvis.onAssistResult?.(({ title, text, shot }) => {
   if (!text) return;
-  addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
+  const bubble = addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
+  // And the screen it was looking at. Without it the answer arrives in here
+  // with nothing to say which screen it was about, which is no use at all once
+  // you have moved on to something else.
+  if (shot && bubble) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-attachment assist-shot';
+    const img = document.createElement('img');
+    img.src = shot;
+    img.alt = 'What was on your screen';
+    img.loading = 'lazy';
+    wrap.appendChild(img);
+    bubble.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+  }
 });
 
 // Something offered from the screen that is really a conversation. Put it in
@@ -5946,7 +5989,7 @@ function _openReplyGate() {
   clearTimeout(g.timer);
   if (g.text.trim()) {
     document.getElementById('_thinkingRow')?.remove();
-    g.el = addMessage('assistant', _plainPreview(g.text));
+    g.el = addMessage('assistant', _streamSafeMarkdown(g.text));
   }
   if (g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } g.card = null; }
 }
@@ -6005,22 +6048,26 @@ function _showCardSynced(card) {
 }
 
 if (window.jarvis.onSentenceText) {
-  window.jarvis.onSentenceText(({ text, turn }) => {
+  window.jarvis.onSentenceText(({ text, turn, full }) => {
     const g = _replyGate;
     if (!g || !text) return;
     // A sentence from a turn that has been superseded belongs to an answer
     // nobody is waiting for. Dropping it is right; showing it under the new
     // question is not.
     if (turn != null && g.turn != null && turn !== g.turn) return;
-    g.text += (g.text ? ' ' : '') + text;
+    // The answer as actually written wins over sentences glued back together.
+    // Sentences arrive trimmed and were joined with a space, so a heading ended
+    // up mid-line as a literal "##" and the bubble only sorted itself out once
+    // the whole thing had finished.
+    if (full && full.trim()) g.text = full;
+    else g.text += (g.text ? ' ' : '') + text;
     if (g.open && g.el) {
-      const span = g.el.querySelector('.msg-text');
-      if (span) span.textContent = _plainPreview(g.text);   // formatted properly once complete
+      _paintStreamingText(g.el, g.text);
       if (typeof scrollToBottom === 'function') scrollToBottom();
     } else if (g.open && !g.el) {
       // Gate opened by voice before any text arrived — show the bubble now
       document.getElementById('_thinkingRow')?.remove();
-      g.el = addMessage('assistant', _plainPreview(g.text));
+      g.el = addMessage('assistant', g.text);
     } else {
       // Show the reply (and any card) as soon as the first sentence exists.
       // Waiting for its voice added ~1s; the voice follows a moment later.
@@ -9789,6 +9836,7 @@ setInterval(() => {
 // watching has stopped.
 window.jarvis.onAssistState?.(({ on, reason }) => {
   window._assistOn = !!on;
+  if (!on) window._assistEndedAt = Date.now();
   if (on) {
     convoStart();
     addMessage('assistant', `👀 Assist mode is on — I am watching your screen and listening. Say what you need, or just carry on and I will offer things as they come up. ${keys('Alt+Shift+C')} again to stop.`);
@@ -10140,7 +10188,13 @@ async function stopRecording() {
           // about what is ON that screen. It used to go to ordinary chat, which
           // gets no picture - which is why "solve question 2" came back saying
           // it could not see question 2.
-          const assistOn = !!window._assistOn;
+          // The second press of Alt+Shift+C is "I have finished speaking" - but
+          // it also switches assist mode off, and the transcript only arrives
+          // after that. Reading _assistOn at this moment therefore said "off"
+          // for the very request assist mode existed to answer, and it went to
+          // ordinary chat with no picture: "please upload question 10".
+          const recently = window._assistEndedAt && (Date.now() - window._assistEndedAt) < 20000;
+          const assistOn = !!window._assistOn || !!recently;
           if (assistOn) await window.jarvis.assistAsk?.(trimmed);
           else await sendToJarvis(trimmed);
         } finally { _convoBusy = false; }

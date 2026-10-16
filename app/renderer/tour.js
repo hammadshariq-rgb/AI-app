@@ -47,9 +47,9 @@
     },
     {
       targets: ['#micWrap'],
-      title: 'Or let it watch while you work',
-      body: `Press ${ALT}${KEY('Shift')}${KEY('C')} and Callisto watches your screen <em>and</em> listens, until you press it again. Talk to it normally — <em>"how do I add this scope?"</em>, <em>"combine these two PDFs"</em> — and it answers about what it can see, without you sending it anything.`,
-      foot: 'It also speaks up on its own when something is worth doing: <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em>. Those cards last five seconds and do nothing unless you press them — letting one run out is a no. Corrections land on your clipboard, ready to paste.',
+      title: 'Screen assist — press once, speak, press again',
+      body: `${ALT}${KEY('Shift')}${KEY('C')} works from any app, and it is two presses. <b>Press it once</b> and Callisto takes in whatever is on your screen right then and opens the microphone — the bars in the corner stay up for as long as it is listening. Say what you want: <em>"solve question 2"</em>, <em>"why is this failing?"</em>, <em>"make this answer shorter"</em>. <b>Press it again</b> when you have finished talking, and it answers out loud and on a card over the app you are in. It remembers the screen from the first press, so it is still answering about the right thing even if you have scrolled away.`,
+      foot: 'The answer lands in Callisto too, with a picture of the screen it read. While it is on it also offers things of its own accord — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em> — five-second cards that do nothing unless you press them. Ask it to rewrite something you have highlighted and it edits in place, without pulling you back here.',
     },
     {
       targets: ['#gestureToggleBtn'],

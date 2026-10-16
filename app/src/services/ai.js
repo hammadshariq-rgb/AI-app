@@ -1512,7 +1512,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 async function respondStreaming({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', onSentence, attachments = [], skipToolFallback = false, userName = null, userTitle = null, userLocation = null }) {
   beginTurn();
   const local = tryLocalCommand(message);
-  if (local) { if (onSentence) onSentence(local.text); return { ...local, memory: null }; }
+  if (local) { if (onSentence) onSentence(local.text, local.text); return { ...local, memory: null }; }
 
   // Cap on the whole streaming operation. Long answers (biographies, explanations)
   // genuinely take longer, so they get more room before we stop waiting.
@@ -1625,7 +1625,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
               if (joined.length < floor) { pendingSpeech = joined; continue; }
               spokeOnce = true;
               pendingSpeech = '';
-              if (onSentence) onSentence(joined);
+              // The running markdown goes with it. A sentence has been trimmed
+              // and is about to be joined to the last one with a space, which
+              // destroys headings and list structure - so the chat bubble
+              // formats from this rather than from the reassembled sentences.
+              if (onSentence) onSentence(joined, fullText);
             }
           } catch {}
         }
@@ -1639,7 +1643,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // Whatever is still held back is said now, joined to any tail.
       const remaining = ((pendingSpeech ? pendingSpeech + ' ' : '') + buffer.trim()).trim();
       pendingSpeech = '';
-      if (remaining && onSentence) onSentence(remaining);
+      if (remaining && onSentence) onSentence(remaining, fullText);
 
       const rememberMatch = fullText.match(/\[\[REMEMBER:\s*(.+?)\]\]/i);
       const memory = rememberMatch ? rememberMatch[1].trim() : null;

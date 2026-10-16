@@ -1001,7 +1001,11 @@ app.whenReady().then(async () => {
     // like Ctrl+Shift+C. (The in-app mic button doesn't set this, so its answers
     // stay in the app as before.)
     if (on && convo) hudVoiceMode = true;
-    sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {});
+    // In assist mode the microphone is open until the key is pressed again, so
+    // the indicator has to stay up rather than time itself out after twelve
+    // seconds. Without this flag the overlay's own mic-state message landed
+    // after startAssist and quietly downgraded it back to a short one.
+    sendToHud(on ? 'hud:listening' : 'hud:listening-stop', { sustained: !!ASSIST.on });
   });
 
   // Conversation mode used to live on Win+Alt+C: listening on its own, with no
@@ -2556,7 +2560,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     : await ai.respondStreaming({
         ...aiParams,
         skipToolFallback: isEmailSendRequest,
-        onSentence: (sentence) => {
+        onSentence: (sentence, fullSoFar) => {
           // Only if this answer is still the one being waited for. The reply
           // gate in the renderer is a single object, so a sentence still
           // arriving from the previous question lands in the new question's
@@ -2567,7 +2571,15 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
           if (_textGen !== _ttsGeneration) return;
           // Let the chat show the reply as it's spoken (card + bubble + voice together)
           if (_e.sender && !_e.sender.isDestroyed()) {
-            _e.sender.send('jarvis:sentence-text', { turn, text: sentence.replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '') });
+            const _strip = (s) => String(s || '').replace(/\[\[(?:REMEMBER|ACTION):[^\]]*\]\]/gi, '');
+            _e.sender.send('jarvis:sentence-text', {
+              turn,
+              text: _strip(sentence),
+              // The answer exactly as written so far, newlines and all, so the
+              // bubble can be laid out properly while it streams instead of
+              // showing raw "##" and then tidying itself up at the end.
+              full: _strip(fullSoFar),
+            });
           }
           // Formatted answers: speak the prose, skip tables/code, and only read the
           // opening of long answers — the full version is on screen.
@@ -4842,12 +4854,15 @@ function _screenHash(dataUrl) {
 
 // `mode: 'watch'` means nobody asked a question - it is looking over their
 // shoulder - so the server holds it to a much higher bar for speaking at all.
-async function _readScreenOnce(question, { mode, width } = {}) {
+async function _readScreenOnce(question, { mode, width, frame } = {}) {
   // 1600 wide takes about 3.3s end to end; 1280 takes 2.3s and reads exactly
   // the same things, down to the name on the message. Below 1000 it starts
   // losing detail, so watching uses 1280 and a read they actually asked for
   // keeps the full grab, where the small print is the point.
-  const shot = await grabScreen(width || 1600);
+  // A frame kept from earlier wins: when somebody speaks while assist mode
+  // is watching, the screen that matters is the one they were looking at
+  // when they pressed the key, not whatever is there a sentence later.
+  const shot = frame || await grabScreen(width || 1600);
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
     // It has to know what day it is, or "tomorrow at 5" cannot become a date.
@@ -4857,7 +4872,7 @@ async function _readScreenOnce(question, { mode, width } = {}) {
     const res = await ai.serverFetch('screen-read', { imageBase64: shot, question, today, mode }, { timeout: 60000, retries: 1 });
     const data = await res.json();
     return data && data.text
-      ? { ok: true, text: data.text, action: data.action || null }
+      ? { ok: true, text: data.text, action: data.action || null, shot }
       : { error: 'I could not make sense of that screen.' };
   } catch (err) {
     return { error: 'I could not read the screen just then.' };
@@ -4944,14 +4959,16 @@ ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenO
 ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   const q = String(question || '').trim();
   if (!q) return { ok: false };
-  sendToHud('hud:card', { type: 'info', text: 'Looking…' });
+  // No "Thinking…" card here: the second key press already sent one, and two
+  // of them stacked is the card appearing twice.
   const out = await _readScreenOnce(
     'They asked this out loud while you were watching their screen: "' + q + '"\n'
     + 'Answer it about what is actually on the screen in front of them. If they '
     + 'point at something - "question 2", "this error", "the second one" - find it '
     + 'on screen and work from that. Do not say you cannot see it unless the screen '
     + 'genuinely does not show it. Set action to null unless there is something to '
-    + 'press.'
+    + 'press.',
+    { frame: ASSIST.frame }
   );
   if (!out.ok || !out.text) {
     const why = out.error || 'I could not read the screen just then.';
@@ -4962,7 +4979,18 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 1200) });
   _sendTTS(e.sender, out.text);
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('assist:result', { kind: 'spoken', title: 'About your screen', text: out.text });
+    // With the picture. The answer on its own, in a window they were not even
+    // looking at, gives no way to tell which screen it was about.
+    let thumb = ASSIST.thumb;
+    if (!thumb && out.shot) {
+      try {
+        thumb = require('electron').nativeImage
+          .createFromDataURL(out.shot).resize({ width: 560 }).toDataURL();
+      } catch (_) { thumb = null; }
+    }
+    overlayWindow.webContents.send('assist:result', {
+      kind: 'spoken', title: 'About your screen', text: out.text, shot: thumb || null,
+    });
   }
   return { ok: true, text: out.text };
 });
@@ -5200,6 +5228,8 @@ function stopAssist(reason) {
   if (ASSIST.timer) clearInterval(ASSIST.timer);
   ASSIST.timer = null;
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
+  // The microphone is shut, so the bars go with it - whatever the reason.
+  sendToHud('hud:listening-stop', {});
   // Only as the other half of the one introduction. After that it stops
   // quietly - they pressed the key, so they know.
   if (reason === 'toggled' || reason === 'shortcut') {
@@ -5326,6 +5356,23 @@ function startAssist() {
   // screen they were looking at when they pressed it is the screen they meant,
   // so the first look happens now and skips the settling.
   ASSIST.firstLook = true;
+  // The screen as it was when they pressed the key. That is the thing they are
+  // looking at and asking about; by the time they have spoken and pressed again
+  // they may well have moved. Kept so the answer is about the right picture.
+  ASSIST.frame = null;
+  ASSIST.thumb = null;
+  grabScreen(1600).then((shot) => {
+    if (!shot) return;
+    ASSIST.frame = shot;
+    // A small copy of the same frame, for showing in the app next to the
+    // answer. Derived from the picture that was actually read, so what they
+    // see is what it looked at - and resized here rather than captured again,
+    // which would be a different moment.
+    try {
+      ASSIST.thumb = require('electron').nativeImage
+        .createFromDataURL(shot).resize({ width: 560 }).toDataURL();
+    } catch (_) { ASSIST.thumb = null; }
+  }).catch(() => {});
   setTimeout(() => { if (ASSIST.on) _assistTick(); }, 250);
   // Said every time now, briefly. Somebody needs to know the screen is being
   // watched and the microphone is open - that is not nagging, it is the one
@@ -5333,10 +5380,15 @@ function startAssist() {
   // only, so it appears over whatever they are working in and never inside
   // Callisto itself.
   ASSIST.announced = true;
-  sendToHud('hud:card', { type: 'info', text: '👀 Watching your screen.', ttl: 3000 });
-  setTimeout(() => {
-    if (ASSIST.on) sendToHud('hud:card', { type: 'info', text: '🎙 Listening — press Alt+Shift+C again when you have finished.', ttl: 3000 });
-  }, 3200);
+  sendToHud('hud:card', {
+    type: 'info',
+    text: '👀 Watching your screen. Say what you need, then press Alt+Shift+C again.',
+    ttl: 3000,
+  });
+  // And then the microphone bars stay up for as long as it is actually
+  // listening. The second notice card used to say this and vanish, which left
+  // no way to tell an open microphone from a broken one.
+  sendToHud('hud:listening', { sustained: true });
   _tellOverlayAssist({ on: true });
   return { ok: true };
 }

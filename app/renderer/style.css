@@ -6493,6 +6493,24 @@ body.light-mode .news-item::before { color: rgba(30,40,100,0.3); }
   width: 100%;
   display: block;
 }
+/* The screen assist mode read. 220px is fine for a photo someone attached;
+   a whole screen at that size is unreadable, so this one gets the bubble. */
+.msg-attachment.assist-shot {
+  max-width: 100%;
+  margin-top: 12px;
+  border-color: rgba(100, 140, 255, 0.32);
+  background: rgba(8, 10, 28, 0.5);
+}
+.msg-attachment.assist-shot::after {
+  content: 'What was on your screen';
+  display: block;
+  padding: 6px 10px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(150, 175, 255, 0.75);
+  border-top: 1px solid rgba(100, 140, 255, 0.18);
+}
 .msg-attachment-file {
   display: flex;
   align-items: center;
