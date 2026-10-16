@@ -23,3 +23,4 @@ server/*.pem
 .DS_Store
 Thumbs.db
 Thumbs.db:encryptable
+app/build/smoke-output.txt
