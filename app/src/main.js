@@ -1391,6 +1391,14 @@ ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl
     // thing in the video is the thing they just looked at.
     const r = await video.generate({ token, prompt, imageBase64, imageUrl });
     if (r.ok) artifacts.add({ kind: 'video', url: r.url, prompt, source: 'Higgsfield' });
+    // The filter belongs to the video generator, not to Callisto, and what it
+    // nearly always objects to is a named character someone else owns - Iron
+    // Man, Mario, Elsa - rather than anything the character is doing. Saying
+    // "content filter" explains none of that, so the refusal names the real
+    // problem and the way round it.
+    if (!r.ok && /content.?filter|content.?policy|safety|moderat|blocked|rejected|not allowed/i.test(String(r.error || ''))) {
+      return { error: 'The video generator refused that one. It blocks named characters and brands it does not have the rights to — Iron Man, Mario, that sort of thing — however harmless the scene is. Describe the look instead and it will go through: "a man in a red and gold armoured flying suit, repulsors glowing, streaking over a city".' };
+    }
     return r.ok ? { ok: true, videoUrl: r.url } : { error: r.error };
   } catch (err) {
     return { error: err.message };
@@ -2470,8 +2478,34 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   // Email context — Gmail/Outlook removed pending ADA-CASA verification
   let emailContext = null;
-  if (isEmailQuery) {
-    emailContext = 'EMAIL UPDATE: Email connectors are not available in this version. Let the user know email features are coming soon.';
+  // "Give me an update" is not a question about email. It used to be caught by
+  // the same regex and answered with "email features are coming soon", which
+  // is the wrong answer to the most-asked question in the app. An update means
+  // the numbers: followers, views, takings and the portfolio.
+  // Only a genuine "how are things going" gets the numbers. "Check my
+  // Instagram messages" matches the email regex on "messages" and "check my",
+  // and answering THAT with a follower count is the exact thing that made this
+  // annoying in the first place. It is also asked in ways the email regex
+  // never caught - "brief me", "catch me up" - so it stands on its own.
+  const wantsRoundUp = /\b(update|updates|briefing|brief me|what'?s new|how (?:am i|are we|is it going)|how'?s it going|my numbers|the numbers|how are my|how did my|catch me up|anything new|round.?up)\b/i.test(message)
+    && !/\b(messages?|dms?|inbox|chat|mail)\b/i.test(message);
+
+  if (isEmailQuery || wantsRoundUp) {
+    const wantsMail = /\b(email|emails|e-?mail|inbox|unread|mail|notifications)\b/i.test(message);
+    const roundUp = wantsRoundUp ? await _cap(_statsRoundUp().catch(() => null), 6000) : null;
+    const bits = [];
+    if (roundUp) bits.push(roundUp);
+    if (wantsMail) bits.push('EMAIL: email connectors are not available in this version; say so briefly if they asked about email.');
+    if (wantsRoundUp && !roundUp) {
+      bits.push('UPDATE: nothing is connected yet, so there are no numbers to give. Say so in one line and name what they could connect - Instagram, TikTok, YouTube, Stripe - rather than apologising.');
+    }
+    // Nothing to add: "check my Instagram messages" lands here too, and it
+    // wants the messages tool, not a note bolted onto the prompt.
+    emailContext = bits.length
+      ? bits.join(String.fromCharCode(10, 10))
+        + String.fromCharCode(10, 10)
+        + 'Read these out as a short spoken update, in this order, one short sentence each, no headings and no bullet list. Keep the whole thing under about seventy words. Do not say you lack live data - this IS their live data.'
+      : null;
   }
 
   // Inject card data into AI context so it can speak what's shown on screen
@@ -3077,21 +3111,32 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // Handle calendar actions
   if (finalAction?.type === 'get_events') {
     const days = parseInt(finalAction.arg) || 7;
+    // Their schedule is the calendar AND the list AND the alarms. Asking what
+    // was on and being told only about Google Calendar - or, with no calendar
+    // connected, being told nothing at all while three tasks sat in the app -
+    // was never the whole answer.
+    const extras = _tasksAndReminders(days);
     if (!calendar.isConnected()) {
-      const spokenText = 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
+      const spokenText = extras
+        ? `${extras} Your Google Calendar isn't connected yet, so that is everything I can see — the link icon in the top bar adds it.`
+        : 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
     const eventsResult = await calendar.getUpcomingEvents(days);
     if (eventsResult.error) {
-      const spokenText = 'I had trouble reading your calendar. Please try again.';
+      const spokenText = extras
+        ? `I had trouble reading your calendar, but ${extras.charAt(0).toLowerCase()}${extras.slice(1)}`
+        : 'I had trouble reading your calendar. Please try again.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
     const events = eventsResult.events;
     let spokenText;
     if (events.length === 0) {
-      spokenText = `You have no events in the next ${days === 1 ? 'day' : `${days} days`}.`;
+      spokenText = extras
+        ? `Nothing in your calendar for the next ${days === 1 ? 'day' : `${days} days`}. ${extras}`
+        : `You have no events in the next ${days === 1 ? 'day' : `${days} days`}.`;
     } else {
       const eventLines = events.slice(0, 5).map(e => {
         const start = new Date(e.start);
@@ -3101,6 +3146,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       });
       spokenText = `You have ${events.length} upcoming event${events.length !== 1 ? 's' : ''}. ${eventLines.join('. ')}.`;
       if (events.length > 5) spokenText += ` And ${events.length - 5} more.`;
+      if (extras) spokenText += ` ${extras}`;
     }
     const calendarCard = { type: 'calendar', events: events.slice(0, 10) };
     _sendTTS(_e.sender, spokenText);
@@ -5713,6 +5759,108 @@ ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
 // were on the site. Cached for the day so opening the app twice doesn't hammer
 // five APIs, and it returns null when nothing is connected.
 let _briefCache = { day: '', text: null };
+
+// Everything "give me an update" should actually cover: the follower counts,
+// how the newest post on each platform is doing, the takings, and the
+// portfolio - each in one line. Nothing is allowed to hold the rest up, and a
+// platform that is not connected simply says nothing.
+let _roundUpCache = { at: 0, text: null };
+
+// The other two halves of "what's on my schedule": the to-do list and the
+// alarms that have not gone off yet. Returns a spoken sentence, or null when
+// there is genuinely nothing.
+function _tasksAndReminders(days = 1) {
+  const said = [];
+  try {
+    const due = tasks.dueToday() || [];
+    if (due.length) {
+      const names = due.slice(0, 4).map((t) => t.text || t.title).filter(Boolean);
+      said.push(`On your list: ${names.join(', ')}${due.length > 4 ? `, and ${due.length - 4} more` : ''}.`);
+    }
+  } catch (_) {}
+  try {
+    const now = Date.now();
+    const until = now + Math.max(1, days) * 86400000;
+    const up = (store.get('reminders') || [])
+      .filter((r) => r && !r.triggered && r.datetime)
+      .map((r) => ({ text: r.text, at: new Date(r.datetime).getTime() }))
+      .filter((r) => Number.isFinite(r.at) && r.at >= now && r.at <= until)
+      .sort((a, b) => a.at - b.at);
+    if (up.length) {
+      const names = up.slice(0, 3).map((r) =>
+        `${r.text} at ${new Date(r.at).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true })}`);
+      said.push(`Reminders: ${names.join(', ')}${up.length > 3 ? `, and ${up.length - 3} more` : ''}.`);
+    }
+  } catch (_) {}
+  return said.length ? said.join(' ') : null;
+}
+
+async function _statsRoundUp() {
+  if (_roundUpCache.text && Date.now() - _roundUpCache.at < 120000) return _roundUpCache.text;
+  const n = (v) => Number(v || 0).toLocaleString();
+  const lines = [];
+
+  const [ig, tt, yt, stripe] = await Promise.all([
+    connectors.getInstagramStats().catch(() => null),
+    connectors.getTikTokStats().catch(() => null),
+    connectors.getYouTubeStats().catch(() => null),
+    connectors.getStripeStats().catch(() => null),
+  ]);
+
+  if (ig) {
+    const bits = [`Instagram: ${n(ig.followers)} followers`];
+    const last = (ig.recentPosts || [])[0];
+    if (last && last.views != null) bits.push(`latest post ${n(last.views)} views`);
+    else if (last && last.likes != null) bits.push(`latest post ${n(last.likes)} likes`);
+    lines.push(bits.join(', '));
+  }
+  if (tt) {
+    const bits = [`TikTok: ${n(tt.followers)} followers`];
+    const last = (tt.recentVideos || [])[0];
+    if (last && last.views != null) bits.push(`latest video ${n(last.views)} views`);
+    lines.push(bits.join(', '));
+  }
+  if (yt) {
+    const bits = [`YouTube: ${n(yt.subscribers)} subscribers`];
+    const last = (yt.recentVideos || [])[0];
+    if (last && last.views != null) bits.push(`latest video ${n(last.views)} views`);
+    lines.push(bits.join(', '));
+  }
+  if (stripe) {
+    const cur = (stripe.currency ? String(stripe.currency).toUpperCase() + ' ' : '');
+    const today = Number(stripe.today && stripe.today.revenue) || 0;
+    const week = Number(stripe.last7Days && stripe.last7Days.revenue) || 0;
+    lines.push(today > 0
+      ? `Stripe: ${cur}${n(Math.round(today))} today, ${cur}${n(Math.round(week))} this week`
+      : `Stripe: nothing today, ${cur}${n(Math.round(week))} this week`);
+  }
+
+  // The portfolio, summarised rather than read out holding by holding: how it
+  // moved overall, and only the one that moved most in each direction.
+  try {
+    const held = store.get('financePortfolio') || [];
+    if (held.length) {
+      const quotes = await Promise.all(held.slice(0, 8).map((h) =>
+        realtime.getStockCard(h.symbol || h).catch(() => null)));
+      const live = quotes.filter((q) => q && q.changePct != null).map((q) => ({
+        symbol: q.symbol, pct: Number(q.changePct),
+      })).filter((q) => Number.isFinite(q.pct));
+      if (live.length) {
+        const avg = live.reduce((s, q) => s + q.pct, 0) / live.length;
+        const best = live.reduce((a, b) => (b.pct > a.pct ? b : a));
+        const worst = live.reduce((a, b) => (b.pct < a.pct ? b : a));
+        const dir = avg >= 0 ? 'up' : 'down';
+        let line = `Portfolio: ${dir} ${Math.abs(avg).toFixed(1)}% on average across ${live.length} holding${live.length === 1 ? '' : 's'}`;
+        if (live.length > 1) line += `, best ${best.symbol} ${best.pct >= 0 ? '+' : ''}${best.pct.toFixed(1)}%, worst ${worst.symbol} ${worst.pct >= 0 ? '+' : ''}${worst.pct.toFixed(1)}%`;
+        lines.push(line);
+      }
+    }
+  } catch (_) { /* the portfolio missing is not worth losing the rest over */ }
+
+  const text = lines.length ? 'THEIR NUMBERS RIGHT NOW:' + String.fromCharCode(10) + lines.map((l) => '- ' + l).join(String.fromCharCode(10)) : null;
+  _roundUpCache = { at: Date.now(), text };
+  return text;
+}
 // ── Outlook mail ──────────────────────────────────────────────────
 ipcMain.handle('outlook:inbox', () => connectors.getOutlookInbox(20));
 ipcMain.handle('outlook:account', () => connectors.getOutlookAccount());

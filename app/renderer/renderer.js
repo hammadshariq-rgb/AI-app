@@ -7538,11 +7538,19 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         // Greeting, then the weather, then today's tasks — in that order.
         const weather = await window.jarvis.weatherGreeting?.().catch(() => null);
         const greeting = weather ? `Welcome back, ${addressAs}. ${weather}` : `Welcome back, ${addressAs}.`;
-        const audio = await window.jarvis.speak(greeting);
+        // Written as well as spoken. It used to be spoken only, so on a machine
+        // where the voice did not come out - a Mac with the audio route still
+        // warming up, most often - the app simply opened blank and looked
+        // broken. The words are the greeting; the voice is a bonus.
+        addMessage('assistant', greeting);
+        const audio = await window.jarvis.speak(greeting).catch(() => null);
         if (audio) playAudioChunks([audio]);
-        await speakTaskBriefing();
-        await speakStatsBriefing();
-        await speakNewsBriefing();
+        // Each on its own. They used to run in one chain, so the first one to
+        // throw - a voice that would not synthesise, a connector timing out -
+        // silently took the rest of the morning briefing with it.
+        await speakTaskBriefing().catch((e) => console.error('[GREET tasks]', e));
+        await speakStatsBriefing().catch((e) => console.error('[GREET stats]', e));
+        await speakNewsBriefing().catch((e) => console.error('[GREET news]', e));
       } catch (e) { console.error('[GREET]', e); }
     }
   }

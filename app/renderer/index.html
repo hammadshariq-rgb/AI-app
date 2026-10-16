@@ -3337,6 +3337,15 @@
         //
         // The distance is divided by the span of the hand, so it means the same
         // thing close to the camera and far from it.
+        // How big the hand is on screen, so a pinch means the same thing close
+        // to the camera and far from it. Wrist to the middle finger's knuckle:
+        // both sit still whatever the fingers are doing, unlike a fingertip.
+        //
+        // This was missing entirely - handScale was divided by on the next line
+        // and never defined anywhere - so every frame threw a ReferenceError
+        // here and the press was never reached. That is why the cursor moved
+        // but nothing could be clicked, on Windows and on Mac alike.
+        const handScale = Math.max(0.04, lmDist(lm[0], lm[9]));
         const pinchGap = lmDist(lm[4], lm[8]) / handScale;
         const apart   = pinchGap > 0.52;   // open — ready to press again
         const pinched = pinchGap < 0.34;   // closed — fires
