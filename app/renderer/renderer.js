@@ -720,18 +720,6 @@ const CHECK_SVG  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 // later by the formatted version. Reading that happen is unpleasant. The
 // preview keeps the shape of the answer - headings on their own line, bullets
 // as bullets - without the punctuation that builds it.
-function _plainPreview(md) {
-  return String(md || '')
-    .replace(/```[a-z]*/gi, '')
-    .replace(/^\s*#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '\u2022 ')
-    .replace(/^\s*(\d+)[.)]\s+/gm, '$1. ')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[ \t]+$/gm, '');
-}
-
 // Markdown that is still being written. The tail of a stream is usually
 // half-finished — a "##" with its heading not typed yet, an opened "**" — and
 // showing those raw for a moment is exactly the mess this is meant to avoid.

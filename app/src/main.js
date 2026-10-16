@@ -476,11 +476,21 @@ function sendToHud(channel, data) {
 }
 
 // ── Capture overlay — Ctrl+Shift+Y screen identification ─────────────────────
-function openCaptureOverlay() {
-  if (captureWindow && !captureWindow.isDestroyed()) {
-    captureWindow.focus();
-    return;
-  }
+// Building this window is the single slowest thing the Magic Cursor does.
+// Measured on this machine: creating it and loading the page takes about 2.5
+// SECONDS, against 30ms to show one that already exists - and it was being
+// built and thrown away on every single press. Worse, tearing a transparent
+// fullscreen window down and immediately building another makes the next load
+// fail outright (ERR_FAILED), which is a blank overlay if you press the key
+// twice quickly.
+//
+// So there is one window, made once, and after that it is only shown and
+// hidden. It is also built quietly a few seconds after startup, so the first
+// press is as quick as the rest.
+let _captureReady = null;
+
+function buildCaptureWindow() {
+  if (captureWindow && !captureWindow.isDestroyed()) return _captureReady;
   const { width, height } = screen.getPrimaryDisplay().size;
   captureWindow = new BrowserWindow({
     width,
@@ -495,26 +505,133 @@ function openCaptureOverlay() {
     skipTaskbar: true,
     focusable: true,
     hasShadow: false,
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
+      backgroundThrottling: false,
     },
   });
-  captureWindow.loadFile(path.join(__dirname, '..', 'renderer', 'capture-overlay.html'));
   captureWindow.setIgnoreMouseEvents(false);
-  captureWindow.on('closed', () => { captureWindow = null; });
+  // Closing it would put the 2.5 seconds back. The window outlives each use.
+  captureWindow.on('close', (e) => {
+    if (!isQuitting) { e.preventDefault(); captureWindow.hide(); }
+  });
+  captureWindow.on('closed', () => { captureWindow = null; _captureReady = null; });
+  _captureReady = captureWindow
+    .loadFile(path.join(__dirname, '..', 'renderer', 'capture-overlay.html'))
+    .catch((err) => { console.warn('[capture] overlay failed to load:', err.message); });
+  return _captureReady;
+}
+
+// Have it ready before anyone asks for it.
+function warmCaptureOverlay() {
+  try { buildCaptureWindow(); } catch (err) { console.warn('[capture] warm failed:', err.message); }
+}
+
+async function openCaptureOverlay() {
+  const ready = buildCaptureWindow();
+  // Fit the current display, in case they changed screen or resolution since.
+  try {
+    const { width, height } = screen.getPrimaryDisplay().size;
+    const [cw, ch] = captureWindow.getSize();
+    if (cw !== width || ch !== height) { captureWindow.setBounds({ x: 0, y: 0, width, height }); }
+  } catch (_) {}
+  // A fresh window still has to finish loading; a reused one resolves at once.
+  if (ready) await ready;
+  if (!captureWindow || captureWindow.isDestroyed()) return;
+
+  // Shown straight away, but with nothing drawn in it. The window is
+  // transparent and empty at this point, so it does not appear in the picture
+  // taken below - while the crosshair cursor, which screen capture does not
+  // record, is there immediately to show the key was heard.
+  _captureShot = null;
+  _screenShot = null;
+  captureWindow.webContents.send('capture:reset');
+  captureWindow.show();
+  captureWindow.focus();
+
+  // The grab runs now, alongside them taking aim. Taking the screen costs well
+  // over a second whatever is asked of it, and it used to be paid for after
+  // the circle was drawn, where it was the whole delay before an answer.
+  try {
+    await _grabFullScreen();
+  } catch (err) {
+    console.warn('[capture] grab failed:', err.message);
+  }
+  // Only now is there a picture to circle on, so only now does it accept one.
+  if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) {
+    captureWindow.webContents.send('capture:armed');
+  }
 }
 
 function closeCaptureOverlay() {
-  if (captureWindow && !captureWindow.isDestroyed()) {
-    captureWindow.close();
-    captureWindow = null;
-  }
+  if (captureWindow && !captureWindow.isDestroyed()) captureWindow.hide();
 }
 
 // IPC: overlay signals it's done (after identification request sent)
 ipcMain.on('capture:done', () => closeCaptureOverlay());
 ipcMain.on('capture:cancel', () => closeCaptureOverlay());
+ipcMain.on('capture:hide', () => closeCaptureOverlay());
+
+// The whole screen, taken just BEFORE the overlay appears.
+//
+// This is the part that used to cost the most after the circle was drawn: the
+// grab takes about 1.3 seconds whatever size is asked for, and it was being
+// done at the very end, in series with everything else. Taking it up front
+// means it is never in the critical path, and the overlay is not in the
+// picture either - which is why it could not simply be moved later.
+let _screenShot = null;    // { at, image: NativeImage, display }
+let _captureShot = null;   // { at, bounds, image } - the cropped JPEG
+
+async function _grabFullScreen() {
+  const { desktopCapturer } = require('electron');
+  const display = screen.getPrimaryDisplay();
+  // Deliberately NOT multiplied by the display's scale factor: measured here
+  // that made the grab 1719ms against 1284ms, for a crop nothing can read any
+  // better afterwards.
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: display.size.width, height: display.size.height },
+  });
+  const source = sources.find((s) => s.display_id === String(display.id)) || sources[0];
+  if (!source || source.thumbnail.isEmpty()) return null;
+  _screenShot = { at: Date.now(), image: source.thumbnail, display: display.size };
+  return _screenShot;
+}
+
+// Cut the circled part out of the picture already taken.
+async function _cropCapture(bounds) {
+  let shot = _screenShot;
+  // Older than this and the screen has probably moved on - take a fresh one.
+  if (!shot || Date.now() - shot.at > 60000) shot = await _grabFullScreen();
+  if (!shot) return null;
+  const got = shot.image.getSize();
+  // The overlay measures in its own window pixels; scale if the grab came back
+  // a different size rather than cropping the wrong part of the screen.
+  const kx = got.width / shot.display.width;
+  const ky = got.height / shot.display.height;
+  const x = Math.max(0, Math.round(bounds.x * kx));
+  const y = Math.max(0, Math.round(bounds.y * ky));
+  const cropped = shot.image.crop({
+    x,
+    y,
+    width: Math.max(1, Math.min(got.width - x, Math.round(bounds.width * kx))),
+    height: Math.max(1, Math.min(got.height - y, Math.round(bounds.height * ky))),
+  });
+  // JPEG rather than PNG: the same picture to look at, a third of the bytes to
+  // upload and a quarter of the time to encode.
+  return 'data:image/jpeg;base64,' + cropped.toJPEG(82).toString('base64');
+}
+
+// The lasso has closed and they may be about to type. Cropping is instant now,
+// so this just gets it ready while the box is on screen.
+ipcMain.on('capture:prepare', (_e, bounds) => {
+  _captureShot = null;
+  _cropCapture(bounds)
+    .then((image) => { if (image) _captureShot = { at: Date.now(), bounds, image }; })
+    .catch(() => {});
+});
 
 // IPC: overlay sends selection bounds → screenshot → crop → vision API → HUD + TTS
 let _pendingCircleContext = null;
@@ -522,32 +639,18 @@ const nlJoin = (t) => String.fromCharCode(10,10) + t;
 
 ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
   try {
-    // 1. Briefly hide capture window so it doesn't appear in the screenshot
-    if (captureWindow && !captureWindow.isDestroyed()) captureWindow.hide();
-    await new Promise(r => setTimeout(r, 80)); // let GPU flush
-
-    // 2. Capture screen using desktopCapturer
-    const { desktopCapturer, nativeImage } = require('electron');
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: {
-        width: primaryDisplay.size.width * primaryDisplay.scaleFactor,
-        height: primaryDisplay.size.height * primaryDisplay.scaleFactor,
-      },
-    });
-    const source = sources.find(s => s.display_id === String(primaryDisplay.id)) || sources[0];
-    if (!source) throw new Error('No screen source found');
-
-    // 3. Crop to selection bounds (scale by display scale factor)
-    const sf = primaryDisplay.scaleFactor || 1;
-    const cropped = source.thumbnail.crop({
-      x: Math.round(bounds.x * sf),
-      y: Math.round(bounds.y * sf),
-      width: Math.round(bounds.width * sf),
-      height: Math.round(bounds.height * sf),
-    });
-    const imageBase64 = cropped.toDataURL(); // data:image/png;base64,...
+    // 1-3. The picture, taken the moment the circle closed rather than now.
+    // Only grabbed here if that did not happen or went stale.
+    const fresh = _captureShot
+      && Date.now() - _captureShot.at < 30000
+      && _captureShot.bounds
+      && _captureShot.bounds.x === bounds.x
+      && _captureShot.bounds.y === bounds.y
+      && _captureShot.bounds.width === bounds.width
+      && _captureShot.bounds.height === bounds.height;
+    const imageBase64 = fresh ? _captureShot.image : await _cropCapture(bounds);
+    _captureShot = null;
+    if (!imageBase64) throw new Error('No screen source found');
 
     // 4. Call vision API on server
     const token = loadAuthToken();
@@ -595,11 +698,14 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
       }
     }
 
-    // 5. Speak the result
-    const audio = await tts.synthesize(text).catch(() => null);
-    if (audio && overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('jarvis:sentence-audio', { audio });
-    }
+    // 5. Speak the result - started here, but NOT waited for. Synthesising the
+    // whole answer takes a second or more, and the card used to sit behind it
+    // doing nothing, so the screen stayed empty until the voice was ready.
+    tts.synthesize(text).then((audio) => {
+      if (audio && overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('jarvis:sentence-audio', { audio });
+      }
+    }).catch(() => {});
 
     // The card shows what was circled.
     const shown = { ...(card || { type: 'wiki', title: 'Identified', summary: text }) };
@@ -953,6 +1059,9 @@ app.whenReady().then(async () => {
   createHudWindow();
   // Warm the Windows key helper so the first Magic Editor copy/paste is instant.
   setTimeout(startKeyHelper, 4000);
+  // Same for the Magic Cursor. Building its window takes about two and a half
+  // seconds, so it is built quietly here instead of under the first press.
+  setTimeout(warmCaptureOverlay, 6000);
 
   // Wake hotkey - true voice wake-word ("Hey Jarvis") needs a native engine (e.g. Picovoice
   // Porcupine); wiring that in is the natural next step. Hotkey ships as the v1 trigger.

@@ -214,9 +214,13 @@ drawTubes();
 let isDrawing = false;
 let path = [];   // [{x,y}]
 let lassoHue = 220;
+// False until the screen behind this window has been captured. Drawing before
+// then would put the lasso into the very picture it is meant to be selecting
+// from. It is a fraction of a second, and the prompt appears when it lifts.
+let armed = false;
 
 lassoCanvas.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || !armed) return;
   isDrawing = true;
   path = [{ x: e.clientX, y: e.clientY }];
   lassoHue = Math.random() * 60 + 200; // blue-purple-violet range
@@ -332,6 +336,11 @@ async function finishSelection() {
   // Small delay so user sees the flash before overlay hides
   // Offer the box before doing anything: what they say changes the job from
   // "what is this" to "do this with it".
+  // The picture does not depend on what they type, so it is taken NOW, while
+  // the box is still on screen. Grabbing the screen costs well over a second,
+  // and it used to be spent after the typing had finished, in series.
+  ipcRenderer.send('capture:prepare', bounds);
+
   const askWrap = document.getElementById('askWrap');
   const askInput = document.getElementById('askInput');
   askWrap.classList.add('show');
@@ -339,28 +348,69 @@ async function finishSelection() {
 
   const instruction = await new Promise((resolve) => {
     let done = false;
-    const finish = (v) => { if (done) return; done = true; askWrap.classList.remove('show'); resolve(v); };
+    let timer = null;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      askWrap.classList.remove('show');
+      resolve(v);
+    };
+    // Six seconds of waiting for a box nobody was going to type in was most of
+    // the delay before an answer. It waits a beat now, and only keeps waiting
+    // while they are actually typing.
+    const IDLE_MS = 1200;
+    const TYPING_MS = 4000;
+    const arm = (ms) => { clearTimeout(timer); timer = setTimeout(() => finish(askInput.value.trim()), ms); };
+    arm(IDLE_MS);
     document.getElementById('askGo').addEventListener('click', () => finish(askInput.value.trim()));
+    askInput.addEventListener('input', () => arm(askInput.value.trim() ? TYPING_MS : IDLE_MS));
     askInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') finish(askInput.value.trim());
-      if (e.key === 'Escape') finish('');
+      else if (e.key === 'Escape') finish('');
+      else arm(TYPING_MS);
     });
-    // Nothing typed within a few seconds means they just wanted to know what it is.
-    setTimeout(() => finish(askInput.value.trim()), 6000);
   });
 
-  setTimeout(async () => {
-    try {
-      // Ask main process to screenshot + crop + call AI vision
-      const result = await ipcRenderer.invoke('capture:identify', bounds, instruction);
-      // Main process handles TTS + HUD card and then closes this window
-      ipcRenderer.send('capture:done');
-    } catch (err) {
-      console.error('[capture] error:', err);
-      ipcRenderer.send('capture:done');
-    }
-  }, 350);
+  try {
+    // Hide immediately: the answer arrives on a card, and leaving a fullscreen
+    // overlay up over their work while it thinks is what made it feel stuck.
+    ipcRenderer.send('capture:hide');
+    await ipcRenderer.invoke('capture:identify', bounds, instruction);
+    ipcRenderer.send('capture:done');
+  } catch (err) {
+    console.error('[capture] error:', err);
+    ipcRenderer.send('capture:done');
+  }
 }
+
+// Shown again for a new selection: clear the last lasso so it does not reappear
+// over the new one. The window is reused now rather than rebuilt.
+ipcRenderer.on('capture:reset', () => {
+  try {
+    armed = false;
+    isDrawing = false;
+    path = [];
+    lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height);
+    const proc = document.getElementById('processing');
+    if (proc) proc.style.display = 'none';
+    // Nothing is drawn until the picture has been taken, so that the window is
+    // genuinely empty and does not end up in its own screenshot.
+    const hint = document.getElementById('hint');
+    if (hint) hint.style.display = 'none';
+    const askWrap = document.getElementById('askWrap');
+    if (askWrap) askWrap.classList.remove('show');
+    const askInput = document.getElementById('askInput');
+    if (askInput) askInput.value = '';
+  } catch (_) {}
+});
+
+// The screen has been captured: show the prompt and start accepting a circle.
+ipcRenderer.on('capture:armed', () => {
+  armed = true;
+  const hint = document.getElementById('hint');
+  if (hint) hint.style.display = '';
+});
 
 
 // ═══════════════════════════════════════════════════════════

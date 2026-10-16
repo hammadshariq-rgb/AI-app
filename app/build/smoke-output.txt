@@ -1,0 +1,39 @@
+
+app ready, creating tray...
+tray created, creating overlay window...
+overlay window created.
+[shortcut] Alt+Shift+C is already taken by something else
+[12132:1017/014608.648:INFO:CONSOLE(2)] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/renderer_init (2)
+[12132:1017/014614.659:INFO:CONSOLE(2)] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/renderer_init (2)
+[12132:1017/014616.993:INFO:CONSOLE(154)] "[hills] running", source: file:///C:/Users/hamma/jarvis-app/app/renderer/hills.js?v=4 (154)
+[12132:1017/014617.433:INFO:CONSOLE(2)] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[12132:1017/014617.435:INFO:CONSOLE(2)] "%cElectron Security Warning (allowpopups) font-weight: bold; A <webview> has "allowpopups" set to true. This exposes
+    users of this app to some security risk, since popups are just
+    BrowserWindows. If you do not need this feature, you should disable it.
+
+    
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
