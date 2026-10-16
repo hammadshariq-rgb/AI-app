@@ -2336,7 +2336,11 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
       // a look costs about a quarter of what it did.
       model: 'gpt-6-luna',
       // Newer models take max_completion_tokens, and reject a temperature.
-      max_completion_tokens: 600,
+      // 600 was fine while the answers were one line. Asking for working on a
+      // maths question made them longer than that, and a truncated answer is
+      // not merely short: the JSON never closes, parsing fails, and the whole
+      // thing comes back empty. A worked solution needs room.
+      max_completion_tokens: 2400,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -2417,7 +2421,26 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
     });
 
     let out = {};
-    try { out = JSON.parse(r.choices?.[0]?.message?.content || '{}'); } catch (_) {}
+    const raw = r.choices?.[0]?.message?.content || '{}';
+    try { out = JSON.parse(raw); } catch (_) {
+      // Truncated or malformed JSON used to vanish silently. Salvage the text
+      // if it is in there, and say so in the log rather than returning nothing.
+      // No regex: every escape in this file has been mangled at least once.
+      // Find the text field by hand and close the string.
+      const key = '"text"';
+      const at = raw.indexOf(key);
+      if (at >= 0) {
+        const q1 = raw.indexOf('"', at + key.length + 1);
+        if (q1 >= 0) {
+          let body = raw.slice(q1 + 1);
+          const cut = body.lastIndexOf('"');
+          if (cut > 0) body = body.slice(0, cut);
+          try { out = { text: JSON.parse('"' + body + '"') }; } catch (_) { out = {}; }
+        }
+      }
+      console.warn('[screen-read] reply was not valid JSON (' + raw.length + ' chars);'
+        + (out.text ? ' salvaged the text.' : ' nothing salvageable.'));
+    }
     const a = out.action;
     let action = a && SCREEN_READ_ACTIONS.includes(a.kind) && a.kind !== 'none'
       ? {
