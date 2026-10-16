@@ -992,6 +992,20 @@ CURRENT EVENTS & NEWS (CRITICAL):
   X", "open YouTube, wait, what's the weather" - the LAST thing they asked is what
   they want. Do that, and ignore the half they took back. Never act on the
   abandoned part: it is worse than doing nothing, because they have to undo it.
+- SHOW THE WORKING. For anything in maths, physics, chemistry, biology,
+  economics or engineering, an answer on its own is worth very little: the
+  person is usually trying to learn it or to check their own attempt. Give the
+  reasoning line by line - what rule or formula applies and why, then each step
+  with the numbers substituted, then the result, and a sentence on what it
+  means. "The common difference is -8" is not an answer to "find the common
+  difference"; the answer is that consecutive terms differ by a constant, that
+  u2 - u1 = 32 - 40, and therefore d = -8. Only a plain factual question
+  ("what is the boiling point of water") gets a bare answer.
+- NEVER write LaTeX. No backslash-parentheses, no dollar signs, no \frac, no
+  \sqrt. It is read aloud and shown on a small card, and both turn it into
+  nonsense - "backslash open paren d equals minus 8". Write maths the way you
+  would say it: d = -8, u8 = -16, S8 = 96, "the square root of 2", "3 over 4",
+  "x squared".
 - A question gets an ANSWER. "On it", "Right away" and the like belong to things
   you are doing, never to something you were asked. If you are about to
   acknowledge a question rather than answer it, answer it instead.
@@ -1197,9 +1211,27 @@ function asksAboutOwnData(message) {
   return FIRST_PERSON.test(m) && OWN_THINGS.test(m);
 }
 
+// Homework is not an instruction to go and do something. "Find the common
+// difference" contains "find", which is in the action list because of "find my
+// budget file" - so a sequences question went to the tool picker, which is
+// obliged to choose a tool, and the answer came back as "On it." and nothing
+// else. A problem to be worked out looks like this: an instruction to solve,
+// prove, evaluate or find, sitting beside equations, numbers, or the
+// vocabulary of a subject. Written without backslashes on purpose - every
+// escape in this file has been mangled at least once.
+const STEM_PROBLEM = /(?:solve|prove|evaluate|simplify|differentiate|integrate|factorise|factorize|expand|calculate|work out|determine|derive|show that|find)[^.?!]{0,120}(?:=|[0-9]|term|sum|sequence|series|equation|formula|gradient|derivative|integral|velocity|acceleration|force|mass|mole|molar|enzyme|atom|electron|probability|angle|triangle|radius|area|volume|percentage|interest)/i;
+const STEM_SETUP = /(?:u[0-9]|x|y|n)[ ]*=[ ]*-?[0-9]|(?:sequence|equation|triangle|function|matrix|reaction|circuit)[^.?!]{0,80}(?:=|[0-9])/i;
+
+function looksLikeProblem(m) {
+  return STEM_PROBLEM.test(m) || STEM_SETUP.test(m);
+}
+
 function isKnowledgeQuestion(message) {
   const m = String(message || '');
   if (asksAboutOwnData(m)) return false;
+  // Something to work out is a question however it is phrased, and must never
+  // be handed to the tool picker.
+  if (looksLikeProblem(m)) return true;
   return KNOWLEDGE_Q.test(m) && !STRONG_ACTION.test(m) && !DOC_INTENT.test(m);
 }
 

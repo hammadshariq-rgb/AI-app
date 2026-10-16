@@ -1099,16 +1099,23 @@ app.whenReady().then(async () => {
     // Floating above without focus removes the whole dance: the document keeps
     // focus the entire time, so the paste lands where it belongs and nothing has
     // to be hidden. The microphone does not need focus to record.
+    // The window is NOT shown. showInactive does not steal focus, but it still
+    // puts Callisto up over the document - which is indistinguishable, from the
+    // person's side, from being dragged back into the app. The microphone lives
+    // in this window and records perfectly well hidden (backgroundThrottling is
+    // off), so it stays where it is and the floating card does the talking.
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
-    const firstShow = !overlayWindow.isVisible();
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-    overlayWindow.showInactive();
-    if (firstShow) {
-      const returningUser = !!store.get('hasCompletedSetup') || !!store.get('profile');
-      overlayWindow.webContents.send('jarvis:activated', { name: getAssistantName(), profile: store.get('profile') || null, returningUser });
-    }
+    const preview = String(selectedText || '').split(/[ ]+/).join(' ').trim().slice(0, 70);
+    sendToHud('hud:card', {
+      type: 'magic-edit',
+      text: 'Listening - say how to change it.'
+        + (preview ? String.fromCharCode(10, 10) + '"' + preview + (selectedText.length > 70 ? '...' : '') + '"' : ''),
+      ttl: 8000,
+    });
     magicEditActive = true;
-    overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
+    const sendStart = () => overlayWindow.webContents.send('jarvis:magic-edit-start', { selectedText });
+    if (overlayWindow.webContents.isLoading()) overlayWindow.webContents.once('did-finish-load', sendStart);
+    else sendStart();
   });
   // Another app holding this combination would silently swallow the shortcut.
   if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app — Magic Editor won\'t open.');
@@ -4929,6 +4936,37 @@ ipcMain.handle('screen:watch-state', () => ({
 // One look, no session - for "what is on my screen?"
 ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenOnce(question));
 
+// A question asked out loud while assist mode is watching. This is the whole
+// point of the mode and it was not wired up: the transcript went to ordinary
+// chat, which has no picture, so "solve question 2" was answered by something
+// that could not see question 2. It reads the screen WITH the question, speaks
+// the answer, and puts it on the card over whatever app they are in.
+ipcMain.handle('assist:ask', async (e, { question } = {}) => {
+  const q = String(question || '').trim();
+  if (!q) return { ok: false };
+  sendToHud('hud:card', { type: 'info', text: 'Looking…' });
+  const out = await _readScreenOnce(
+    'They asked this out loud while you were watching their screen: "' + q + '"\n'
+    + 'Answer it about what is actually on the screen in front of them. If they '
+    + 'point at something - "question 2", "this error", "the second one" - find it '
+    + 'on screen and work from that. Do not say you cannot see it unless the screen '
+    + 'genuinely does not show it. Set action to null unless there is something to '
+    + 'press.'
+  );
+  if (!out.ok || !out.text) {
+    const why = out.error || 'I could not read the screen just then.';
+    sendToHud('hud:card', { type: 'info', text: why });
+    _sendTTS(e.sender, why);
+    return { ok: false };
+  }
+  sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 1200) });
+  _sendTTS(e.sender, out.text);
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('assist:result', { kind: 'spoken', title: 'About your screen', text: out.text });
+  }
+  return { ok: true, text: out.text };
+});
+
 // ── Assist mode ───────────────────────────────────────────────────────────────
 // Callisto watching over your shoulder while you work in something else.
 //
@@ -5164,7 +5202,11 @@ function stopAssist(reason) {
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
   // Only as the other half of the one introduction. After that it stops
   // quietly - they pressed the key, so they know.
-  if (reason === 'daily') {
+  if (reason === 'toggled' || reason === 'shortcut') {
+    // The second press is "I have finished speaking": say it is thinking, so
+    // the pause before the answer reads as working rather than as nothing.
+    sendToHud('hud:card', { type: 'info', text: '🧠 Thinking…', ttl: 3000 });
+  } else if (reason === 'daily') {
     // Always said, introduction or not: otherwise it just stops responding and
     // looks broken.
     sendToHud('hud:card', {
@@ -5285,15 +5327,16 @@ function startAssist() {
   // so the first look happens now and skips the settling.
   ASSIST.firstLook = true;
   setTimeout(() => { if (ASSIST.on) _assistTick(); }, 250);
-  // Explaining it every single time is nagging. Once is telling them.
-  ASSIST.announced = !store.get('assistIntroShown');
-  if (ASSIST.announced) {
-    store.set('assistIntroShown', true);
-    sendToHud('hud:card', {
-      type: 'info',
-      text: 'Assist mode on. I am watching your screen and will offer things as they come up. Alt+Shift+C to stop.',
-    });
-  }
+  // Said every time now, briefly. Somebody needs to know the screen is being
+  // watched and the microphone is open - that is not nagging, it is the one
+  // thing they must not have to guess at. Three seconds, on the floating card
+  // only, so it appears over whatever they are working in and never inside
+  // Callisto itself.
+  ASSIST.announced = true;
+  sendToHud('hud:card', { type: 'info', text: '👀 Watching your screen.', ttl: 3000 });
+  setTimeout(() => {
+    if (ASSIST.on) sendToHud('hud:card', { type: 'info', text: '🎙 Listening — press Alt+Shift+C again when you have finished.', ttl: 3000 });
+  }, 3200);
   _tellOverlayAssist({ on: true });
   return { ok: true };
 }

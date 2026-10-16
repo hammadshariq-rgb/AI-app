@@ -9788,6 +9788,7 @@ setInterval(() => {
 // hour or on the day's limit, so the mic can never be left listening after the
 // watching has stopped.
 window.jarvis.onAssistState?.(({ on, reason }) => {
+  window._assistOn = !!on;
   if (on) {
     convoStart();
     addMessage('assistant', `👀 Assist mode is on — I am watching your screen and listening. Say what you need, or just carry on and I will offer things as they come up. ${keys('Alt+Shift+C')} again to stop.`);
@@ -10134,7 +10135,15 @@ async function stopRecording() {
             window.jarvis.hudMicState?.(false, true);
           }
         }
-        try { await sendToJarvis(trimmed); } finally { _convoBusy = false; }
+        try {
+          // Assist mode is watching the screen, so a question asked out loud is
+          // about what is ON that screen. It used to go to ordinary chat, which
+          // gets no picture - which is why "solve question 2" came back saying
+          // it could not see question 2.
+          const assistOn = !!window._assistOn;
+          if (assistOn) await window.jarvis.assistAsk?.(trimmed);
+          else await sendToJarvis(trimmed);
+        } finally { _convoBusy = false; }
       } else setState('idle');
     } else if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) {
       setState('idle');

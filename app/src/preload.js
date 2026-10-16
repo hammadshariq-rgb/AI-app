@@ -174,6 +174,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   watchStop: () => ipcRenderer.invoke('screen:watch-stop'),
   watchState: () => ipcRenderer.invoke('screen:watch-state'),
   readScreenOnce: (question) => ipcRenderer.invoke('screen:read-once', { question }),
+  // A question asked out loud while assist mode is watching: answered
+  // against the screen rather than in the dark.
+  assistAsk: (question) => ipcRenderer.invoke('assist:ask', { question }),
   onWatchUpdate: (cb) => ipcRenderer.on('screen:watch-update', (_e, d) => cb(d)),
   onWatchEnded: (cb) => ipcRenderer.on('screen:watch-ended', (_e, d) => cb(d)),
   onWatchToggle: (cb) => ipcRenderer.on('screen:watch-toggle', () => cb()),
