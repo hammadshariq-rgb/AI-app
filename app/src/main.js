@@ -5338,7 +5338,7 @@ function pasteIntoFocusedApp(text) {
 // never say "here" at all - the box is obviously the box - they just say
 // "reply to him", "tell her I'll be late", "say I can't make it".
 const WRITE_POINTED = /\b(?:write|draft|compose|type|fill|put|reply|respond|answer)\b[^.?!]{0,60}\b(?:here|in here|in this|in the (?:box|field|draft|reply|email|document|doc|chat|message)|this (?:box|field|draft|reply|email|document|doc|chat|message)|for me)\b/i;
-const WRITE_MESSAGE = /^(?:\s*(?:ok(?:ay)?|right|now|and|so)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:(?:write|send|shoot|fire|drop|leave)\s+(?:him|her|them|it|back)?\s*(?:a\s+)?(?:message|msg|dm|reply|text|note)\b|reply\b|respond\b|answer\s+(?:him|her|them|it|that|this)\b|tell\s+(?:him|her|them)\b|say\s+(?:that\s+)?\b|let\s+(?:him|her|them)\s+know\b|ask\s+(?:him|her|them)\b|thank\s+(?:him|her|them)\b|apologi[sz]e\b|accept\b|decline\b|agree\b|(?:dm|text|message|msg)\s+(?:him|her|them|back)\b)/i;
+const WRITE_MESSAGE = /^(?:\s*(?:ok(?:ay)?|right|now|and|so)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:(?:write|send|draft|compose|type|shoot|fire|drop|leave)\s+(?:him|her|them|it|back)?\s*(?:a\s+|an\s+|the\s+)?(?:message|msg|dm|reply|response|text|note|email|answer)\b|reply\b|respond\b|answer\s+(?:him|her|them|it|that|this)\b|tell\s+(?:him|her|them)\b|say\s+(?:that\s+)?\b|let\s+(?:him|her|them)\s+know\b|ask\s+(?:him|her|them)\b|thank\s+(?:him|her|them)\b|apologi[sz]e\b|accept\b|decline\b|agree\b|(?:dm|text|message|msg)\s+(?:him|her|them|back)\b)/i;
 function wantsWriteInPlace(q) {
   const s = String(q || '');
   // A question about what is on screen is never a request to type into it.
