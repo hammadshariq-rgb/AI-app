@@ -117,10 +117,27 @@ async function downloadAdb(onProgress) {
 }
 
 // ── Run adb command ───────────────────────────────────────────────────────────
+// adb proves who it is with a key kept at $HOME/.android/adbkey, and the TV
+// remembers that key after you accept "Allow USB debugging?" once. No
+// environment was being passed to adb at all, so which HOME it saw depended
+// on how the app happened to be launched - and a packaged Mac app started
+// from Finder gets a different one from a terminal. A different HOME means a
+// different key, a key the TV has never seen, and the prompt again. Every
+// time. Pinning it to one directory inside Callisto's own data means the TV
+// is asked once and never again.
+let _adbEnv = null;
+function adbEnv() {
+  if (_adbEnv) return _adbEnv;
+  const home = path.join(app.getPath('userData'), 'adb-home');
+  try { fs.mkdirSync(path.join(home, '.android'), { recursive: true }); } catch (_) {}
+  _adbEnv = { ...process.env, HOME: home, USERPROFILE: home, ANDROID_SDK_HOME: home };
+  return _adbEnv;
+}
+
 function adbExec(args, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const adbPath = findAdb() || 'adb';
-    execFile(adbPath, args, { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
+    execFile(adbPath, args, { timeout: timeoutMs, windowsHide: true, env: adbEnv() }, (err, stdout, stderr) => {
       if (err && !stdout) return reject(new Error((stderr || err.message).trim()));
       resolve((stdout || '').trim());
     });
@@ -156,7 +173,7 @@ function screencap(host, port = 5555) {
   return new Promise((resolve, reject) => {
     const adbPath = findAdb() || 'adb';
     execFile(adbPath, ['-s', `${host}:${port}`, 'exec-out', 'screencap', '-p'],
-      { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024, timeout: 10000, windowsHide: true },
+      { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024, timeout: 10000, windowsHide: true, env: adbEnv() },
       (err, stdout) => {
         if (err && !(stdout && stdout.length)) return reject(err);
         const start = stdout.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]));

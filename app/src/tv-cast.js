@@ -555,7 +555,8 @@ async function launchApp(appKey) {
   }
 
   const fire     = connectedDev.kind === 'firetv';
-  const pkg      = (fire ? FIRE_PACKAGES : ADB_PACKAGES)[appKey];
+  // Whichever build of the app this TV actually has, not the one we assume.
+  const pkg      = await resolvePkg(appKey);
   const dialName = DIAL_NAMES[appKey];
   const appId    = APP_IDS[appKey];
 
@@ -799,6 +800,38 @@ const KEY = { UP: 19, DOWN: 20, LEFT: 21, RIGHT: 22, OK: 23, HOME: 3 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function adbReady() { return !!(connectedDev && connectedDev.hasAdb && connectedDev.kind !== 'roku'); }
+// YouTube is the one app whose package name differs between devices: the
+// classic Android TV app, the Google TV build, and the plain phone app that
+// some sets ship instead. Asking for the wrong one means "not installed", or
+// a launch that leaves a black screen - which is exactly what Netflix, whose
+// package is the same everywhere, never does. Whichever the TV actually has
+// is found once and remembered.
+const ALT_PACKAGES = {
+  youtube: [
+    'com.google.android.youtube.tv',
+    'com.google.android.youtube.tvunplugged',
+    'com.google.android.apps.youtube.unplugged',
+    'com.google.android.youtube',
+    'com.liskovsoft.smarttubetv.beta',
+  ],
+};
+const _pkgFound = {};
+
+async function resolvePkg(appKey) {
+  const base = pkgFor(appKey);
+  if (connectedDev?.kind === 'firetv') return base;
+  if (_pkgFound[appKey]) return _pkgFound[appKey];
+  const candidates = [base, ...(ALT_PACKAGES[appKey] || [])].filter(Boolean);
+  if (candidates.length < 2 || !connectedDev?.hasAdb) return base;
+  try {
+    const listed = await adb.shellWithAuth(connectedDev.host, 'pm list packages', 8000).catch(() => '');
+    for (const c of candidates) {
+      if (listed.includes('package:' + c)) { _pkgFound[appKey] = c; return c; }
+    }
+  } catch (_) { /* fall back to the usual one */ }
+  return base;
+}
+
 function pkgFor(app) { return (connectedDev?.kind === 'firetv' ? FIRE_PACKAGES : ADB_PACKAGES)[app]; }
 function sh(cmd, ms = 10000) { return adb.shellWithAuth(connectedDev.host, cmd, ms); }
 // One `input keyevent` takes a list of codes, so a row of presses is one round trip.
@@ -1044,7 +1077,7 @@ async function run(cmd) {
       return { ok: true, message: `Searching ${app === 'youtube' ? 'YouTube' : app} for "${query}" on your Roku.` };
     }
     if (adbReady() && app === 'youtube') {
-      await sh(`am start -a android.intent.action.VIEW -d 'https://www.youtube.com/results?search_query=${encodeURIComponent(query)}' ${pkgFor('youtube')}`);
+      await sh(`am start -a android.intent.action.VIEW -d 'https://www.youtube.com/results?search_query=${encodeURIComponent(query)}' ${await resolvePkg('youtube')}`);
       return { ok: true, message: `Here are the YouTube results for "${query}" on your TV.` };
     }
     if (adbReady() && app === 'prime') return run({ action: 'play_title', app: 'prime', query, profile });

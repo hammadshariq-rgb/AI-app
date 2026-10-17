@@ -90,7 +90,11 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Callisto needs microphone access to hear your voice commands.",
         "NSCameraUsageDescription": "Callisto needs camera access for hand gesture control.",
-        "NSAppleEventsUsageDescription": "Callisto needs permission to control other apps so it can open apps, play music in Spotify and switch windows when you ask."
+        "NSAppleEventsUsageDescription": "Callisto needs permission to control other apps so it can open apps, play music in Spotify and switch windows when you ask.",
+        "NSScreenCaptureUsageDescription": "Callisto needs to see your screen so screen assist can answer questions about what you are looking at, and so the Magic Cursor can identify whatever you circle.",
+        "NSSpeechRecognitionUsageDescription": "Callisto turns what you say into text so it can act on your spoken requests.",
+        "NSDownloadsFolderUsageDescription": "Callisto saves the documents, spreadsheets and pictures it makes for you.",
+        "NSDocumentsFolderUsageDescription": "Callisto opens and saves the documents you ask it to work on."
       },
       "minimumSystemVersion": "10.15"
     },

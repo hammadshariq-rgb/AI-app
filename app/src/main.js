@@ -2543,6 +2543,20 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // the same regex and answered with "email features are coming soon", which
   // is the wrong answer to the most-asked question in the app. An update means
   // the numbers: followers, views, takings and the portfolio.
+  // "Somewhere near me" is answered here, with real places, ratings and how
+  // far away they are. The Google Places endpoint and the IPC handler for it
+  // both existed and NOTHING EVER CALLED THEM, so these questions fell
+  // through to an ordinary web search and Callisto just opened Google.
+  const NEAR_ME = /\b(?:near|around|close to|closest to|nearest to)\s+(?:me|here|us)\b|\bnear\s*by\b|\bnearby\b|\baround here\b|\bin my area\b|\bwalking distance\b/i;
+  if (NEAR_ME.test(message) && !/\bon my (?:tv|television)\b/i.test(message)) {
+    const placeAnswer = await _cap(_placesNearMe(message).catch(() => null), 7000);
+    if (placeAnswer) {
+      _sendTTS(_e.sender, placeAnswer.spoken);
+      return { text: placeAnswer.text, audio: null, card: placeAnswer.card, hasAction: false };
+    }
+    // Could not reach Places - fall through and answer the ordinary way.
+  }
+
   // Only a genuine "how are things going" gets the numbers. "Check my
   // Instagram messages" matches the email regex on "messages" and "check my",
   // and answering THAT with a follower count is the exact thing that made this
@@ -4658,6 +4672,94 @@ ipcMain.handle('google:openUrl', (_e, url) => {
     shell.openExternal(url);
   }
 });
+// What they actually asked for, with the words that are about proximity
+// rather than about the place taken out, so "a good shisha lounge near me"
+// searches for a shisha lounge.
+function _placeQuery(message) {
+  return String(message || '')
+    .replace(/^\s*(?:hey|ok|okay)?\s*(?:callisto|jarvis)\b[\s,]*/i, '')
+    .replace(/\b(?:can|could|would|will)\s+you\s+(?:please\s+)?/ig, ' ')
+    .replace(/\b(?:show|find|get|give|tell)\s+me\b/ig, ' ')
+    .replace(/\b(?:what(?:'s|s| is| are)|where(?:'s|s| is| are)|any|some|a|an|the|is there|are there|i want|i need|looking for|recommend)\b/ig, ' ')
+    .replace(/\b(?:near|around|close to|closest to|nearest to)\s+(?:me|here|us)\b/ig, ' ')
+    .replace(/\bnear\s*by\b|\bnearby\b|\baround here\b|\bin my area\b|\bwalking distance\b/ig, ' ')
+    .replace(/\b(?:please|thanks|thank you)\b/ig, ' ')
+    // A trailing "to me" is left behind by "the closest pharmacy to me".
+    .replace(/\s+to\s+me\s*$/i, ' ')
+    .replace(/[?!.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'places';
+}
+
+// Straight-line distance, which is what "how far is it" means to a person
+// standing still. Good enough to rank by and to say out loud.
+function _kmBetween(aLat, aLon, bLat, bLon) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const s = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+async function _placesNearMe(message) {
+  const loc = store.get('userLocation') || {};
+  const token = loadAuthToken();
+  if (!token) return null;
+  const query = _placeQuery(message);
+
+  const r = await fetch(`${_serverBase()}/ai/places`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ query, lat: loc.lat, lng: loc.lon, city: loc.city }),
+  });
+  const data = await r.json().catch(() => null);
+  const places = data && Array.isArray(data.places) ? data.places : [];
+  if (!places.length) return null;
+
+  // Distance where the coordinates allow it, then the best of what is close:
+  // rating matters, but so does not sending someone across the city for it.
+  const withDist = places.map((p) => {
+    const lat = p.lat != null ? Number(p.lat) : (p.location && Number(p.location.lat));
+    const lon = p.lng != null ? Number(p.lng) : (p.location && Number(p.location.lng));
+    const km = (loc.lat != null && Number.isFinite(lat) && Number.isFinite(lon))
+      ? _kmBetween(loc.lat, loc.lon, lat, lon) : null;
+    return { ...p, km };
+  });
+  const score = (p) => (Number(p.rating) || 0) - (p.km != null ? Math.min(p.km, 10) * 0.12 : 0);
+  withDist.sort((a, b) => score(b) - score(a));
+
+  const far = (p) => (p.km == null ? '' : p.km < 1
+    ? ` · ${Math.round(p.km * 1000)} m away`
+    : ` · ${p.km.toFixed(1)} km away`);
+  const stars = (p) => (p.rating ? `${p.rating}★${p.totalRatings ? ` (${p.totalRatings})` : ''}` : 'no rating yet');
+  const open = (p) => (p.open === true ? ' · open now' : p.open === false ? ' · closed' : '');
+
+  const top = withDist[0];
+  const rest = withDist.slice(1, 4);
+  const lines = [
+    `${top.name} — ${stars(top)}${far(top)}${open(top)}`,
+    top.address ? `  ${top.address}` : '',
+    rest.length ? '' : null,
+    ...rest.map((p) => `${p.name} — ${stars(p)}${far(p)}${open(p)}`),
+  ].filter((l) => l !== null && l !== undefined);
+
+  const nl = String.fromCharCode(10);
+  const text = `Best ${query} near you:${nl}${nl}${lines.join(nl)}`;
+  const spoken = `The best ${query} near you is ${top.name}`
+    + (top.rating ? `, rated ${top.rating}` : '')
+    + (top.km != null ? `, about ${top.km < 1 ? Math.round(top.km * 1000) + ' metres' : top.km.toFixed(1) + ' kilometres'} away` : '')
+    + (top.address ? `, on ${String(top.address).split(',')[0]}` : '')
+    + '.';
+
+  return {
+    text,
+    spoken,
+    card: { type: 'places', query, places: withDist.slice(0, 5) },
+  };
+}
+
 // ── Places Near Me — proxy to server Google Places endpoint ──────────────────
 ipcMain.handle('places:nearby', async (_e, { query, lat, lng, city }) => {
   try {

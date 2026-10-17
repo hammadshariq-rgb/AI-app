@@ -2730,6 +2730,11 @@ app.post('/ai/places', authMiddleware, async (req, res) => {
         types:        (p.types || []).filter(t => !['establishment','point_of_interest'].includes(t)).slice(0, 2),
         mapsUrl:      `https://www.google.com/maps/place/?q=place_id:${p.place_id}`,
         placeId:      p.place_id,
+        // Where it actually is. Without these the app cannot work out how far
+        // away anything is, so "the closest one" was never closest, just
+        // whatever Google listed first.
+        lat:          p.geometry?.location?.lat ?? null,
+        lng:          p.geometry?.location?.lng ?? null,
       };
     });
 
