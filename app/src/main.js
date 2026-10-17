@@ -5282,6 +5282,64 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
 // the document, the message box — by pasting it where their cursor already is.
 // Callisto never takes focus: it hides itself first if it happens to hold it,
 // and the clipboard they had is put back afterwards.
+// The app they were actually working in when assist mode started. "Write it
+// here" means THAT app's box, and by the time an answer is ready several
+// seconds later the front window may well be something else - Callisto's own,
+// most often - so the keystroke lands in the wrong place and the draft stays
+// empty. Noted at the key press, put back before typing.
+let _frontAppAtStart = null;
+
+function rememberFrontApp() {
+  _frontAppAtStart = null;
+  const { execFile } = require('child_process');
+  try {
+    if (process.platform === 'darwin') {
+      execFile('osascript', ['-e',
+        'tell application "System Events" to get name of first application process whose frontmost is true'],
+        { timeout: 2500 }, (err, stdout) => {
+          const name = String(stdout || '').trim();
+          if (!err && name && name !== 'Electron' && !/callisto/i.test(name)) {
+            _frontAppAtStart = { kind: 'mac', name };
+          }
+        });
+      return;
+    }
+    if (process.platform === 'win32') {
+      execFile('powershell.exe', ['-NonInteractive', '-NoProfile', '-Command',
+        'Add-Type -Namespace Cal -Name Win -MemberDefinition \'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();\'; [Cal.Win]::GetForegroundWindow().ToInt64()'],
+        { timeout: 5000 }, (err, stdout) => {
+          const n = Number(String(stdout || '').trim());
+          if (!err && Number.isFinite(n) && n > 0) _frontAppAtStart = { kind: 'win', hwnd: n };
+        });
+    }
+  } catch (_) { /* not knowing simply means pasting wherever focus is */ }
+}
+
+function restoreFrontApp() {
+  return new Promise((resolve) => {
+    const f = _frontAppAtStart;
+    if (!f) return resolve(false);
+    // Only worth doing when one of our own windows is actually in front. It
+    // costs about two seconds on Windows and the OS may refuse to hand focus
+    // over anyway, so in the normal case - where they are still sitting in
+    // their draft - it is skipped entirely and the paste just goes there.
+    const oursInFront = [overlayWindow, hudWindow, captureWindow].some(
+      (w) => w && !w.isDestroyed() && w.isVisible() && w.isFocused());
+    if (!oursInFront) return resolve(false);
+    const { execFile } = require('child_process');
+    try {
+      if (f.kind === 'mac') {
+        execFile('osascript', ['-e', 'tell application "' + f.name.replace(/["\\]/g, '') + '" to activate'],
+          { timeout: 2500 }, () => resolve(true));
+        return;
+      }
+      execFile('powershell.exe', ['-NonInteractive', '-NoProfile', '-Command',
+        'Add-Type -Namespace Cal -Name Fg -MemberDefinition \'[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);\'; [Cal.Fg]::SetForegroundWindow([IntPtr]' + f.hwnd + ') | Out-Null'],
+        { timeout: 5000 }, () => resolve(true));
+    } catch (_) { resolve(false); }
+  });
+}
+
 function pasteIntoFocusedApp(text) {
   return new Promise((resolve) => {
     if (!text) return resolve(false);
@@ -5306,7 +5364,9 @@ function pasteIntoFocusedApp(text) {
       resolve(!err);
     }, 500);
 
-    setTimeout(() => {
+    // Put their app back in front before typing anything, and give the window
+    // manager a moment to actually do it.
+    restoreFrontApp().then(() => setTimeout(() => {
       if (process.platform === 'darwin') {
         // Wait for every modifier to lift first, exactly as the editor does -
         // Option still being down turns Cmd+V into something else entirely.
@@ -5325,7 +5385,7 @@ function pasteIntoFocusedApp(text) {
         '-NonInteractive', '-NoProfile', '-Command',
         'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'^v\')',
       ], { timeout: 4000 }, done);
-    }, 350);
+    }, 350));
   });
 }
 
@@ -5337,14 +5397,33 @@ function pasteIntoFocusedApp(text) {
 // "draft a reply in this box". In Discord, WhatsApp, Instagram or Slack they
 // never say "here" at all - the box is obviously the box - they just say
 // "reply to him", "tell her I'll be late", "say I can't make it".
-const WRITE_POINTED = /\b(?:write|draft|compose|type|fill|put|reply|respond|answer)\b[^.?!]{0,60}\b(?:here|in here|in this|in the (?:box|field|draft|reply|email|document|doc|chat|message)|this (?:box|field|draft|reply|email|document|doc|chat|message)|for me)\b/i;
-const WRITE_MESSAGE = /^(?:\s*(?:ok(?:ay)?|right|now|and|so)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:(?:write|send|draft|compose|type|shoot|fire|drop|leave)\s+(?:him|her|them|it|back)?\s*(?:a\s+|an\s+|the\s+)?(?:message|msg|dm|reply|response|text|note|email|answer)\b|reply\b|respond\b|answer\s+(?:him|her|them|it|that|this)\b|tell\s+(?:him|her|them)\b|say\s+(?:that\s+)?\b|let\s+(?:him|her|them)\s+know\b|ask\s+(?:him|her|them)\b|thank\s+(?:him|her|them)\b|apologi[sz]e\b|accept\b|decline\b|agree\b|(?:dm|text|message|msg)\s+(?:him|her|them|back)\b)/i;
+// Typing into somebody else's app has to be asked for unmistakably, so the
+// word that points at the box is REQUIRED: "here", "in this", "in the draft".
+// Guessing from "reply to him" alone was too loose - the same words are just
+// as often a question about the thread - and a wrong guess types into whatever
+// they were working in.
+//
+// Anything may follow it: "write an email here to Sam", "write an email in
+// this draft about the invoice", "reply to him here regarding the meeting".
+const WRITE_VERB = '(?:write|draft|compose|type|fill|put|reply|respond|answer|send|say|tell)';
+const WRITE_PLACE = '(?:here|in here|in this(?:\\s+\\w+){0,2}|in the\\s+(?:box|field|draft|reply|email|message|chat|document|doc|thread|textbox|text box)|this\\s+(?:box|field|draft|reply|email|message|chat|document|doc|thread))';
+// The pointer can come before or after what they want written:
+//   "write an email here to Sam"      verb ... place
+//   "here, write an email to Sam"     place ... verb
+const WRITE_IN_PLACE = new RegExp(
+  '(?:\\b' + WRITE_VERB + '\\b[^.?!]{0,80}?\\b' + WRITE_PLACE + '\\b'
+  + '|\\b' + WRITE_PLACE + '\\b[^.?!]{0,30}?\\b' + WRITE_VERB + '\\b)', 'i');
+
 function wantsWriteInPlace(q) {
   const s = String(q || '');
-  // A question about what is on screen is never a request to type into it.
-  if (/^\s*(?:what|who|when|where|why|how|which|is|are|does|do|can i|should i)\b/i.test(s)
-      && !WRITE_POINTED.test(s)) return false;
-  return WRITE_POINTED.test(s) || WRITE_MESSAGE.test(s);
+  if (!WRITE_IN_PLACE.test(s)) return false;
+  // "What does it say here?" and "is this a scam" point at the box too, but
+  // they are questions about it, not instructions to type in it.
+  if (/^\s*(?:what|who|when|where|why|which|how|is|are|was|were|does|do|did|can|could|should|would)\b/i.test(s)
+      && !/\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:write|draft|compose|type|fill|put|reply|respond|answer|send)\b/i.test(s)) {
+    return false;
+  }
+  return true;
 }
 
 // ── Assist mode ───────────────────────────────────────────────────────────────
@@ -5692,6 +5771,9 @@ function startAssist() {
   // question and replies "send me the question or upload a screenshot", which
   // reads as assist mode being broken rather than as a permission being off.
   if (blockedByMacPermission('screen')) return { ok: false, reason: 'permission' };
+  // Which app they are in right now. "Write it here" means this one's box, and
+  // by the time there is something to type the front window may have changed.
+  rememberFrontApp();
   ASSIST.on = true;
   ASSIST.lastHash = null;
   ASSIST.stableSince = 0;

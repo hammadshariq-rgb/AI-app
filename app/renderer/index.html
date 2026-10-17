@@ -1914,6 +1914,14 @@
               <button class="sw-cmd chrome-btn" data-cmd="How many followers do I have on Instagram?">"How many followers do I have on Instagram?"<span class="sw-cmd-note">after connecting Instagram</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="How many followers do I have on TikTok?">"How many followers do I have on TikTok?"<span class="sw-cmd-note">after connecting TikTok</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="How much revenue did my app generate?">"How much revenue did my app generate?"<span class="sw-cmd-note">after connecting Stripe</span></button>
+              <!-- Writing straight into another app's box. The word "here" (or
+                   "in this draft") is what tells Callisto to type rather than
+                   answer, so every one of these carries it. -->
+              <button class="sw-cmd chrome-btn" data-cmd="Write an email here to " data-caret="23">"Write an email here to…"<span class="sw-cmd-note">with your cursor in the draft · screen assist</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Write an email here regarding " data-caret="30">"Write an email here regarding…"<span class="sw-cmd-note">with your cursor in the draft · screen assist</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Write an email in this draft about " data-caret="35">"Write an email in this draft about…"<span class="sw-cmd-note">Gmail, Outlook · screen assist</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Reply to him here regarding " data-caret="28">"Reply to him here regarding…"<span class="sw-cmd-note">WhatsApp, Discord, Instagram · screen assist</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Reply here saying " data-caret="18">"Reply here saying…"<span class="sw-cmd-note">with your cursor in the message box · screen assist</span></button>
               <script>
                 document.querySelectorAll('#widgetQuickCmds .sw-cmd[data-cmd]').forEach((b) => b.addEventListener('click', () => {
                   const input = document.getElementById('userInput');

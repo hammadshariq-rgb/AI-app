@@ -723,6 +723,7 @@ function openMusicUri(uri, web) {
       const { exec } = require('child_process');
       // AppleScript: open Spotify if needed and play the track immediately
       const script = `tell application "Spotify" to play track "${uri}"`;
+      const startedAt = Date.now();
       exec(`osascript -e '${script}'`, (err) => {
         if (!err) {
           // Hide Spotify so it plays in background — give it 1s to register playback first
@@ -730,10 +731,23 @@ function openMusicUri(uri, web) {
             exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false'`, () => {});
           }, 1000);
           resolve();
-        } else {
-          // AppleScript failed — fall back to URI scheme
-          shell.openExternal(uri).then(resolve).catch(() => openInChrome(web).then(resolve).catch(resolve));
+          return;
         }
+        // The fallback below opens a browser, and that is only ever right if
+        // the song is NOT already playing. This AppleScript can take a long
+        // time while Spotify starts up, and by the time a slow one finally
+        // errors the song has usually played and the person has closed
+        // Spotify themselves - at which point a browser window appearing out
+        // of nowhere is simply baffling.
+        if (Date.now() - startedAt > 8000) return resolve();
+        exec('osascript -e \'tell application "System Events" to (name of processes) contains "Spotify"\'', (e1, running) => {
+          // They quit Spotify. That is an answer, not a problem to route around.
+          if (!e1 && /false/i.test(String(running))) return resolve();
+          exec('osascript -e \'tell application "Spotify" to player state as string\'', (e2, state) => {
+            if (!e2 && /playing/i.test(String(state))) return resolve();   // already playing
+            shell.openExternal(uri).then(resolve).catch(() => openInChrome(web).then(resolve).catch(resolve));
+          });
+        });
       });
       return;
     }

@@ -8,7 +8,10 @@
 (function () {
   'use strict';
 
-  const DONE_KEY = 'callisto_tour_done_v1';
+  // Bumped when the tour gains steps worth seeing again - it has picked up
+  // screen assist, writing into other apps, the Magic Cursor, and the Mac keys
+  // and permissions, none of which anyone who took the old tour has been told.
+  const DONE_KEY = 'callisto_tour_done_v2';
 
   function tourDone() {
     try { return localStorage.getItem(DONE_KEY) === '1'; } catch (_) { return false; }
@@ -18,9 +21,16 @@
   }
 
   const KEY = (k) => `<span class="tour-kbd">${k}</span>`;
+  const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
   // Mac shows Cmd wherever Windows shows Ctrl.
-  const MOD = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌘ Cmd' : 'Ctrl');
-  const ALT = KEY((window.jarvis && window.jarvis.platform) === 'darwin' ? '⌥ Option' : 'Alt');
+  const MOD = KEY(IS_MAC ? '⌘ Cmd' : 'Ctrl');
+  const ALT = KEY(IS_MAC ? '⌥ Option' : 'Alt');
+  // The Magic Cursor and Magic Editor are the exception: on a Mac, Cmd+Shift+X
+  // and Cmd+Shift+E register without complaint and then never fire, because
+  // something in the system already holds them, so those two bind to Option
+  // instead. The tour has to name the key that actually works, or someone on a
+  // Mac presses Cmd+Shift+E all day and concludes the feature is broken.
+  const MAGIC = KEY(IS_MAC ? '⌥ Option' : 'Ctrl');
 
   // Each step names what to light up (one or more selectors, joined into one
   // highlight) and what to say about it.
@@ -36,7 +46,10 @@
       // people never find on their own.
       targets: ['#attachWrap', '#micWrap'],
       title: 'Work on anything, anywhere',
-      body: `Highlight any text — in a document, an email, code — and press ${MOD}${KEY('Shift')}${KEY('E')}. Tell Callisto to rewrite it, or just ask <em>"is this any good?"</em> and it answers without touching your words.`,
+      body: `Highlight any text — in a document, an email, code — and press ${MAGIC}${KEY('Shift')}${KEY('E')}. Tell Callisto to rewrite it, or just ask <em>"is this any good?"</em> and it answers without touching your words.`,
+      foot: IS_MAC
+        ? 'On a Mac this one is <b>Option</b>, not Cmd — and the first time you use it macOS will ask for <b>Accessibility</b> permission, which is what lets Callisto read your highlighted text.'
+        : null,
       foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen — a photo, a chart, a paragraph — and Callisto tells you what it is.`,
     },
     {
@@ -49,7 +62,23 @@
       targets: ['#micWrap'],
       title: 'Screen assist — press once, speak, press again',
       body: `${ALT}${KEY('Shift')}${KEY('C')} works from any app, and it is two presses. <b>Press it once</b> and Callisto takes in whatever is on your screen right then and opens the microphone — the bars in the corner stay up for as long as it is listening. Say what you want: <em>"solve question 2"</em>, <em>"why is this failing?"</em>, <em>"make this answer shorter"</em>. <b>Press it again</b> when you have finished talking, and it answers out loud and on a card over the app you are in. It remembers the screen from the first press, so it is still answering about the right thing even if you have scrolled away.`,
-      foot: 'The answer lands in Callisto too, with a picture of the screen it read. While it is on it also offers things of its own accord — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em> — five-second cards that do nothing unless you press them. Ask it to rewrite something you have highlighted and it edits in place, without pulling you back here.',
+      foot: 'The answer lands in Callisto too, with a picture of the screen it read. While it is on it also offers things of its own accord — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em> — five-second cards that do nothing unless you press them.'
+        + (IS_MAC ? ' On a Mac, macOS will ask for <b>Screen Recording</b> permission the first time — without it Callisto is handed a black picture and cannot see your screen at all.' : ''),
+    },
+    {
+      targets: ['#micWrap'],
+      title: 'It can type for you, too',
+      body: `Put your cursor in the box you want filled — a Gmail draft, a WhatsApp or Discord message, a document — press ${ALT}${KEY('Shift')}${KEY('C')}, and say what to write <b>with the word "here" in it</b>: <em>"write an email here to Sam about Friday"</em>, <em>"reply to him here saying I'm running late"</em>, <em>"write an email in this draft about the invoice"</em>. Press it again and the words appear in that box.`,
+      foot: '"Here" (or <em>"in this draft"</em>) is what separates typing from answering — without it, <em>"what did he say"</em> and <em>"is this a scam"</em> are still answered out loud instead of being typed into your message. It reads the thread above your cursor, so a chat gets one short line and an email gets a proper one.'
+        + (IS_MAC ? ' Needs <b>Accessibility</b> permission on a Mac.' : ''),
+    },
+    {
+      targets: ['#micWrap'],
+      title: 'Circle anything on screen',
+      body: `Press ${MAGIC}${KEY('Shift')}${KEY('X')} and draw a circle round anything — an error, a product, a paragraph, a bill — and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
+      foot: IS_MAC
+        ? 'On a Mac this is <b>Option</b>, not Cmd, and it needs <b>Screen Recording</b> permission the first time.'
+        : null,
     },
     {
       targets: ['#gestureToggleBtn'],
