@@ -5205,15 +5205,21 @@ if (window.jarvis.onHudResponse) {
       if (vEl) vEl.textContent = v;
       toast.classList.remove('hidden');
       requestAnimationFrame(() => toast.classList.add('in'));
-      setTimeout(() => {
-        toast.classList.remove('in');
-        setTimeout(() => toast.classList.add('hidden'), 260);
-      }, 5000);
+      // It used to take itself away after five seconds, so the one moment it
+      // had to be noticed was easy to miss entirely and the update sat there
+      // until the next quit. It stays now until Update or the cross is
+      // pressed - it is small and out of the way.
     }
   }
 
   document.getElementById('updateRowBtn')?.addEventListener('click', install);
   document.getElementById('updateToastBtn')?.addEventListener('click', install);
+  // Dismissing only hides the notice; the row in Account keeps waiting, and
+  // the update still installs on the next quit either way.
+  document.getElementById('updateToastClose')?.addEventListener('click', () => {
+    toast.classList.remove('in');
+    setTimeout(() => toast.classList.add('hidden'), 260);
+  });
 
   // Downloading is Callisto's business, not the user's, so nothing is shown
   // while it happens - which is also how the old message got stuck.

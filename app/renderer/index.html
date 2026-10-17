@@ -1253,6 +1253,13 @@
       background: #3dffa0; box-shadow: 0 0 10px #3dffa0;
     }
     .update-toast-text { font-size: 12.5px; color: #dceaff; white-space: nowrap; }
+    .update-toast-close {
+      background: none; border: 0; cursor: pointer; padding: 2px 4px; margin-left: 2px;
+      font-size: 12px; line-height: 1; color: rgba(190, 215, 255, 0.5);
+      border-radius: 5px;
+    }
+    .update-toast-close:hover { color: rgba(220, 234, 255, 0.95); background: rgba(255,255,255,0.07); }
+    .update-toast-close:focus-visible { outline: 2px solid rgba(100,140,255,0.8); outline-offset: 1px; }
     .update-toast-text strong { color: #fff; font-weight: 600; }
 
     .update-row {
@@ -3036,7 +3043,8 @@
   <div id="updateToast" class="update-toast hidden" role="status">
     <span class="update-toast-dot"></span>
     <span class="update-toast-text">Update ready <strong id="updateToastVersion"></strong></span>
-    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Restart</span></button>
+    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Update</span></button>
+    <button type="button" class="update-toast-close" id="updateToastClose" aria-label="Dismiss update notice">✕</button>
   </div>
 
   <!-- Get Premium. Opened when the day's free messages run out, and from the
