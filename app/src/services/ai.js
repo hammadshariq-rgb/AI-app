@@ -1315,7 +1315,11 @@ function stripAddress(raw, assistantName) {
   // "hey callisto", "ok callisto," - only ever with a name we know, so that
   // "hey jude on spotify" is still a request to play Hey Jude.
   s = s.replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '');
-  s = s.replace(new RegExp('^\\s*(?:' + alt + ')\\s*[,.!-]+\\s*', 'i'), '');
+  // The name on its own at the front, with or without punctuation after it.
+  // Requiring a comma meant "callisto play yellow by coldplay" kept the name,
+  // and speech-to-text almost never puts a comma there - so the name went
+  // into the song search and something else played.
+  s = s.replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '');
   // Politeness carrying no instruction of its own.
   s = s.replace(/^\s*(?:please\s+)?(?:could|can|would|will)\s+(?:you|u)\s+(?:please\s+)?/i, '');
   s = s.replace(/^\s*i\s+(?:want|need)\s+(?:you\s+)?to\s+/i, '');

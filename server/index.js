@@ -831,15 +831,40 @@ async function appSpotifyToken() {
 
 app.get('/spotify/search', authMiddleware, async (req, res) => {
   try {
-    const q = String(req.query.q || '').trim();
-    if (!q) return res.status(400).json({ error: 'q required' });
+    const raw = String(req.query.q || '').trim();
+    if (!raw) return res.status(400).json({ error: 'q required' });
     const token = await appSpotifyToken();
     if (!token) return res.status(503).json({ error: 'Spotify is not configured on this server.' });
-    const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await r.json();
-    const t = data?.tracks?.items?.[0];
+
+    // Everything that is not part of the song's name. A spoken request
+    // arrives as "play road trips by drake on spotify please", and sending
+    // that whole string to Spotify is why the wrong song came back: the
+    // extra words are scored as part of the title.
+    const plain = raw
+      .replace(/^\s*(?:hey|ok|okay)?\s*(?:callisto|jarvis)\b[\s,]*/i, '')
+      .replace(/^\s*(?:can|could|would|will)\s+you\s+(?:please\s+)?/i, '')
+      .replace(/^\s*(?:please\s+)?(?:play|put on|queue|listen to)\s+/i, '')
+      .replace(/\s+(?:on|through|using|via)\s+(?:spotify|apple\s*music|youtube(?:\s*music)?)\s*$/i, '')
+      .replace(/\s*(?:please|thanks|thank you)\s*$/i, '')
+      .trim();
+
+    const hit = async (q) => {
+      const r = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await r.json().catch(() => ({}));
+      return data?.tracks?.items?.[0] || null;
+    };
+
+    // "song by artist" asked for as two separate fields is far more accurate
+    // than one loose string - Spotify then has to match the artist, instead
+    // of treating their name as more words in the title. The client already
+    // did this when an account was linked; this path never did.
+    const by = plain.match(/^(.+?)\s+by\s+(.+)$/i);
+    let t = null;
+    if (by) t = await hit(`track:${by[1].trim()} artist:${by[2].trim()}`);
+    if (!t) t = await hit(plain);
+    if (!t && by) t = await hit(by[1].trim());
     if (!t) return res.json({ ok: false, error: 'track_not_found' });
     res.json({ ok: true, trackUri: t.uri, trackName: t.name, artistName: (t.artists || [])[0]?.name || '' });
   } catch (err) {

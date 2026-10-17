@@ -5224,6 +5224,19 @@ if (window.jarvis.onHudResponse) {
   // Downloading is Callisto's business, not the user's, so nothing is shown
   // while it happens - which is also how the old message got stuck.
   window.jarvis.onUpdateReady?.((d) => showReady(d && d.version));
+
+  // The restart did not happen. Say so and let them press it again, rather
+  // than leaving a button that reads "Restarting..." for an hour.
+  window.jarvis.onUpdateFailed?.(() => {
+    installing = false;
+    try {
+      document.querySelectorAll('#updateRowBtn span, #updateToastBtn span')
+        .forEach((el) => { el.textContent = 'Update'; });
+    } catch (_) {}
+    const sub = document.getElementById('updateRowVersion');
+    if (sub) sub.textContent = 'The restart did not go through. Try again, or quit Callisto from the tray and reopen it — the update installs on the way out.';
+    addMessage('assistant', 'That update would not restart on its own. Quitting Callisto from the tray and opening it again will install it.');
+  });
 })();
 
 
@@ -5242,8 +5255,14 @@ window.jarvis.onClipboardAI(({ text }) => {
 // Assist mode worked something out from the screen while you were in another
 // app. The card over that app is gone in a few seconds, so the same answer
 // lands in here too — somewhere it can be read properly and copied from.
-window.jarvis.onAssistResult?.(({ title, text, shot }) => {
+window.jarvis.onAssistResult?.(({ title, text, question, shot }) => {
   if (!text) return;
+  // Both sides go into the conversation, exactly as a typed exchange would.
+  // Screen assist answers were display-only, so a follow-up like "explain
+  // that in more detail" found an empty history and Callisto asked them to
+  // paste the very question it had just worked through.
+  if (question) history.push({ role: 'user', content: question });
+  history.push({ role: 'assistant', content: text });
   const bubble = addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
   // And the screen it was looking at. Without it the answer arrives in here
   // with nothing to say which screen it was about, which is no use at all once

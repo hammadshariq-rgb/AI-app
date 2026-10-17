@@ -4900,7 +4900,41 @@ ipcMain.handle('instagram:use', async (_e, igId) => {
 ipcMain.handle('drive:open', async (_e, { fileId, mimeType, webViewLink }) => connectors.openDriveFile(fileId, mimeType, webViewLink));
 
 // Auto-updater: quit and install immediately when user confirms
-ipcMain.on('update:install', () => { autoUpdater.quitAndInstall(); });
+ipcMain.on('update:install', () => {
+  // electron-updater closes every window and THEN calls app.quit(). Our
+  // windows veto their own close so the X button parks the app in the tray,
+  // and that veto is lifted by `before-quit` - which has not run yet at the
+  // point the updater is closing them. So nothing closed, nothing quit, and
+  // the button sat on "Restarting..." indefinitely.
+  isQuitting = true;
+  try { app.removeAllListeners('window-all-closed'); } catch (_) {}
+  try {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) { w.removeAllListeners('close'); w.destroy(); }
+    }
+  } catch (err) { console.warn('[UPDATE] could not close windows:', err.message); }
+
+  // If the installer has not taken over shortly, say so rather than leaving
+  // a button that claims to be restarting for ever.
+  const stuck = setTimeout(() => {
+    console.warn('[UPDATE] still running after quitAndInstall - telling the window.');
+    try {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('update:failed');
+      }
+    } catch (_) {}
+  }, 12000);
+
+  try {
+    autoUpdater.quitAndInstall(false, true);
+  } catch (err) {
+    clearTimeout(stuck);
+    console.warn('[UPDATE] quitAndInstall threw:', err.message);
+    try {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('update:failed');
+    } catch (_) {}
+  }
+});
 
 ipcMain.handle('email:send', async (_e, { to, subject, body }) => {
   return connectors.sendEmail({ to, subject, body });
@@ -5243,7 +5277,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       _sendTTS(e.sender, ok ? 'Written it in for you.' : 'It is on your clipboard.');
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('assist:result', {
-          kind: 'written', title: 'Written into your draft', text: body, shot: ASSIST.thumb || null,
+          kind: 'written', title: 'Written into your draft', text: body, question: q, shot: ASSIST.thumb || null,
         });
       }
       return { ok: true, text: body };
@@ -5281,7 +5315,11 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       } catch (_) { thumb = null; }
     }
     overlayWindow.webContents.send('assist:result', {
-      kind: 'spoken', title: 'About your screen', text: out.text, shot: thumb || null,
+      // The question goes with the answer so both sides land in the
+      // conversation. Without it, "explain that in more detail" a moment
+      // later had nothing to refer to and Callisto asked them to paste the
+      // question it had itself just answered.
+      kind: 'spoken', title: 'About your screen', text: out.text, question: q, shot: thumb || null,
     });
   }
   return { ok: true, text: out.text };
