@@ -282,10 +282,26 @@ jobs:
             # electron-builder published nothing this time, so upload the files.
             gh release create "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft \
               --title "${{ needs.version.outputs.tag }}" --notes "Callisto ${{ needs.version.outputs.version }}" 2>/dev/null || true
+            # The .zip matters as much as the .dmg: Squirrel.Mac, which is what
+            # electron-updater uses on a Mac, can only install an update from a
+            # zip. It was missing from this list, so latest-mac.yml pointed at
+            # a zip that had never been uploaded - only its .blockmap had, which
+            # matched the pattern below - and every Mac update attempt asked for
+            # a file that was not there and gave up without a word.
             gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
-              dist/*.dmg dist/*.blockmap
+              dist/*.dmg dist/*.zip dist/*.blockmap
             # latest-mac.yml is what installed Macs read to find an update.
             if [ -f dist/latest-mac.yml ]; then
+              # Every file it names must actually exist, or the updater asks
+              # GitHub for something that was never uploaded and gives up
+              # silently. Fail the build rather than ship that again.
+              for f in $(sed -n 's/^  - url: //p' dist/latest-mac.yml); do
+                if [ ! -f "dist/$f" ]; then
+                  echo "::error::latest-mac.yml names $f but the build did not produce it - Macs could not update."
+                  exit 1
+                fi
+                echo "latest-mac.yml names $f - present."
+              done
               gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber dist/latest-mac.yml
             else
               echo "::error::latest-mac.yml wasn't produced, so Macs won't see this release as an update."
