@@ -5194,6 +5194,13 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   // "Write an email here for me" means write it INTO the draft they are in,
   // not describe it on a card they then have to retype.
   if (wantsWriteInPlace(q)) {
+    // Typing into another app's box is the same permission the Magic Editor
+    // needs, and without it macOS refuses the keystroke without saying so -
+    // which looks exactly like the feature doing nothing at all.
+    if (blockedByMacPermission('accessibility')) {
+      _sendTTS(e.sender, 'I need permission to type into other apps. I have opened the setting.');
+      return { ok: false, reason: 'permission' };
+    }
     const written = await _readScreenOnce(
       'They have a cursor in a box on screen and said, out loud: "' + q + '"\n'
       + 'Look at what is on screen and WRITE THE TEXT ITSELF, ready to go '
@@ -5287,12 +5294,16 @@ function pasteIntoFocusedApp(text) {
     const stoleFocus = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isFocused();
     if (wasVisible && stoleFocus) overlayWindow.hide();
 
-    const done = () => setTimeout(() => {
+    // Whether the keystroke actually went anywhere. This used to resolve true
+    // no matter what, so a paste that macOS had silently refused still told
+    // the person "written it in for you" while nothing had been typed.
+    const done = (err) => setTimeout(() => {
       try { restoreClipboard(saved); } catch (_) {}
       if (wasVisible && stoleFocus && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
         overlayWindow.showInactive();
       }
-      resolve(true);
+      if (err) console.warn('[write-in-place] paste failed:', err.message || err);
+      resolve(!err);
     }, 500);
 
     setTimeout(() => {
