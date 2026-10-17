@@ -74,6 +74,15 @@
     },
     {
       targets: ['#micWrap'],
+      title: 'What else screen assist does',
+      body: 'Once it is watching, everything is about what is in front of you — you never have to send it anything or explain where you are.'
+        + '<br><br><b>Homework and revision.</b> <em>"Solve question 3"</em> works out which question that is on the page, then sets out the steps — the rule, the numbers put in, the arithmetic, the answer — for maths, physics, chemistry and biology.'
+        + '<br><b>When you are stuck.</b> <em>"How do I send an email?"</em>, <em>"where are my drafts?"</em> and it tells you which button to press and where it is, in your program, not in general.'
+        + '<br><b>Anything on the page.</b> <em>"What does this error mean?"</em>, <em>"is this a scam?"</em>, <em>"summarise this"</em>, <em>"what is this in pounds?"</em>',
+      foot: 'It also speaks up on its own while it is watching — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em> — cards that last five seconds and do nothing unless you press them. Letting one run out is a no.',
+    },
+    {
+      targets: ['#micWrap'],
       title: 'Circle anything on screen',
       body: `Press ${MAGIC}${KEY('Shift')}${KEY('X')} and draw a circle round anything — an error, a product, a paragraph, a bill — and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
       foot: IS_MAC

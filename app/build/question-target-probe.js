@@ -46,7 +46,7 @@ app.whenReady().then(async () => {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        imageBase64: img.toDataURL(),
+        imageBase64: 'data:image/jpeg;base64,' + img.toJPEG(90).toString('base64'),
         question: 'They asked this out loud while you were watching their screen: "' + ask + '"',
         today: new Date().toDateString(),
       }),
