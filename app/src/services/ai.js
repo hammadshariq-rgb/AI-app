@@ -1256,8 +1256,34 @@ function toolsFor(message) {
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
 const MUSIC_APPS     = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
 
-function tryLocalCommand(raw) {
-  const msg = raw.trim();
+// "Hey Callisto, could you play Road Trips by Drake on Spotify" is the same
+// request as "play Road Trips by Drake on Spotify". The name and the
+// politeness were left on the front of the sentence, so none of the quick
+// commands below - every one of which is anchored to the start - could match
+// it, and the whole thing including "hey callisto could you" went to the model
+// as the words to search for. Which is how asking for a Drake song played
+// something else, and why dropping the name made it work.
+function stripAddress(raw, assistantName) {
+  const original = String(raw || '').trim();
+  let s = original;
+  const esc = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const names = ['callisto', 'jarvis'];
+  if (assistantName) names.push(String(assistantName).toLowerCase());
+  const alt = names.map(esc).join('|');
+  // "hey callisto", "ok callisto," - only ever with a name we know, so that
+  // "hey jude on spotify" is still a request to play Hey Jude.
+  s = s.replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '');
+  s = s.replace(new RegExp('^\\s*(?:' + alt + ')\\s*[,.!-]+\\s*', 'i'), '');
+  // Politeness carrying no instruction of its own.
+  s = s.replace(/^\s*(?:please\s+)?(?:could|can|would|will)\s+(?:you|u)\s+(?:please\s+)?/i, '');
+  s = s.replace(/^\s*i\s+(?:want|need)\s+(?:you\s+)?to\s+/i, '');
+  s = s.replace(/^\s*(?:please|pls)\s+/i, '');
+  // Never strip a sentence down to nothing.
+  return s.trim() || original;
+}
+
+function tryLocalCommand(raw, assistantName) {
+  const msg = stripAddress(raw, assistantName);
   const lo  = msg.toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim()
     .replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)$/, '');
   // Anything for the TV is the TV's job, never this computer's.
@@ -1416,7 +1442,7 @@ function afterSecondThoughts(message) {
 
 async function respond({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', attachments = [], userName = null, userTitle = null, userLocation = null, fast = false }) {
   beginTurn();
-  const local = tryLocalCommand(message);
+  const local = tryLocalCommand(message, assistantName);
   if (local) return { ...local, memory: null };
 
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
@@ -1525,7 +1551,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
 // Stream response sentence-by-sentence via SSE
 async function respondStreaming({ message, history = [], assistantName, memories = [], realtimeContext = null, language = 'English', onSentence, attachments = [], skipToolFallback = false, userName = null, userTitle = null, userLocation = null }) {
   beginTurn();
-  const local = tryLocalCommand(message);
+  const local = tryLocalCommand(message, assistantName);
   if (local) { if (onSentence) onSentence(local.text, local.text); return { ...local, memory: null }; }
 
   // Cap on the whole streaming operation. Long answers (biographies, explanations)

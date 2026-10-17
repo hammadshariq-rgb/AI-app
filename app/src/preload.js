@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   squarespaceConnect: (api_key) => ipcRenderer.invoke('squarespace:connect', { api_key }),
   stripeConnect: (secret_key) => ipcRenderer.invoke('stripe:connect', { secret_key }),
   analyticsSelectProperty: (propertyId) => ipcRenderer.invoke('analytics:selectProperty', propertyId),
+  analyticsChangeProperty: () => ipcRenderer.invoke('analytics:changeProperty'),
   onAnalyticsShowPropertyPicker: (cb) => ipcRenderer.on('analytics:showPropertyPicker', (_e, d) => cb(d)),
   // Auto-updater
   installUpdate: () => ipcRenderer.send('update:install'),

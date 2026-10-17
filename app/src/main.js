@@ -389,6 +389,45 @@ function sendUpdateReady() {
 // mode uses, so each shortcut is offered its usual combination first and an
 // Option+Shift one after. Whichever binds is the one the UI should name, so it
 // is remembered rather than guessed at.
+// macOS gates both of these behind a permission, and when it is missing
+// nothing throws - the keystroke simply never arrives and the screen grab
+// comes back empty. That looks exactly like a broken feature, so it is checked
+// up front and said plainly, with the right Settings pane opened.
+//   'accessibility'   - Magic Editor, which types Cmd+C to copy the selection
+//   'screen'          - Magic Cursor, which captures the screen
+function macPermissionMissing(kind) {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const { systemPreferences } = require('electron');
+    if (kind === 'accessibility') {
+      if (systemPreferences.isTrustedAccessibilityClient(false)) return null;
+      return {
+        pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+        text: 'Magic Editor needs Accessibility access on this Mac so it can copy what you have highlighted. '
+          + 'I have opened the setting — switch Callisto on in the list, then try again.',
+      };
+    }
+    if (kind === 'screen') {
+      if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return null;
+      return {
+        pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+        text: 'Magic Cursor needs Screen Recording access on this Mac so it can see what you circle. '
+          + 'I have opened the setting — switch Callisto on in the list, then try again.',
+      };
+    }
+  } catch (_) { /* if the check itself fails, let the feature try anyway */ }
+  return null;
+}
+
+// Says what is wrong and opens the right pane. Returns true when blocked.
+function blockedByMacPermission(kind) {
+  const miss = macPermissionMissing(kind);
+  if (!miss) return false;
+  sendToHud('hud:card', { type: 'info', text: miss.text, ttl: 9000 });
+  try { shell.openExternal(miss.pane); } catch (_) {}
+  return true;
+}
+
 const BOUND_KEYS = {};
 function bindShortcut(name, candidates, handler) {
   for (const accel of candidates) {
@@ -403,6 +442,17 @@ function bindShortcut(name, candidates, handler) {
   return null;
 }
 ipcMain.handle('shortcuts:bound', () => BOUND_KEYS);
+
+// The combination that actually bound, written the way the keyboard shows it,
+// so a Mac is never told to press Cmd+Shift+E when what works is Option+Shift+E.
+function keyLabel(name, fallback) {
+  const accel = BOUND_KEYS[name] || fallback || '';
+  if (!accel) return '';
+  if (process.platform !== 'darwin') return accel.replace(/CommandOrControl/i, 'Ctrl');
+  return accel
+    .replace(/CommandOrControl|Command|Cmd/i, 'Cmd')
+    .replace(/\bAlt\b|\bOption\b/i, 'Option');
+}
 
 // ── HUD overlay window — always-on-top transparent card overlay ─────────────
 function createHudWindow() {
@@ -1090,6 +1140,7 @@ app.whenReady().then(async () => {
       ? ['Alt+Shift+X', 'CommandOrControl+Shift+X']
       : ['CommandOrControl+Shift+X', 'Alt+Shift+X'], () => {
     if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) { closeCaptureOverlay(); return; }
+    if (blockedByMacPermission('screen')) return;
     // Where the user was decides where the answer goes (see capture:identify).
     captureFromApp = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
     if (captureWindow && !captureWindow.isDestroyed()) closeCaptureOverlay();   // a finished one still identifying
@@ -1149,6 +1200,7 @@ app.whenReady().then(async () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('jarvis:magic-edit-stop');
       return;
     }
+    if (blockedByMacPermission('accessibility')) return;
     const { clipboard } = require('electron');
     const { execFile } = require('child_process');
     // Step 1: Copy the selection in whatever app has focus.
@@ -1163,16 +1215,22 @@ app.whenReady().then(async () => {
     await new Promise(resolve => {
       if (process.platform === 'win32' && sendKeysFast('copy', resolve)) return;
       if (process.platform === 'darwin') {
-        // Wait until ⌘, Shift and Control are up (the shortcut is ⌘⇧E), then copy
-        // with ⌘C. NSEvent reads the keys actually held; plain AppleScript can't.
+        // Wait until every modifier is up, then copy with ⌘C. NSEvent reads the
+        // keys actually held; plain AppleScript cannot.
+        //
+        // Option (1 << 19) was missing from this mask. The Mac shortcut is
+        // Option+Shift+E, so the wait ended as soon as Shift came up while
+        // Option was very often still down - and ⌥⌘C is not copy, so nothing
+        // ever reached the clipboard and the editor reported an empty
+        // selection on a Mac every time.
         execFile('osascript', ['-l', 'JavaScript', '-e',
           "ObjC.import('AppKit');" +
-          'for (var i = 0; i < 30; i++) {' +
-          '  if (($.NSEvent.modifierFlags & ((1 << 17) | (1 << 18) | (1 << 20))) === 0) break;' +
+          'for (var i = 0; i < 40; i++) {' +
+          '  if (($.NSEvent.modifierFlags & ((1 << 17) | (1 << 18) | (1 << 19) | (1 << 20))) === 0) break;' +
           '  delay(0.04);' +
           '}' +
           "Application('System Events').keystroke('c', { using: 'command down' });",
-        ], { timeout: 2500 }, resolve);
+        ], { timeout: 3000 }, resolve);
         return;
       }
       execFile('powershell.exe', [
@@ -1199,7 +1257,7 @@ app.whenReady().then(async () => {
     if (!selectedText) {
       restoreClipboard(magicClipboardSaved);
       magicClipboardSaved = null;
-      sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected — highlight text first, then press ${process.platform === 'darwin' ? 'Cmd' : 'Ctrl'}+Shift+E.` });
+      sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected — highlight text first, then press ${keyLabel('magicEdit', 'Ctrl+Shift+E')}.` });
       return;
     }
     // Step 3: Show the editor WITHOUT taking focus.
@@ -4559,6 +4617,21 @@ ipcMain.handle('connector:connect', async (_e, service) => {
   });
   return true;
 });
+// Switching which website the analytics come from. The picker used to appear
+// once, immediately after connecting, and never again - so a second site could
+// not be chosen without disconnecting Google Analytics and starting over.
+ipcMain.handle('analytics:changeProperty', async () => {
+  const props = await connectors.listAnalyticsProperties().catch(() => []);
+  if (!props.length) return { ok: false, error: 'No Google Analytics properties found on that account.' };
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('analytics:showPropertyPicker', {
+      properties: props,
+      current: connectors.loadAnalyticsPropertyId(),
+    });
+  }
+  return { ok: true, count: props.length };
+});
+
 ipcMain.handle('analytics:selectProperty', async (_e, propertyId) => {
   connectors.saveAnalyticsPropertyId(propertyId);
   if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'analytics' });

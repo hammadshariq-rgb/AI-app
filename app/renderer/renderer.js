@@ -6131,7 +6131,14 @@ if (window.jarvis.onSentenceText) {
       res = { error: e.message };
     }
     const onScreen = VV && VV.isOpen() && VV.loadingJobKey() === jobKey;
-    if (window.CallistoGate?.fromServerError(res, "videos")) { if (onScreen && VV.close) VV.close(); return; }
+    // Out of videos for the day. Returning nothing here meant the caller read
+    // it as "not handled" and passed the request on to the model, which then
+    // helpfully made a 3D model of something they had asked for a video of.
+    // Running out is an answer, so it is reported as handled.
+    if (window.CallistoGate?.fromServerError(res, "videos")) {
+      if (onScreen && VV.close) VV.close();
+      return true;
+    }
 
     if (res && res.videoUrl) {
       const video = { url: res.videoUrl, title };
@@ -7530,11 +7537,20 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       catch (_) { return false; }
     })();
 
-    if (returningUser && !_alreadyBriefed) {
+    // Reaching this branch at all means the welcome screen is behind them, so
+    // they ARE a returning user. The extra returningUser flag comes from the
+    // main process store, while the branch above is decided by localStorage -
+    // two different places that can disagree, and when they did the app opened
+    // completely silent: no greeting, no weather, no numbers, nothing.
+    if (!_alreadyBriefed) {
       try { localStorage.setItem('callisto_daily_brief', _briefKey); } catch (_) {}
       try {
-        const title = profile.title && profile.title !== 'none' ? spokenTitle(profile.title) : 'sir';
-        const addressAs = profile.displayName || title;
+        // profile can be null here when the stored profile and the browser's
+        // own record of this person disagree. Reading .title off it threw, the
+        // catch swallowed it, and the app opened in silence.
+        const p = profile || {};
+        const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
+        const addressAs = p.displayName || title;
         // Greeting, then the weather, then today's tasks — in that order.
         const weather = await window.jarvis.weatherGreeting?.().catch(() => null);
         const greeting = weather ? `Welcome back, ${addressAs}. ${weather}` : `Welcome back, ${addressAs}.`;
@@ -8293,6 +8309,19 @@ function renderAnalyticsConnectors(status) {
       btn.textContent = 'DISCONNECT';
       btn.className = 'connector-btn disconnect';
       btn.onclick = async () => { await window.jarvis.connectorDisconnect(key); renderConnectors(); };
+      // Analytics is the one connector that is per-WEBSITE rather than per
+      // account. The property was chosen once, right after connecting, and
+      // there was no way back to that choice - so a second site could only be
+      // reached by disconnecting Google Analytics altogether.
+      if (key === 'analytics') {
+        statusEl.textContent = 'Connected — tap to change website';
+        statusEl.style.cursor = 'pointer';
+        statusEl.title = 'Choose which Google Analytics property Callisto reports on';
+        statusEl.onclick = async () => {
+          const r = await window.jarvis.analyticsChangeProperty?.();
+          if (r && r.ok === false) addMessage('assistant', r.error || 'No Google Analytics properties found on that account.');
+        };
+      }
     } else {
       // Restore default status text (some rows have custom "not connected" text in HTML)
       if (key !== 'analytics' && key !== 'stripe') {
@@ -8304,6 +8333,7 @@ function renderAnalyticsConnectors(status) {
       btn.textContent = 'CONNECT';
       btn.className = 'connector-btn';
       btn.onclick = () => showConnectSteps(key);
+      if (key === 'analytics') { statusEl.onclick = null; statusEl.style.cursor = ''; statusEl.title = ''; }
     }
   }
 
@@ -9046,17 +9076,21 @@ function _hideAnalyticsPropertyModal() {
   _selectedPropertyId  = null;
 }
 
-function showAnalyticsPropertyPicker(properties) {
+function showAnalyticsPropertyPicker(properties, current) {
   _analyticsProperties = properties || [];
-  _selectedPropertyId  = _analyticsProperties[0]?.id || null;
+  // Reopened to switch sites: start on the one already in use, so it is clear
+  // which is current and which is the change.
+  const currentIdx = current ? _analyticsProperties.findIndex((p) => p.id === current) : -1;
+  const startIdx = currentIdx >= 0 ? currentIdx : 0;
+  _selectedPropertyId  = _analyticsProperties[startIdx]?.id || null;
 
   const list = document.getElementById('analyticsPropertyList');
   if (!_analyticsProperties.length) {
     list.innerHTML = '<div style="color:rgba(255,100,100,0.8);font-size:11px;text-align:center;padding:16px">No GA4 properties found on this account.</div>';
   } else {
     list.innerHTML = _analyticsProperties.map((p, i) => `
-      <label class="conn-prop-item${i === 0 ? ' selected' : ''}" data-pid="${p.id}">
-        <input type="radio" name="ga4prop" value="${p.id}" ${i === 0 ? 'checked' : ''} />
+      <label class="conn-prop-item${i === startIdx ? ' selected' : ''}" data-pid="${p.id}">
+        <input type="radio" name="ga4prop" value="${p.id}" ${i === startIdx ? 'checked' : ''} />
         <div>
           <div class="conn-prop-name">${p.displayName}</div>
           <div class="conn-prop-id">Property ${p.id} · ${p.websiteUrl || ''}</div>
@@ -9220,8 +9254,8 @@ window.jarvis.onConnectorConnected(({ service }) => {
 });
 
 // Show GA4 property picker after OAuth completes
-window.jarvis.onAnalyticsShowPropertyPicker && window.jarvis.onAnalyticsShowPropertyPicker(({ properties }) => {
-  showAnalyticsPropertyPicker(properties);
+window.jarvis.onAnalyticsShowPropertyPicker && window.jarvis.onAnalyticsShowPropertyPicker(({ properties, current }) => {
+  showAnalyticsPropertyPicker(properties, current);
 });
 
 // ===================== SETTINGS PANE =====================
@@ -10657,7 +10691,9 @@ micBtn.addEventListener('click', () => {
   // If the voice recorder opens a new stream after we init, re-attach to it
   // so we always share rather than hold a stale or duplicate stream.
   window._clapReattach = function(stream) {
-    if (!stream) return;
+    // The clap watcher is switched off, so there is nothing to reattach to and
+    // no reason to build an analyser over the recording stream.
+    if (!stream || !_clapIntervalId) return;
     attachToStream(stream);
   };
 
@@ -10695,8 +10731,13 @@ micBtn.addEventListener('click', () => {
     }
   });
 
-  // Start after 5 s — give voice recording code time to acquire the mic first
-  setTimeout(startClapWatcher, 5000);
+  // Switched off. This held the microphone open for the whole session and
+  // started a recording whenever it heard two sharp sounds close together -
+  // which, in a room with somebody talking, is often enough. Callisto now
+  // listens only when the mic button is pressed or a shortcut is used, and
+  // nothing takes the microphone until then.
+  // setTimeout(startClapWatcher, 5000);
+  void startClapWatcher;
 
   window._testClapWake = _onDoubleClapWake;
 })();

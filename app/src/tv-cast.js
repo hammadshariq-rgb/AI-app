@@ -1048,6 +1048,22 @@ async function run(cmd) {
       return { ok: true, message: `Here are the YouTube results for "${query}" on your TV.` };
     }
     if (adbReady() && app === 'prime') return run({ action: 'play_title', app: 'prime', query, profile });
+    // YouTube without debugging access still has somewhere to go: castYouTube
+    // looks the video up and tries DIAL with the video id, which plays the
+    // actual video on a Chromecast or Google TV. Falling straight through to
+    // "I opened YouTube, search for it yourself" skipped all of that, which is
+    // why it could open YouTube but never search it.
+    if (app === 'youtube') {
+      try {
+        const r = await castYouTube(query);
+        return r.partial
+          ? { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` }
+          : { ok: true, message: `Playing "${r.title || query}" on YouTube.` };
+      } catch (err) {
+        await launchApp('youtube').catch(() => {});
+        return { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` };
+      }
+    }
     await launchApp(app);
     return { ok: true, partial: true, message: `I opened ${app} on your TV — search for "${query}" there.` };
   }

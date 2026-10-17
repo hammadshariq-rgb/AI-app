@@ -954,29 +954,54 @@ async function getAnalyticsToken() {
 async function listAnalyticsProperties() {
   const token = await getAnalyticsToken();
   if (!token) return [];
+  const seen = new Set();
+  const allProps = [];
+  const add = (name, displayName, websiteUrl) => {
+    const id = String(name || '').replace('properties/', '');
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    allProps.push({ id, displayName: displayName || 'Unnamed property', websiteUrl: websiteUrl || '' });
+  };
+
+  // accountSummaries returns every property the signed-in person can see, from
+  // every account, in one paged call. Walking accounts and then listing each
+  // one's properties missed anything in an account past the first page, and
+  // silently returned a short list that looked complete - which is how one
+  // site showed up and the other did not.
   try {
-    // First get accounts, then list properties filtered by account
-    const accRes = await fetch('https://analyticsadmin.googleapis.com/v1beta/accounts?pageSize=20', {
+    let pageToken = '';
+    for (let page = 0; page < 10; page++) {
+      const url = 'https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200'
+        + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      for (const acc of data.accountSummaries || []) {
+        for (const p of acc.propertySummaries || []) {
+          add(p.property, p.displayName, p.websiteUrl);
+        }
+      }
+      pageToken = data.nextPageToken || '';
+      if (!pageToken) break;
+    }
+  } catch (_) { /* fall through to the older route below */ }
+
+  if (allProps.length) return allProps;
+
+  // Older route, kept as a fallback in case accountSummaries is unavailable.
+  try {
+    const accRes = await fetch('https://analyticsadmin.googleapis.com/v1beta/accounts?pageSize=50', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const accData = await accRes.json();
-    const accounts = accData.accounts || [];
-
-    const allProps = [];
-    for (const account of accounts) {
-      const accountId = account.name; // e.g. "accounts/123456"
-      const res = await fetch(`https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${accountId}&pageSize=50`, {
+    for (const account of accData.accounts || []) {
+      const res = await fetch(`https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${account.name}&pageSize=200`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      (data.properties || []).forEach(p => allProps.push({
-        id: p.name.replace('properties/', ''),
-        displayName: p.displayName || 'Unnamed property',
-        websiteUrl: p.websiteUrl || '',
-      }));
+      (data.properties || []).forEach((p) => add(p.name, p.displayName, p.websiteUrl));
     }
     return allProps;
-  } catch { return []; }
+  } catch { return allProps; }
 }
 
 // Save the user-selected GA4 property ID
