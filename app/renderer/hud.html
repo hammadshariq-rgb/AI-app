@@ -137,7 +137,11 @@
       font-size:12.5px;
       line-height:1.6;
       color:rgba(190,210,255,0.82);
-      max-height:120px;
+      /* Worked answers come back as steps on separate lines. Without this they
+         collapse into one paragraph, which is the thing showing the working
+         was meant to avoid. */
+      white-space:pre-wrap;
+      max-height:240px;
       overflow-y:auto;
       scrollbar-width:thin;
       scrollbar-color:rgba(94,114,228,0.25) transparent;

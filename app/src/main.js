@@ -5193,17 +5193,28 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
 
   // "Write an email here for me" means write it INTO the draft they are in,
   // not describe it on a card they then have to retype.
-  if (WRITE_IN_PLACE.test(q)) {
+  if (wantsWriteInPlace(q)) {
     const written = await _readScreenOnce(
-      'They are typing something on screen and said, out loud: "' + q + '"\n'
-      + 'Look at what is on screen - who the message is to, the thread above it, '
-      + 'the document around the cursor - and WRITE THE TEXT ITSELF, ready to go '
+      'They have a cursor in a box on screen and said, out loud: "' + q + '"\n'
+      + 'Look at what is on screen and WRITE THE TEXT ITSELF, ready to go '
       + 'straight into that box.\n'
-      + 'Reply with ONLY the words to insert. No preamble, no "here is", no '
-      + 'quotation marks around it, no markdown, no subject line unless the '
-      + 'screen shows an empty subject field. Match the tone of the thread. If '
-      + 'you cannot tell who it is to, write it so it works either way. Set '
-      + 'action to null.',
+      + '\n'
+      + 'Work out from the screen WHICH KIND of box it is and write accordingly:\n'
+      + '- A chat or messaging app (WhatsApp, Discord, Instagram, Messenger, '
+      + 'Slack, Teams, iMessage, a comment box): write ONE short message, the '
+      + 'length of the other messages in that thread. No greeting, no sign-off, '
+      + 'no subject, no name at the end, and NO line breaks at all - a line '
+      + 'break can send it early. Match how they and the other person actually '
+      + 'type, slang and all.\n'
+      + '- An email: a proper email. Greeting and sign-off, sign it with their '
+      + 'name if the screen shows it. A subject line only if an empty subject '
+      + 'field is visible.\n'
+      + '- A document, form or anything else: just the prose that belongs there.\n'
+      + '\n'
+      + 'Read the thread above the cursor so the reply answers what was actually '
+      + 'said, and match its tone and language. Reply with ONLY the words to '
+      + 'insert: no preamble, no "here is", no quotation marks around it, no '
+      + 'markdown. Set action to null.',
       { frame: ASSIST.frame }
     );
     if (written.ok && written.text) {
@@ -5309,7 +5320,21 @@ function pasteIntoFocusedApp(text) {
 
 // "Write an email here for me" while the cursor sits in a Gmail draft. The
 // answer belongs IN the box they are typing in, not on a card beside it.
-const WRITE_IN_PLACE = /\b(?:write|draft|compose|type|fill|put|reply|respond|answer)\b[^.?!]{0,60}\b(?:here|in here|in this|in the (?:box|field|draft|reply|email|document|doc)|this (?:box|field|draft|reply|email|document|doc)|for me)\b/i;
+// Two ways people ask for it, because the words differ by app.
+//
+// In a document or an email they point at the place: "write an email here",
+// "draft a reply in this box". In Discord, WhatsApp, Instagram or Slack they
+// never say "here" at all - the box is obviously the box - they just say
+// "reply to him", "tell her I'll be late", "say I can't make it".
+const WRITE_POINTED = /\b(?:write|draft|compose|type|fill|put|reply|respond|answer)\b[^.?!]{0,60}\b(?:here|in here|in this|in the (?:box|field|draft|reply|email|document|doc|chat|message)|this (?:box|field|draft|reply|email|document|doc|chat|message)|for me)\b/i;
+const WRITE_MESSAGE = /^(?:\s*(?:ok(?:ay)?|right|now|and|so)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:(?:write|send|shoot|fire|drop|leave)\s+(?:him|her|them|it|back)?\s*(?:a\s+)?(?:message|msg|dm|reply|text|note)\b|reply\b|respond\b|answer\s+(?:him|her|them|it|that|this)\b|tell\s+(?:him|her|them)\b|say\s+(?:that\s+)?\b|let\s+(?:him|her|them)\s+know\b|ask\s+(?:him|her|them)\b|thank\s+(?:him|her|them)\b|apologi[sz]e\b|accept\b|decline\b|agree\b|(?:dm|text|message|msg)\s+(?:him|her|them|back)\b)/i;
+function wantsWriteInPlace(q) {
+  const s = String(q || '');
+  // A question about what is on screen is never a request to type into it.
+  if (/^\s*(?:what|who|when|where|why|how|which|is|are|does|do|can i|should i)\b/i.test(s)
+      && !WRITE_POINTED.test(s)) return false;
+  return WRITE_POINTED.test(s) || WRITE_MESSAGE.test(s);
+}
 
 // ── Assist mode ───────────────────────────────────────────────────────────────
 // Callisto watching over your shoulder while you work in something else.
