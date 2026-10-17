@@ -1165,7 +1165,10 @@ app.whenReady().then(async () => {
     // the indicator has to stay up rather than time itself out after twelve
     // seconds. Without this flag the overlay's own mic-state message landed
     // after startAssist and quietly downgraded it back to a short one.
-    sendToHud(on ? 'hud:listening' : 'hud:listening-stop', { sustained: !!ASSIST.on });
+    sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {
+      sustained: !!ASSIST.on,
+      label: ASSIST.on ? '👀 Watching your screen · listening' : 'Listening…',
+    });
   });
 
   // Conversation mode used to live on Win+Alt+C: listening on its own, with no
@@ -5187,6 +5190,40 @@ ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenO
 ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   const q = String(question || '').trim();
   if (!q) return { ok: false };
+
+  // "Write an email here for me" means write it INTO the draft they are in,
+  // not describe it on a card they then have to retype.
+  if (WRITE_IN_PLACE.test(q)) {
+    const written = await _readScreenOnce(
+      'They are typing something on screen and said, out loud: "' + q + '"\n'
+      + 'Look at what is on screen - who the message is to, the thread above it, '
+      + 'the document around the cursor - and WRITE THE TEXT ITSELF, ready to go '
+      + 'straight into that box.\n'
+      + 'Reply with ONLY the words to insert. No preamble, no "here is", no '
+      + 'quotation marks around it, no markdown, no subject line unless the '
+      + 'screen shows an empty subject field. Match the tone of the thread. If '
+      + 'you cannot tell who it is to, write it so it works either way. Set '
+      + 'action to null.',
+      { frame: ASSIST.frame }
+    );
+    if (written.ok && written.text) {
+      const body = String(written.text).trim().replace(/^["'`]|["'`]$/g, '');
+      const ok = await pasteIntoFocusedApp(body);
+      sendToHud('hud:card', {
+        type: 'magic-edit',
+        text: ok ? body.slice(0, 600) : 'I could not put that into the box. It is on your clipboard — press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V.',
+      });
+      _sendTTS(e.sender, ok ? 'Written it in for you.' : 'It is on your clipboard.');
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('assist:result', {
+          kind: 'written', title: 'Written into your draft', text: body, shot: ASSIST.thumb || null,
+        });
+      }
+      return { ok: true, text: body };
+    }
+    // Could not read the screen - fall through and answer normally.
+  }
+
   // No "Thinking…" card here: the second key press already sent one, and two
   // of them stacked is the card appearing twice.
   const out = await _readScreenOnce(
@@ -5222,6 +5259,57 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   }
   return { ok: true, text: out.text };
 });
+
+// Put text into whatever the person is actually typing in — the Gmail draft,
+// the document, the message box — by pasting it where their cursor already is.
+// Callisto never takes focus: it hides itself first if it happens to hold it,
+// and the clipboard they had is put back afterwards.
+function pasteIntoFocusedApp(text) {
+  return new Promise((resolve) => {
+    if (!text) return resolve(false);
+    const { clipboard } = require('electron');
+    const { execFile } = require('child_process');
+    const saved = { text: clipboard.readText(), image: clipboard.readImage() };
+    clipboard.writeText(String(text));
+
+    const wasVisible = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible();
+    const stoleFocus = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isFocused();
+    if (wasVisible && stoleFocus) overlayWindow.hide();
+
+    const done = () => setTimeout(() => {
+      try { restoreClipboard(saved); } catch (_) {}
+      if (wasVisible && stoleFocus && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
+        overlayWindow.showInactive();
+      }
+      resolve(true);
+    }, 500);
+
+    setTimeout(() => {
+      if (process.platform === 'darwin') {
+        // Wait for every modifier to lift first, exactly as the editor does -
+        // Option still being down turns Cmd+V into something else entirely.
+        execFile('osascript', ['-l', 'JavaScript', '-e',
+          "ObjC.import('AppKit');" +
+          'for (var i = 0; i < 40; i++) {' +
+          '  if (($.NSEvent.modifierFlags & ((1 << 17) | (1 << 18) | (1 << 19) | (1 << 20))) === 0) break;' +
+          '  delay(0.04);' +
+          '}' +
+          "Application('System Events').keystroke('v', { using: 'command down' });",
+        ], { timeout: 3000 }, done);
+        return;
+      }
+      if (sendKeysFast('paste', done)) return;
+      execFile('powershell.exe', [
+        '-NonInteractive', '-NoProfile', '-Command',
+        'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'^v\')',
+      ], { timeout: 4000 }, done);
+    }, 350);
+  });
+}
+
+// "Write an email here for me" while the cursor sits in a Gmail draft. The
+// answer belongs IN the box they are typing in, not on a card beside it.
+const WRITE_IN_PLACE = /\b(?:write|draft|compose|type|fill|put|reply|respond|answer)\b[^.?!]{0,60}\b(?:here|in here|in this|in the (?:box|field|draft|reply|email|document|doc)|this (?:box|field|draft|reply|email|document|doc)|for me)\b/i;
 
 // ── Assist mode ───────────────────────────────────────────────────────────────
 // Callisto watching over your shoulder while you work in something else.
@@ -5563,6 +5651,11 @@ function _tellOverlayAssist(payload) {
 
 function startAssist() {
   if (ASSIST.on) return stopAssist('toggled');
+  // Without Screen Recording permission macOS does not fail the capture - it
+  // hands back a black picture. The model then genuinely cannot see the
+  // question and replies "send me the question or upload a screenshot", which
+  // reads as assist mode being broken rather than as a permission being off.
+  if (blockedByMacPermission('screen')) return { ok: false, reason: 'permission' };
   ASSIST.on = true;
   ASSIST.lastHash = null;
   ASSIST.stableSince = 0;
@@ -5616,7 +5709,7 @@ function startAssist() {
   // And then the microphone bars stay up for as long as it is actually
   // listening. The second notice card used to say this and vanish, which left
   // no way to tell an open microphone from a broken one.
-  sendToHud('hud:listening', { sustained: true });
+  sendToHud('hud:listening', { sustained: true, label: '👀 Watching your screen · listening' });
   _tellOverlayAssist({ on: true });
   return { ok: true };
 }

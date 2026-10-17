@@ -266,6 +266,11 @@ ipcRenderer.on('hud:listening', (_e, d) => {
   listenEl.style.display = 'flex';
   listenEl.classList.toggle('held', listenHold);
   document.body.classList.toggle('listening', listenHold);
+  // While assist mode is on this says so for as long as it is on, rather than
+  // a notice that appears for three seconds and leaves no way to tell whether
+  // the screen is still being watched.
+  const label = listenEl.querySelector('.listen-text');
+  if (label) label.textContent = (d && d.label) || 'Listening…';
   if (listenTimer) { clearTimeout(listenTimer); listenTimer = null; }
   if (!listenHold) listenTimer = setTimeout(() => { listenEl.style.display = 'none'; }, 12000);
 });

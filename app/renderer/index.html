@@ -3607,7 +3607,12 @@
 
       // ── Wave: wrist x oscillates — track ONE history regardless of hand label ─
       // Hand label can swap in MediaPipe; use a single shared history keyed by hand index
-      const waveHist = [{}, {}]; // per hand-slot, not per label
+      // Arrays, because the next thing that happens to them is push(). These
+      // were {} - truthy, so the "or make one" below never replaced them - and
+      // h.push threw a TypeError on the very first hand frame, taking out
+      // every gesture check that runs after it. Everywhere else that resets
+      // these already sets them to [].
+      const waveHist = [[], []]; // per hand-slot, not per label
       const WAVE_WIN = 20, WAVE_RANGE = 0.24, WAVE_FLIPS = 9;
       function checkWave(lm, idx) {
         const h = waveHist[idx] || (waveHist[idx] = []);
