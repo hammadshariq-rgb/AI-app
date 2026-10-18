@@ -10191,7 +10191,7 @@ async function initMicOnce() {
       await audioContext.resume();
       micInitialised = true;
       // Share this stream with the clap wake detector so it never grabs a separate mic
-      if (typeof window._clapReattach === 'function') window._clapReattach(currentStream);
+      // (the clap wake detector that used to share this stream is gone)
       return true;
     } catch (err) {
       console.error('[MIC] init error:', err);
@@ -10746,137 +10746,10 @@ micBtn.addEventListener('click', () => {
   });
 })();
 
-// ===================== AUDIO DOUBLE-CLAP WAKE DETECTOR =====================
-// Listens in the background even when the window is hidden (app in tray).
-// A double-clap (two sharp loud transients within 700ms) shows + focuses the app.
-(function initClapWakeDetector() {
-  const CFG = {
-    threshold:   0.55,   // RMS amplitude for a clap transient (raised from 0.28 — speech/music
-                         // rarely exceeds 0.4 RMS; real hand claps hit 0.6+, so 0.55 avoids
-                         // false triggers while still catching deliberate double-claps)
-    minGap:      180,    // ms — debounce: ignore peaks within this gap of each other
-    maxWindow:   700,    // ms — two peaks must land within this window
-    cooldown:    4000,   // ms — after a wake, ignore further claps for this long
-    pollMs:      40,     // setInterval period (25fps) — works in hidden windows
-  };
-
-  let _clapCtx = null;
-  let _clapAnalyser = null;
-  let _clapBuf = null;
-  let _clapIntervalId = null;
-  let lastPeakTime = 0;
-  let clapCount = 0;
-  let cooldownUntil = 0;
-  let resetTimer = null;
-
-  // ── Attach to an already-open stream (shares mic, no exclusive grab) ────────
-  function attachToStream(stream) {
-    if (_clapCtx) { try { _clapCtx.close(); } catch (_) {} }
-    _clapCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    _clapAnalyser = _clapCtx.createAnalyser();
-    _clapAnalyser.fftSize = 256;
-    _clapAnalyser.smoothingTimeConstant = 0.0;
-    _clapCtx.createMediaStreamSource(stream).connect(_clapAnalyser);
-    _clapBuf = new Float32Array(_clapAnalyser.frequencyBinCount);
-  }
-
-  async function startClapWatcher() {
-    try {
-      // Prefer sharing the voice recorder's live stream — avoids grabbing the mic twice.
-      // currentStream is the module-level var owned by the recording logic.
-      const existingStream = (typeof currentStream !== 'undefined' && currentStream) ? currentStream : null;
-      const stream = existingStream || await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      attachToStream(stream);
-
-      let prevRms = 0;
-      _clapIntervalId = setInterval(() => {
-        // Pause while voice recording is active — prevents false triggers on speech
-        if (typeof isRecording !== 'undefined' && isRecording) { prevRms = 0; return; }
-        if (!_clapAnalyser || !_clapBuf) return;
-
-        _clapAnalyser.getFloatTimeDomainData(_clapBuf);
-        let sum = 0;
-        for (let i = 0; i < _clapBuf.length; i++) sum += _clapBuf[i] * _clapBuf[i];
-        const rms = Math.sqrt(sum / _clapBuf.length);
-
-        const now = Date.now();
-        const isTransient = rms > CFG.threshold && prevRms < CFG.threshold * 0.35;
-        prevRms = rms;
-
-        if (!isTransient || now < cooldownUntil || now - lastPeakTime < CFG.minGap) return;
-
-        lastPeakTime = now;
-        clapCount++;
-        clearTimeout(resetTimer);
-        resetTimer = setTimeout(() => { clapCount = 0; }, CFG.maxWindow);
-
-        if (clapCount >= 2) {
-          clapCount = 0;
-          clearTimeout(resetTimer);
-          cooldownUntil = now + CFG.cooldown;
-          _onDoubleClapWake();
-        }
-      }, CFG.pollMs);
-
-    } catch (_) {
-      // Mic unavailable or denied — silently skip
-    }
-  }
-
-  // If the voice recorder opens a new stream after we init, re-attach to it
-  // so we always share rather than hold a stale or duplicate stream.
-  window._clapReattach = function(stream) {
-    // The clap watcher is switched off, so there is nothing to reattach to and
-    // no reason to build an analyser over the recording stream.
-    if (!stream || !_clapIntervalId) return;
-    attachToStream(stream);
-  };
-
-  function _onDoubleClapWake() {
-    if (window.jarvis && window.jarvis.focusWindow) window.jarvis.focusWindow();
-    setTimeout(() => {
-      if (typeof startRecording === 'function' && !isRecording) startRecording();
-      else document.getElementById('micBtn')?.click();
-    }, 600);
-  }
-
-  // Sleep/wake: the audio device pops when a laptop lid closes and opens, which
-  // looked like a double clap. Stop listening on sleep and ignore sound for a
-  // while after waking, so the mic is never switched on by opening the lid.
-  const WAKE_QUIET_MS = 10000;
-  function _quietFor(ms) {
-    cooldownUntil = Math.max(cooldownUntil, Date.now() + ms);
-    clapCount = 0;
-    clearTimeout(resetTimer);
-  }
-  window.jarvis?.onPowerSleep?.(() => {
-    _quietFor(24 * 60 * 60 * 1000);          // until we hear we're awake again
-    if (typeof isRecording !== 'undefined' && isRecording && typeof stopRecording === 'function') {
-      window._discardRecording = true;
-      try { stopRecording(); } catch (_) {}
-    }
-  });
-  window.jarvis?.onPowerWake?.(() => {
-    cooldownUntil = 0;
-    _quietFor(WAKE_QUIET_MS);
-    // Some systems resume a recording that was mid-flight — make sure it's off.
-    if (typeof isRecording !== 'undefined' && isRecording && typeof stopRecording === 'function') {
-      window._discardRecording = true;
-      try { stopRecording(); } catch (_) {}
-    }
-  });
-
-  // Switched off. This held the microphone open for the whole session and
-  // started a recording whenever it heard two sharp sounds close together -
-  // which, in a room with somebody talking, is often enough. Callisto now
-  // listens only when the mic button is pressed or a shortcut is used, and
-  // nothing takes the microphone until then.
-  // setTimeout(startClapWatcher, 5000);
-  void startClapWatcher;
-
-  window._testClapWake = _onDoubleClapWake;
-})();
-// ================================================================
+// The double-clap wake detector was removed. It held the microphone open
+// for the whole session and started a recording whenever it heard two
+// sharp sounds close together - a person talking nearby supplies that
+// often enough. It was switched off first and is now gone entirely.
 
 // == Someone just messaged you ==
 // A small card in the corner for four seconds, whatever else is on screen.
