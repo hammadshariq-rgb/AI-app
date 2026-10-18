@@ -604,7 +604,24 @@ async function launchApp(appKey) {
     if (ok) { console.log('[TV] DIAL launched', dialName); return true; }
   }
 
-  // 3. castv2
+  // 3. castv2 — the last resort, and for YouTube it is not a good one.
+  //
+  // What castv2 starts is the cast RECEIVER, which is a blank page waiting to
+  // be sent something. On a Chromecast that is a grey screen with nothing on
+  // it, and the launch reports success while showing it. Google also removed
+  // DIAL from Chromecast, so step 2 above cannot save it either. Saying
+  // plainly that this needs debugging access beats a blank television and a
+  // cheerful "done".
+  if (appKey === 'youtube' && !connectedDev.hasAdb) {
+    const err = new Error(
+      'I can wake your TV and change the volume over Cast, but opening YouTube '
+      + 'properly needs debugging access — without it all Cast can show is an '
+      + 'empty YouTube screen. Turn on Developer options, then USB or network '
+      + 'debugging, on the TV and ask me again.');
+    err.needsAdb = true;
+    throw err;
+  }
+
   if (appId) {
     const ok = await castv2Launch(appId);
     if (ok) { console.log('[TV] castv2 launched', appId); return true; }
@@ -647,11 +664,17 @@ async function castYouTube(query) {
   const dialOk = await dialLaunch('YouTube', `v=${videoId}`);
   if (dialOk) return { ok: true, title, videoId };
 
-  // 3. castv2 can open the YouTube app but can't choose the video. Say so,
-  // rather than claiming the video is playing.
-  const opened = await castv2Launch(APP_IDS.youtube);
-  if (opened) return { ok: true, partial: true, title, videoId };
-  throw new Error('The TV didn\'t respond. Check it\'s switched on and on the same Wi-Fi.');
+  // 3. All that is left is the cast receiver, which shows an empty YouTube
+  // screen and nothing else - no video, no search, no way in. Reporting that
+  // as "opened" is how this came back as a grey screen twice.
+  const err = new Error(
+    `I found "${title}" but cannot start it on this TV. Over Cast alone, YouTube `
+    + 'only ever shows an empty screen. Turn on Developer options and then USB or '
+    + 'network debugging on the TV, and I can play it directly.');
+  err.needsAdb = true;
+  err.videoId = videoId;
+  err.title = title;
+  throw err;
 }
 
 // ── Upgrade to ADB in the background ──────────────────────────────────────────
@@ -1165,6 +1188,10 @@ async function run(cmd) {
           ? { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` }
           : { ok: true, message: `Playing "${r.title || query}" on YouTube.` };
       } catch (err) {
+        // Do not paper over it. This catch used to open the app anyway and
+        // report "I opened YouTube, search for it there" - which on a Cast
+        // device meant an empty grey screen and a false claim.
+        if (err.needsAdb) return { ok: false, needsAdb: true, message: err.message };
         await launchApp('youtube').catch(() => {});
         return { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` };
       }

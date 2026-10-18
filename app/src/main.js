@@ -6765,6 +6765,29 @@ async function rememberTvMac(host, name) {
 
 // What the TV actually reports about YouTube. Exposed so the answer can come
 // from the TV rather than from another guess about it.
+// Setting up full control, asked for rather than pushed. Clears the "already
+// asked" mark so the prompt can appear again on purpose.
+ipcMain.handle('tv:enableControl', async () => {
+  const st = tvCast.getStatus();
+  if (!st.connected) return { ok: false, error: 'Connect to a TV first.' };
+  if (st.device && st.device.hasAdb) return { ok: true, already: true };
+  const host = st.device && st.device.host;
+  if (host) {
+    const t = store.get('tvAdbTried') || {};
+    delete t[host];
+    store.set('tvAdbTried', t);
+  }
+  const send = (ch, data) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, data); };
+  tvCast.upgradeToAdb((s) => {
+    send('tv:adb-status', s);
+    if (s.phase === 'ready') {
+      send('tv:status-update', tvCast.getStatus());
+      tvCast.indexTvFiles().catch(() => {});
+    }
+  });
+  return { ok: true, started: true };
+});
+
 ipcMain.handle('tv:diagnoseYouTube', async () => {
   try { return { ok: true, report: await tvCast.diagnoseYouTube() }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -6788,10 +6811,23 @@ ipcMain.handle('tv:connect', async (_e, { host, port, kind }) => {
     // Connected over Cast: quietly try to add ADB, which is what lets Callisto
     // open a specific video. Progress (download, "accept on your TV") goes to
     // the chat so the user knows what to do.
-    if (res.ok && !tvCast.getStatus().device?.hasAdb) {
+    // Asked for ONCE per TV, not on every connect. The app reconnects every
+    // time it starts, so this was putting "Allow USB debugging?" on the
+    // television at every launch - including for someone who had already
+    // said no, or whose TV cannot do it at all. A television that keeps
+    // asking the same question is worse than one that cannot do the trick.
+    const tried = store.get('tvAdbTried') || {};
+    const askedBefore = !!tried[host];
+    if (res.ok && !tvCast.getStatus().device?.hasAdb && !askedBefore) {
+      tried[host] = Date.now();
+      store.set('tvAdbTried', tried);
       tvCast.upgradeToAdb((s) => {
         send('tv:adb-status', s);
         if (s.phase === 'ready') {
+          // It worked, so forget the refusal - nothing to re-ask.
+          const t = store.get('tvAdbTried') || {};
+          delete t[host];
+          store.set('tvAdbTried', t);
           send('tv:status-update', tvCast.getStatus());
           tvCast.indexTvFiles().catch(() => {});
         }
