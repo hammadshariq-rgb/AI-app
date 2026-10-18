@@ -29,6 +29,15 @@
   // whole turn, so it only fires on a clear instruction to get something done.
   const TASK_START = /\b(?:sort|fix|work)\s+(?:this|that|it|them)?\s*out\b|\b(?:go\s+(?:and\s+)?)?(?:sort|fix|debug|investigate|set\s+up|install|deploy|build|test|commit|clean\s+up|tidy\s+up|refactor|update)\b[^.?!]{0,80}\b(?:for\s+me|yourself|on\s+your\s+own|please)\b|^(?:go\s+)?(?:ahead\s+and\s+)?(?:sort|fix|debug|investigate)\b/i;
 
+  // Writing code is its own way of asking, and none of the words above cover
+  // it: nobody says "fix me a login page for me". These are the shapes people
+  // actually use when they want something built.
+  const CODE_START = /^(?:ok(?:ay)?[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:write|code|build|create|make|add|implement|scaffold|generate|set\s+up)\b[^.?!]{0,100}\b(?:page|screen|component|function|class|script|file|endpoint|route|api|form|button|test|tests|feature|app|site|game|bot|hook|module|method|model|schema|migration|style(?:s|sheet)?|css|html|react|vue|svelte|python|node|server|login|signup|dashboard|toggle|modal|navbar|sidebar|footer|header)\b|^(?:start|begin)\s+coding\b|\bwrite\s+(?:me\s+)?(?:some|the)?\s*code\b/i;
+
+  // ...but not when they mean a picture, a video, a document or a 3D model,
+  // which have their own makers and must not be swallowed by this.
+  const NOT_CODE = /\b(?:picture|image|photo|video|clip|3d\s*model|model\s+of|song|music|poem|story|essay|email|document|slide|deck|spreadsheet|sketch|drawing|logo)\b/i;
+
   function stepsText() {
     return teaching.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
   }
@@ -99,7 +108,7 @@
     }
 
     // ── set it to work ─────────────────────────────────────────────────────
-    if (TASK_START.test(t)) {
+    if (TASK_START.test(t) || (CODE_START.test(t) && !NOT_CODE.test(t))) {
       const r = await J().taskStart?.(t);
       if (r && r.ok) {
         say(`Right — working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
@@ -118,6 +127,10 @@
     } else if (d.kind === 'ran') {
       const out = String(d.output || '').trim();
       say(`${d.ok ? '✅' : '⚠️'} ${d.ok ? 'Done' : 'That failed'}${out ? `\n\n\`\`\`\n${out.slice(-900)}\n\`\`\`` : ''}`);
+    } else if (d.kind === 'wrote') {
+      say(d.ok
+        ? `📝 Wrote \`${d.path}\` — ${d.bytes} bytes.`
+        : `⚠️ Could not write \`${d.path}\`: ${d.error || 'unknown problem'}`);
     }
   });
 
@@ -129,18 +142,25 @@
       window._agentAwaitingAnswer = true;
       return;
     }
-    // A command that changes something. Shown with the exact text, and it
-    // does not run until this is pressed.
+    // Something that changes things — a command, or a file to be written.
+    // Shown in full, and nothing happens until this is pressed.
+    const isWrite = d.kind === 'write';
+    const body = isWrite ? String(d.contents || '') : String(d.command || '');
+    const lines = isWrite ? body.split('\n').length : 1;
     const row = document.createElement('div');
     row.className = 'msg-row assistant';
     row.innerHTML = `
       <div class="msg-avatar">${window.SPARKLES_SVG || ''}</div>
       <div class="msg assistant">
-        <span class="msg-text"><b>This one changes things, so it is yours to approve.</b>${d.why ? `<br><span style="opacity:.75">${esc(d.why)}</span>` : ''}</span>
-        <pre style="margin:8px 0 6px;padding:8px 10px;border-radius:7px;background:rgba(0,0,0,.35);border:1px solid rgba(100,140,255,.25);font-size:12px;white-space:pre-wrap;word-break:break-all">${esc(d.command)}</pre>
-        <div style="font-size:10.5px;opacity:.6;margin-bottom:8px">in ${esc(d.folder || '')}</div>
+        <span class="msg-text"><b>${isWrite
+          ? `It wants to write <code>${esc(d.path)}</code>`
+          : 'This one changes things, so it is yours to approve.'}</b>${d.why ? `<br><span style="opacity:.75">${esc(d.why)}</span>` : ''}</span>
+        <pre style="margin:8px 0 6px;padding:8px 10px;border-radius:7px;background:rgba(0,0,0,.35);border:1px solid rgba(100,140,255,.25);font-size:12px;white-space:pre-wrap;word-break:break-word;${isWrite ? 'max-height:320px;overflow:auto' : ''}">${esc(body)}</pre>
+        <div style="font-size:10.5px;opacity:.6;margin-bottom:8px">${isWrite
+          ? `${lines} line${lines === 1 ? '' : 's'} · replaces whatever is at that path · in ${esc(d.folder || '')}`
+          : `in ${esc(d.folder || '')}`}</div>
         <div style="display:flex;gap:8px">
-          <button class="gleam gleam-sm" data-agent="run"><span>Run it</span></button>
+          <button class="gleam gleam-sm" data-agent="run"><span>${isWrite ? 'Write it' : 'Run it'}</span></button>
           <button class="gleam gleam-sm" data-agent="skip" style="opacity:.75"><span>Not that</span></button>
         </div>
       </div>`;
@@ -152,7 +172,9 @@
       row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
       const note = document.createElement('div');
       note.style.cssText = 'font-size:11px;opacity:.65;margin-top:6px';
-      note.textContent = approved ? 'Running it…' : 'Skipped — finding another way.';
+      note.textContent = approved
+        ? (isWrite ? 'Writing it…' : 'Running it…')
+        : 'Skipped — finding another way.';
       row.querySelector('.msg').appendChild(note);
       J().taskResume?.({ approved });
     };

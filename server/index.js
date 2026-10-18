@@ -2861,6 +2861,7 @@ app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
 
     const history = (Array.isArray(steps) ? steps : []).slice(-14).map((s, i) => {
       if (s.kind === 'answer') return `${i + 1}. ASKED THEM: ${s.question}\n   THEY SAID: ${s.answer}`;
+      if (s.kind === 'write') return `${i + 1}. WROTE FILE: ${s.path}${s.ok ? ` (${s.bytes} bytes)` : ' — FAILED: ' + (s.error || 'unknown')}`;
       return `${i + 1}. RAN: ${s.command}\n   EXIT ${s.code}${s.output ? `\n   OUTPUT: ${String(s.output).slice(0, 1200)}` : ' (no output)'}`;
     }).join('\n');
 
@@ -2876,10 +2877,24 @@ app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
             'You are working through a job on someone\'s own computer, one command at a time.',
             'Decide only the NEXT single step. You will be called again with its output.',
             '',
-            'Reply as JSON, one of these three shapes:',
+            'Reply as JSON, one of these four shapes:',
             '{"action":"run","command":"git status","why":"see what has changed"}',
+            '{"action":"write","path":"src/login.jsx","contents":"...the whole file...","why":"the login page"}',
             '{"action":"ask","question":"Which folder is the project in?"}',
             '{"action":"done","summary":"what you did, in one or two plain sentences"}',
+            '',
+            'WRITING CODE',
+            '- "write" is how you create or replace a file. Give the path relative',
+            '  to their project folder and the COMPLETE contents - it replaces the',
+            '  whole file, so never send a fragment or a diff.',
+            '- They see the path and the code and approve it before anything is',
+            '  written. Nothing you write lands without that.',
+            '- Read the files around it first with a safe command, so what you',
+            '  write matches the project: its language, its import style, its',
+            '  formatting, the libraries it already uses. Do not introduce a new',
+            '  dependency when something already there will do.',
+            '- One file per step. Build up a feature across several steps, and',
+            '  after writing, run the build or the tests to check your work.',
             '',
             'RULES',
             '- One command per step. Never chain with && or ; or pipes - the app',
@@ -2913,10 +2928,12 @@ app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
 
     let out = {};
     try { out = JSON.parse(r.choices?.[0]?.message?.content || '{}'); } catch (_) { out = {}; }
-    const action = ['run', 'ask', 'done'].includes(out.action) ? out.action : 'done';
+    const action = ['run', 'write', 'ask', 'done'].includes(out.action) ? out.action : 'done';
     res.json({
       action,
       command: String(out.command || '').slice(0, 400),
+      path: String(out.path || '').slice(0, 300),
+      contents: typeof out.contents === 'string' ? out.contents.slice(0, 60000) : '',
       why: String(out.why || '').slice(0, 300),
       question: String(out.question || '').slice(0, 400),
       summary: String(out.summary || '').slice(0, 800),

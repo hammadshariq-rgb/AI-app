@@ -4250,6 +4250,37 @@ function _taskSay(channel, payload) {
   if (w && !w.isDestroyed()) w.send(channel, payload);
 }
 
+// A file it wants to write, resolved inside the project folder and nowhere
+// else. A path from a model is not to be trusted with "../../.ssh/config":
+// anything that lands outside the folder they chose is refused outright.
+function _taskResolvePath(relPath, folder) {
+  const p = String(relPath || '').trim();
+  if (!p) return { ok: false, error: 'No path.' };
+  if (/^[a-z]+:\/\//i.test(p)) return { ok: false, error: 'That is a URL, not a path.' };
+  const root = path.resolve(folder);
+  const full = path.resolve(root, p);
+  const within = full === root
+    || full.startsWith(root + path.sep);
+  if (!within) return { ok: false, error: 'That path is outside the project folder, so I will not write it.' };
+  return { ok: true, full };
+}
+
+function _taskWriteFile(relPath, contents, folder) {
+  const r = _taskResolvePath(relPath, folder);
+  if (!r.ok) return { ok: false, error: r.error };
+  try {
+    const fsx = require('fs');
+    fsx.mkdirSync(path.dirname(r.full), { recursive: true });
+    // What was there before, so an unwanted change can be put back.
+    let previous = null;
+    try { previous = fsx.readFileSync(r.full, 'utf8'); } catch (_) { previous = null; }
+    fsx.writeFileSync(r.full, String(contents ?? ''), 'utf8');
+    return { ok: true, full: r.full, bytes: Buffer.byteLength(String(contents ?? '')), previous };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 function _taskRunCommand(cmd, cwd) {
   return new Promise((resolve) => {
     const { exec } = require('child_process');
@@ -4303,6 +4334,28 @@ async function _taskLoop() {
       return;                                   // the answer restarts the loop
     }
 
+    // Writing a file always waits for a press. It is the most consequential
+    // thing it can do - it replaces whatever was there - so it is never on
+    // the unattended path, however safe the contents look.
+    if (plan.action === 'write') {
+      const rel = String(plan.path || '').trim();
+      if (!rel) return _taskFinish('It tried to write a file without saying where.');
+      const check = _taskResolvePath(rel, TASK.folder);
+      if (!check.ok) {
+        TASK.steps.push({ kind: 'write', path: rel, ok: false, error: check.error });
+        continue;                                  // tell it, let it try again
+      }
+      TASK.awaiting = 'approval';
+      TASK.pending = { write: { path: rel, contents: String(plan.contents || '') }, why: plan.why || '' };
+      _taskSay('task:needs-you', {
+        kind: 'write', path: rel, contents: String(plan.contents || ''),
+        why: plan.why || '', folder: TASK.folder, steps: TASK.steps.length,
+      });
+      sendToHud('hud:card', { type: 'info', text: '📝 Wants to write ' + rel, ttl: 12000 });
+      _sendTTS(TASK.sender, `I have written ${rel}. Have a look and let it through if you are happy.`);
+      return;
+    }
+
     const cmd = String(plan.command || '').trim();
     if (!cmd) return _taskFinish('I ran out of things to try.');
 
@@ -4354,6 +4407,15 @@ ipcMain.handle('task:resume', async (_e, { answer, approved } = {}) => {
 
   if (TASK.awaiting === 'answer') {
     TASK.steps.push({ kind: 'answer', question: 'asked', answer: String(answer || '').slice(0, 600) });
+  } else if (TASK.awaiting === 'approval' && TASK.pending && TASK.pending.write) {
+    const w = TASK.pending.write;
+    if (!approved) {
+      TASK.steps.push({ kind: 'answer', question: `may I write ${w.path}`, answer: 'No - they declined that file. Do not write it again; ask what they want instead.' });
+    } else {
+      const res = _taskWriteFile(w.path, w.contents, TASK.folder);
+      TASK.steps.push({ kind: 'write', path: w.path, ok: res.ok, bytes: res.bytes || 0, error: res.error || null });
+      _taskSay('task:step', { kind: 'wrote', path: w.path, ok: res.ok, bytes: res.bytes || 0, error: res.error || null });
+    }
   } else if (TASK.awaiting === 'approval') {
     const cmd = TASK.pending && TASK.pending.command;
     if (!approved) {

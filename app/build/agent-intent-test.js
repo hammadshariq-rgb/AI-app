@@ -20,6 +20,8 @@ const TEACH_ALT = grabRegex('TEACH_ALT');
 const TEACH_END = grabRegex('TEACH_END');
 const PROC_RUN = grabRegex('PROC_RUN');
 const TASK_START = grabRegex('TASK_START');
+const CODE_START = grabRegex('CODE_START');
+const NOT_CODE = grabRegex('NOT_CODE');
 
 const cases = [
   ['let me show you how i do the monday report', 'TEACH'],
@@ -47,6 +49,24 @@ const cases = [
   ['whats on my schedule', 'none'],
   ['make me a video of a sunset', 'none'],
   ['remind me to call mum at 7', 'none'],
+  // ── asking it to write code ──
+  ['write me a login page', 'CODE'],
+  ['build me a react component', 'CODE'],
+  ['add a dark mode toggle', 'CODE'],
+  ['create a new file called utils.js', 'CODE'],
+  ['can you write a signup form', 'CODE'],
+  ['implement the search endpoint', 'CODE'],
+  ['start coding', 'CODE'],
+  ['scaffold a express server', 'CODE'],
+  ['write some code for a snake game', 'CODE'],
+  // ── these are other makers, not code ──
+  ['make me a video of a sunset', 'none'],
+  ['create a picture of a dog', 'none'],
+  ['make me a 3d model of a chair', 'none'],
+  ['write me a poem about the sea', 'none'],
+  ['write an email here to sam', 'none'],
+  ['create a document about budgets', 'none'],
+  ['make a slide deck for monday', 'none'],
 ];
 
 let bad = 0;
@@ -56,6 +76,7 @@ for (const [t, want] of cases) {
   else if (TEACH_START.test(t) || TEACH_ALT.test(t)) got = 'TEACH';
   else if (PROC_RUN.test(t)) got = 'RUN';
   else if (TASK_START.test(t)) got = 'TASK';
+  else if (CODE_START.test(t) && !NOT_CODE.test(t)) got = 'CODE';
   const ok = got === want;
   if (!ok) bad++;
   console.log((ok ? 'PASS  ' : 'FAIL  ') + got.padEnd(6)
