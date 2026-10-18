@@ -1352,7 +1352,7 @@ function localVideos() { return (fileIndex && fileIndex.files) || []; }
 
 module.exports = {
   discover, connect, disconnect, upgradeToAdb, run, indexTvFiles, localVideos, youtubeSearch, macFor, wakeAndWait, activePlayback,
-  castYouTube, castMedia, openUrl,
+  castYouTube, castMedia, openUrl, diagnoseYouTube,
   setVolume, setMute: () => setMute(), stop,
   getStatus: () => ({
     connected: !!(connectedDev),

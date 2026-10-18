@@ -267,6 +267,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   tvStop:         ()                  => ipcRenderer.invoke('tv:stop'),
   tvDo:           (cmd)               => ipcRenderer.invoke('tv:do', cmd),
   tvWake:         (host, name)        => ipcRenderer.invoke('tv:wake', { host, name }),
+  tvDiagnoseYouTube: ()               => ipcRenderer.invoke('tv:diagnoseYouTube'),
   tvPlaying:      ()                  => ipcRenderer.invoke('tv:playing'),
   tvVideos:       ()                  => ipcRenderer.invoke('tv:videos'),
   tvInstallAdb:   ()                  => ipcRenderer.invoke('tv:install-adb'),

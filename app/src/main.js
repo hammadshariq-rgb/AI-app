@@ -6763,6 +6763,13 @@ async function rememberTvMac(host, name) {
   store.set('tvMacs', macs);
 }
 
+// What the TV actually reports about YouTube. Exposed so the answer can come
+// from the TV rather than from another guess about it.
+ipcMain.handle('tv:diagnoseYouTube', async () => {
+  try { return { ok: true, report: await tvCast.diagnoseYouTube() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('tv:wake', async (_e, { host, name }) => {
   try {
     const macs = store.get('tvMacs') || {};

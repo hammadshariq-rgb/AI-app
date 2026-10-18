@@ -5737,6 +5737,16 @@ async function sendToJarvis(text) {
   // Teaching it a procedure, running one, or setting it to work on a job.
   // These come first: while it is being taught, everything said is a step
   // rather than a request, and that has to win over every other handler.
+  // "why can't you open youtube on my tv" asks the TV itself and prints what
+  // it says, rather than guessing at it again.
+  if (!_multi && /\b(?:diagnose|check|what.?s wrong with|why can.?t you open)\b[^.?!]{0,40}\byoutube\b[^.?!]{0,20}\btv\b|\btv\s+diagnos|\bdiagnose\s+(?:the\s+)?tv\b/i.test(text)) {
+    addMessage('assistant', 'Asking your TV directly…');
+    const r = await window.jarvis.tvDiagnoseYouTube?.();
+    addMessage('assistant', r && r.ok
+      ? '```\n' + r.report + '\n```'
+      : `I could not ask it: ${(r && r.error) || 'no answer'}`);
+    return;
+  }
   if (!_multi && typeof window._checkAgent === 'function' && await window._checkAgent(text)) return;
   if (!_multi && typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
   // Asking about their own numbers: answer it and open the panel, rather than
