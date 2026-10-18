@@ -1137,7 +1137,7 @@ app.get('/checkout', async (req, res) => {
   const { token, plan } = req.query;
   // Pick price ID based on plan param: 'annual' uses yearly price, default = monthly
   // Picking annual must never quietly fall back to the monthly price — the
-  // customer would be charged CA$20 a month after asking to pay CA$200 a year.
+  // customer would be charged US$20 a month after asking to pay US$200 a year.
   let priceId = process.env.STRIPE_PRICE_ID;
   if (plan === 'annual') {
     if (!process.env.STRIPE_PRICE_ID_ANNUAL) {
@@ -1214,7 +1214,7 @@ app.get('/success', async (req, res) => {
 app.get('/account', (req, res) => {
   res.send(`
     <html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">Callisto AI — CA$20/month</h2>
+      <h2 style="color:#00c8ff;">Callisto AI — US$20/month</h2>
       <p>Your own AI assistant, named by you, living on your desktop.</p>
       <a href="/checkout" style="display:inline-block;padding:12px 24px;background:#0a84ff;color:white;border-radius:8px;text-decoration:none;margin-top:12px;">Subscribe</a>
     </body></html>

@@ -197,9 +197,9 @@ function sendWelcome({ email, name }) {
     `Welcome, ${esc(who)}.`,
     `Your Callisto AI account is ready. Sign in on the desktop app or at callistoai.net and just start talking to it.
      <br><br>You are on the free plan: <strong>15 messages a day</strong>, weather and live news, image recognition and the homework helper.
-     Premium removes the daily limit and opens voice control, calendar sync, documents, 3D Studio and AI video - CA$20 a month or CA$200 a year.
+     Premium removes the daily limit and opens voice control, calendar sync, documents, 3D Studio and AI video - US$20 a month or US$200 a year.
      <br><br>Enjoy Callisto AI.`,
-    `Welcome, ${who}.\n\nYour Callisto AI account is ready. Sign in on the desktop app or at callistoai.net and just start talking to it.\n\nYou are on the free plan: 15 messages a day. Premium removes the daily limit - CA$20/month or CA$200/year.\n\nEnjoy Callisto AI.`
+    `Welcome, ${who}.\n\nYour Callisto AI account is ready. Sign in on the desktop app or at callistoai.net and just start talking to it.\n\nYou are on the free plan: 15 messages a day. Premium removes the daily limit - US$20/month or US$200/year.\n\nEnjoy Callisto AI.`
   );
 }
 
@@ -207,8 +207,8 @@ function sendWelcome({ email, name }) {
 function sendPurchase({ email, name, plan }) {
   const who = firstName(name, email);
   const priced = plan === 'annual'
-    ? 'Premium Yearly - CA$200 a year'
-    : 'Premium - CA$20 a month';
+    ? 'Premium Yearly - US$200 a year'
+    : 'Premium - US$20 a month';
   return send(
     email,
     'Congratulations on your purchase - Callisto AI Premium',
