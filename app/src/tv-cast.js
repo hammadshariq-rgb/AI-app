@@ -849,6 +849,46 @@ async function cameToFront(pkg, waitMs = 1400) {
   return seen.includes(pkg);
 }
 
+// What the TV actually reports. Twice now YouTube has been fixed by
+// reasoning rather than by looking, and twice it has come back - a black
+// screen, then a grey one. This says which YouTube packages exist, which one
+// was chosen, what happens when it is launched and what ends up in front, so
+// the next change is made against facts.
+async function diagnoseYouTube() {
+  const lines = [];
+  const add = (s) => lines.push(s);
+  if (!connectedDev) return 'Not connected to a TV.';
+  add(`TV: ${connectedDev.name || connectedDev.host} (${connectedDev.kind}), debugging ${connectedDev.hasAdb ? 'on' : 'OFF'}`);
+  if (!connectedDev.hasAdb) {
+    add('Without debugging access Callisto can only ask the TV to open an app, not drive it.');
+    return lines.join(String.fromCharCode(10));
+  }
+  try {
+    const listed = await adb.shellWithAuth(connectedDev.host, 'pm list packages', 9000).catch((e) => 'ERROR ' + e.message);
+    const found = [...new Set((String(listed).match(/package:([^\s]*youtube[^\s]*)/gi) || [])
+      .map((s) => s.replace(/^package:/i, '')))];
+    add(`YouTube packages on it: ${found.length ? found.join(', ') : 'NONE FOUND'}`);
+    const chosen = await resolvePkg('youtube');
+    add(`Callisto would use: ${chosen}`);
+
+    const before = await adb.shellWithAuth(connectedDev.host,
+      'dumpsys window windows | grep -E "mCurrentFocus"', 9000).catch(() => '(could not read)');
+    add(`In front before: ${String(before).trim().slice(0, 160) || '(blank)'}`);
+
+    const viewOut = await adb.shellWithAuth(connectedDev.host,
+      `am start -a android.intent.action.VIEW -d 'https://www.youtube.com' ${chosen}`, 9000).catch((e) => 'ERROR ' + e.message);
+    add(`VIEW intent said: ${String(viewOut).trim().slice(0, 200)}`);
+
+    await new Promise((r) => setTimeout(r, 2500));
+    const after = await adb.shellWithAuth(connectedDev.host,
+      'dumpsys window windows | grep -E "mCurrentFocus"', 9000).catch(() => '(could not read)');
+    add(`In front after: ${String(after).trim().slice(0, 200) || '(blank)'}`);
+  } catch (err) {
+    add('Diagnosis stopped: ' + err.message);
+  }
+  return lines.join(String.fromCharCode(10));
+}
+
 async function resolvePkg(appKey) {
   const base = pkgFor(appKey);
   if (connectedDev?.kind === 'firetv') return base;

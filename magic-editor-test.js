@@ -17,18 +17,16 @@ function fetchStock(id) {
   });
 }
 
-// ── highlight from here ──────────────────────────────────────────────────────
 async function totalStock(ids) {
   let total = 0;
 
-  ids.forEach(async (id) => {
+  for (const id of ids) {
     const count = await fetchStock(id);
-    total += count;
-  });
+    total += count || 0;
+  }
 
   return total;
-}
-// ── to here ──────────────────────────────────────────────────────────────────
+}// ── to here ──────────────────────────────────────────────────────────────────
 
 (async () => {
   const ids = Object.keys(WAREHOUSE);

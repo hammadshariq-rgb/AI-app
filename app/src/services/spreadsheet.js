@@ -186,7 +186,7 @@ async function build(spec, outDir) {
   wb.creator = 'Callisto AI';
   wb.created = new Date();
 
-  const currency = String(spec.currency || 'CAD').toUpperCase();
+  const currency = String(spec.currency || 'USD').toUpperCase();
   const sheets = Array.isArray(spec.sheets) && spec.sheets.length ? spec.sheets : [];
   if (!sheets.length) throw new Error('The spreadsheet had no sheets.');
 

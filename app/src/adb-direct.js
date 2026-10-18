@@ -134,10 +134,24 @@ function adbEnv() {
   return _adbEnv;
 }
 
+// Callisto's own adb server, on a port nothing else uses.
+//
+// This is the piece that made setting HOME useless on its own. The adb
+// command line does not talk to the TV: it talks to a background server on
+// port 5037, and if one is ALREADY running - started by Android Studio, by
+// another tool, or by Callisto itself before the key moved - that server
+// holds the old key and our environment never reaches it. The TV then sees a
+// key it has never been shown and asks again, every single launch.
+//
+// On a port of our own, the first command starts a server with our HOME, and
+// every command after that reaches the same one.
+const ADB_PORT = '5177';
+function adbArgs(args) { return ['-P', ADB_PORT, ...args]; }
+
 function adbExec(args, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const adbPath = findAdb() || 'adb';
-    execFile(adbPath, args, { timeout: timeoutMs, windowsHide: true, env: adbEnv() }, (err, stdout, stderr) => {
+    execFile(adbPath, adbArgs(args), { timeout: timeoutMs, windowsHide: true, env: adbEnv() }, (err, stdout, stderr) => {
       if (err && !stdout) return reject(new Error((stderr || err.message).trim()));
       resolve((stdout || '').trim());
     });
@@ -172,7 +186,7 @@ async function deviceState(host, port = 5555) {
 function screencap(host, port = 5555) {
   return new Promise((resolve, reject) => {
     const adbPath = findAdb() || 'adb';
-    execFile(adbPath, ['-s', `${host}:${port}`, 'exec-out', 'screencap', '-p'],
+    execFile(adbPath, adbArgs(['-s', `${host}:${port}`, 'exec-out', 'screencap', '-p']),
       { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024, timeout: 10000, windowsHide: true, env: adbEnv() },
       (err, stdout) => {
         if (err && !(stdout && stdout.length)) return reject(err);

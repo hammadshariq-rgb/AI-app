@@ -2895,6 +2895,22 @@ app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
             '  dependency when something already there will do.',
             '- One file per step. Build up a feature across several steps, and',
             '  after writing, run the build or the tests to check your work.',
+            '- Folders are made for you: writing to src/components/Nav.jsx creates',
+            '  src/components if it is not there. Never run mkdir.',
+            '',
+            'STARTING FROM NOTHING',
+            '- An empty folder is a perfectly good place to begin. Do not refuse',
+            '  for want of a project and do not ask them to set one up first -',
+            '  making it IS the job.',
+            '- Look first (ls, or dir on Windows) so you know whether it is empty',
+            '  or already has something in it.',
+            '- Then write the files it needs in a sensible order: the manifest',
+            '  first - package.json, pyproject.toml, go.mod - then the source,',
+            '  then a short README. Keep it to what was asked for; do not install',
+            '  a framework nobody mentioned.',
+            '- Installing dependencies needs their press, so write the manifest',
+            '  first and propose the install once, rather than one package at a',
+            '  time.',
             '',
             'RULES',
             '- One command per step. Never chain with && or ; or pipes - the app',
@@ -2974,7 +2990,20 @@ Only add comments if the instruction asks for them.
 Reply with the edited text, then on the very last line a summary of what you
 changed, prefixed with [SUMMARY]. The summary is one short spoken sentence, e.g.
 "[SUMMARY] Rewrote it in plainer language and split the long sentence in two."
-No preamble, no quotes around the text, no markdown fences.`
+No preamble, no quotes around the text, no markdown fences.
+
+WHEN THE SELECTION IS CODE, add two more lines after the summary.
+
+[WHY] What was actually wrong and what you changed to fix it, in two or three
+short lines, one per line. Name the real cause - "forEach does not wait for an
+async callback, so the function returned before any of the fetches had
+finished" - not "fixed a bug". Someone should be able to learn from this and
+spot it themselves next time. Plain words, no markdown.
+
+[ASK] Only if you genuinely could not finish without knowing something -
+which of two files they meant, a value you cannot guess, a choice that is
+theirs. One short question. Leave this line out entirely if you did finish;
+do not invent a question to seem thorough.`
         },
         {
           role: 'user',
@@ -2983,10 +3012,33 @@ No preamble, no quotes around the text, no markdown fences.`
       ]
     });
     const raw = result.choices[0]?.message?.content?.trim() || selectedText;
-    const summaryMatch = raw.match(/\[SUMMARY\]\s*(.+)\s*$/i);
-    const summary = summaryMatch ? summaryMatch[1].trim() : null;
-    const editedText = raw.replace(/\s*\[SUMMARY\][\s\S]*$/i, '').trim() || selectedText;
-    res.json({ editedText, summary });
+    // The three tagged sections, taken off the end in the order they appear.
+    // Found by index rather than by regex. A pattern built from a string
+    // needs its backslashes doubled, and the ones here were not, so the
+    // expression silently became nonsense - [SUMMARY] matched a character
+    // class and the sections came back empty.
+    const TAGS = ['[SUMMARY]', '[WHY]', '[ASK]'];
+    const firstTagAt = TAGS.reduce((lowest, t) => {
+      const at = raw.indexOf(t);
+      return at >= 0 && at < lowest ? at : lowest;
+    }, raw.length);
+    const grab = (tag) => {
+      const open = '[' + tag + ']';
+      const at = raw.indexOf(open);
+      if (at < 0) return null;
+      const from = at + open.length;
+      let end = raw.length;
+      for (const other of TAGS) {
+        const o = raw.indexOf(other, from);
+        if (o >= 0 && o < end) end = o;
+      }
+      return raw.slice(from, end).trim() || null;
+    };
+    const summary = grab('SUMMARY');
+    const why = grab('WHY');
+    const ask = grab('ASK');
+    const editedText = raw.slice(0, firstTagAt).trim() || selectedText;
+    res.json({ editedText, summary, why, ask, original: selectedText });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

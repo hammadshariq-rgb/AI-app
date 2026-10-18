@@ -727,6 +727,70 @@ const CHECK_SVG  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 // later by the formatted version. Reading that happen is unpleasant. The
 // preview keeps the shape of the answer - headings on their own line, bullets
 // as bullets - without the punctuation that builds it.
+// Is this code rather than prose? Used to decide whether a Magic Editor
+// result is worth laying out as a code fix in the chat.
+function _looksLikeCode(s) {
+  const t = String(s || '');
+  if (t.length < 20) return false;
+  const marks = [
+    /\b(?:function|const|let|var|class|def|import|export|return|if|for|while|async|await)\b/,
+    /[{};]\s*$/m,
+    /=>|::|->|<\/[a-z]/i,
+    /^\s*(?:#include|package |using )/m,
+    // Python and friends have neither braces nor semicolons: a line ending
+    // in a colon followed by an indented one is their shape.
+    /:\s*\n\s{2,}\S/,
+    /^\s*(?:def|class|elif|except|lambda)\b/m,
+    // Markup: an opening tag with attributes, or a closing tag.
+    /<[a-z][\w-]*(?:\s+[\w:-]+\s*=|\s*\/?>)/i,
+  ].filter((re) => re.test(t)).length;
+  return marks >= 2;
+}
+
+// A code fix, laid out properly: what it now says, why it was wrong, and a
+// button if it needs something only the person can answer.
+function showCodeFixBubble(res) {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  const whyLines = String(res.why || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  row.innerHTML = `
+    <div class="msg-avatar">${SPARKLES_SVG}</div>
+    <div class="msg assistant">
+      <span class="msg-text"><b>✏️ ${esc(res.summary || 'Edited your code')}</b></span>
+      ${whyLines.length ? `<div style="margin:9px 0 2px;font-size:12px;line-height:1.65;color:rgba(190,212,255,.82)">
+        <div style="font-size:10px;letter-spacing:.09em;opacity:.55;margin-bottom:4px">WHAT WAS WRONG</div>
+        ${whyLines.map((l) => `<div style="margin:2px 0 2px 2px">• ${esc(l)}</div>`).join('')}
+      </div>` : ''}
+      <div style="font-size:10px;letter-spacing:.09em;opacity:.55;margin:10px 0 4px">IT NOW READS</div>
+      <pre style="margin:0;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.38);border:1px solid rgba(100,140,255,.22);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto">${esc(res.editedText || '')}</pre>
+      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <button class="gleam gleam-sm" data-fix="copy"><span>Copy</span></button>
+        ${res.ask ? '<button class="gleam gleam-sm" data-fix="answer"><span>Answer that</span></button>' : ''}
+      </div>
+      ${res.ask ? `<div style="margin-top:9px;padding:8px 10px;border-radius:7px;background:rgba(100,140,255,.1);border:1px solid rgba(100,140,255,.25);font-size:12px;line-height:1.55">
+        <span style="opacity:.7">It needs to know:</span> ${esc(res.ask)}
+      </div>` : ''}
+    </div>`;
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+
+  row.querySelector('[data-fix="copy"]')?.addEventListener('click', (e) => {
+    try {
+      navigator.clipboard.writeText(res.editedText || '');
+      e.currentTarget.querySelector('span').textContent = 'Copied';
+    } catch (_) {}
+  });
+  // Puts their answer straight back as the next instruction, rather than
+  // leaving a question on screen with nowhere to put the reply.
+  row.querySelector('[data-fix="answer"]')?.addEventListener('click', () => {
+    if (userInput) {
+      userInput.value = '';
+      userInput.focus();
+      userInput.placeholder = res.ask;
+    }
+  });
+}
+
 // Markdown that is still being written. The tail of a stream is usually
 // half-finished — a "##" with its heading not typed yet, an opened "**" — and
 // showing those raw for a moment is exactly the mess this is meant to avoid.
@@ -6495,6 +6559,12 @@ if (window.jarvis.onSentenceText) {
         if (audio) playAudioChunks([audio]);
         setMeState('done', '✓ ' + (res.summary || 'Edited — pasting back…'));
         setTimeout(closeMagicEdit, res.summary ? 3200 : 1800);
+        // A code edit goes into the chat in full: what it now says, and why
+        // it was wrong. The card over the editor is gone in three seconds,
+        // and "fixed a bug" teaches nobody anything.
+        if (res.why || _looksLikeCode(res.editedText || '')) {
+          showCodeFixBubble(res);
+        }
       }
     } catch(e) {
       setMeState('error', 'Something went wrong.');

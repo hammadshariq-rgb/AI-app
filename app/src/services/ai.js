@@ -613,7 +613,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           title: { type: 'string', description: 'File title, e.g. "Coffee Shop Budget — October 2026".' },
-          currency: { type: 'string', description: 'ISO currency code for money columns, e.g. CAD, USD, GBP, PKR. Use the one the user mentions, else the one for their location, else CAD.' },
+          currency: { type: 'string', description: 'ISO currency code for money columns, e.g. CAD, USD, GBP, PKR. Use the one the user mentions, else the one for their location, else USD.' },
           sheets: {
             type: 'array',
             description: 'One or more sheets (tabs).',
