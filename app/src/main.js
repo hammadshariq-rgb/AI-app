@@ -4191,6 +4191,292 @@ ipcMain.handle('shop:open', async (_e, { url, fallbackUrl }) => {
 // a handful of patterns that wipe a machine are refused outright.
 const COMMAND_NEVER = /(^|[\s;&|])(rm\s+-rf\s+\/(?!\w)|rmdir\s+\/s\s+\/q\s+[a-z]:\\?\s*$|format\s+[a-z]:|mkfs|dd\s+if=.*of=\/dev\/|shutdown|:\(\)\s*\{|del\s+\/f\s+\/s\s+\/q\s+[a-z]:\\\*)/i;
 
+// ── What may run without asking ──────────────────────────────────────────────
+// Callisto can work through a job on its own, but only commands that LOOK at
+// things or rebuild them from source go without a press. Anything that
+// installs, writes, publishes or deletes stops and waits, because those are
+// the ones you cannot take back.
+//
+// The list is deliberately an allow-list of whole commands, not a block-list
+// of bad ones: a block-list is a guess about every dangerous thing anyone
+// might type, and the first thing it misses is the one that matters.
+const SAFE_COMMANDS = [
+  // Looking at the repository
+  /^git\s+(status|log|diff|show|branch|remote(\s+-v)?|describe|rev-parse|blame|stash\s+list|config\s+--get\b)\b/i,
+  // Looking at the filesystem
+  /^(ls|dir|pwd|cd|cat|type|head|tail|wc|find|where|which|tree|du|df|stat|file)\b/i,
+  /^(grep|rg|ripgrep|ag|findstr)\b/i,
+  // Asking tools what they are
+  /^(node|npm|npx|yarn|pnpm|python3?|pip3?|go|cargo|java|dotnet|ruby|php|docker|git)\s+(-v|--version|version)\b/i,
+  /^(echo|printf|date|whoami|hostname|uname|env|printenv)\b/i,
+  // Building and testing - they rewrite build output, never your source
+  /^(npm|yarn|pnpm|bun)\s+(test|run\s+(test|lint|build|typecheck|type-check|check|format:check)s?)\b/i,
+  /^(npx\s+)?(tsc|eslint|prettier\s+--check|jest|vitest|mocha|pytest|ruff|flake8|mypy|black\s+--check)\b/i,
+  /^(cargo|go)\s+(build|test|vet|check|fmt\s+--?check)\b/i,
+  /^(make)\s+(test|check|lint|build)?\s*$/i,
+];
+
+// Even inside an allowed command these turn it into something else entirely:
+// a pipe to a shell, a redirect that overwrites a file, a chained second
+// command. "git status && rm -rf ." starts with git status.
+const SHELL_TRICKS = /[;&|><`$]|\|\||&&|\$\(|\bsudo\b|\bdoas\b|\brunas\b/i;
+
+function isSafeCommand(cmd) {
+  const c = String(cmd || '').trim();
+  if (!c) return false;
+  if (COMMAND_NEVER.test(c)) return false;
+  if (SHELL_TRICKS.test(c)) return false;          // one plain command, nothing stitched on
+  if (c.length > 300) return false;
+  return SAFE_COMMANDS.some((re) => re.test(c));
+}
+ipcMain.handle('command:isSafe', (_e, cmd) => isSafeCommand(cmd));
+
+// ── Working through a job on its own ─────────────────────────────────────────
+// Callisto takes a goal and works at it a step at a time: ask the server what
+// to do next, run it if it is safe to run unattended, and come back with the
+// output. It interrupts for exactly two reasons - a command that needs a press,
+// or a question only the person can answer - and says so when it is finished.
+const TASK = {
+  on: false, goal: '', steps: [], folder: '', sender: null,
+  awaiting: null,       // 'approval' | 'answer'
+  pending: null,        // the command waiting for a press
+  startedAt: 0, runs: 0,
+};
+const TASK_MAX_STEPS = 14;
+const TASK_MAX_MS = 15 * 60 * 1000;
+
+function _taskSay(channel, payload) {
+  const w = TASK.sender;
+  if (w && !w.isDestroyed()) w.send(channel, payload);
+}
+
+function _taskRunCommand(cmd, cwd) {
+  return new Promise((resolve) => {
+    const { exec } = require('child_process');
+    exec(cmd, { cwd, timeout: 180000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+      resolve({
+        ok: !err,
+        code: err ? (err.code ?? 1) : 0,
+        output: [stdout, stderr].filter(Boolean).join('\n').trim().slice(-6000),
+      });
+    });
+  });
+}
+
+async function _taskLoop() {
+  while (TASK.on) {
+    if (TASK.steps.length >= TASK_MAX_STEPS) {
+      return _taskFinish(`I have taken ${TASK_MAX_STEPS} steps on this without finishing. Here is where it got to — tell me how you want to carry on.`);
+    }
+    if (Date.now() - TASK.startedAt > TASK_MAX_MS) {
+      return _taskFinish('This has been running a while, so I have stopped to check in rather than keep going.');
+    }
+
+    let plan;
+    try {
+      const r = await fetch(`${_serverBase()}/ai/agent-step`, {
+        method: 'POST',
+        headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal: TASK.goal,
+          steps: TASK.steps,
+          folder: TASK.folder,
+          os: `${process.platform} ${process.arch}`,
+        }),
+      });
+      plan = await r.json();
+    } catch (err) {
+      return _taskFinish(`I lost the connection partway through: ${err.message}`);
+    }
+    if (!TASK.on) return;
+    if (!plan || plan.error) return _taskFinish(`I could not work out the next step: ${(plan && plan.error) || 'no answer'}`);
+
+    if (plan.action === 'done') {
+      return _taskFinish(plan.summary || 'Finished.');
+    }
+
+    if (plan.action === 'ask') {
+      TASK.awaiting = 'answer';
+      _taskSay('task:needs-you', { kind: 'question', question: plan.question, steps: TASK.steps.length });
+      sendToHud('hud:card', { type: 'info', text: '🧑 ' + (plan.question || 'I need you for a moment.'), ttl: 12000 });
+      _sendTTS(TASK.sender, plan.question || 'I need you for a moment.');
+      return;                                   // the answer restarts the loop
+    }
+
+    const cmd = String(plan.command || '').trim();
+    if (!cmd) return _taskFinish('I ran out of things to try.');
+
+    if (!isSafeCommand(cmd)) {
+      // Needs a human press. This is the whole point of the safe list.
+      TASK.awaiting = 'approval';
+      TASK.pending = { command: cmd, why: plan.why || '' };
+      _taskSay('task:needs-you', {
+        kind: 'approve', command: cmd, why: plan.why || '', folder: TASK.folder, steps: TASK.steps.length,
+      });
+      sendToHud('hud:card', { type: 'info', text: '🔒 Needs your go-ahead: ' + cmd, ttl: 12000 });
+      _sendTTS(TASK.sender, 'This next one needs your go-ahead.');
+      return;
+    }
+
+    _taskSay('task:step', { kind: 'running', command: cmd, why: plan.why || '' });
+    const res = await _taskRunCommand(cmd, TASK.folder);
+    TASK.runs++;
+    TASK.steps.push({ kind: 'run', command: cmd, code: res.code, output: res.output });
+    _taskSay('task:step', { kind: 'ran', command: cmd, ok: res.ok, output: res.output });
+  }
+}
+
+function _taskFinish(summary) {
+  TASK.on = false;
+  TASK.awaiting = null;
+  TASK.pending = null;
+  _taskSay('task:done', { summary, steps: TASK.steps.length, runs: TASK.runs });
+  sendToHud('hud:card', { type: 'info', text: '✅ ' + String(summary).slice(0, 400), ttl: 10000 });
+  if (TASK.sender) _sendTTS(TASK.sender, String(summary).slice(0, 400));
+}
+
+ipcMain.handle('task:start', async (e, { goal, folder } = {}) => {
+  const g = String(goal || '').trim();
+  if (!g) return { ok: false, error: 'No goal.' };
+  if (TASK.on) return { ok: false, error: 'busy', goal: TASK.goal };
+  Object.assign(TASK, {
+    on: true, goal: g, steps: [], sender: e.sender,
+    folder: folder || store.get('project.folder') || app.getPath('home'),
+    awaiting: null, pending: null, startedAt: Date.now(), runs: 0,
+  });
+  _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
+  return { ok: true, folder: TASK.folder };
+});
+
+// They answered the question, or pressed Run on the command it was waiting on.
+ipcMain.handle('task:resume', async (_e, { answer, approved } = {}) => {
+  if (!TASK.on || !TASK.awaiting) return { ok: false, error: 'nothing waiting' };
+
+  if (TASK.awaiting === 'answer') {
+    TASK.steps.push({ kind: 'answer', question: 'asked', answer: String(answer || '').slice(0, 600) });
+  } else if (TASK.awaiting === 'approval') {
+    const cmd = TASK.pending && TASK.pending.command;
+    if (!approved) {
+      TASK.steps.push({ kind: 'answer', question: `may I run: ${cmd}`, answer: 'No - they declined. Find another way or stop.' });
+    } else {
+      _taskSay('task:step', { kind: 'running', command: cmd, why: (TASK.pending && TASK.pending.why) || '' });
+      const res = await _taskRunCommand(cmd, TASK.folder);
+      TASK.runs++;
+      TASK.steps.push({ kind: 'run', command: cmd, code: res.code, output: res.output });
+      _taskSay('task:step', { kind: 'ran', command: cmd, ok: res.ok, output: res.output });
+    }
+  }
+  TASK.awaiting = null;
+  TASK.pending = null;
+  _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
+  return { ok: true };
+});
+
+ipcMain.handle('task:stop', () => {
+  if (!TASK.on) return { ok: false };
+  TASK.on = false; TASK.awaiting = null; TASK.pending = null;
+  _taskSay('task:done', { summary: 'Stopped.', steps: TASK.steps.length, runs: TASK.runs });
+  return { ok: true };
+});
+
+ipcMain.handle('task:state', () => ({
+  on: TASK.on, goal: TASK.goal, steps: TASK.steps.length,
+  awaiting: TASK.awaiting, pending: TASK.pending, folder: TASK.folder,
+}));
+
+// ── Procedures: walk it through once, it remembers ───────────────────────────
+// "Let me show you how I do the Monday report" — Callisto writes down each
+// step as it happens, under a name, and does the same thing on request later.
+// The steps are kept as the person's own words, not as a recording of clicks,
+// so a saved procedure still reads like an instruction and can be edited or
+// read back.
+const PROC = { recording: false, name: '', steps: [], startedAt: 0 };
+
+function _procAll() { return store.get('procedures') || {}; }
+function _procKey(name) { return String(name || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+ipcMain.handle('proc:start', (_e, { name } = {}) => {
+  PROC.recording = true;
+  PROC.name = String(name || '').trim();
+  PROC.steps = [];
+  PROC.startedAt = Date.now();
+  return { ok: true, name: PROC.name };
+});
+
+// Every instruction given while recording becomes a step.
+ipcMain.handle('proc:note', (_e, { text, kind, detail } = {}) => {
+  if (!PROC.recording) return { ok: false };
+  const t = String(text || '').trim();
+  if (!t) return { ok: false };
+  PROC.steps.push({ text: t, kind: kind || 'say', detail: detail || null });
+  return { ok: true, count: PROC.steps.length };
+});
+
+ipcMain.handle('proc:save', (_e, { name } = {}) => {
+  const finalName = String(name || PROC.name || '').trim();
+  if (!finalName) return { ok: false, error: 'It needs a name.' };
+  if (!PROC.steps.length) return { ok: false, error: 'There are no steps to save yet.' };
+  const all = _procAll();
+  all[_procKey(finalName)] = {
+    name: finalName,
+    steps: PROC.steps.slice(),
+    savedAt: Date.now(),
+    runs: 0,
+  };
+  store.set('procedures', all);
+  const count = PROC.steps.length;
+  PROC.recording = false; PROC.name = ''; PROC.steps = [];
+  return { ok: true, name: finalName, steps: count };
+});
+
+ipcMain.handle('proc:cancel', () => {
+  PROC.recording = false; PROC.name = ''; PROC.steps = [];
+  return { ok: true };
+});
+
+ipcMain.handle('proc:list', () => Object.values(_procAll())
+  .map((p) => ({ name: p.name, steps: (p.steps || []).length, runs: p.runs || 0, savedAt: p.savedAt }))
+  .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)));
+
+ipcMain.handle('proc:get', (_e, { name } = {}) => _procAll()[_procKey(name)] || null);
+
+ipcMain.handle('proc:forget', (_e, { name } = {}) => {
+  const all = _procAll();
+  const k = _procKey(name);
+  if (!all[k]) return { ok: false, error: 'I do not know that one.' };
+  delete all[k];
+  store.set('procedures', all);
+  return { ok: true };
+});
+
+// Running one is the task loop again, with the remembered steps as the goal -
+// so it still stops for anything that needs a press or a decision, and still
+// adapts when something is different this time.
+ipcMain.handle('proc:run', async (e, { name, extra } = {}) => {
+  const p = _procAll()[_procKey(name)];
+  if (!p) return { ok: false, error: `I do not know a procedure called "${name}".` };
+  if (TASK.on) return { ok: false, error: 'busy' };
+  const all = _procAll();
+  all[_procKey(name)].runs = (p.runs || 0) + 1;
+  store.set('procedures', all);
+
+  const written = (p.steps || []).map((s, i) => `${i + 1}. ${s.text}`).join(String.fromCharCode(10));
+  const goal = [
+    `Carry out this procedure, which they walked you through and called "${p.name}":`,
+    written,
+    extra ? `For this run they also said: ${extra}` : '',
+    'Follow it in order. Where a step depends on something you cannot know, ask.',
+  ].filter(Boolean).join(String.fromCharCode(10, 10));
+
+  Object.assign(TASK, {
+    on: true, goal, steps: [], sender: e.sender,
+    folder: store.get('project.folder') || app.getPath('home'),
+    awaiting: null, pending: null, startedAt: Date.now(), runs: 0,
+  });
+  _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
+  return { ok: true, name: p.name, steps: (p.steps || []).length };
+});
+
 ipcMain.handle('command:run', async (_e, { command, folder }) => {
   const cmd = String(command || '').trim();
   if (!cmd) return { ok: false, error: 'No command.' };

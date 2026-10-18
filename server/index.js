@@ -2848,6 +2848,85 @@ app.post('/ai/stream-lookup', authMiddleware, aiLimiter, async (req, res) => {
   }
 });
 
+// ── Working through a job one step at a time ─────────────────────────────────
+// Given the goal and everything that has happened so far, decide the single
+// next thing to do. The app runs it if it is safe to run unattended, shows it
+// for a press if it is not, and comes straight back here with the output.
+// The point of the design is that it stops and asks rather than guessing at
+// anything it cannot see for itself.
+app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const { goal, steps = [], folder = '', os = '' } = req.body || {};
+    if (!goal) return res.status(400).json({ error: 'goal required' });
+
+    const history = (Array.isArray(steps) ? steps : []).slice(-14).map((s, i) => {
+      if (s.kind === 'answer') return `${i + 1}. ASKED THEM: ${s.question}\n   THEY SAID: ${s.answer}`;
+      return `${i + 1}. RAN: ${s.command}\n   EXIT ${s.code}${s.output ? `\n   OUTPUT: ${String(s.output).slice(0, 1200)}` : ' (no output)'}`;
+    }).join('\n');
+
+    const model = 'gpt-5.4';
+    const r = await openai.chat.completions.create({
+      model,
+      ...tokenCap(model, 700),
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are working through a job on someone\'s own computer, one command at a time.',
+            'Decide only the NEXT single step. You will be called again with its output.',
+            '',
+            'Reply as JSON, one of these three shapes:',
+            '{"action":"run","command":"git status","why":"see what has changed"}',
+            '{"action":"ask","question":"Which folder is the project in?"}',
+            '{"action":"done","summary":"what you did, in one or two plain sentences"}',
+            '',
+            'RULES',
+            '- One command per step. Never chain with && or ; or pipes - the app',
+            '  refuses those, and you will simply waste the step.',
+            '- Look before you leap: read the state of things before changing them.',
+            '- Commands that only LOOK at things, and build or test commands, run',
+            '  without interrupting them. Anything that installs, writes, commits,',
+            '  pushes, deploys or deletes is shown to them to approve first - so',
+            '  propose those normally, but expect a pause.',
+            '- ASK when you genuinely cannot know: which of two files they meant,',
+            '  whether to overwrite something, a password, a design choice, what to',
+            '  call something, or when a test fails in a way that needs a human',
+            '  decision rather than an obvious fix. Asking is not failure. Guessing',
+            '  at something you cannot see IS.',
+            '- Do NOT ask about things you can find out by running a safe command.',
+            '- Stop with "done" as soon as the goal is met. Also stop with "done"',
+            '  if you are going round in circles - say so plainly in the summary.',
+            '- If a step failed, read the error properly and fix the cause. Do not',
+            '  retry the identical command twice.',
+            '',
+            folder ? `Their project folder: ${folder}` : 'No project folder has been chosen yet.',
+            os ? `Their computer: ${os}` : '',
+          ].filter(Boolean).join('\n'),
+        },
+        {
+          role: 'user',
+          content: `GOAL: ${goal}\n\n${history ? `SO FAR:\n${history}` : 'Nothing has been done yet.'}\n\nWhat is the next single step?`,
+        },
+      ],
+    });
+
+    let out = {};
+    try { out = JSON.parse(r.choices?.[0]?.message?.content || '{}'); } catch (_) { out = {}; }
+    const action = ['run', 'ask', 'done'].includes(out.action) ? out.action : 'done';
+    res.json({
+      action,
+      command: String(out.command || '').slice(0, 400),
+      why: String(out.why || '').slice(0, 300),
+      question: String(out.question || '').slice(0, 400),
+      summary: String(out.summary || '').slice(0, 800),
+    });
+  } catch (err) {
+    console.error('[agent-step]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { selectedText, instruction } = req.body;

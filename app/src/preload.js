@@ -206,6 +206,26 @@ contextBridge.exposeInMainWorld('jarvis', {
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   shopOpen:      (url, fallbackUrl)    => ipcRenderer.invoke('shop:open', { url, fallbackUrl }),
   runCommand:    (command, folder)     => ipcRenderer.invoke('command:run', { command, folder }),
+  commandIsSafe: (cmd)                 => ipcRenderer.invoke('command:isSafe', cmd),
+
+  // Working through a job on its own
+  taskStart:     (goal, folder)        => ipcRenderer.invoke('task:start', { goal, folder }),
+  taskResume:    (opts)                => ipcRenderer.invoke('task:resume', opts || {}),
+  taskStop:      ()                    => ipcRenderer.invoke('task:stop'),
+  taskState:     ()                    => ipcRenderer.invoke('task:state'),
+  onTaskStep:    (cb) => ipcRenderer.on('task:step', (_e, d) => cb(d)),
+  onTaskNeedsYou:(cb) => ipcRenderer.on('task:needs-you', (_e, d) => cb(d)),
+  onTaskDone:    (cb) => ipcRenderer.on('task:done', (_e, d) => cb(d)),
+
+  // Procedures it has been taught
+  procStart:     (name)                => ipcRenderer.invoke('proc:start', { name }),
+  procNote:      (text, kind, detail)  => ipcRenderer.invoke('proc:note', { text, kind, detail }),
+  procSave:      (name)                => ipcRenderer.invoke('proc:save', { name }),
+  procCancel:    ()                    => ipcRenderer.invoke('proc:cancel'),
+  procList:      ()                    => ipcRenderer.invoke('proc:list'),
+  procGet:       (name)                => ipcRenderer.invoke('proc:get', { name }),
+  procForget:    (name)                => ipcRenderer.invoke('proc:forget', { name }),
+  procRun:       (name, extra)         => ipcRenderer.invoke('proc:run', { name, extra }),
   pickProjectFolder: ()                => ipcRenderer.invoke('command:pickFolder'),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
   // Quit app (used by gesture — clap = clear + quit)
