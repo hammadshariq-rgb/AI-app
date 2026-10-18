@@ -1210,6 +1210,9 @@ app.whenReady().then(async () => {
       return;
     }
     if (blockedByMacPermission('accessibility')) return;
+    // Which window they are editing in. The rewrite is typed back there a few
+    // seconds later, by which time the front window may be something else.
+    rememberFrontApp();
     const { clipboard } = require('electron');
     const { execFile } = require('child_process');
     // Step 1: Copy the selection in whatever app has focus.
@@ -1745,40 +1748,30 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
     const data = await res.json();
     if (data.error) { restoreClipboard(magicClipboardSaved); magicClipboardSaved = null; return { error: data.error }; }
     const editedText = data.editedText || selectedText;
-    // Put edited text in clipboard
-    const { clipboard } = require('electron');
-    clipboard.writeText(editedText);
-    // Hide our window first so the document the user was editing gets focus back —
-    // otherwise the paste lands in Callisto instead of their document.
-    const wasVisible = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible();
-    // Only hide if Callisto actually holds focus. It normally does not any more,
-    // and hiding a window that was never in the way is what produced the flicker.
-    const stoleFocus = overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isFocused();
-    if (wasVisible && stoleFocus) overlayWindow.hide();
+    // Put it back where it came from, through the same hardened path the
+    // agent's file writing uses: it restores the window that was in front
+    // before typing, and it reports whether the keystroke actually landed.
+    //
+    // This used to be its own copy of the paste code, without the focus
+    // restore, and that is why Magic Editor would say "done" having changed
+    // nothing at all - the Ctrl+V went to whatever window happened to be in
+    // front, which was often Callisto itself.
     const savedClip = magicClipboardSaved;
     magicClipboardSaved = null;
-    setTimeout(async () => {
-      const { execFile } = require('child_process');
-      // Once the paste has landed: the user's own clipboard goes back, and Callisto
-      // returns without taking focus — the user carries on typing in their document.
-      const restore = () => setTimeout(() => {
-        restoreClipboard(savedClip);
-        if (wasVisible && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
-          if (stoleFocus) overlayWindow.showInactive();
-          // Back to normal stacking once the edit has landed.
-          try { overlayWindow.setAlwaysOnTop(false); } catch (_) {}
-        }
-      }, 500);
-      if (process.platform === 'darwin') {
-        execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], { timeout: 2500 }, restore);
-        return;
-      }
-      if (sendKeysFast('paste', restore)) return;
-      execFile('powershell.exe', [
-        '-NonInteractive', '-NoProfile', '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
-      ], { timeout: 4000 }, restore);
-    }, 350);
+    const landed = await pasteIntoFocusedApp(editedText);
+    try { restoreClipboard(savedClip); } catch (_) {}
+    try {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
+    } catch (_) {}
+    if (!landed) {
+      return {
+        editedText,
+        summary: data.summary || null,
+        pasteFailed: true,
+        error: 'I could not type it back in. It is on your clipboard — press '
+          + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V where you want it.',
+      };
+    }
     return { editedText, summary: data.summary || null };
   } catch (err) {
     restoreClipboard(magicClipboardSaved);
@@ -5919,7 +5912,10 @@ function pasteIntoFocusedApp(text) {
     // no matter what, so a paste that macOS had silently refused still told
     // the person "written it in for you" while nothing had been typed.
     const done = (err) => setTimeout(() => {
-      try { restoreClipboard(saved); } catch (_) {}
+      // Their clipboard goes back only when the paste actually landed. If it
+      // did not, the text they were promised stays on the clipboard so that
+      // "press Ctrl+V" is true advice rather than a second failure.
+      if (!err) { try { restoreClipboard(saved); } catch (_) {} }
       if (wasVisible && stoleFocus && overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
         overlayWindow.showInactive();
       }

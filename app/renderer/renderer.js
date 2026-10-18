@@ -6476,7 +6476,16 @@ if (window.jarvis.onSentenceText) {
     setMeState('thinking', 'Editing with AI…');
     try {
       const res = await window.jarvis.magicEdit(_meText, instruction);
-      if (res.error) {
+      if (res.pasteFailed) {
+        // The rewrite worked; typing it back did not. Say which, because
+        // "edit failed" sends someone looking for the wrong problem — and
+        // the text is sitting on their clipboard either way.
+        setMeState('error', res.error);
+        const audio = await window.jarvis.speak('I could not type it back in, but it is on your clipboard.').catch(() => null);
+        if (audio) playAudioChunks([audio]);
+        addMessage('assistant', `I rewrote it but could not type it back into that window. It is on your clipboard — press ${keys('Ctrl+V')} where you want it.\n\n\`\`\`\n${String(res.editedText || '').slice(0, 1500)}\n\`\`\``);
+        setTimeout(closeMagicEdit, 4000);
+      } else if (res.error) {
         setMeState('error', 'Edit failed — ' + res.error);
         setTimeout(closeMagicEdit, 3000);
       } else {
