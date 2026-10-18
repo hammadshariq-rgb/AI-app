@@ -631,12 +631,15 @@ async function launchApp(appKey) {
 }
 
 // ── Cast YouTube ───────────────────────────────────────────────────────────────
-async function castYouTube(query) {
+async function castYouTube(query, startAt = 0) {
   if (!connectedDev) throw new Error('Not connected to any TV');
   await ensureAwake().catch(() => {});
 
   const { videoId, title } = await youtubeSearch(query);
   lastPlayed = { app: 'youtube', videoId, title, at: Date.now() };
+  // "from twenty past two" means start there, not start and then skip.
+  const at = Math.max(0, Math.round(Number(startAt) || 0));
+  const tSuffix = at > 0 ? '&t=' + at + 's' : '';
 
   // Roku: YouTube's channel takes the video id directly.
   if (connectedDev.kind === 'roku') {
@@ -649,8 +652,8 @@ async function castYouTube(query) {
     // A plain "view this link" lets Android hand it to whichever YouTube app the
     // TV has. Guessing an activity name fails silently on many TVs, and am start
     // exits 0 even then, so an "|| fallback" after it never ran.
-    const ok = await adbShell(`am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}"`);
-    if (ok) return { ok: true, title, videoId };
+    const ok = await adbShell(`am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}${tSuffix}"`);
+    if (ok) return { ok: true, title, videoId, startedAt: at };
   }
 
   // Fire TV has no Cast or DIAL fallback — it's ADB or nothing.
@@ -661,8 +664,8 @@ async function castYouTube(query) {
   }
 
   // 2. DIAL with video ID
-  const dialOk = await dialLaunch('YouTube', `v=${videoId}`);
-  if (dialOk) return { ok: true, title, videoId };
+  const dialOk = await dialLaunch('YouTube', `v=${videoId}` + (at > 0 ? `&t=${at}` : ''));
+  if (dialOk) return { ok: true, title, videoId, startedAt: at };
 
   // 3. All that is left is the cast receiver, which shows an empty YouTube
   // screen and nothing else - no video, no search, no way in. Reporting that
@@ -745,15 +748,59 @@ async function openUrl(url, appName = 'App') {
   if (!connectedDev) throw new Error('Not connected to any TV');
   await ensureAwake().catch(() => {});
 
-  let appKey = null;
-  if (/netflix/i.test(url))           appKey = 'netflix';
-  else if (/spotify/i.test(url))      appKey = 'spotify';
-  else if (/youtube/i.test(url))      appKey = 'youtube';
-  else if (/prime|amazon/i.test(url)) appKey = 'prime';
+  const link = String(url || '').trim();
 
-  if (!appKey) throw new Error('Unknown app: ' + appName);
-  await launchApp(appKey);
-  return { ok: true };
+  // A YouTube link, with whatever start time is written into it. Opening the
+  // app and leaving them to find the video again is not what "play this" meant.
+  const yt = link.match(/(?:youtube\.com\/watch\?[^\s]*[?&]v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/);
+  if (yt) {
+    const videoId = yt[1];
+    const tm = link.match(/[?&](?:t|start)=(\d+h)?(\d+m)?(\d+s?)?/i);
+    let at = 0;
+    if (tm) {
+      at = (parseInt(tm[1]) || 0) * 3600 + (parseInt(tm[2]) || 0) * 60 + (parseInt(tm[3]) || 0);
+    }
+    lastPlayed = { app: 'youtube', videoId, title: link, at: Date.now() };
+    if (connectedDev.kind === 'roku') {
+      await roku(`/launch/${ROKU_CHANNELS.youtube}?contentId=${encodeURIComponent(videoId)}&mediaType=movie`);
+      return { ok: true, message: 'Playing it on YouTube.' };
+    }
+    if (connectedDev.hasAdb) {
+      const pkg = await resolvePkg('youtube');
+      const ok = await adbShell(`am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}${at > 0 ? '&t=' + at + 's' : ''}" ${pkg}`);
+      if (ok) return { ok: true, message: at > 0 ? `Playing it from ${fmtTime(at)}.` : 'Playing it on YouTube.' };
+    }
+    if (await dialLaunch('YouTube', `v=${videoId}` + (at > 0 ? `&t=${at}` : ''))) {
+      return { ok: true, message: 'Playing it on YouTube.' };
+    }
+    throw Object.assign(new Error('Playing a YouTube link needs debugging access on the TV. Turn on Developer options, then USB or network debugging, and ask again.'), { needsAdb: true });
+  }
+
+  // A file rather than a page: cast it straight to the TV's own player.
+  if (/\.(?:mp4|m4v|mkv|webm|mov|mp3|m4a|aac|flac|wav|jpg|jpeg|png|gif)(?:[?#]|$)/i.test(link)) {
+    await castMedia(link);
+    return { ok: true, message: 'Casting it to your TV.' };
+  }
+
+  // One of the apps it knows, with nothing specific to open inside it.
+  let appKey = null;
+  if (/netflix/i.test(link))           appKey = 'netflix';
+  else if (/spotify/i.test(link))      appKey = 'spotify';
+  else if (/prime|amazon/i.test(link)) appKey = 'prime';
+  if (appKey) { await launchApp(appKey); return { ok: true, message: `Opened ${APP_LABEL[appKey]} on your TV.` }; }
+
+  // Anything else is a web page, and the TV has a browser. This is what
+  // "put this link on the telly" asks for, and it used to throw "Unknown app"
+  // at every address that was not one of four.
+  if (!/^https?:\/\//i.test(link)) throw new Error('That does not look like a web address.');
+  if (!connectedDev.hasAdb) {
+    throw Object.assign(new Error('Opening a web page on your TV needs debugging access. Turn on Developer options, then USB or network debugging, on the TV and ask again.'), { needsAdb: true });
+  }
+  // Whatever browser it has takes the link; no package named, so Android
+  // hands it to the right one rather than a guess that may not be installed.
+  const opened = await adbShell(`am start -a android.intent.action.VIEW -d "${link.replace(/"/g, '')}"`);
+  if (!opened) throw new Error('The TV would not open that link. It may have no browser installed.');
+  return { ok: true, message: 'Opened it on your TV.' };
 }
 
 // ── Cast generic media ─────────────────────────────────────────────────────────

@@ -5845,7 +5845,13 @@ async function sendToJarvis(text) {
     } else if (res?.error === 'daily_limit_reached') {
       // Not an apology: there is nothing wrong, they have used today's fifteen.
       addMessage('assistant', res.userMsg || "You've used your 15 free messages for today.");
-      showPaywall({ limit: res.limit || 15, reason: 'limit' });
+      // Someone with no account cannot buy anything, so showing them prices
+      // first and a sign-in wall second is the wrong way round.
+      if (!profile || !profile.email) {
+        showSignUpPrompt('Make an account and your free messages reset each day — or go Premium for unlimited.');
+      } else {
+        showPaywall({ limit: res.limit || 15, reason: 'limit' });
+      }
     } else if (res?.userMsg) {
       // Structured error from classifyAIError — message already spoken via TTS in main.js
       addMessage('assistant', res.userMsg);
@@ -12102,6 +12108,37 @@ if (window.jarvis && window.jarvis.onWatchUpdate) {
 // One card, opened from two places: the moment the day's fifteen free messages
 // run out, and the Subscription row in Account for anyone not on Premium. The
 // prices and the wording are the website's, so the two never disagree.
+// No account yet. Said in the app, with the way in right there, rather than
+// opening a browser on a page that tells them to come back.
+function showSignUpPrompt(why) {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.innerHTML = `
+    <div class="msg-avatar">${SPARKLES_SVG}</div>
+    <div class="msg assistant">
+      <span class="msg-text"><b>You will need an account first</b><br>${esc(why || 'Callisto keeps your settings, history and plan on your account.')}</span>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="gleam gleam-sm" id="suNow"><span>Create one</span></button>
+        <button class="gleam gleam-sm" id="suLater" style="opacity:.7"><span>Not now</span></button>
+      </div>
+    </div>`;
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+  row.querySelector('#suNow')?.addEventListener('click', () => {
+    row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try {
+      mainView.classList.add('hidden');
+      setupView.classList.remove('hidden');
+      showNameStep();
+    } catch (_) {
+      window.jarvis?.openUrl?.('https://callistoai.net/account');
+    }
+  });
+  row.querySelector('#suLater')?.addEventListener('click', () => {
+    row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  });
+}
+
 function showPaywall(opts) {
   const o = opts || {};
   const modal = document.getElementById('paywallModal');
@@ -12144,6 +12181,15 @@ function _paywallPlan() {
   document.getElementById('planMo')?.addEventListener('click', function () { _setPaywallPlan('monthly'); });
   document.getElementById('planYr')?.addEventListener('click', function () { _setPaywallPlan('annual'); });
   document.getElementById('paywallBuy')?.addEventListener('click', function () {
+    // Premium is attached to an account, so without one there is nowhere to
+    // put it. The server refuses this too, but only after a browser has
+    // opened on a "sign in first" page - which is a dead end arrived at the
+    // long way round. Ask here instead, where they already are.
+    if (!profile || !profile.email) {
+      hidePaywall();
+      showSignUpPrompt('Premium is attached to a Callisto account, so you need one before you can buy it. It takes a moment.');
+      return;
+    }
     hidePaywall();
     // Opens in the browser, signed in as this account, so whatever is bought
     // lands on it rather than on an anonymous Stripe customer.
