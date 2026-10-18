@@ -4863,6 +4863,20 @@ function showCard(card) {
           : `⚠️ \`${card.command}\` failed${res.output || res.error ? `\n\n\`\`\`\n${String(res.output || res.error).slice(-1200)}\n\`\`\`` : ''}`);
       });
     }, 50);
+  } else if (card.type === 'pick-folder') {
+    cardContent.innerHTML = `<div style="padding:4px 2px">
+      <div style="font-size:12.5px;line-height:1.55;color:rgba(190,210,255,.85);margin-bottom:10px">
+        Choose the folder your project is in. Callisto remembers it, so this is a one-off.
+        ${card.why ? `<br><span style="opacity:.65">${esc(card.why)}</span>` : ''}
+      </div>
+      <button class="gleam gleam-sm" id="pickFolderBtn"><span>Choose folder…</span></button>
+    </div>`;
+    setTimeout(() => {
+      document.getElementById('pickFolderBtn')?.addEventListener('click', async () => {
+        const res = await window.jarvis.pickProjectFolder?.();
+        if (res && res.ok) addMessage('assistant', `Working in \`${res.folder}\` from now on. Ask me again and I'll get on with it.`);
+      });
+    }, 50);
   } else if (card.type === 'publish') {
     cardContent.innerHTML = renderPublishCard(card);
     wirePublishCard(card);

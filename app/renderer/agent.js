@@ -38,8 +38,44 @@
   // which have their own makers and must not be swallowed by this.
   const NOT_CODE = /\b(?:picture|image|photo|video|clip|3d\s*model|model\s+of|song|music|poem|story|essay|email|document|slide|deck|spreadsheet|sketch|drawing|logo)\b/i;
 
-  function stepsText() {
-    return teaching.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  // "the project is in C:\dev\thing", "use the folder ~/code/app"
+  const SET_FOLDER = /(?:project|code|repo|folder|work)\s+(?:is\s+)?(?:in|at|under)\s+(.+)$|^(?:use|open|set)\s+(?:the\s+)?folder\s+(.+)$/i;
+
+  let pendingGoal = null;   // what they asked for while no folder was chosen
+
+  async function startTask(goal) {
+    const r = await J().taskStart?.(goal);
+    if (r && r.ok) {
+      say(`Right — working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
+      return true;
+    }
+    if (r && r.error === 'busy') { say(`I am still working on "${r.goal}". Say *"stop"* if you want me to drop it.`); return true; }
+    return false;
+  }
+
+  // A button, because a path typed from memory is a poor way to pick a folder.
+  function askForFolder() {
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.innerHTML = `
+      <div class="msg-avatar">${window.SPARKLES_SVG || ''}</div>
+      <div class="msg assistant">
+        <span class="msg-text">Which project should I work in? I need a folder before I can read or write anything.</span>
+        <div style="margin-top:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="gleam gleam-sm" data-agent="pick"><span>Choose folder…</span></button>
+          <span style="font-size:11px;opacity:.6">or just tell me: <em>the project is in C:\\dev\\my-app</em></span>
+        </div>
+      </div>`;
+    const chatEl = document.getElementById('chat');
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    row.querySelector('[data-agent="pick"]')?.addEventListener('click', async () => {
+      const res = await J().pickProjectFolder?.();
+      if (!res || !res.ok) return;
+      row.querySelector('button').disabled = true;
+      say(`Working in \`${res.folder}\`.`);
+      if (pendingGoal) { const g = pendingGoal; pendingGoal = null; await startTask(g); }
+    });
   }
 
   window._checkAgent = async function (text) {
@@ -107,14 +143,31 @@
       // Not a procedure — fall through so it is treated as an ordinary request.
     }
 
-    // ── set it to work ─────────────────────────────────────────────────────
-    if (TASK_START.test(t) || (CODE_START.test(t) && !NOT_CODE.test(t))) {
-      const r = await J().taskStart?.(t);
+    // ── "the project is in …" ──────────────────────────────────────────────
+    const fm = t.match(SET_FOLDER);
+    if (fm && fm[1]) {
+      const r = await J().setProjectFolder?.(fm[1].trim());
       if (r && r.ok) {
-        say(`Right — working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
+        say(`Right — I'll work in \`${r.folder}\`.`);
+        if (pendingGoal) { const g = pendingGoal; pendingGoal = null; await startTask(g); }
         return true;
       }
-      if (r && r.error === 'busy') { say(`I am still working on "${r.goal}". Say *"stop"* if you want me to drop it.`); return true; }
+      say((r && r.error) || 'I could not find that folder.');
+      return true;
+    }
+
+    // ── set it to work ─────────────────────────────────────────────────────
+    if (TASK_START.test(t) || (CODE_START.test(t) && !NOT_CODE.test(t))) {
+      // Work needs somewhere to happen. Telling someone "say which folder" and
+      // giving them no way to say it is how this used to dead-end in a home
+      // directory - so it offers the picker, and remembers what they wanted.
+      const chosen = await J().getProjectFolder?.();
+      if (!chosen) {
+        pendingGoal = t;
+        askForFolder();
+        return true;
+      }
+      if (await startTask(t)) return true;
     }
     return false;
   };

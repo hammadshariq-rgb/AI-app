@@ -3033,9 +3033,17 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         try { return _fs.existsSync(path.join(folder, m)); } catch (_) { return false; }
       });
       if (!looksLikeProject) {
-        const spoken = `There's no project in ${folder}, so that command would fail there. Tell me which folder the project is in and I'll run it there.`;
+        // Telling someone to "say which folder" and giving them no way to say
+        // it is a dead end, and that is exactly where this used to leave
+        // people. The card below has a button that opens the picker.
+        const spoken = `There's no project in ${folder}. Pick the folder it's in and I'll work there.`;
         _sendTTS(_e.sender, spoken);
-        return { text: spoken, audio: null, card: null, hasAction: false };
+        return {
+          text: spoken,
+          audio: null,
+          card: { type: 'pick-folder', why: p.command ? `so I can run: ${p.command}` : '' },
+          hasAction: false,
+        };
       }
     }
 
@@ -4557,6 +4565,27 @@ ipcMain.handle('command:run', async (_e, { command, folder }) => {
       });
     });
   });
+});
+
+// Which folder has been chosen, if any. Distinct from the fallback: knowing
+// that nothing has been chosen is what lets the app offer to choose one
+// instead of failing in a home directory.
+ipcMain.handle('command:getFolder', () => store.get('project.folder') || null);
+
+// Set it from a path they typed or said, rather than only from the dialog.
+ipcMain.handle('command:setFolder', (_e, folder) => {
+  let f = String(folder || '').trim().replace(/^["']|["']$/g, '').replace(/[.,]$/, '');
+  if (!f) return { ok: false, error: 'No folder given.' };
+  // "~/code/app" is how people write it and not something the OS resolves.
+  if (/^~(?:[/\\]|$)/.test(f)) f = path.join(app.getPath('home'), f.slice(1));
+  try {
+    const st = require('fs').statSync(f);
+    if (!st.isDirectory()) return { ok: false, error: 'That is a file, not a folder.' };
+  } catch (_) {
+    return { ok: false, error: `I cannot find ${f}.` };
+  }
+  store.set('project.folder', f);
+  return { ok: true, folder: f };
 });
 
 // The folder commands run in — picked once, remembered after.

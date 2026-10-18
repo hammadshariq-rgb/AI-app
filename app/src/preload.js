@@ -227,6 +227,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   procForget:    (name)                => ipcRenderer.invoke('proc:forget', { name }),
   procRun:       (name, extra)         => ipcRenderer.invoke('proc:run', { name, extra }),
   pickProjectFolder: ()                => ipcRenderer.invoke('command:pickFolder'),
+  getProjectFolder:  ()                => ipcRenderer.invoke('command:getFolder'),
+  setProjectFolder:  (folder)          => ipcRenderer.invoke('command:setFolder', folder),
   // AI phone calling — the assistant dials a business and negotiates on the user's behalf
   // Quit app (used by gesture — clap = clear + quit)
   quitApp:       () => ipcRenderer.invoke('app:quit'),
