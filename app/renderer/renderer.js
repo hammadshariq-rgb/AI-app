@@ -5225,6 +5225,12 @@ if (window.jarvis.onHudResponse) {
   // while it happens - which is also how the old message got stuck.
   window.jarvis.onUpdateReady?.((d) => showReady(d && d.version));
 
+  // Say which version this is, in the one place people look.
+  window.jarvis.appVersion?.().then((v) => {
+    const el = document.getElementById('appVersionLine');
+    if (el && v) el.textContent = 'Version ' + v;
+  }).catch(() => {});
+
   // The restart did not happen. Say so and let them press it again, rather
   // than leaving a button that reads "Restarting..." for an hour.
   window.jarvis.onUpdateFailed?.(() => {

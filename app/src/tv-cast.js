@@ -578,9 +578,21 @@ async function launchApp(appKey) {
     // monkey launches an app by package without needing its activity name.
     // Android TV apps sit under LEANBACK_LAUNCHER; Fire TV apps often only
     // under LAUNCHER, so try both.
+    // YouTube first gets a plain "view youtube.com" handed to its own
+    // package. That opens the real app on its home screen. Launching it any
+    // other way can bring up the cast RECEIVER instead - which is a black
+    // screen with nothing playing, and reports success while it does it.
+    // Netflix has no such receiver, which is why only YouTube went dark.
+    if (appKey === 'youtube'
+        && await adbShell(`am start -a android.intent.action.VIEW -d 'https://www.youtube.com' ${pkg}`)
+        && await cameToFront(pkg)) {
+      return true;
+    }
     const ok = await adbShell(`monkey -p ${pkg} -c android.intent.category.LEANBACK_LAUNCHER 1`)
       || await adbShell(`monkey -p ${pkg} -c android.intent.category.LAUNCHER 1`);
-    if (ok) return true;
+    // monkey exits 0 having done nothing often enough that its word is not
+    // worth much; ask the TV what is actually in front before believing it.
+    if (ok && await cameToFront(pkg)) return true;
   }
   if (fire) throw new Error(connectedDev.hasAdb
     ? `Couldn't open ${appKey} — is it installed on the Fire TV?`
@@ -816,6 +828,26 @@ const ALT_PACKAGES = {
   ],
 };
 const _pkgFound = {};
+
+// Is this package actually the thing on screen now? Used to tell a launch
+// that worked from one that merely exited 0. If the TV will not say - older
+// builds, no grep, a locked-down box - the answer is "assume yes", because a
+// silent check must never turn a working launch into a failure.
+async function cameToFront(pkg, waitMs = 1400) {
+  if (!connectedDev || !connectedDev.hasAdb || !pkg) return true;
+  await new Promise((r) => setTimeout(r, waitMs));
+  let out = '';
+  try {
+    out = await adb.shellWithAuth(connectedDev.host, 'dumpsys window windows | grep -E "mCurrentFocus|mFocusedApp"', 8000);
+  } catch (_) {
+    try {
+      out = await adb.shellWithAuth(connectedDev.host, 'dumpsys activity activities | grep -E "ResumedActivity"', 8000);
+    } catch (_) { return true; }
+  }
+  const seen = String(out || '');
+  if (!seen.trim()) return true;
+  return seen.includes(pkg);
+}
 
 async function resolvePkg(appKey) {
   const base = pkgFor(appKey);

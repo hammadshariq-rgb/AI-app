@@ -899,12 +899,18 @@ function flushPendingDeepLink() {
 function createTray() {
   tray = new Tray(path.join(__dirname, '..', 'assets', 'icon.png'));
   const menu = Menu.buildFromTemplate([
+    // Which version is actually running. There was no way to tell, from
+    // inside the app or out, which made "have you got the fix?" impossible
+    // to answer - and on a Mac it is easy to keep opening an old copy from
+    // the disk image rather than the one in Applications.
+    { label: `${getAssistantName()} ${app.getVersion()}`, enabled: false },
+    { type: 'separator' },
     { label: `Summon ${getAssistantName()} (${process.platform === 'darwin' ? '⌘⇧J' : 'Ctrl+Shift+J'})`, click: toggleOverlay },
     { label: 'Sign in / Manage subscription', click: () => commands.openInChrome(process.env.LICENSE_SERVER_URL + '/account') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
-  tray.setToolTip(`${getAssistantName()} — Your Own Personal AI`);
+  tray.setToolTip(`${getAssistantName()} ${app.getVersion()} — Your Own Personal AI`);
   tray.setContextMenu(menu);
   tray.on('click', toggleOverlay);
 }
@@ -1426,6 +1432,7 @@ ipcMain.handle('auth:logout', () => {
 ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
 ipcMain.handle('app:quit', () => { app.quit(); });
+ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(!!flag); });
 // Toggle click-through: pass false when user hovers a Callisto element, true otherwise
 ipcMain.handle('app:setClickThrough', (_e, flag) => {

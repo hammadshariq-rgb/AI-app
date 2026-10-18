@@ -2223,6 +2223,10 @@
                 </div>
                 <button type="button" class="gleam" id="updateRowBtn"><span>Restart &amp; update</span></button>
               </div>
+              <!-- Which version is actually running. Without this there was no
+                   way to tell whether a fix had arrived, and on a Mac it is
+                   easy to keep opening an old copy from the disk image. -->
+              <div id="appVersionLine" style="text-align:center;font-size:11px;letter-spacing:.04em;color:rgba(150,175,255,0.55);margin:2px 0 10px"></div>
               <!-- Avatar — centred -->
               <div class="account-hero">
                 <div id="profileAvatar">👤</div>
