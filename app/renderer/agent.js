@@ -79,7 +79,16 @@
   }
 
   window._checkAgent = async function (text) {
-    const t = String(text || '').trim();
+    // Quotes around the whole thing come off first. People type "build me a
+    // component" with the quotes included, and every pattern below is
+    // anchored to the start of the sentence - so a leading quotation mark
+    // meant none of them matched and the request fell through to the model.
+    // Curly quotes especially, because that is what most keyboards produce.
+    const t = String(text || '')
+      .trim()
+      .replace(/^["'‘’“”«»`]+/, '')
+      .replace(/["'‘’“”«»`]+$/, '')
+      .trim();
     if (!t) return false;
 
     // ── while being taught, everything is a step ────────────────────────────

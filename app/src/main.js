@@ -3019,7 +3019,8 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // run and where, and it runs when the user presses Run — never before.
   if (finalAction?.type === 'run_command') {
     const p = finalAction.payload || {};
-    const folder = p.folder || store.get('project.folder') || app.getPath('home');
+    // Reassigned below when the project turns out to be one level down.
+    let folder = p.folder || store.get('project.folder') || app.getPath('home');
 
     // A command that works on a project cannot work in a home folder, and
     // falling back to one guaranteed the failure: "npm run build" there can
@@ -3029,9 +3030,31 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     if (needsProject) {
       const _fs = require('fs');
       const markers = ['package.json', 'pyproject.toml', 'Cargo.toml', 'pom.xml', 'go.mod', 'Makefile', 'composer.json'];
-      const looksLikeProject = markers.some((m) => {
-        try { return _fs.existsSync(path.join(folder, m)); } catch (_) { return false; }
+      const hasMarker = (dir) => markers.some((m) => {
+        try { return _fs.existsSync(path.join(dir, m)); } catch (_) { return false; }
       });
+      let looksLikeProject = hasMarker(folder);
+      // A repository often holds its projects one level down - app/ and
+      // server/, say - and the top of it has no package.json at all. Being
+      // told "there is no project here" while package.json sits one folder
+      // in is unhelpful and wrong in spirit, so look inside before giving up.
+      if (!looksLikeProject) {
+        try {
+          const kids = _fs.readdirSync(folder, { withFileTypes: true })
+            .filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name !== 'node_modules')
+            .map((d) => path.join(folder, d.name))
+            .filter(hasMarker);
+          if (kids.length === 1) {
+            folder = kids[0];
+            looksLikeProject = true;
+          } else if (kids.length > 1) {
+            const names = kids.map((k) => path.basename(k));
+            const spoken = `There are ${names.length} projects in there — ${names.join(', ')}. Which one?`;
+            _sendTTS(_e.sender, spoken);
+            return { text: spoken, audio: null, card: { type: 'pick-folder', why: 'so I know which one to work in' }, hasAction: false };
+          }
+        } catch (_) { /* unreadable folder - fall through to asking */ }
+      }
       if (!looksLikeProject) {
         // Telling someone to "say which folder" and giving them no way to say
         // it is a dead end, and that is exactly where this used to leave
@@ -4574,7 +4597,14 @@ ipcMain.handle('command:getFolder', () => store.get('project.folder') || null);
 
 // Set it from a path they typed or said, rather than only from the dialog.
 ipcMain.handle('command:setFolder', (_e, folder) => {
-  let f = String(folder || '').trim().replace(/^["']|["']$/g, '').replace(/[.,]$/, '');
+  // Straight quotes, curly quotes and a trailing full stop all come off. A
+  // path dictated or typed inside quotation marks arrived as
+  // C:\dev\thing" and was reported as not existing, which it did not.
+  let f = String(folder || '').trim()
+    .replace(/^[\u0022\u0027\u2018\u2019\u201C\u201D\u00AB\u00BB`]+/, '')
+    .replace(/[\u0022\u0027\u2018\u2019\u201C\u201D\u00AB\u00BB`]+$/, '')
+    .replace(/[.,;:]+$/, '')
+    .trim();
   if (!f) return { ok: false, error: 'No folder given.' };
   // "~/code/app" is how people write it and not something the OS resolves.
   if (/^~(?:[/\\]|$)/.test(f)) f = path.join(app.getPath('home'), f.slice(1));
