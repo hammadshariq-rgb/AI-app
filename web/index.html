@@ -1717,7 +1717,7 @@
     }
     .web-action-link { color: #22c3f0; font-weight: 600; text-decoration: underline; margin-left: 4px; }
   </style>
-  <link rel="stylesheet" href="/panels/panels.css?v=1" />
+  <link rel="stylesheet" href="/panels/panels.css?v=2" />
 </head>
 <body>
   <h1 class="sr-only">Callisto AI — the desktop AI assistant for Windows and Mac</h1>
@@ -3781,6 +3781,9 @@
   #webOnboard.hidden{display:none!important}
   #wobCard{
     width:480px;max-width:92vw;
+    /* Taller than a phone, so it has to scroll rather than run off the
+       bottom: the Get started button was below the fold and unreachable. */
+    max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     background:rgba(8,11,28,0.95);
     border:1px solid rgba(94,114,228,0.22);
     border-radius:22px;padding:44px 40px 36px;

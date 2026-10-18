@@ -242,7 +242,11 @@ body.light .mo-detail-name { color: #1a2040; }
 #glassCalendar { z-index: 419 !important; }
 #remindersPanel { z-index: 420 !important; }
 #marketsOverlay, #calendarOverlay { z-index: 700 !important; }
-@media (max-width: 900px) { #remindersPanel, #glassCalendar { display: none !important; } }
+/* The floating panels are 288px wide and pinned to the right, which is most
+   of a phone screen. The reminders and the calendar were already stood down
+   on a narrow window; the portfolio was left out of this list, so on a phone
+   it sat over the whole page and hid the orb completely. */
+@media (max-width: 900px) { #remindersPanel, #glassCalendar, #finPanel { display: none !important; } }
 
 /* Tasks share the reminder rows, with a divider above and a warning tint for anything carried over. */
 #remindersPanel .rp-header-tasks { border-top: 1px solid rgba(255,255,255,0.07) !important; }
