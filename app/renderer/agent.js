@@ -1,0 +1,182 @@
+// ── Working on its own, and being taught ─────────────────────────────────────
+//
+// Three things live here, and they share one idea: Callisto does the parts it
+// can do by itself and stops the moment it needs a person.
+//
+//   "sort out X for me"            - works through it a step at a time
+//   "let me show you how I do X"   - writes the steps down under a name
+//   "do the X"                     - carries out one it was taught
+//
+// Nothing that installs, writes, commits, pushes, deploys or deletes runs
+// without a press. That rule lives in the main process, not here, so a change
+// in this file cannot loosen it.
+(function () {
+  'use strict';
+
+  const J = () => window.jarvis || {};
+  const say = (t) => { try { window.addMessage('assistant', t); } catch (_) {} };
+
+  // ── Being taught ───────────────────────────────────────────────────────────
+  let teaching = null;   // { name, steps }
+
+  const TEACH_START = /^(?:ok(?:ay)?[,\s]+)?(?:let me |i(?:'| a)?ll )?(?:show|teach|walk)\s+(?:you|u)\s+(?:through\s+)?(?:how\s+(?:i|we|to)\s+)?(.+)$/i;
+  const TEACH_ALT   = /^(?:remember|learn)\s+how\s+(?:i|we)\s+(.+)$/i;
+  const TEACH_END   = /^(?:ok(?:ay)?[,\s]+)?(?:that(?:'s| is)\s+it|that(?:'s| is)\s+all|done|finished|end|save\s+(?:it|that)|stop\s+(?:recording|learning))\b/i;
+  const PROC_RUN    = /^(?:ok(?:ay)?[,\s]+)?(?:(?:now\s+)?(?:do|run|carry\s+out|perform)\s+(?:the\s+|my\s+)?(.+?)(?:\s+(?:procedure|routine|process))?)$/i;
+  const PROC_LIST   = /^(?:what|which)\s+(?:procedures|routines|things)\s+(?:do\s+you\s+know|have\s+(?:i|you)\s+taught)/i;
+
+  // A job to go away and work on. Deliberately narrow: this takes over the
+  // whole turn, so it only fires on a clear instruction to get something done.
+  const TASK_START = /\b(?:sort|fix|work)\s+(?:this|that|it|them)?\s*out\b|\b(?:go\s+(?:and\s+)?)?(?:sort|fix|debug|investigate|set\s+up|install|deploy|build|test|commit|clean\s+up|tidy\s+up|refactor|update)\b[^.?!]{0,80}\b(?:for\s+me|yourself|on\s+your\s+own|please)\b|^(?:go\s+)?(?:ahead\s+and\s+)?(?:sort|fix|debug|investigate)\b/i;
+
+  function stepsText() {
+    return teaching.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  }
+
+  window._checkAgent = async function (text) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+
+    // ── while being taught, everything is a step ────────────────────────────
+    if (teaching) {
+      if (TEACH_END.test(t)) {
+        if (!teaching.steps.length) {
+          teaching = null;
+          await J().procCancel?.();
+          say('Nothing to save — I did not catch any steps. Start again whenever you like.');
+          return true;
+        }
+        const res = await J().procSave?.(teaching.name);
+        const saved = teaching;
+        teaching = null;
+        if (res && res.ok) {
+          say(`Saved as **${res.name}**, ${res.steps} step${res.steps === 1 ? '' : 's'}:\n\n${saved.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nSay *"do the ${res.name}"* and I will work through it.`);
+        } else {
+          say(`I could not save that: ${(res && res.error) || 'unknown problem'}`);
+        }
+        return true;
+      }
+      teaching.steps.push(t);
+      await J().procNote?.(t, 'say');
+      say(`Noted — step ${teaching.steps.length}. Carry on, or say *"that's it"* when you are done.`);
+      return true;
+    }
+
+    // ── start being taught ─────────────────────────────────────────────────
+    const m = t.match(TEACH_START) || t.match(TEACH_ALT);
+    if (m && m[1] && m[1].trim().length > 2) {
+      const name = m[1].replace(/[.?!]+$/, '').trim();
+      teaching = { name, steps: [] };
+      await J().procStart?.(name);
+      say(`Go on then — walk me through **${name}**, one step per message. I will write each one down. Say *"that's it"* when you have finished.`);
+      return true;
+    }
+
+    // ── what do you know? ──────────────────────────────────────────────────
+    if (PROC_LIST.test(t)) {
+      const list = (await J().procList?.()) || [];
+      say(list.length
+        ? `You have taught me ${list.length}:\n\n${list.map((p) => `• **${p.name}** — ${p.steps} step${p.steps === 1 ? '' : 's'}${p.runs ? `, run ${p.runs}×` : ''}`).join('\n')}`
+        : 'Nothing yet. Say *"let me show you how I do the Monday report"* and walk me through it.');
+      return true;
+    }
+
+    // ── run something it was taught ────────────────────────────────────────
+    const pm = t.match(PROC_RUN);
+    if (pm && pm[1]) {
+      const wanted = pm[1].replace(/[.?!]+$/, '').trim();
+      const list = (await J().procList?.()) || [];
+      const hit = list.find((p) => p.name.toLowerCase() === wanted.toLowerCase())
+        || list.find((p) => wanted.toLowerCase().includes(p.name.toLowerCase()))
+        || list.find((p) => p.name.toLowerCase().includes(wanted.toLowerCase()));
+      if (hit) {
+        const r = await J().procRun?.(hit.name);
+        if (r && r.ok) { say(`Working through **${hit.name}** — ${r.steps} step${r.steps === 1 ? '' : 's'}. I will stop and ask if anything needs you.`); return true; }
+        say(`I could not start that: ${(r && r.error) === 'busy' ? 'I am already working on something.' : ((r && r.error) || 'unknown problem')}`);
+        return true;
+      }
+      // Not a procedure — fall through so it is treated as an ordinary request.
+    }
+
+    // ── set it to work ─────────────────────────────────────────────────────
+    if (TASK_START.test(t)) {
+      const r = await J().taskStart?.(t);
+      if (r && r.ok) {
+        say(`Right — working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
+        return true;
+      }
+      if (r && r.error === 'busy') { say(`I am still working on "${r.goal}". Say *"stop"* if you want me to drop it.`); return true; }
+    }
+    return false;
+  };
+
+  // ── What it is doing, as it does it ─────────────────────────────────────────
+  J().onTaskStep?.((d) => {
+    if (!d) return;
+    if (d.kind === 'running') {
+      say(`\`${d.command}\`${d.why ? `\n*${d.why}*` : ''}`);
+    } else if (d.kind === 'ran') {
+      const out = String(d.output || '').trim();
+      say(`${d.ok ? '✅' : '⚠️'} ${d.ok ? 'Done' : 'That failed'}${out ? `\n\n\`\`\`\n${out.slice(-900)}\n\`\`\`` : ''}`);
+    }
+  });
+
+  // ── The two reasons it stops ───────────────────────────────────────────────
+  J().onTaskNeedsYou?.((d) => {
+    if (!d) return;
+    if (d.kind === 'question') {
+      say(`🧑 **I need you here.**\n\n${d.question}`);
+      window._agentAwaitingAnswer = true;
+      return;
+    }
+    // A command that changes something. Shown with the exact text, and it
+    // does not run until this is pressed.
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.innerHTML = `
+      <div class="msg-avatar">${window.SPARKLES_SVG || ''}</div>
+      <div class="msg assistant">
+        <span class="msg-text"><b>This one changes things, so it is yours to approve.</b>${d.why ? `<br><span style="opacity:.75">${esc(d.why)}</span>` : ''}</span>
+        <pre style="margin:8px 0 6px;padding:8px 10px;border-radius:7px;background:rgba(0,0,0,.35);border:1px solid rgba(100,140,255,.25);font-size:12px;white-space:pre-wrap;word-break:break-all">${esc(d.command)}</pre>
+        <div style="font-size:10.5px;opacity:.6;margin-bottom:8px">in ${esc(d.folder || '')}</div>
+        <div style="display:flex;gap:8px">
+          <button class="gleam gleam-sm" data-agent="run"><span>Run it</span></button>
+          <button class="gleam gleam-sm" data-agent="skip" style="opacity:.75"><span>Not that</span></button>
+        </div>
+      </div>`;
+    const chatEl = document.getElementById('chat');
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    const done = (approved) => {
+      row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:11px;opacity:.65;margin-top:6px';
+      note.textContent = approved ? 'Running it…' : 'Skipped — finding another way.';
+      row.querySelector('.msg').appendChild(note);
+      J().taskResume?.({ approved });
+    };
+    row.querySelector('[data-agent="run"]')?.addEventListener('click', () => done(true));
+    row.querySelector('[data-agent="skip"]')?.addEventListener('click', () => done(false));
+  });
+
+  J().onTaskDone?.((d) => {
+    window._agentAwaitingAnswer = false;
+    say(`**Finished.** ${(d && d.summary) || ''}${d && d.runs ? `\n\n*${d.runs} command${d.runs === 1 ? '' : 's'} run.*` : ''}`);
+  });
+
+  // An answer to a question it asked goes back to the job, not to ordinary chat.
+  const _origCheck = window._checkAgent;
+  window._checkAgent = async function (text) {
+    if (window._agentAwaitingAnswer) {
+      window._agentAwaitingAnswer = false;
+      await J().taskResume?.({ answer: text });
+      return true;
+    }
+    return _origCheck(text);
+  };
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+})();

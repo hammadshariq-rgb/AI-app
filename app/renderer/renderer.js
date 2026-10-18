@@ -9,6 +9,13 @@ const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
 function keys(combo) {
   if (!IS_MAC) return combo;
   if (combo === 'Ctrl+Space') return 'Control+Space';
+  // The Magic Cursor and the Magic Editor are the exception. On a Mac,
+  // Cmd+Shift+X and Cmd+Shift+E register without complaint and then never
+  // fire, because something in the system already holds them, so both bind to
+  // Option instead. Printing Cmd here sent people pressing a key that does
+  // nothing and concluding the feature was broken.
+  if (combo === 'Ctrl+Shift+X') return 'Option+Shift+X';
+  if (combo === 'Ctrl+Shift+E') return 'Option+Shift+E';
   // Alt IS the Option key on a Mac, and every other Ctrl here becomes Cmd, so
   // spell this one out: "Ctrl" next to a row of Cmd shortcuts reads as Command.
   // Alt is already the Option key on a Mac, so Alt+Shift+C needs no remapping.
@@ -5649,6 +5656,10 @@ async function sendToJarvis(text) {
       if (history.length) history[history.length - 1] = { role: 'user', content: text };
     }
   }
+  // Teaching it a procedure, running one, or setting it to work on a job.
+  // These come first: while it is being taught, everything said is a step
+  // rather than a request, and that has to win over every other handler.
+  if (!_multi && typeof window._checkAgent === 'function' && await window._checkAgent(text)) return;
   if (!_multi && typeof window._checkDocStudio === 'function' && window._checkDocStudio(text)) return;
   // Asking about their own numbers: answer it and open the panel, rather than
   // sending it off to the model which has no access to these figures.

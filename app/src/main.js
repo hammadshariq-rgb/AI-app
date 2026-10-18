@@ -4202,7 +4202,7 @@ const COMMAND_NEVER = /(^|[\s;&|])(rm\s+-rf\s+\/(?!\w)|rmdir\s+\/s\s+\/q\s+[a-z]
 // might type, and the first thing it misses is the one that matters.
 const SAFE_COMMANDS = [
   // Looking at the repository
-  /^git\s+(status|log|diff|show|branch|remote(\s+-v)?|describe|rev-parse|blame|stash\s+list|config\s+--get\b)\b/i,
+  /^git\s+(status|log|diff|show|branch|remote(\s+-v)?|describe|rev-parse|blame|stash\s+list|config\s+--get\b|ls-files|ls-remote|ls-tree|shortlog|tag\s*$|tag\s+-l|count-objects|cat-file|whatchanged|rev-list|check-ignore|verify-commit)\b/i,
   // Looking at the filesystem
   /^(ls|dir|pwd|cd|cat|type|head|tail|wc|find|where|which|tree|du|df|stat|file)\b/i,
   /^(grep|rg|ripgrep|ag|findstr)\b/i,
