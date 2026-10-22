@@ -2368,7 +2368,7 @@
         <div id="hnavName" style="font-weight:700;color:#fff;font-size:14px"></div>
         <div id="hnavEmail" style="font-size:11.5px;color:rgba(130,155,210,0.6)"></div>
         <div id="hnavPlan" style="padding:8px 12px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.22);font-size:11.5px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
-        <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:10px;border-radius:9px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+        <button onclick="window._goStripe && window._goStripe('monthly')" style="padding:10px;border-radius:9px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
         <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,0.09);background:transparent;color:rgba(130,155,210,0.6);cursor:pointer;font-size:12px">Sign Out</button>
         <div style="text-align:center"><a href="#downloadSec" onclick="closeNavPanel()" style="font-size:11px;color:rgba(100,140,255,0.55);text-decoration:none">⬇ Download Desktop App</a></div>
       </div>
@@ -2458,7 +2458,7 @@
           <div id="acctName" style="font-weight:600;color:var(--text);font-size:13px;padding:2px 0"></div>
           <div id="acctEmail" style="font-size:11px;color:var(--text2)"></div>
           <div id="acctPlan" style="margin-top:4px;padding:7px 10px;border-radius:8px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.2);font-size:11px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
-          <button onclick="window.open('https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00')" style="padding:8px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:12px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+          <button onclick="window._goStripe && window._goStripe('monthly')" style="padding:8px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:12px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
           <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px">Sign Out</button>
           <div style="text-align:center;padding-top:2px"><a href="#downloadSec" style="font-size:11px;color:rgba(100,140,255,0.6);text-decoration:none">⬇ Download Desktop App</a></div>
         </div>
@@ -3026,8 +3026,6 @@
       }
     }catch(_){}
   };
-  const STRIPE_MO = 'https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00';
-  const STRIPE_YR = 'https://buy.stripe.com/3cI9AS2RqeYW2uM1fja7C01';
 
   let token = localStorage.getItem('cal_tok') || null;
 
@@ -3283,36 +3281,50 @@
   // find themselves still on the free plan, with no record tying the two
   // together - so the sign-in box comes first and the purchase resumes after it.
   let pendingBuy = null;
-  const goStripe = url => {
-    if (!user || !user.id) { pendingBuy = url; showAuthForced(); return; }
-    // The account id rides along to Stripe and comes back on the webhook, which
-    // is how the subscription finds this account even if a different address is
-    // typed into the payment form.
-    window.location.href = url + '?client_reference_id=' + encodeURIComponent(user.id);
+
+  // Through the server's own checkout, not a payment link pasted into this
+  // page.
+  //
+  // Those links were made once and never touched again. When the prices were
+  // changed to US dollars only the words on this page were changed, so the
+  // site advertised US$20 and the link behind it still charged CA$20 - a page
+  // promising a price it did not charge. The server builds the session from
+  // STRIPE_PRICE_ID, so the currency follows the price that is actually
+  // configured and the two cannot drift apart again.
+  const checkoutUrl = (plan) =>
+    `${SERVER}/checkout?token=${encodeURIComponent(token || '')}&plan=${plan === 'annual' ? 'annual' : 'monthly'}`;
+
+  const goStripe = plan => {
+    // Nobody pays without an account: there would be nowhere to put the
+    // subscription, and they would come back to find themselves still on the
+    // free plan having been charged.
+    if (!user || !user.id || !token) { pendingBuy = plan; showAuthForced(); return; }
+    window.location.href = checkoutUrl(plan);
   };
   // Called once signing in has set `user`. Returns true if it took over.
   function resumeBuy() {
-    if (!pendingBuy || !user || !user.id) return false;
-    const url = pendingBuy;
+    if (!pendingBuy || !user || !user.id || !token) return false;
+    const plan = pendingBuy;
     pendingBuy = null;
-    window.location.href = url + '?client_reference_id=' + encodeURIComponent(user.id);
+    window.location.href = checkoutUrl(plan);
     return true;
   }
+  window._goStripe = goStripe;
 
   // Premium dropdown
   document.getElementById('premBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('premiumDrop').classList.toggle('hidden');});
-  document.getElementById('dropMonthly')?.addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('dropYearly')?.addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('monthlyBtn')?.addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('yearlyLink')?.addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('yearlyBtn') && document.getElementById('yearlyBtn')?.addEventListener('click',()=>goStripe(STRIPE_YR));
+  document.getElementById('dropMonthly')?.addEventListener('click',()=>goStripe('monthly'));
+  document.getElementById('dropYearly')?.addEventListener('click',()=>goStripe('annual'));
+  document.getElementById('monthlyBtn')?.addEventListener('click',()=>goStripe('monthly'));
+  document.getElementById('yearlyLink')?.addEventListener('click',()=>goStripe('annual'));
+  document.getElementById('yearlyBtn') && document.getElementById('yearlyBtn')?.addEventListener('click',()=>goStripe('annual'));
 
   document.addEventListener('click',()=>{document.getElementById('premiumDrop').classList.add('hidden');document.getElementById('cnPremDrop').classList.add('hidden');});
 
   document.getElementById('cnPremBtn')?.addEventListener('click',e=>{e.stopPropagation();document.getElementById('cnPremDrop').classList.toggle('hidden');});
-  document.getElementById('cnDropMo')?.addEventListener('click',()=>goStripe(STRIPE_MO));
-  document.getElementById('cnDropYr')?.addEventListener('click',()=>goStripe(STRIPE_YR));
-  document.getElementById('sbUpgrade')?.addEventListener('click',()=>goStripe(STRIPE_MO));
+  document.getElementById('cnDropMo')?.addEventListener('click',()=>goStripe('monthly'));
+  document.getElementById('cnDropYr')?.addEventListener('click',()=>goStripe('annual'));
+  document.getElementById('sbUpgrade')?.addEventListener('click',()=>goStripe('monthly'));
   // The limit card picks a plan first, so the button can say what pressing it
   // does instead of asking twice.
   function limSetPlan(annual){
@@ -3325,7 +3337,7 @@
   document.getElementById('limPlanYr')?.addEventListener('click',()=>limSetPlan(true));
   document.getElementById('limBuy')?.addEventListener('click',()=>{
     const annual=document.getElementById('limPlanYr')?.getAttribute('aria-pressed')==='true';
-    goStripe(annual?STRIPE_YR:STRIPE_MO);
+    goStripe(annual?'annual':'monthly');
   });
   document.getElementById('limCl')?.addEventListener('click',()=>document.getElementById('limitModal').classList.add('hidden'));
   document.getElementById('premCont')?.addEventListener('click',()=>{document.getElementById('premModal').classList.add('hidden');loadUsage();});
