@@ -250,7 +250,12 @@ function createOverlayWindow() {
     show: false,
     frame: false,
     transparent: true,
-    resizable: false,
+    // It could not be resized at all, on any platform. Nothing about a window
+    // this size needs to be fixed, and on a Mac the first thing anybody tries
+    // when a panel is too small is to drag the corner.
+    resizable: true,
+    minWidth: 720,
+    minHeight: 520,
     alwaysOnTop: false,
     skipTaskbar: false,
     backgroundColor: '#00000000',
@@ -1495,6 +1500,62 @@ ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overl
 ipcMain.handle('app:setClickThrough', (_e, flag) => {
   if (overlayWindow && !overlayWindow.isDestroyed())
     overlayWindow.setIgnoreMouseEvents(!!flag, { forward: true });
+});
+
+// ── Where the pointer is, asked of the system rather than the window ─────────
+// Click-through used to be driven by the window's own mousemove events. The
+// moment it was told to ignore the mouse it stopped receiving them, so it
+// could never find out the pointer had moved back over a button and could
+// never turn itself off again - every Callisto button went dead until gesture
+// mode was switched off, which is exactly what "the X does not close it and
+// the dashboard will not close" looks like.
+//
+// The cursor is asked of the operating system instead, which answers whether
+// the window is listening or not.
+let _cursorTimer = null;
+
+function startCursorWatch() {
+  if (_cursorTimer) return;
+  _cursorTimer = setInterval(() => {
+    try {
+      if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
+      const pt = screen.getCursorScreenPoint();
+      const b = overlayWindow.getBounds();
+      const inside = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
+      overlayWindow.webContents.send('app:cursor', inside ? { x: pt.x - b.x, y: pt.y - b.y } : null);
+    } catch (_) { /* the window went away mid-tick */ }
+  }, 60);
+  if (_cursorTimer.unref) _cursorTimer.unref();
+}
+
+function stopCursorWatch() {
+  if (_cursorTimer) clearInterval(_cursorTimer);
+  _cursorTimer = null;
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    // Leaving it ignoring the mouse would strand the window unclickable.
+    overlayWindow.setIgnoreMouseEvents(false);
+  }
+}
+
+ipcMain.handle('app:watchCursor', (_e, on) => { if (on) startCursorWatch(); else stopCursorWatch(); });
+
+// ── The window's own buttons ─────────────────────────────────────────────────
+// A frameless window has none of the operating system's, so Callisto draws its
+// own. These are what they press.
+ipcMain.handle('window:close', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    stopCursorWatch();            // never leave it click-through on the way out
+    overlayWindow.hide();
+  }
+});
+ipcMain.handle('window:minimise', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.minimize();
+});
+ipcMain.handle('window:maximise', () => {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return false;
+  if (overlayWindow.isMaximized()) { overlayWindow.unmaximize(); return false; }
+  overlayWindow.maximize();
+  return true;
 });
 ipcMain.handle('app:setUserLocation', (_e, loc) => { store.set('userLocation', loc); });
 ipcMain.handle('app:focusWindow', () => { if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.show(); overlayWindow.focus(); } });

@@ -113,6 +113,16 @@ contextBridge.exposeInMainWorld('jarvis', {
   analyticsCached: () => ipcRenderer.invoke('analytics:cached'),
 
   // Picking a file without the system dialog, so the hand cursor can do it.
+  // The window's own buttons, and which platform is drawing them.
+  platform:     process.platform,
+  winClose:     () => ipcRenderer.invoke('window:close'),
+  winMinimise:  () => ipcRenderer.invoke('window:minimise'),
+  winMaximise:  () => ipcRenderer.invoke('window:maximise'),
+  // Click-through driven by the system cursor rather than by events the
+  // window stops receiving the moment it is told to ignore the mouse.
+  watchCursor:  (on) => ipcRenderer.invoke('app:watchCursor', !!on),
+  onCursor:     (cb) => ipcRenderer.on('app:cursor', (_e, p) => cb(p)),
+
   fileRoots:  ()      => ipcRenderer.invoke('files:roots'),
   fileBrowse: (dir)   => ipcRenderer.invoke('files:browse', dir || null),
   fileRead:   (p)     => ipcRenderer.invoke('files:read', p),

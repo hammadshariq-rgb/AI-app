@@ -53,12 +53,39 @@ updateOnlineState(); // run once on load
 window._clickThroughActive = false;
 ;(function() {
   let _overUI = false;
+
+  // Is this actually a piece of Callisto, or is it the see-through nothing
+  // that the orb floats on?
+  //
+  // This used to answer "yes" for any element at all that was not the body.
+  // The window is the size of the whole screen, so nearly every point on the
+  // screen is inside SOME container - and the answer was yes almost
+  // everywhere. That is why a click meant for the browser behind it came to
+  // Callisto instead. What counts now is whether anything under the pointer
+  // is actually painted.
   function isClickableEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false;
     const id = el.id || '';
     if (id === 'overlayCanvas' || id === 'magicCursor') return false;
-    return true;
+    let node = el;
+    for (let depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+      if (node === document.body || node === document.documentElement) break;
+      const cs = getComputedStyle(node);
+      if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') return true;
+      const bg = cs.backgroundColor || '';
+      const m = bg.match(/rgba?\(([^)]+)\)/);
+      if (m) {
+        const parts = m[1].split(',').map((v) => parseFloat(v));
+        const alpha = parts.length > 3 ? parts[3] : 1;
+        if (alpha > 0.05) return true;
+      }
+      // Something that draws itself even with no background of its own.
+      if (/^(BUTTON|INPUT|SELECT|TEXTAREA|A|IMG|SVG|CANVAS|VIDEO)$/.test(node.tagName)) return true;
+    }
+    return false;
   }
+
   function applyClickThrough(overUI) {
     if (!window._clickThroughActive) return; // gesture mode off — never pass through
     if (overUI === _overUI) return;
@@ -67,14 +94,30 @@ window._clickThroughActive = false;
       window.jarvis.setClickThrough(!overUI);
     }
   }
+
+  // Where the pointer is, told to us by the main process, which asks the
+  // operating system. A window that has been told to ignore the mouse stops
+  // receiving mousemove, so this used to have no way of noticing the pointer
+  // had come back over a button - and every Callisto button stayed dead.
+  if (window.jarvis && window.jarvis.onCursor) {
+    window.jarvis.onCursor((pt) => {
+      if (!window._clickThroughActive) return;
+      if (!pt) { applyClickThrough(false); return; }
+      applyClickThrough(isClickableEl(document.elementFromPoint(pt.x, pt.y)));
+    });
+  }
+
+  // The window's own events as well, where they arrive - they are quicker than
+  // the poll, and on the pass where the window is listening they are exact.
   document.addEventListener('mousemove', (e) => {
     if (!window._clickThroughActive) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    applyClickThrough(isClickableEl(el));
+    applyClickThrough(isClickableEl(document.elementFromPoint(e.clientX, e.clientY)));
   }, { passive: true });
+
   // Exported so gesture-enable/disable code can call this
   window._setClickThroughMode = (enabled) => {
     window._clickThroughActive = enabled;
+    window.jarvis?.watchCursor?.(enabled);
     if (!enabled) {
       _overUI = false;
       if (window.jarvis && window.jarvis.setClickThrough) window.jarvis.setClickThrough(false);
@@ -5248,7 +5291,13 @@ function debugFlash(label) {
 closeBtn.addEventListener('mouseenter', () => {
   if (window.jarvis && window.jarvis.setClickThrough) window.jarvis.setClickThrough(false);
 });
-closeBtn.addEventListener('click', () => { debugFlash('CLOSING...'); window.jarvis.hide(); });
+// Through the same path as the window's own close button, which also makes
+// sure the window is never left ignoring the mouse on the way out.
+closeBtn.addEventListener('click', () => {
+  debugFlash('CLOSING...');
+  if (window.jarvis.winClose) window.jarvis.winClose();
+  else window.jarvis.hide();
+});
 
 clearBtn.addEventListener('click', async () => { debugFlash('CLEARING...');
   await saveCurrentSession();
