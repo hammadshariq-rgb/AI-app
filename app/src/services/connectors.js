@@ -1265,23 +1265,27 @@ function formatAnalyticsForBriefing(a) {
   const n = (v) => Number(v || 0).toLocaleString();
   const parts = [];
 
-  if (a.youtube) {
-    const y = a.youtube;
-    let line = `On YouTube you're at ${n(y.subscribers)} subscriber${y.subscribers === 1 ? '' : 's'}`;
-    if (y.views28 != null) line += `, with ${n(y.views28)} views in the last 28 days`;
-    parts.push(line + '.');
-  }
-
+  // The order is deliberate and is the order it is spoken in: Instagram,
+  // TikTok, the website, money, then YouTube. Each platform says its follower
+  // count and how the newest thing is doing, because "you gained 4 followers"
+  // matters less than "the video you posted last night has 12,000 views".
   if (a.instagram) {
     const i = a.instagram;
     let line = `Instagram is on ${n(i.followers)} follower${i.followers === 1 ? '' : 's'}`;
-    if (i.views30 != null) line += `, ${n(i.views30)} views this month`;
+    const last = (i.recentPosts || [])[0];
+    if (last && last.views != null) line += `, and your latest post has ${n(last.views)} view${last.views === 1 ? '' : 's'}`;
+    else if (last && last.likes != null) line += `, and your latest post has ${n(last.likes)} like${last.likes === 1 ? '' : 's'}`;
+    else if (i.views30 != null) line += `, with ${n(i.views30)} views this month`;
     parts.push(line + '.');
   }
 
   if (a.tiktok) {
     const t = a.tiktok;
-    parts.push(`TikTok has ${n(t.followers)} follower${t.followers === 1 ? '' : 's'}${t.likes != null ? ` and ${n(t.likes)} likes` : ''}.`);
+    let line = `TikTok is on ${n(t.followers)} follower${t.followers === 1 ? '' : 's'}`;
+    const last = (t.recentVideos || [])[0];
+    if (last && last.views != null) line += `, and your latest video has ${n(last.views)} view${last.views === 1 ? '' : 's'}`;
+    else if (t.likes != null) line += ` and ${n(t.likes)} like${t.likes === 1 ? '' : 's'}`;
+    parts.push(line + '.');
   }
 
   // The website: whichever of the three is connected, said the same way.
@@ -1290,6 +1294,35 @@ function formatAnalyticsForBriefing(a) {
     const who = ga.users != null ? ga.users : ga.sessions;
     parts.push(`${n(who)} people visited your website${ga.period ? ` ${ga.period}` : ' this week'}.`);
   }
+
+  if (a.stripe && a.stripe.today) {
+    const t = a.stripe.today;
+    const cur = t.currency || a.stripe.currency || '';
+    const money = Number(t.revenue) || 0;
+    if (money > 0) {
+      const yest = Number(a.stripe.yesterday && a.stripe.yesterday.revenue) || 0;
+      let line = `You've taken ${cur} ${n(money)} today`;
+      if (t.orders) line += ` across ${n(t.orders)} payment${t.orders === 1 ? '' : 's'}`;
+      // Only compare when there is something to compare against.
+      if (yest > 0) {
+        const pct = Math.round(((money - yest) / yest) * 100);
+        if (Math.abs(pct) >= 5) line += `, ${Math.abs(pct)}% ${pct > 0 ? 'up on' : 'down on'} this time yesterday`;
+      }
+      parts.push(line + '.');
+    } else if (a.stripe.last7Days && Number(a.stripe.last7Days.revenue) > 0) {
+      parts.push(`Nothing through Stripe yet today, ${cur} ${n(Math.round(Number(a.stripe.last7Days.revenue)))} over the last week.`);
+    }
+  }
+
+  if (a.youtube) {
+    const y = a.youtube;
+    let line = `On YouTube you're at ${n(y.subscribers)} subscriber${y.subscribers === 1 ? '' : 's'}`;
+    const last = (y.recentVideos || [])[0];
+    if (last && last.views != null) line += `, and your latest video has ${n(last.views)} view${last.views === 1 ? '' : 's'}`;
+    else if (y.views28 != null) line += `, with ${n(y.views28)} views in the last 28 days`;
+    parts.push(line + '.');
+  }
+
   if (a.shopify) {
     const sh = a.shopify;
     const bits = [];
@@ -1300,28 +1333,13 @@ function formatAnalyticsForBriefing(a) {
   if (a.squarespace && a.squarespace.orders != null) {
     parts.push(`Squarespace shows ${n(a.squarespace.orders)} order${a.squarespace.orders === 1 ? '' : 's'}.`);
   }
-  if (a.stripe && a.stripe.today) {
-    const t = a.stripe.today;
-    const cur = t.currency || a.stripe.currency || '';
-    const money = Number(t.revenue) || 0;
-    if (money > 0) {
-      const yest = Number(a.stripe.yesterday && a.stripe.yesterday.revenue) || 0;
-      let line = `You’ve taken ${cur} ${n(money)} today`;
-      if (t.orders) line += ` across ${n(t.orders)} payment${t.orders === 1 ? '' : 's'}`;
-      // Only compare when there is something to compare against.
-      if (yest > 0) {
-        const pct = Math.round(((money - yest) / yest) * 100);
-        if (Math.abs(pct) >= 5) line += `, ${Math.abs(pct)}% ${pct > 0 ? 'up on' : 'down on'} this time yesterday`;
-      }
-      parts.push(line + '.');
-    } else if (a.stripe.last7Days && Number(a.stripe.last7Days.revenue) > 0) {
-      parts.push(`Nothing in yet today — ${cur} ${n(Math.round(Number(a.stripe.last7Days.revenue)))} over the last week.`);
-    }
-  }
 
   if (!parts.length) return null;
-  // Four sentences is the most anyone wants read at them before coffee.
-  return parts.slice(0, 4).join(' ');
+  // Everything connected gets said. This used to stop after four sentences,
+  // which quietly dropped whatever came last - so somebody on all five
+  // platforms never once heard their YouTube numbers and had no way to tell
+  // that was a cut-off rather than a connector that had stopped working.
+  return parts.join(' ');
 }
 
 function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace, googleAnalytics, stripe }) {

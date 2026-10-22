@@ -7768,22 +7768,17 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const p = profile || {};
         const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
         const addressAs = p.displayName || title;
-        // Greeting, then the weather, then today's tasks — in that order.
-        const weather = await window.jarvis.weatherGreeting?.().catch(() => null);
-        const greeting = weather ? `Welcome back, ${addressAs}. ${weather}` : `Welcome back, ${addressAs}.`;
+        const briefing = await composeDailyBriefing(addressAs);
         // Written as well as spoken. It used to be spoken only, so on a machine
         // where the voice did not come out - a Mac with the audio route still
         // warming up, most often - the app simply opened blank and looked
         // broken. The words are the greeting; the voice is a bonus.
-        addMessage('assistant', greeting);
-        const audio = await window.jarvis.speak(greeting).catch(() => null);
+        addMessage('assistant', briefing.text);
+        // ONE synthesis for the whole thing. Four of them in a row was the
+        // thing that made this sound broken.
+        const audio = await window.jarvis.speak(briefing.text).catch(() => null);
         if (audio) playAudioChunks([audio]);
-        // Each on its own. They used to run in one chain, so the first one to
-        // throw - a voice that would not synthesise, a connector timing out -
-        // silently took the rest of the morning briefing with it.
-        await speakTaskBriefing().catch((e) => console.error('[GREET tasks]', e));
-        await speakStatsBriefing().catch((e) => console.error('[GREET stats]', e));
-        await speakNewsBriefing().catch((e) => console.error('[GREET news]', e));
+        if (briefing.hadTasks) window.tkRefresh?.();
       } catch (e) { console.error('[GREET]', e); }
     }
   }
@@ -7792,63 +7787,61 @@ async function enterMain(skipWelcome = false, returningUser = false) {
 // 'maam' is how the old sign-up stored it; say it the way a person would.
 function spokenTitle(t) { return String(t || '').toLowerCase() === 'maam' ? "ma'am" : t; }
 
-// The numbers, once a day, after the tasks: followers, views and who has been
-// on the website. Spoken only, and silent when nothing is connected - someone
-// with no accounts linked should never hear an awkward pause.
-async function speakStatsBriefing() {
-  try {
-    if (!window.jarvis?.speak || !window.jarvis.connectorStatsBriefing) return;
-    const todayKey = new Date().toDateString();
-    if (localStorage.getItem('callisto_stats_briefing') === todayKey) return;
-    const text = await window.jarvis.connectorStatsBriefing().catch(() => null);
-    if (!text) return;
-    localStorage.setItem('callisto_stats_briefing', todayKey);
-    // Spoken only. It used to be pasted into the chat as well, which turned the
-    // morning greeting into a wall of numbers nobody had asked to read.
-    const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
-    if (audio) playAudioChunks([audio]);
-  } catch (e) { console.error('[STATS BRIEF]', e); }
+// The headlines, as a sentence. The ticker tags each line "[WORLD] …" for
+// display, which has to come off before any of it is read aloud.
+async function _newsBriefingText() {
+  const headlines = await NewsFlash.ready();
+  if (!headlines || !headlines.length) return null;
+  const clean = (h) => String(h).replace(/^\[[A-Z ]+\]\s*/, '').replace(/\s+/g, ' ').trim().replace(/[.。]$/, '');
+  // World news first, then whatever else is in the ticker. Three is enough to
+  // be useful without turning into a bulletin.
+  const world = headlines.filter((h) => /^\[(WORLD|REUTERS WORLD|POLITICS)\]/.test(h));
+  const rest = headlines.filter((h) => !world.includes(h));
+  const top = [...world, ...rest].slice(0, 3).map(clean).filter(Boolean);
+  if (!top.length) return null;
+  return `Here's what's happening in the world. ${top.join('. ')}.`;
 }
 
-// Read the top headlines aloud after the greeting. Spoken only — they're
-// already scrolling across the top, so nothing goes in the chat.
-async function speakNewsBriefing() {
-  try {
-    if (!window.jarvis?.speak) return;
-    const todayKey = new Date().toDateString();
-    if (localStorage.getItem('callisto_news_briefing') === todayKey) return;
-    const headlines = await NewsFlash.ready();
-    if (!headlines || !headlines.length) return;
-    localStorage.setItem('callisto_news_briefing', todayKey);
-    // The ticker tags each line "[WORLD] …" for display; strip that before speaking.
-    const clean = (h) => String(h).replace(/^\[[A-Z ]+\]\s*/, '').replace(/\s+/g, ' ').trim().replace(/[.。]$/, '');
-    // World news first, then whatever else is in the ticker. Three is enough to
-    // be useful without turning into a bulletin.
-    const world = headlines.filter((h) => /^\[(WORLD|REUTERS WORLD|POLITICS)\]/.test(h));
-    const rest = headlines.filter((h) => !world.includes(h));
-    const top = [...world, ...rest].slice(0, 3).map(clean).filter(Boolean);
-    if (!top.length) return;
-    const spoken = `Here's what's happening in the world. ${top.join('. ')}.`;
-    const audio = await window.jarvis.speak(spoken);
-    if (audio) playAudioChunks([audio]);
-  } catch (e) { console.error('[NEWS]', e); }
-}
+// The whole morning briefing, gathered at once and returned as one piece of
+// text to be read out in one breath.
+//
+// It used to be four separate errands run one after another - greet, then
+// tasks, then the numbers, then the news - and each one fetched, synthesised,
+// played, and only THEN let the next one start. Every join between them was a
+// second or two of silence, so a briefing that should read as one paragraph
+// arrived as four disconnected lumps with gaps in between. That is the whole
+// reason this sounded broken.
+//
+// The order is the order it is spoken in: weather, news, Instagram, TikTok,
+// the website, Stripe, YouTube, then what is on today. The five platforms come
+// back already in that order from the stats briefing.
+async function composeDailyBriefing(addressAs) {
+  // A slow or dead connector caps out and is simply left out. One of them
+  // hanging must never cost the person the rest of their briefing.
+  const settle = (p, ms) => Promise.race([
+    Promise.resolve(p).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), ms)),
+  ]);
 
-// Read the day's tasks back after the greeting — once per day, and only when
-// there is something to say.
-async function speakTaskBriefing() {
-  try {
-    if (!window.jarvis?.taskBriefing) return;
-    const todayKey = new Date().toDateString();
-    if (localStorage.getItem('callisto_task_briefing') === todayKey) return;
-    const { spoken, items } = await window.jarvis.taskBriefing();
-    localStorage.setItem('callisto_task_briefing', todayKey);
-    if (!items || !items.length) return;
-    addMessage('assistant', spoken);
-    const audio = await window.jarvis.speak(spoken);
-    if (audio) playAudioChunks([audio]);
-    window.tkRefresh?.();
-  } catch (e) { console.error('[TASKS]', e); }
+  const [weather, news, stats, tasks] = await Promise.all([
+    settle(window.jarvis.weatherGreeting?.(), 4000),
+    settle(_newsBriefingText(), 5000),
+    settle(window.jarvis.connectorStatsBriefing?.(), 8000),
+    settle(window.jarvis.taskBriefing?.(), 4000),
+  ]);
+
+  const parts = [`Welcome back, ${addressAs}.`];
+  if (weather) parts.push(String(weather).trim());
+  if (news) parts.push(String(news).trim());
+  if (stats) parts.push(String(stats).trim());
+
+  // Tasks last, and only when there are some. "You have no tasks today" is
+  // not worth the breath.
+  const taskLine = tasks && tasks.items && tasks.items.length
+    ? String(tasks.spoken || '').trim() : '';
+  if (taskLine) parts.push(taskLine);
+
+  return { text: parts.filter(Boolean).join(' '), hadTasks: !!taskLine };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -31,7 +31,13 @@ setTimeout(() => {
   child.kill();
   const lines = out.split(/\r?\n/);
 
-  const noise = /GPU|gpu_|cache_util|disk_cache|DevTools|Autofill|Electron Security|chrome_|dxgi|d3d|vulkan|Skia|libva|Failed to create GL|GLES|Passthrough|ANGLE|swiftshader|Gpu Cache|SharedImage|media_foundation|dav1d|registered_|CreateInstance|Vulkan|EGL/i;
+  // The last entry is not ours: MediaPipe logs "OpenGL error checking is
+  // disabled" as information, and the word "error" inside it was enough to
+  // report a perfectly healthy launch as a failure on every single run. A test
+  // that is always red is a test nobody reads. Matched on its exact wording
+  // rather than by hiding every line of that severity, which would also have
+  // hidden real ones.
+  const noise = /GPU|gpu_|cache_util|disk_cache|DevTools|Autofill|Electron Security|chrome_|dxgi|d3d|vulkan|Skia|libva|Failed to create GL|GLES|Passthrough|ANGLE|swiftshader|Gpu Cache|SharedImage|media_foundation|dav1d|registered_|CreateInstance|Vulkan|EGL|error checking is disabled/i;
   const bad = lines.filter((l) =>
     /error|exception|cannot read|undefined is not|is not a function|unhandled|failed to load|ERR_/i.test(l)
     && !noise.test(l));

@@ -1303,6 +1303,14 @@ app.whenReady().then(async () => {
   // Another app holding this combination would silently swallow the shortcut.
   if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app — Magic Editor won\'t open.');
 
+  // What actually bound, by name. Nothing reported this before, so working out
+  // why a key did nothing on a Mac - where the Magic Editor and Magic Cursor
+  // fall back to Option - meant guessing. It is also the line the smoke test
+  // looks for to tell a running app from one that got partway and stopped.
+  console.log('[SHORTCUT] shortcuts bound:',
+    Object.entries(BOUND_KEYS).map(([k, v]) => k + '=' + v).join(', ')
+    + (assistKey ? ', assist=Alt+Shift+C' : ''));
+
   // (No global Ctrl+S: it took Save away from every other app. Ctrl+Shift+C is the voice key.)
 
   // Auth is handled in the renderer on first open; nothing to check here at startup
