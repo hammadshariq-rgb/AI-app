@@ -155,6 +155,7 @@ const OpenAI = require('openai');
 const crypto = require('crypto');
 const users = require('./users');
 const connections = require('./connections');
+const webstats = require('./webstats');
 // Welcome and purchase letters. Safe to require unconditionally: with no
 // MAIL_USER/MAIL_PASS set every send is a logged no-op.
 const mail = require('./mail');
@@ -745,6 +746,33 @@ app.get('/web/connections', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('[connections] list failed:', err.message);
     res.status(500).json({ error: 'Could not read your connections.' });
+  }
+});
+
+// The figures behind the connections. Read here, with the tokens that never
+// leave this server, and sent to the browser as numbers.
+//
+// Cached briefly: the panel and a question asked of the assistant want the
+// same figures within moments of each other, and these are slow calls to
+// other people's APIs.
+const _webStatsCache = new Map();     // userId -> { at, value }
+const WEB_STATS_TTL_MS = 2 * 60 * 1000;
+
+async function webStatsFor(userId, fresh) {
+  const hit = _webStatsCache.get(String(userId));
+  if (!fresh && hit && Date.now() - hit.at < WEB_STATS_TTL_MS) return hit.value;
+  const value = await webstats.allFor(userId);
+  _webStatsCache.set(String(userId), { at: Date.now(), value });
+  return value;
+}
+
+app.get('/web/stats', authMiddleware, async (req, res) => {
+  try {
+    const stats = await webStatsFor(req.userId, req.query.fresh === '1');
+    res.json({ ok: true, stats, summary: webstats.describe(stats) });
+  } catch (err) {
+    console.error('[webstats]', err.message);
+    res.status(500).json({ error: 'Could not read your numbers.' });
   }
 });
 

@@ -2280,6 +2280,10 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Connectors</span>
     </div>
+    <div id="hnavNums" onclick="switchHeroTab('nums')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;border:1px solid rgba(90,110,160,0.22);background:transparent;cursor:pointer;transition:all .15s">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Numbers</span>
+    </div>
     <div id="hnavAcct" onclick="switchHeroTab('acct')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;border:1px solid rgba(90,110,160,0.22);background:transparent;cursor:pointer;transition:all .15s">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Account</span>
@@ -2346,6 +2350,17 @@
       </div>
       <div id="webConnNote" style="margin-top:12px;font-size:10.5px;line-height:1.55;color:rgba(110,130,175,0.55)">
         Connections are kept on your Callisto account, not in this browser.
+      </div>
+    </div>
+    <div id="hnavPanelNums" style="display:none">
+      <!-- The website had no numbers section at all: Instagram could be
+           connected and there was nowhere for the figures to appear. -->
+      <div id="webNumsList" style="display:flex;flex-direction:column;gap:9px">
+        <div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.45);font-size:11.5px">Loading…</div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button id="webNumsRefresh" style="padding:6px 12px;border-radius:7px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer">REFRESH</button>
+        <span style="font-size:10.5px;color:rgba(110,130,175,0.55)">Read on the server, never in this browser.</span>
       </div>
     </div>
     <div id="hnavPanelAcct" style="display:none">
@@ -2925,6 +2940,82 @@
     renderWebConnectors();
   }
   window._renderWebConnectors = renderWebConnectors;
+
+  // ── The numbers ────────────────────────────────────────────────────────────
+  // Connecting Instagram did nothing visible, and asking for an update showed
+  // nothing, because the figures were never fetched by anybody: the token sat
+  // on the server unused and the website had no numbers section at all. The
+  // server reads them now; this shows them, and hands the same summary to the
+  // assistant so a question about them can be answered.
+  let _webStatsSummary = null;
+  let _webStatsAt = 0;
+
+  async function fetchWebStats(fresh){
+    if(!token) return null;
+    try{
+      const r = await fetch(`${SERVER}/web/stats${fresh?'?fresh=1':''}`, { headers:{ Authorization:`Bearer ${token}` } });
+      if(!r.ok) return null;
+      const d = await r.json();
+      _webStatsSummary = d.summary || null;
+      _webStatsAt = Date.now();
+      return d;
+    }catch(_){ return null; }
+  }
+  // Kept for the assistant to answer from, refreshed when it is getting old.
+  window._webStatsFor = async function(){
+    if(!_webStatsSummary || Date.now() - _webStatsAt > 120000) await fetchWebStats(false);
+    return _webStatsSummary;
+  };
+
+  function numRow(icon, tint, name, lines){
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
+      <div style="width:32px;height:32px;border-radius:8px;background:${tint};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11.5px;font-weight:700;color:#fff">${name}</div>
+        ${lines.map(l=>`<div style="font-size:11px;color:rgba(170,195,240,0.8);margin-top:2px">${l}</div>`).join('')}
+      </div></div>`;
+  }
+
+  async function renderWebNumbers(fresh){
+    const box = document.getElementById('webNumsList');
+    if(!box) return;
+    if(!token){
+      box.innerHTML = '<div style="padding:16px 6px;text-align:center;color:rgba(130,150,195,0.6);font-size:11.5px;line-height:1.6">'
+        + 'Sign in to see your numbers.<br><button id="webNumsSignIn" style="margin-top:10px;padding:6px 14px;border-radius:7px;background:rgba(61,92,255,0.9);border:none;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">Sign In</button></div>';
+      document.getElementById('webNumsSignIn')?.addEventListener('click', showAuthForced);
+      return;
+    }
+    box.innerHTML = '<div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.45);font-size:11.5px">Reading your accounts…</div>';
+    const d = await fetchWebStats(fresh);
+    const s = (d && d.stats) || {};
+    const n = (v) => Number(v||0).toLocaleString();
+    const rows = [];
+    if(s.instagram) rows.push(numRow('\u{1F4F8}','rgba(225,48,108,0.18)', s.instagram.username ? '@'+s.instagram.username : 'Instagram', [
+      `${n(s.instagram.followers)} followers · ${n(s.instagram.posts)} posts`,
+      s.instagram.latest ? `Latest post: ${n(s.instagram.latest.likes)} likes, ${n(s.instagram.latest.comments)} comments` : '',
+    ].filter(Boolean)));
+    if(s.tiktok) rows.push(numRow('\u{1F3AC}','rgba(105,201,208,0.18)','TikTok', [
+      `${n(s.tiktok.followers)} followers · ${n(s.tiktok.likes)} likes`,
+      s.tiktok.latest ? `Latest video: ${n(s.tiktok.latest.views)} views` : '',
+    ].filter(Boolean)));
+    if(s.analytics) rows.push(numRow('\u{1F4C8}','rgba(245,158,11,0.18)', s.analytics.site || 'Website', [
+      `${n(s.analytics.visitors)} visitors this week`,
+      `${n(s.analytics.pageViews)} page views`,
+    ]));
+    if(s.stripe) rows.push(numRow('\u{1F4B3}','rgba(99,91,255,0.18)','Stripe', [
+      `${s.stripe.currency} ${n(s.stripe.today)} today · ${n(s.stripe.todayCount)} payments`,
+      `${s.stripe.currency} ${n(s.stripe.week)} over the week`,
+    ]));
+    if(s.youtube) rows.push(numRow('\u{25B6}','rgba(255,0,0,0.18)', s.youtube.channel || 'YouTube', [
+      `${n(s.youtube.subscribers)} subscribers · ${n(s.youtube.views)} views`,
+      s.youtube.latest ? `Latest video: ${n(s.youtube.latest.views)} views` : '',
+    ].filter(Boolean)));
+
+    box.innerHTML = rows.length ? rows.join('')
+      : '<div style="padding:18px 6px;text-align:center;color:rgba(130,150,195,0.6);font-size:11.5px;line-height:1.6">Nothing connected yet.<br>Open Connectors and link an account.</div>';
+  }
+  window._renderWebNumbers = renderWebNumbers;
+  document.getElementById('webNumsRefresh')?.addEventListener('click', ()=>renderWebNumbers(true));
 
   window._calVoiceBlocked = function(){
     if(_voiceWarned) return;
@@ -3524,17 +3615,31 @@
               after();
             });
           };
+          // Set when Callisto handled the request itself. The model is
+          // answering the same words without knowing a tab has just opened, so
+          // it says it cannot play music a moment before the song starts -
+          // which is exactly what was happening. Its reply is neither shown
+          // nor spoken once Callisto has done the thing.
+          let handledHere = false;
+
           const handle = (d)=>{
             if(d.reply !== undefined){
               const transcript = d.transcript || '';
               if(transcript) addVoiceBubble('user', transcript);
-              addVoiceBubble('ai', d.reply || 'Sorry, no response.');
+
+              const act = (transcript && typeof window._webActions==='function')
+                ? window._webActions(transcript, true) : null;
+              if(act) handledHere = true;
+              else addVoiceBubble('ai', d.reply || 'Sorry, no response.');
+
               setOrbState('speak');
-              if(transcript && typeof window._webActions==='function') window._webActions(transcript, true);
               if(transcript && typeof window._appPanelIntents==='function') window._appPanelIntents(transcript);
               if(transcript) fetchAndShowCard(transcript);
             }
-            if(d.audio){ queue.push(d.audio); playNext(); }
+            // The model's voice is dropped too, or it contradicts out loud
+            // what the screen has just said.
+            if(d.audio && !handledHere){ queue.push(d.audio); playNext(); }
+            else if(d.audio && handledHere && !playing && !queue.length) setOrbState('standby');
             if(d.done){ finished = true; if(!playing && !queue.length) setOrbState('standby'); }
             // Older server without streaming: one JSON object with everything
             if(d.audio === undefined && d.reply === undefined && d.done === undefined && d.transcript){ /* ignore */ }
@@ -3642,6 +3747,7 @@
     // Asked for fresh each time it is opened, so a connection made in the
     // popup a moment ago is already showing.
     if(tab==='conn' && typeof window._renderWebConnectors==='function'){ window._renderWebConnectors(); }
+    if(tab==='nums' && typeof window._renderWebNumbers==='function'){ window._renderWebNumbers(false); }
     if(activeN){
       activeN.style.border='1px solid rgba(61,92,255,0.45)';
       activeN.style.background='rgba(61,92,255,0.16)';
@@ -3839,15 +3945,26 @@
     }
     return null;
   }
+  // Is this something Callisto does itself, rather than something to ask the
+  // model about? Opening a site, running a search, playing a song.
+  window._webActionFor = webActionFor;
+
   window._webActions = function(text, fromVoice){
     const a = webActionFor(text);
     if(!a) return null;
     const win = window.open(a.url, '_blank', 'noopener');
-    // Browsers block tabs that aren't opened straight from a click or key press
-    // (e.g. after a voice reply) — offer a one-click link instead.
-    if(!win){
-      if(fromVoice && typeof addVoiceBubble==='function'){ addVoiceBubble('ai', a.say); appendOpenLink(a.url, true); }
-      else { addMsg('ai', a.say); appendOpenLink(a.url, false); }
+    // Callisto's own answer, always. This used to be said ONLY when the
+    // browser blocked the tab, so on the ordinary path the single thing shown
+    // was the model insisting it could not play music - while the song was
+    // already opening.
+    if(fromVoice && typeof addVoiceBubble==='function'){
+      addVoiceBubble('ai', a.say);
+      // Browsers block tabs not opened straight from a click or key press, and
+      // a voice reply arrives in a fetch callback - so offer a one-click link.
+      if(!win) appendOpenLink(a.url, true);
+    } else {
+      addMsg('ai', a.say);
+      if(!win) appendOpenLink(a.url, false);
     }
     return a;
   };
@@ -3879,7 +3996,17 @@
     const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
     try{
-      const sys=`You are Callisto, a friendly and intelligent personal AI assistant. Be concise and fast. Today is ${new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.`;
+      // Their own figures, where the question is about them. Without this the
+      // assistant had no idea anything was connected, so "give me an update"
+      // after connecting Instagram got a shrug - the tokens were on the
+      // server and nothing ever asked them for a number.
+      let numbers = null;
+      if(/\b(update|numbers|figures|stats|statistics|analytics|followers|subscribers|views|likes|visitors|revenue|sales|payments|how(?:'s| is| are| am)|doing)\b/i.test(t)
+         && typeof window._webStatsFor==='function'){
+        numbers = await window._webStatsFor();
+      }
+      const sys=`You are Callisto, a friendly and intelligent personal AI assistant. Be concise and fast. Today is ${new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.`
+        + (numbers ? `\n\nTHEIR OWN ACCOUNTS, READ JUST NOW - answer questions about their numbers from these and nothing else, and never say you cannot see them:\n${numbers}` : '');
       const headers={'Content-Type':'application/json'};
       if(token) headers['Authorization']=`Bearer ${token}`;
       const r=await fetch(`${SERVER}/web/chat`,{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
@@ -4402,6 +4529,8 @@
 
   let recog = null;
   let isRecording = false;
+  let startedAt = 0;        // so a flag stuck on can be spotted and cleared
+  let watchdog = null;      // listening never actually started
 
   if (!SpeechRecognition) {
     // Browser doesn't support speech — hide mic button
@@ -4419,6 +4548,8 @@
 
     r.onstart = function() {
       isRecording = true;
+      startedAt = Date.now();
+      if (watchdog) { clearTimeout(watchdog); watchdog = null; }
       micBtn.classList.add('recording');
       inputBar.classList.add('recording');
       uInput.placeholder = '🎙 Listening…';
@@ -4460,20 +4591,79 @@
 
   function stopUI() {
     isRecording = false;
+    startedAt = 0;
+    if (watchdog) { clearTimeout(watchdog); watchdog = null; }
     if (micBtn) micBtn.classList.remove('recording');
     if (inputBar) inputBar.classList.remove('recording');
     uInput.placeholder = 'Message Callisto…';
   }
 
+  // The microphone used to stop working on its own and stay broken.
+  //
+  // isRecording was set when listening began and cleared only by onend or
+  // onerror - and Chrome can drop a recognition without firing either, when
+  // the tab goes to the background or the network drops. The flag then stayed
+  // true for ever, so every later press took the "already recording, so stop"
+  // branch, called stop() on an object that was already dead, and did
+  // nothing. The button looked fine and never worked again.
+  //
+  // Nothing now trusts that flag on its own.
+  const MAX_LISTEN_MS = 30000;   // nobody dictates for half a minute
+  const START_GRACE_MS = 1500;   // onstart should have arrived by now
+
+  function stale() {
+    return isRecording && startedAt && (Date.now() - startedAt > MAX_LISTEN_MS);
+  }
+
+  function forceReset() {
+    if (recog) {
+      // Events from a discarded recogniser must not come back and change the
+      // state of the one that replaced it.
+      try { recog.onstart = recog.onend = recog.onerror = recog.onresult = null; } catch (_) {}
+      try { recog.abort(); } catch (_) {}
+    }
+    recog = null;
+    stopUI();
+  }
+
   function startVoice() {
+    // Been "listening" far too long with nothing coming back: it is not
+    // listening, whatever the flag says.
+    if (stale()) forceReset();
+
     if (isRecording) {
-      if (recog) recog.stop();
+      if (recog) { try { recog.stop(); } catch (_) { forceReset(); } }
+      else stopUI();          // the flag said yes and there was nothing there
       return;
     }
+
     uInput.value = '';
+    forceReset();             // never leave an old recogniser running
     recog = buildRecognition();
-    try { recog.start(); } catch(e) { stopUI(); }
+    startedAt = Date.now();
+    try {
+      recog.start();
+    } catch (e) {
+      // Chrome throws if the previous one has not finished shutting down.
+      // One retry a moment later, rather than a button that silently died.
+      forceReset();
+      setTimeout(() => {
+        recog = buildRecognition();
+        startedAt = Date.now();
+        try { recog.start(); } catch (_) { forceReset(); }
+      }, 250);
+      return;
+    }
+    // If listening never actually begins, put everything back rather than
+    // leaving the button stuck looking live.
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = setTimeout(() => { if (!isRecording) forceReset(); }, START_GRACE_MS);
   }
+
+  // Leaving the tab is one of the ways Chrome kills it silently.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isRecording) forceReset();
+  });
 
   // Expose globally so goChatAndVoice() can call it
   window.startVoice = startVoice;
