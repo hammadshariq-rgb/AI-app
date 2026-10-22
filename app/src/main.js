@@ -4411,6 +4411,36 @@ function _taskSay(channel, payload) {
 // A file it wants to write, resolved inside the project folder and nowhere
 // else. A path from a model is not to be trusted with "../../.ssh/config":
 // anything that lands outside the folder they chose is refused outright.
+// Folders that are not a project, whoever chose them.
+//
+// The guard on writing keeps the agent INSIDE whatever folder it was given -
+// which is no protection at all when the folder it was given is the home
+// directory, or the root of a disk. Then "inside the project" means the whole
+// machine, and every path check passes while the agent writes wherever it
+// likes. This is the other half of that guard.
+function badProjectFolder(p) {
+  const raw = String(p || '').trim();
+  // Checked before resolving: path.resolve('') hands back the directory the
+  // app happens to have been started from, which looks like a perfectly good
+  // folder and is not one anybody chose.
+  if (!raw) return true;
+  const full = path.resolve(raw);
+  if (!full) return true;
+  // The root of any drive: C:\ on Windows, / on a Mac.
+  if (path.dirname(full) === full) return true;
+  const home = path.resolve(app.getPath('home'));
+  if (full === home) return true;
+  // The big folders directly under home. A project lives IN one of these, not
+  // as one of them, and naming one hands over everything in it.
+  for (const name of ['desktop', 'documents', 'downloads', 'music', 'pictures', 'videos']) {
+    try { if (full === path.resolve(app.getPath(name))) return true; } catch (_) { /* not on this machine */ }
+  }
+  // Somewhere the operating system lives.
+  if (/^[A-Za-z]:\\(Windows|Program Files|Program Files \(x86\)|ProgramData)(\\|$)/i.test(full)) return true;
+  if (/^\/(System|Library|usr|bin|sbin|etc|var)(\/|$)/.test(full)) return true;
+  return false;
+}
+
 function _taskResolvePath(relPath, folder) {
   const p = String(relPath || '').trim();
   if (!p) return { ok: false, error: 'No path.' };
@@ -4551,13 +4581,20 @@ ipcMain.handle('task:start', async (e, { goal, folder } = {}) => {
   if (!g) return { ok: false, error: 'No goal.' };
   if (TASK.on) return { ok: false, error: 'busy', goal: TASK.goal };
 
-  // No folder means no work. This used to fall back to the home directory,
-  // which is not a project - it is everything they own, and an agent writing
-  // files into it is the worst version of this feature. The chat offers a
-  // picker when it sees no folder; this is the same refusal one level down,
-  // for anything that reaches the handler another way.
+  // No folder means no work, and some folders are not projects however they
+  // came to be chosen.
+  //
+  // The first version of this only stopped the FALLBACK to the home
+  // directory. It did nothing about a home directory already saved as the
+  // project folder, which is how somebody ended up being told Callisto was
+  // "working on that in C:\Users\hamma" - everything they own, as a project.
   const where = folder || store.get('project.folder') || null;
   if (!where) return { ok: false, error: 'no-folder' };
+  if (badProjectFolder(where)) {
+    // Forget it, so the picker is offered rather than this repeating for ever.
+    if (!folder && store.get('project.folder') === where) store.delete('project.folder');
+    return { ok: false, error: 'no-folder' };
+  }
 
   Object.assign(TASK, {
     on: true, goal: g, steps: [], sender: e.sender,
@@ -4750,6 +4787,11 @@ ipcMain.handle('command:setFolder', (_e, folder) => {
   } catch (_) {
     return { ok: false, error: `I cannot find ${f}.` };
   }
+  // Refused here as well as where the work starts, so it can never be stored
+  // in the first place and come back later as a project.
+  if (badProjectFolder(f)) {
+    return { ok: false, error: `${f} is too broad to work in - it is everything inside it, not a project. Pick the folder the code is actually in.` };
+  }
   store.set('project.folder', f);
   return { ok: true, folder: f };
 });
@@ -4758,8 +4800,14 @@ ipcMain.handle('command:setFolder', (_e, folder) => {
 ipcMain.handle('command:pickFolder', async () => {
   const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openDirectory'], title: 'Choose your project folder' });
   if (res.canceled || !res.filePaths[0]) return { ok: false };
-  store.set('project.folder', res.filePaths[0]);
-  return { ok: true, folder: res.filePaths[0] };
+  const picked = res.filePaths[0];
+  // The dialog will happily let somebody choose their home folder or a whole
+  // drive. That is not a project, and inside it every path check passes.
+  if (badProjectFolder(picked)) {
+    return { ok: false, error: `${picked} is too broad to work in - it is everything inside it, not a project. Pick the folder the code is actually in.` };
+  }
+  store.set('project.folder', picked);
+  return { ok: true, folder: picked };
 });
 
 ipcMain.handle('voice:getSpeed', () => store.get('voiceSpeed') || 0.88);

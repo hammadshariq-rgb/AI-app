@@ -74,6 +74,9 @@
     chatEl.scrollTop = chatEl.scrollHeight;
     row.querySelector('[data-agent="pick"]')?.addEventListener('click', async () => {
       const res = await J().pickProjectFolder?.();
+      // A folder can be refused for being too broad - a home folder or a whole
+      // drive. Saying why beats the button appearing to do nothing.
+      if (res && res.error) { say(res.error); return; }
       if (!res || !res.ok) return;
       row.querySelector('button').disabled = true;
       say(`Working in \`${res.folder}\`.`);
