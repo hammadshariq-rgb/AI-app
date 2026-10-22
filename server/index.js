@@ -152,7 +152,9 @@ const path = require('path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
+const crypto = require('crypto');
 const users = require('./users');
+const connections = require('./connections');
 // Welcome and purchase letters. Safe to require unconditionally: with no
 // MAIL_USER/MAIL_PASS set every send is a logged no-op.
 const mail = require('./mail');
@@ -378,9 +380,26 @@ function makeToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
 
+// Named fields only, rather than "everything except the password".
+//
+// A block-list leaks by default: whatever gets added to a user document next
+// is sent to every browser until someone remembers to exclude it. That is a
+// real risk here and not a theoretical one - connected-account tokens were
+// about to be stored, and under the old rule they would have gone out with
+// every login and every verify without anyone touching this function.
+const SAFE_USER_FIELDS = [
+  'id', 'email', 'name', 'createdAt',
+  'subscriptionStatus', 'subscriptionPlan', 'plan', 'freeAccess',
+  'wasSubscribed', 'currentPeriodEnd', 'avatarUrl', 'googleId',
+  'msgCount', 'msgCountDate', 'lastActiveAt',
+];
 function safeUser(user) {
-  const { passwordHash, ...rest } = user;
-  return rest;
+  if (!user) return null;
+  const out = {};
+  for (const k of SAFE_USER_FIELDS) {
+    if (user[k] !== undefined) out[k] = user[k];
+  }
+  return out;
 }
 
 function authMiddleware(req, res, next) {
@@ -697,6 +716,48 @@ app.get(/^\/connect\/([a-z]+)$/, (req, res, next) => {
   next();
 });
 
+// ── What the website calls ───────────────────────────────────────────────────
+// Three endpoints, and none of them ever returns a token.
+//
+//   POST /web/connect/:service   start one - returns the URL to open
+//   GET  /web/connections        which are connected (yes/no and a label)
+//   DELETE /web/connect/:service forget one
+//
+// Only services whose OAuth routes exist here can be asked for, so a made-up
+// name cannot be used to point a redirect somewhere of someone else's choosing.
+const WEB_CONNECTABLE = new Set([
+  'spotify', 'calendar', 'youtube', 'instagram', 'tiktok', 'analytics', 'outlook',
+]);
+
+app.post('/web/connect/:service', authMiddleware, (req, res) => {
+  const service = String(req.params.service || '').toLowerCase();
+  if (!WEB_CONNECTABLE.has(service)) return res.status(400).json({ error: 'Unknown service.' });
+  // The same shape of secret the desktop app uses, so the existing routes and
+  // the cookie check accept it unchanged.
+  const state = crypto.randomBytes(16).toString('hex');
+  rememberWebOauth(state, req.userId, service);
+  res.json({ ok: true, url: `${PUBLIC_URL}/connect/${service}?state=${state}` });
+});
+
+app.get('/web/connections', authMiddleware, async (req, res) => {
+  try {
+    res.json({ ok: true, connections: await connections.listPublic(req.userId) });
+  } catch (err) {
+    console.error('[connections] list failed:', err.message);
+    res.status(500).json({ error: 'Could not read your connections.' });
+  }
+});
+
+app.delete('/web/connect/:service', authMiddleware, async (req, res) => {
+  const service = String(req.params.service || '').toLowerCase();
+  try {
+    const gone = await connections.remove(req.userId, service);
+    res.json({ ok: true, removed: gone });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not disconnect that.' });
+  }
+});
+
 // What the provider said when it sent the user back empty-handed.
 //
 // Every callback used to answer "No code.", which tells nobody anything. The
@@ -717,10 +778,53 @@ function oauthRefusal(req) {
     + '. Nothing was saved - you can close this tab and try again from the Callisto app.';
 }
 
+// ── Connections started from the website ─────────────────────────────────────
+// The desktop app collects its tokens by polling, because it can store them
+// safely. The website must never see them, so a connection it started is
+// written straight to the database against that user instead, and the browser
+// is only ever told yes or no.
+//
+// This is remembered from the moment the button is pressed, because the
+// callback arrives from the provider with no session of its own - the state is
+// the only thread connecting the two, and it has to carry who it was for.
+const webOauth = Object.create(null);          // state -> { userId, service, ts }
+const WEB_OAUTH_TTL_MS = 15 * 60 * 1000;
+
+function rememberWebOauth(state, userId, service) {
+  webOauth[state] = { userId: String(userId), service, ts: Date.now() };
+}
+
+function takeWebOauth(state, service) {
+  const hit = webOauth[state];
+  if (!hit) return null;
+  if (hit.service !== service) return null;
+  if (Date.now() - hit.ts > WEB_OAUTH_TTL_MS) { delete webOauth[state]; return null; }
+  delete webOauth[state];
+  return hit;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const k of Object.keys(webOauth)) {
+    if (now - webOauth[k].ts > WEB_OAUTH_TTL_MS) delete webOauth[k];
+  }
+}, 5 * 60 * 1000).unref?.();
+
 // At the callback: file the tokens under the secret this browser started with.
 function stashTokens(req, service, data) {
   const state = readCookie(req, `oauth_state_${service}`);
   if (!OAUTH_STATE_RE.test(state)) return false;
+
+  // Started from the website: the tokens go to the database under that
+  // account and are never offered for collection. Every provider's callback
+  // already passes through here, so one hook covers all of them.
+  const web = takeWebOauth(state, service);
+  if (web) {
+    connections.save(web.userId, service, data, data.label || null)
+      .catch((err) => console.error('[connections] save failed:', err.message));
+    return true;
+  }
+
   pendingTokens[`${service}:${state}`] = { ...data, ts: Date.now() };
   return true;
 }
