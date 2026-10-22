@@ -2280,10 +2280,6 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Connectors</span>
     </div>
-    <div id="hnavNums" onclick="switchHeroTab('nums')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;border:1px solid rgba(90,110,160,0.22);background:transparent;cursor:pointer;transition:all .15s">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Numbers</span>
-    </div>
     <div id="hnavAcct" onclick="switchHeroTab('acct')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;border:1px solid rgba(90,110,160,0.22);background:transparent;cursor:pointer;transition:all .15s">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(130,150,195,0.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span style="font-size:13.5px;font-weight:600;color:rgba(130,150,195,0.6)">Account</span>
@@ -2350,17 +2346,6 @@
       </div>
       <div id="webConnNote" style="margin-top:12px;font-size:10.5px;line-height:1.55;color:rgba(110,130,175,0.55)">
         Connections are kept on your Callisto account, not in this browser.
-      </div>
-    </div>
-    <div id="hnavPanelNums" style="display:none">
-      <!-- The website had no numbers section at all: Instagram could be
-           connected and there was nowhere for the figures to appear. -->
-      <div id="webNumsList" style="display:flex;flex-direction:column;gap:9px">
-        <div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.45);font-size:11.5px">Loading…</div>
-      </div>
-      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-        <button id="webNumsRefresh" style="padding:6px 12px;border-radius:7px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer">REFRESH</button>
-        <span style="font-size:10.5px;color:rgba(110,130,175,0.55)">Read on the server, never in this browser.</span>
       </div>
     </div>
     <div id="hnavPanelAcct" style="display:none">
@@ -2967,55 +2952,143 @@
     return _webStatsSummary;
   };
 
-  function numRow(icon, tint, name, lines){
-    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
-      <div style="width:32px;height:32px;border-radius:8px;background:${tint};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${icon}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:11.5px;font-weight:700;color:#fff">${name}</div>
-        ${lines.map(l=>`<div style="font-size:11px;color:rgba(170,195,240,0.8);margin-top:2px">${l}</div>`).join('')}
-      </div></div>`;
+  // ── The dashboard ──────────────────────────────────────────────────────────
+  // Not a tab in the sidebar. It opens when asked for - "show me my numbers" -
+  // and shows everything connected at once: Stripe, YouTube, Instagram,
+  // TikTok and the website.
+  function numsStyles(){
+    if(document.getElementById('numsStyles')) return;
+    const s=document.createElement('style'); s.id='numsStyles';
+    s.textContent=`
+      #numsOverlay{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;
+        justify-content:center;background:rgba(4,6,14,.74);backdrop-filter:blur(12px)}
+      #numsOverlay.hidden{display:none}
+      .nd-panel{width:min(1040px,94vw);max-height:88vh;overflow:auto;border-radius:18px;
+        background:linear-gradient(180deg,#0e1424,#070b14);border:1px solid rgba(120,160,255,.18);
+        box-shadow:0 40px 120px rgba(0,0,0,.72);padding:22px}
+      .nd-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+      .nd-eyebrow{font-family:var(--brand);font-size:9px;letter-spacing:3px;font-weight:700;
+        color:rgba(110,140,205,.6)}
+      .nd-title{font-size:21px;font-weight:700;color:#eef3ff;margin-top:3px}
+      .nd-x{margin-left:auto;min-width:40px;min-height:40px;border-radius:10px;cursor:pointer;
+        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cfe0ff;
+        font-size:15px}
+      .nd-x:hover{background:rgba(255,255,255,.1)}
+      .nd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:13px}
+      .nd-card{border-radius:14px;padding:16px;background:rgba(255,255,255,.035);
+        border:1px solid rgba(255,255,255,.09)}
+      .nd-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+      .nd-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
+        justify-content:center;font-size:17px;flex-shrink:0}
+      .nd-name{font-size:12.5px;font-weight:700;color:#fff;overflow:hidden;
+        text-overflow:ellipsis;white-space:nowrap}
+      .nd-big{font-size:26px;font-weight:700;color:#eef3ff;line-height:1.1;
+        font-variant-numeric:tabular-nums}
+      .nd-cap{font-size:10px;letter-spacing:.08em;color:rgba(130,160,215,.6);margin-top:3px}
+      .nd-sub{margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);
+        font-size:11.5px;line-height:1.6;color:rgba(175,200,245,.82)}
+      .nd-foot{margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+      .nd-btn{min-height:38px;padding:8px 15px;border-radius:9px;cursor:pointer;
+        background:rgba(61,92,255,.85);border:none;color:#fff;font-size:12px;font-weight:700}
+      .nd-note{font-size:10.5px;color:rgba(110,135,180,.6)}
+      .nd-empty{grid-column:1/-1;padding:36px;text-align:center;
+        color:rgba(130,155,205,.65);font-size:13px;line-height:1.7}
+      @media(max-width:640px){.nd-panel{padding:16px;width:96vw}.nd-grid{grid-template-columns:1fr}}`;
+    document.head.appendChild(s);
   }
 
-  async function renderWebNumbers(fresh){
-    const box = document.getElementById('webNumsList');
-    if(!box) return;
+  function numsCard(icon, tint, name, big, cap, sub){
+    return `<div class="nd-card">
+      <div class="nd-top"><div class="nd-icon" style="background:${tint}">${icon}</div>
+        <div class="nd-name">${name}</div></div>
+      <div class="nd-big">${big}</div><div class="nd-cap">${cap}</div>
+      ${sub ? `<div class="nd-sub">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  function buildNums(){
+    if(document.getElementById('numsOverlay')) return;
+    numsStyles();
+    const d=document.createElement('div');
+    d.id='numsOverlay'; d.className='hidden';
+    d.innerHTML=`<div class="nd-panel">
+      <div class="nd-head">
+        <div><div class="nd-eyebrow">CALLISTO &middot; YOUR NUMBERS</div>
+          <div class="nd-title">How everything is doing</div></div>
+        <button class="nd-x" id="ndClose" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="nd-grid" id="ndGrid"></div>
+      <div class="nd-foot">
+        <button class="nd-btn" id="ndRefresh">Refresh</button>
+        <span class="nd-note">Read on the server. No account token ever reaches this browser.</span>
+      </div></div>`;
+    document.body.appendChild(d);
+    d.querySelector('#ndClose').addEventListener('click', closeNums);
+    d.querySelector('#ndRefresh').addEventListener('click', ()=>showNums(true));
+    d.addEventListener('click', e=>{ if(e.target===d) closeNums(); });
+    document.addEventListener('keydown', e=>{
+      if(e.key==='Escape' && !d.classList.contains('hidden')) closeNums();
+    });
+  }
+
+  function closeNums(){ document.getElementById('numsOverlay')?.classList.add('hidden'); }
+
+  async function showNums(fresh){
+    buildNums();
+    const root=document.getElementById('numsOverlay');
+    const grid=document.getElementById('ndGrid');
+    root.classList.remove('hidden');
+
     if(!token){
-      box.innerHTML = '<div style="padding:16px 6px;text-align:center;color:rgba(130,150,195,0.6);font-size:11.5px;line-height:1.6">'
-        + 'Sign in to see your numbers.<br><button id="webNumsSignIn" style="margin-top:10px;padding:6px 14px;border-radius:7px;background:rgba(61,92,255,0.9);border:none;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">Sign In</button></div>';
-      document.getElementById('webNumsSignIn')?.addEventListener('click', showAuthForced);
+      grid.innerHTML='<div class="nd-empty">Sign in to see your numbers.<br>'
+        +'<button class="nd-btn" id="ndSignIn" style="margin-top:12px">Sign In</button></div>';
+      document.getElementById('ndSignIn')?.addEventListener('click',()=>{ closeNums(); showAuthForced(); });
       return;
     }
-    box.innerHTML = '<div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.45);font-size:11.5px">Reading your accounts…</div>';
-    const d = await fetchWebStats(fresh);
-    const s = (d && d.stats) || {};
-    const n = (v) => Number(v||0).toLocaleString();
-    const rows = [];
-    if(s.instagram) rows.push(numRow('\u{1F4F8}','rgba(225,48,108,0.18)', s.instagram.username ? '@'+s.instagram.username : 'Instagram', [
-      `${n(s.instagram.followers)} followers · ${n(s.instagram.posts)} posts`,
-      s.instagram.latest ? `Latest post: ${n(s.instagram.latest.likes)} likes, ${n(s.instagram.latest.comments)} comments` : '',
-    ].filter(Boolean)));
-    if(s.tiktok) rows.push(numRow('\u{1F3AC}','rgba(105,201,208,0.18)','TikTok', [
-      `${n(s.tiktok.followers)} followers · ${n(s.tiktok.likes)} likes`,
-      s.tiktok.latest ? `Latest video: ${n(s.tiktok.latest.views)} views` : '',
-    ].filter(Boolean)));
-    if(s.analytics) rows.push(numRow('\u{1F4C8}','rgba(245,158,11,0.18)', s.analytics.site || 'Website', [
-      `${n(s.analytics.visitors)} visitors this week`,
-      `${n(s.analytics.pageViews)} page views`,
-    ]));
-    if(s.stripe) rows.push(numRow('\u{1F4B3}','rgba(99,91,255,0.18)','Stripe', [
-      `${s.stripe.currency} ${n(s.stripe.today)} today · ${n(s.stripe.todayCount)} payments`,
-      `${s.stripe.currency} ${n(s.stripe.week)} over the week`,
-    ]));
-    if(s.youtube) rows.push(numRow('\u{25B6}','rgba(255,0,0,0.18)', s.youtube.channel || 'YouTube', [
-      `${n(s.youtube.subscribers)} subscribers · ${n(s.youtube.views)} views`,
-      s.youtube.latest ? `Latest video: ${n(s.youtube.latest.views)} views` : '',
-    ].filter(Boolean)));
+    grid.innerHTML='<div class="nd-empty">Reading your accounts…</div>';
 
-    box.innerHTML = rows.length ? rows.join('')
-      : '<div style="padding:18px 6px;text-align:center;color:rgba(130,150,195,0.6);font-size:11.5px;line-height:1.6">Nothing connected yet.<br>Open Connectors and link an account.</div>';
+    const d=await fetchWebStats(fresh);
+    const s=(d&&d.stats)||{};
+    const n=v=>Number(v||0).toLocaleString();
+    const cards=[];
+
+    if(s.stripe) cards.push(numsCard('\u{1F4B3}','rgba(99,91,255,0.2)','Stripe',
+      `${s.stripe.currency} ${n(s.stripe.today)}`, 'TAKEN TODAY',
+      `${n(s.stripe.todayCount)} payment${s.stripe.todayCount===1?'':'s'} today<br>${s.stripe.currency} ${n(s.stripe.week)} over the week`));
+    if(s.youtube) cards.push(numsCard('\u{25B6}','rgba(255,0,0,0.2)', s.youtube.channel||'YouTube',
+      n(s.youtube.subscribers), 'SUBSCRIBERS',
+      `${n(s.youtube.views)} total views &middot; ${n(s.youtube.videos)} videos`
+      + (s.youtube.latest?`<br>Latest video: ${n(s.youtube.latest.views)} views`:'')));
+    if(s.instagram) cards.push(numsCard('\u{1F4F8}','rgba(225,48,108,0.2)',
+      s.instagram.username?'@'+s.instagram.username:'Instagram',
+      n(s.instagram.followers), 'FOLLOWERS',
+      `${n(s.instagram.posts)} posts`
+      + (s.instagram.latest?`<br>Latest post: ${n(s.instagram.latest.likes)} likes, ${n(s.instagram.latest.comments)} comments`:'')));
+    if(s.tiktok) cards.push(numsCard('\u{1F3AC}','rgba(105,201,208,0.2)',
+      s.tiktok.username||'TikTok', n(s.tiktok.followers), 'FOLLOWERS',
+      `${n(s.tiktok.likes)} likes &middot; ${n(s.tiktok.videos)} videos`
+      + (s.tiktok.latest?`<br>Latest video: ${n(s.tiktok.latest.views)} views`:'')));
+    if(s.analytics) cards.push(numsCard('\u{1F4C8}','rgba(245,158,11,0.2)',
+      s.analytics.site||'Website', n(s.analytics.visitors), 'VISITORS THIS WEEK',
+      `${n(s.analytics.pageViews)} page views &middot; ${n(s.analytics.sessions)} sessions`));
+
+    grid.innerHTML = cards.length ? cards.join('')
+      : '<div class="nd-empty">Nothing is connected yet.<br>Open Connectors and link Instagram, TikTok, YouTube or Google Analytics.</div>';
   }
-  window._renderWebNumbers = renderWebNumbers;
-  document.getElementById('webNumsRefresh')?.addEventListener('click', ()=>renderWebNumbers(true));
+  window._showNumbers = showNums;
+
+  // "Show me my numbers" opens the dashboard. Asked for in words rather than
+  // kept as a tab in the sidebar, because this is something you want at a
+  // moment, not a place you navigate to.
+  const WANTS_NUMBERS = /\b(?:show|open|bring up|pull up|give|see|check)\b[^.?!]{0,24}\b(?:my|the)\b[^.?!]{0,14}\b(?:numbers|stats|statistics|analytics|figures|metrics|dashboard)\b|^(?:my )?(?:numbers|stats|analytics|dashboard)$|\bhow (?:are|is) (?:my|the) (?:numbers|stats|accounts|channels?)\b/i;
+
+  // Returns true when it handled the request, so the caller does not also send
+  // it to the model.
+  window._webNumbersIntent = function(text){
+    if(!WANTS_NUMBERS.test(String(text||''))) return false;
+    showNums(false);
+    return true;
+  };
 
   window._calVoiceBlocked = function(){
     if(_voiceWarned) return;
@@ -3639,9 +3712,15 @@
               const transcript = d.transcript || '';
               if(transcript) addVoiceBubble('user', transcript);
 
-              const act = (transcript && typeof window._webActions==='function')
+              // Asking for the numbers opens the dashboard rather than being
+              // described back - and the model's answer is dropped with it,
+              // the same as any other thing Callisto does itself.
+              const wantsNums = transcript && typeof window._webNumbersIntent==='function'
+                && window._webNumbersIntent(transcript);
+              const act = (!wantsNums && transcript && typeof window._webActions==='function')
                 ? window._webActions(transcript, true) : null;
-              if(act) handledHere = true;
+              if(wantsNums){ handledHere = true; addVoiceBubble('ai', 'Here are your numbers.'); }
+              else if(act) handledHere = true;
               else addVoiceBubble('ai', d.reply || 'Sorry, no response.');
 
               setOrbState('speak');
@@ -3759,7 +3838,6 @@
     // Asked for fresh each time it is opened, so a connection made in the
     // popup a moment ago is already showing.
     if(tab==='conn' && typeof window._renderWebConnectors==='function'){ window._renderWebConnectors(); }
-    if(tab==='nums' && typeof window._renderWebNumbers==='function'){ window._renderWebNumbers(false); }
     if(activeN){
       activeN.style.border='1px solid rgba(61,92,255,0.45)';
       activeN.style.background='rgba(61,92,255,0.16)';
@@ -4002,6 +4080,11 @@
     }
     if(window._appPanelIntents(t)==='calendar'){
       uIn.value='';addMsg('user',t);addMsg('ai','📅 Here\'s your calendar.');return;
+    }
+    // The dashboard, opened on the spot - no round trip to the model to be
+    // told about figures it would have to be handed anyway.
+    if(typeof window._webNumbersIntent==='function' && window._webNumbersIntent(t)){
+      uIn.value='';addMsg('user',t);addMsg('ai','Here are your numbers.');return;
     }
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
     document.getElementById('chatOrb').classList.add('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='THINKING';}
