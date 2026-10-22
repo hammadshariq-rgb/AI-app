@@ -111,6 +111,11 @@ contextBridge.exposeInMainWorld('jarvis', {
   analyticsGet: (platform, opts) => ipcRenderer.invoke('analytics:get', platform || 'all', opts || null),
   // What is already known, with no network call behind it.
   analyticsCached: () => ipcRenderer.invoke('analytics:cached'),
+
+  // Picking a file without the system dialog, so the hand cursor can do it.
+  fileRoots:  ()      => ipcRenderer.invoke('files:roots'),
+  fileBrowse: (dir)   => ipcRenderer.invoke('files:browse', dir || null),
+  fileRead:   (p)     => ipcRenderer.invoke('files:read', p),
   reminderList: () => ipcRenderer.invoke('reminder:list'),
   reminderAdd: (r) => ipcRenderer.invoke('reminder:add', r),
   reminderDelete: (id) => ipcRenderer.invoke('reminder:delete', id),

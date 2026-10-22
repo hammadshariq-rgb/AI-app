@@ -5273,7 +5273,7 @@ if (fileBtn) fileBtn.addEventListener('click', async () => {
 // ── Typing-mode file + clear buttons (distinct IDs — duplicate clearBtn bug fix) ──
 const typeFileBtn  = document.getElementById('typeFileBtn');
 const typeClearBtn = document.getElementById('typeClearBtn');
-if (typeFileBtn)  typeFileBtn.addEventListener('click', () => { if (attachInput) attachInput.click(); });
+if (typeFileBtn)  typeFileBtn.addEventListener('click', () => { if (window._openAttachPicker) window._openAttachPicker(); else if (attachInput) attachInput.click(); });
 if (typeClearBtn) typeClearBtn.addEventListener('click', () => clearBtn.click());
 
 // ===================== ACTION FLASH =====================
@@ -5487,7 +5487,23 @@ const attachPreview = document.getElementById('attachPreview');
 const dropOverlay = document.getElementById('dropOverlay');
 const mainPanel   = document.getElementById('main');
 
-attachBtn.addEventListener('click', () => { debugFlash('ATTACH...'); attachInput.click(); });
+// With the hand cursor running, + opens Callisto's own file list instead of
+// the system dialog. The system dialog belongs to the operating system, so a
+// pointer this app draws cannot press anything inside it - pressing + with
+// your hand used to open a window the hand could not then use. With a mouse,
+// nothing changes: the familiar dialog is still the better one.
+function openAttachPicker() {
+  // Set by toggleGesture, so this is the camera's real state rather than a
+  // guess from whatever class the cursor happens to be wearing.
+  if (window._gestureActive && window.CallistoFilePicker) {
+    window.CallistoFilePicker.open((file) => processFiles([file]));
+    return;
+  }
+  attachInput.click();
+}
+window._openAttachPicker = openAttachPicker;
+
+attachBtn.addEventListener('click', () => { debugFlash('ATTACH...'); openAttachPicker(); });
 
 attachInput.addEventListener('change', () => {
   processFiles([...attachInput.files]);

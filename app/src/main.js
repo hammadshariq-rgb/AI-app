@@ -2585,9 +2585,9 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const searchMessage = message.replace(new RegExp(`^${assistantNameRaw}[,\\s]+`, 'i'), '').trim();
 
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
-    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 4000) : Promise.resolve(null),
+    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 3000) : Promise.resolve(null),
     (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 1500) : Promise.resolve(null),
-    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 4000) : Promise.resolve(null),
+    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 
@@ -2603,7 +2603,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // through to an ordinary web search and Callisto just opened Google.
   const NEAR_ME = /\b(?:near|around|close to|closest to|nearest to)\s+(?:me|here|us)\b|\bnear\s*by\b|\bnearby\b|\baround here\b|\bin my area\b|\bwalking distance\b/i;
   if (NEAR_ME.test(message) && !/\bon my (?:tv|television)\b/i.test(message)) {
-    const placeAnswer = await _cap(_placesNearMe(message).catch(() => null), 7000);
+    const placeAnswer = await _cap(_placesNearMe(message).catch(() => null), 4000);
     if (placeAnswer) {
       _sendTTS(_e.sender, placeAnswer.spoken);
       return { text: placeAnswer.text, audio: null, card: placeAnswer.card, hasAction: false };
@@ -2621,7 +2621,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   if (isEmailQuery || wantsRoundUp) {
     const wantsMail = /\b(email|emails|e-?mail|inbox|unread|mail|notifications)\b/i.test(message);
-    const roundUp = wantsRoundUp ? await _cap(_statsRoundUp().catch(() => null), 6000) : null;
+    const roundUp = wantsRoundUp ? await _cap(_statsRoundUp().catch(() => null), 3000) : null;
     const bits = [];
     if (roundUp) bits.push(roundUp);
     if (wantsMail) bits.push('EMAIL: email connectors are not available in this version; say so briefly if they asked about email.');
@@ -6947,11 +6947,15 @@ async function _statsRoundUp() {
   const n = (v) => Number(v || 0).toLocaleString();
   const lines = [];
 
+  // Through the same three-minute cache the dashboard and the briefing use.
+  // These used to be fetched live every single time somebody asked how their
+  // numbers were doing - four network round trips before a word came back,
+  // for figures that had very often been fetched seconds earlier.
   const [ig, tt, yt, stripe] = await Promise.all([
-    connectors.getInstagramStats().catch(() => null),
-    connectors.getTikTokStats().catch(() => null),
-    connectors.getYouTubeStats().catch(() => null),
-    connectors.getStripeStats().catch(() => null),
+    _statFor('instagram', false),
+    _statFor('tiktok', false),
+    _statFor('youtube', false),
+    _statFor('stripe', false),
   ]);
 
   if (ig) {
@@ -7018,7 +7022,13 @@ ipcMain.handle('connector:statsBriefing', async () => {
   const today = new Date().toDateString();
   if (_briefCache.day === today) return _briefCache.text;
   try {
-    const all = await connectors.getAllAnalytics();
+    // Same cache again. The morning briefing and the dashboard are usually
+    // opened within moments of each other, and this used to fetch all seven
+    // platforms twice over.
+    const names = ['youtube', 'instagram', 'tiktok', 'shopify', 'squarespace', 'googleAnalytics', 'stripe'];
+    const values = await Promise.all(names.map((n) => _statFor(n, false)));
+    const all = {};
+    names.forEach((n, i) => { all[n] = values[i]; });
     let text = connectors.formatAnalyticsForBriefing(all);
     // Mail belongs in the same breath as the numbers, not a separate interruption.
     const mail = await connectors.getOutlookSummary().catch(() => null);
@@ -7027,6 +7037,97 @@ ipcMain.handle('connector:statsBriefing', async () => {
     return text;
   } catch (_) {
     return null;
+  }
+});
+
+// ── Picking a file without the system dialog ─────────────────────────────────
+// The Callisto cursor lives in this window. A system Open dialog is a window
+// of the operating system's own, so a pointer drawn by the app cannot press
+// anything in it - pressing + with your hand opened a dialog the hand then
+// could not use. This lists files itself, so the picker is something the
+// cursor can actually work.
+//
+// It never goes outside the home folder, whatever it is asked for.
+const FILE_PICK_EXT = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic', '.svg',
+  '.mp4', '.mov', '.m4v', '.webm',
+  '.pdf', '.txt', '.csv', '.md', '.json', '.doc', '.docx',
+  '.js', '.ts', '.jsx', '.tsx', '.py', '.html', '.css', '.java', '.c', '.cpp', '.rb', '.go', '.rs', '.swift', '.kt',
+]);
+const MAX_PICK_BYTES = 25 * 1024 * 1024;
+
+function _pickRoots() {
+  const out = [];
+  for (const name of ['pictures', 'downloads', 'documents', 'desktop']) {
+    try {
+      const p = app.getPath(name);
+      if (p && require('fs').existsSync(p)) out.push({ name: name[0].toUpperCase() + name.slice(1), path: p });
+    } catch (_) { /* a folder this machine does not have */ }
+  }
+  out.push({ name: 'Home', path: app.getPath('home') });
+  return out;
+}
+
+function _insideHome(p) {
+  const home = path.resolve(app.getPath('home'));
+  const full = path.resolve(p);
+  return full === home || full.startsWith(home + path.sep);
+}
+
+ipcMain.handle('files:roots', () => _pickRoots());
+
+ipcMain.handle('files:browse', (_e, dir) => {
+  const fsx = require('fs');
+  let target = dir ? String(dir) : (_pickRoots()[0] || {}).path;
+  if (!target || !_insideHome(target)) return { ok: false, error: 'That folder is outside your home folder.' };
+  try {
+    const rows = fsx.readdirSync(target, { withFileTypes: true });
+    const entries = [];
+    for (const d of rows) {
+      if (d.name.startsWith('.')) continue;
+      const full = path.join(target, d.name);
+      if (d.isDirectory()) { entries.push({ name: d.name, path: full, isDir: true }); continue; }
+      const ext = path.extname(d.name).toLowerCase();
+      if (!FILE_PICK_EXT.has(ext)) continue;
+      let size = 0;
+      try { size = fsx.statSync(full).size; } catch (_) { /* vanished between listing and reading */ }
+      entries.push({ name: d.name, path: full, isDir: false, ext, size });
+    }
+    // Folders first, then newest-looking names; both alphabetical within.
+    entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : (a.isDir ? -1 : 1)));
+    const parent = path.dirname(target);
+    return {
+      ok: true,
+      dir: target,
+      label: path.basename(target) || target,
+      up: (_insideHome(parent) && parent !== target) ? parent : null,
+      entries: entries.slice(0, 400),
+    };
+  } catch (err) {
+    return { ok: false, error: 'I could not open that folder.' };
+  }
+});
+
+// The bytes, so the window can turn it into the same kind of File the system
+// dialog would have handed over and everything downstream is unchanged.
+ipcMain.handle('files:read', (_e, filePath) => {
+  const fsx = require('fs');
+  if (!filePath || !_insideHome(filePath)) return { ok: false, error: 'That file is outside your home folder.' };
+  try {
+    const st = fsx.statSync(filePath);
+    if (!st.isFile()) return { ok: false, error: 'That is not a file.' };
+    if (st.size > MAX_PICK_BYTES) return { ok: false, error: 'That file is too big to attach.' };
+    const ext = path.extname(filePath).toLowerCase();
+    if (!FILE_PICK_EXT.has(ext)) return { ok: false, error: 'I cannot attach that kind of file.' };
+    return {
+      ok: true,
+      name: path.basename(filePath),
+      path: filePath,
+      size: st.size,
+      base64: fsx.readFileSync(filePath).toString('base64'),
+    };
+  } catch (err) {
+    return { ok: false, error: 'I could not read that file.' };
   }
 });
 

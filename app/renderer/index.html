@@ -3045,6 +3045,7 @@
   <script src="model-viewer.js?v=5"></script>
   <script src="video-viewer.js?v=1"></script>
   <script src="image-studio.js?v=1"></script>
+  <script src="file-picker.js?v=1"></script>
   <!-- These must load BEFORE renderer.js. It wires itself to each of them at
        parse time and gives up quietly if the global is not there yet, so with
        the old order the drawing canvas and the document studio were never
@@ -3374,13 +3375,31 @@
         // but nothing could be clicked, on Windows and on Mac alike.
         const handScale = Math.max(0.04, lmDist(lm[0], lm[9]));
         const pinchGap = lmDist(lm[4], lm[8]) / handScale;
-        const apart   = pinchGap > 0.52;   // open — ready to press again
-        const pinched = pinchGap < 0.34;   // closed — fires
+        // Where "closed" and "open" are for THIS hand, rather than two numbers
+        // measured once on somebody else's. A hand whose pinch never quite
+        // reached 0.34 could never press at all, and one that never opened
+        // past 0.52 pressed once and then never re-armed - which is exactly
+        // what "it stops detecting the click" looks like from the outside.
+        const th = pinchThresholds(pinchGap);
+        const apart   = pinchGap > th.open;    // open — ready to press again
+        const pinched = pinchGap < th.close;   // closed — fires
 
-        // In the sketching studio the pinch draws rather than clicks.
+        // In the sketching studio a pinch over the CANVAS draws. Anywhere else
+        // in the studio it presses as normal.
+        //
+        // It used to draw wherever the cursor was, so with the studio open the
+        // hand could make marks and nothing else: not the pen or eraser, not
+        // the picture button, not Undo, Clear, Download or even Close. The
+        // studio was the one place the cursor could not work the buttons.
         if (window.CallistoDraw && window.CallistoDraw.isOpen && window.CallistoDraw.isOpen()) {
-          handPenTick(pinched, apart);
-          return;
+          const over = document.elementFromPoint(smoothX, smoothY);
+          const onCanvas = !!(over && over.closest && over.closest('#dsSvg'));
+          if (onCanvas || _penEl) {
+            // A stroke that wanders off the canvas is finished rather than
+            // left open, which would otherwise swallow the next press.
+            handPenTick(onCanvas && pinched, apart);
+            if (onCanvas || _penEl) return;
+          }
         }
 
         if (apart) {
@@ -3401,13 +3420,55 @@
             magicCursor.classList.remove('armed');
             magicCursor.classList.add('pinch');
             setTimeout(() => magicCursor.classList.remove('pinch'), 200);
-            const el = document.elementFromPoint(smoothX, smoothY);
-            if (el) el.click();
+            pressAt(smoothX, smoothY);
           }
         } else if (!pinched) {
           pressHeldSince = 0;
         }
       }
+
+      // ── Pressing, properly ────────────────────────────────────────────────
+      // This used to be el.click(), which fires one click event and nothing
+      // else. Two things made that miss constantly:
+      //
+      //  - A great deal of this app never hears a click. Anything built on
+      //    pointerdown - the draw studio, the sliders, every drag handle - and
+      //    any control that acts on mousedown, got nothing at all.
+      //  - The point under the finger is usually an icon or a span INSIDE the
+      //    button, not the button. Clicking the child does nothing unless the
+      //    handler happens to be delegated.
+      //
+      // So: find the thing that actually does something, then send the whole
+      // sequence a real finger would.
+      const PRESSABLE = 'button, a, input, select, textarea, label, summary,'
+        + ' [role="button"], [role="link"], [role="option"], [role="menuitem"],'
+        + ' [onclick], [data-shape-id], [tabindex]:not([tabindex="-1"]),'
+        + ' .ds-tool, .ds-btn, .gleam, .mv-btn, .mv-icon-btn, .card, .msg-row';
+
+      function pressAt(x, y) {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit) return false;
+        const target = hit.closest(PRESSABLE) || hit;
+        const base = {
+          bubbles: true, cancelable: true, composed: true,
+          clientX: x, clientY: y, screenX: x, screenY: y,
+          view: window, button: 0, detail: 1,
+        };
+        const pointer = { ...base, pointerId: 1, pointerType: 'touch', isPrimary: true, width: 1, height: 1, pressure: 0.5 };
+        try {
+          target.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, buttons: 1 }));
+          target.dispatchEvent(new MouseEvent('mousedown', { ...base, buttons: 1 }));
+          target.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, pressure: 0 }));
+          target.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
+          // Focused first, so a box the press landed in is ready to type into.
+          if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+          target.click();
+          return true;
+        } catch (_) {
+          try { target.click(); return true; } catch (_e) { return false; }
+        }
+      }
+      window._callistoPressAt = pressAt;
 
       // ── Drawing by hand in the sketching studio ────────────────────────────
       // The studio draws from pointerdown / pointermove / pointerup. A click,
@@ -3470,6 +3531,39 @@
       // way somewhere else do not fire it.
       const PRESS_HOLD_MS = 70;
       let pressHeldSince = 0;
+
+      // ── Where "pinched" is, for the hand actually in front of the camera ──
+      // Seeded with typical values and then pulled toward whatever this hand
+      // really does. Both ends drift back a little every frame, so one odd
+      // reading cannot set the range for the rest of the session, and the
+      // range is never allowed to collapse to nothing.
+      let gapLo = 0.30, gapHi = 0.90;
+      function pinchThresholds(gap) {
+        // A real hand cannot do this. A half-tracked frame can, and one of
+        // them used to stretch the range so far that opening normally no
+        // longer counted as open - clicking then stopped working for minutes
+        // with nothing to show why.
+        gap = Math.max(0.02, Math.min(2.2, Number(gap) || 0));
+        if (gap < gapLo) gapLo += (gap - gapLo) * 0.25;
+        if (gap > gapHi) gapHi += (gap - gapHi) * 0.25;
+        // Both ends ease back in, as a share of the range rather than a fixed
+        // step, so an extreme reading washes out in a second or two instead of
+        // sitting there for the rest of the session.
+        const span0 = gapHi - gapLo;
+        gapLo += span0 * 0.004;
+        gapHi -= span0 * 0.004;
+        const MIN_SPAN = 0.28;
+        if (gapHi - gapLo < MIN_SPAN) {
+          const mid = (gapHi + gapLo) / 2;
+          gapLo = mid - MIN_SPAN / 2;
+          gapHi = mid + MIN_SPAN / 2;
+        }
+        const span = gapHi - gapLo;
+        // A third of the way up counts as closed, two thirds as open again.
+        // The gap between them is the hysteresis that stops it chattering.
+        return { close: gapLo + span * 0.35, open: gapLo + span * 0.62 };
+      }
+      window._pinchThresholds = pinchThresholds;
 
       let gestureEnabled = false;
       let handsModel = null, rafId = null, stream = null;
