@@ -2791,6 +2791,53 @@
 
 <script>
   const SERVER = 'https://ai-app-production-9224.up.railway.app';
+
+  // ── Getting a phone to speak ───────────────────────────────────────────────
+  // A phone will not play audio that was not started by a tap, and it judges
+  // that by the element: one created later, inside a network callback, is
+  // refused however many taps came before it. So a single element is made and
+  // unlocked during the first real touch, and every reply afterwards is played
+  // through that same one.
+  let _voiceEl = null;
+  let _voiceUnlocked = false;
+  // 50ms of silence. Playing it costs nothing and is what does the unlocking.
+  const _SILENCE = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u///////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYa4rQ1uAAAAAAAAAAAAAAAAAAAA//sQxAADwAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxCADwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
+
+  window._calVoiceEl = function(){
+    if(!_voiceEl){
+      _voiceEl = new Audio();
+      _voiceEl.preload = 'auto';
+      _voiceEl.setAttribute('playsinline','');   // iOS: do not hijack the screen
+    }
+    return _voiceEl;
+  };
+
+  function _unlockVoice(){
+    if(_voiceUnlocked) return;
+    _voiceUnlocked = true;
+    const el = window._calVoiceEl();
+    try{
+      el.src = _SILENCE;
+      const p = el.play();
+      if(p && p.catch) p.catch(()=>{ _voiceUnlocked = false; });
+    }catch(_){ _voiceUnlocked = false; }
+  }
+  // Any first touch will do, and the mic button is usually it.
+  ['pointerdown','touchend','click','keydown'].forEach((ev)=>{
+    window.addEventListener(ev, _unlockVoice, { once:false, passive:true, capture:true });
+  });
+
+  // If a phone still refuses, say so rather than sitting there mute.
+  let _voiceWarned = false;
+  window._calVoiceBlocked = function(){
+    if(_voiceWarned) return;
+    _voiceWarned = true;
+    try{
+      if(typeof addVoiceBubble === 'function'){
+        addVoiceBubble('ai', 'Your phone is blocking sound until you tap the page. Tap anywhere and ask me again and you will hear me.');
+      }
+    }catch(_){}
+  };
   const STRIPE_MO = 'https://buy.stripe.com/28EeVccs0aIG5GY7DHa7C00';
   const STRIPE_YR = 'https://buy.stripe.com/3cI9AS2RqeYW2uM1fja7C01';
 
@@ -3359,10 +3406,21 @@
             playing = true;
             const bytes = Uint8Array.from(atob(next), c=>c.charCodeAt(0));
             const url = URL.createObjectURL(new Blob([bytes],{type:'audio/mpeg'}));
-            currentAudio = new Audio(url);
+            // The SAME element that was unlocked by a tap, reused. A fresh
+            // Audio() made here is created inside a fetch callback, which a
+            // phone treats as autoplay and refuses - and the refusal landed
+            // in .catch(after), so it moved silently to the next clip and no
+            // voice ever came out, with nothing shown to say why.
+            currentAudio = window._calVoiceEl();
+            currentAudio.src = url;
             const after = ()=>{ URL.revokeObjectURL(url); currentAudio=null; playing=false; playNext(); };
             currentAudio.onended = after; currentAudio.onerror = after;
-            currentAudio.play().catch(after);
+            currentAudio.play().catch((err)=>{
+              if(err && err.name === 'NotAllowedError' && typeof window._calVoiceBlocked==='function'){
+                window._calVoiceBlocked();
+              }
+              after();
+            });
           };
           const handle = (d)=>{
             if(d.reply !== undefined){
