@@ -92,6 +92,9 @@
           <button class="ds-tool" id="dsEraser" title="Erase" aria-label="Erase">
             <svg viewBox="0 0 24 24"><path d="M20 20H9l-5-5a2 2 0 010-3l8-8a2 2 0 013 0l6 6a2 2 0 010 3l-7 7"/><path d="M14 8l-7 7"/></svg>
           </button>
+          <button class="ds-tool" id="dsImage" title="Add a picture to draw on" aria-label="Add a picture">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L9 20"/></svg>
+          </button>
           <button class="ds-tool" id="dsText" title="Add text" aria-label="Add text">
             <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
           </button>
@@ -273,6 +276,21 @@
         el = document.createElementNS(NS, 'path');
         el.setAttribute('d', s.d || '');
         break;
+      case 'image':
+        // Always a data: URL, never a link. The canvas is rasterised by drawing
+        // the serialised SVG into a <canvas>, and an SVG loaded that way is not
+        // allowed to fetch anything external - the picture would simply be
+        // missing from every download, and an external reference would taint
+        // the canvas so toDataURL threw instead.
+        el = document.createElementNS(NS, 'image');
+        el.setAttribute('x', s.x); el.setAttribute('y', s.y);
+        el.setAttribute('width', s.w); el.setAttribute('height', s.h);
+        el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        el.setAttribute('href', s.href || '');
+        // Older serialisers still read the namespaced form, and a downloaded
+        // .svg opened elsewhere should show the picture too.
+        el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', s.href || '');
+        break;
       case 'text':
         el = document.createElementNS(NS, 'text');
         el.setAttribute('x', s.x); el.setAttribute('y', s.y);
@@ -284,7 +302,8 @@
       default:
         return null;
     }
-    if (s.type !== 'text') {
+    // A picture gets no stroke and no fill: painting over it would hide it.
+    if (s.type !== 'text' && s.type !== 'image') {
       el.setAttribute('stroke', stroke);
       el.setAttribute('fill', fill);
       el.setAttribute('stroke-width', sw);
@@ -315,7 +334,8 @@
   // Roughly where a shape sits, for rotation and for describing it later.
   function centreOf(s) {
     switch (s.type) {
-      case 'rect':   return [s.x + s.w / 2, s.y + s.h / 2];
+      case 'rect':
+      case 'image':  return [s.x + s.w / 2, s.y + s.h / 2];
       case 'circle': return [s.cx, s.cy];
       case 'ellipse':return [s.cx, s.cy];
       case 'line':   return [(s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2];
@@ -339,7 +359,8 @@
   // written once against those two.
   function bboxOf(s) {
     switch (s.type) {
-      case 'rect': return { x: s.x, y: s.y, w: s.w, h: s.h };
+      case 'rect':
+      case 'image': return { x: s.x, y: s.y, w: s.w, h: s.h };
       case 'circle': return { x: s.cx - s.r, y: s.cy - s.r, w: s.r * 2, h: s.r * 2 };
       case 'ellipse': return { x: s.cx - s.rx, y: s.cy - s.ry, w: s.rx * 2, h: s.ry * 2 };
       case 'line': {
@@ -373,7 +394,8 @@
     const mapX = (v) => box.x + (v - old.x) * sx;
     const mapY = (v) => box.y + (v - old.y) * sy;
     switch (s.type) {
-      case 'rect': s.x = box.x; s.y = box.y; s.w = box.w; s.h = box.h; break;
+      case 'rect':
+      case 'image': s.x = box.x; s.y = box.y; s.w = box.w; s.h = box.h; break;
       case 'circle':
         // A circle has one radius, so it follows the smaller side rather than
         // silently turning into an ellipse behind the person's back.
@@ -764,6 +786,11 @@
         case 'line':    return `${s.id}: line from (${Math.round(s.x1)},${Math.round(s.y1)}) to (${Math.round(s.x2)},${Math.round(s.y2)})${paint}`;
         case 'polygon': return `${s.id}: polygon with ${(s.points || []).length} points ${where}${paint}`;
         case 'text':    return `${s.id}: the text "${s.text}" ${where}`;
+        // Never the data: URL - it is hundreds of kilobytes of base64 and
+        // would be the whole prompt. What matters is that a picture is there,
+        // where it is and how big, so "draw a circle round the dog" has
+        // something to aim at.
+        case 'image':   return `${s.id}: a photograph the user added ${where}, ${Math.round(s.w)} wide by ${Math.round(s.h)} tall (you cannot see it, but it is there to be drawn on)`;
         default:        return `${s.id}: ${s.type} ${where}${paint}`;
       }
     });
@@ -771,6 +798,74 @@
   }
 
   // ── Export ─────────────────────────────────────────────────────────────────
+  // ── Bringing a picture in ──────────────────────────────────────────────────
+  // So somebody can put their own photo on the canvas and draw over it, rather
+  // than only ever drawing from nothing.
+  //
+  // The picture is read into the drawing itself as a data: URL rather than
+  // linked. It has to be: the canvas is rasterised by serialising this SVG and
+  // drawing it into a <canvas>, and an SVG loaded that way may not fetch
+  // anything external - a linked picture would be missing from every download,
+  // and would taint the canvas so saving threw instead of saving.
+  const MAX_IMPORT_PX = 1600;     // a phone photo is far larger than the canvas
+
+  function readImageFile(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('No file.'));
+      if (!/^image\//.test(file.type || '')) return reject(new Error('That is not a picture.'));
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('Could not read that file.'));
+      fr.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Could not open that picture.'));
+        img.onload = () => {
+          // Carrying a 12-megapixel photo around as base64 inside every undo
+          // step is what would make this feel broken, so it comes down to
+          // something the canvas can actually use.
+          const scale = Math.min(1, MAX_IMPORT_PX / Math.max(img.width, img.height));
+          if (scale >= 1 && (file.size || 0) < 1.5e6) {
+            return resolve({ href: fr.result, w: img.width, h: img.height });
+          }
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          // PNG keeps transparency; anything else is smaller as JPEG.
+          const type = /png$/i.test(file.type) ? 'image/png' : 'image/jpeg';
+          resolve({ href: c.toDataURL(type, 0.9), w: c.width, h: c.height });
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  async function addImageFile(file) {
+    const pic = await readImageFile(file);
+    // Sized to sit comfortably on the canvas with its proportions kept, and
+    // centred, so it never arrives half off the edge.
+    const fit = Math.min((W * 0.8) / pic.w, (H * 0.8) / pic.h);
+    const w = Math.round(pic.w * fit);
+    const h = Math.round(pic.h * fit);
+    const shape = {
+      id: `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      type: 'image',
+      href: pic.href,
+      x: Math.round((W - w) / 2),
+      y: Math.round((H - h) / 2),
+      w,
+      h,
+    };
+    snapshot();
+    // Underneath everything already drawn. The point of bringing a picture in
+    // is to draw ON it, so it must not land on top of the drawing it is meant
+    // to sit behind.
+    shapes.unshift(shape);
+    render();
+    report();
+    return shape;
+  }
+
   function toSvgString() {
     const clone = svg.cloneNode(true);
     clone.querySelectorAll('.ds-selected').forEach((e) => e.classList.remove('ds-selected'));
@@ -1010,6 +1105,60 @@
     penBtn.addEventListener('click', () => setTool(penMode ? null : 'pen'));
     lineBtn.addEventListener('click', () => setTool(lineMode ? null : 'line'));
     eraserBtn.addEventListener('click', () => setTool(eraseMode ? null : 'erase'));
+
+    // ── Adding a picture ───────────────────────────────────────────
+    // One hidden file input, opened by the toolbar button. The value is
+    // cleared afterwards so choosing the same file twice in a row still fires.
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.style.display = 'none';
+    root.appendChild(picker);
+
+    const bringIn = async (file) => {
+      try {
+        setTool(null);            // a picture arrives selected, not mid-stroke
+        await addImageFile(file);
+      } catch (err) {
+        const t = root.querySelector('#dsTitle');
+        if (t) {
+          const was = t.textContent;
+          t.textContent = err.message || 'Could not add that picture.';
+          setTimeout(() => { t.textContent = was; }, 2600);
+        }
+      }
+    };
+
+    root.querySelector('#dsImage').addEventListener('click', () => picker.click());
+    picker.addEventListener('change', async () => {
+      const file = picker.files && picker.files[0];
+      picker.value = '';
+      if (file) await bringIn(file);
+    });
+
+    // Dropping one on the canvas does the same thing, which is how most people
+    // will try it first.
+    svg.addEventListener('dragover', (e) => { e.preventDefault(); svg.classList.add('ds-dropping'); });
+    svg.addEventListener('dragleave', () => svg.classList.remove('ds-dropping'));
+    svg.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      svg.classList.remove('ds-dropping');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) await bringIn(file);
+    });
+
+    // And pasting one, for a screenshot that never becomes a file at all.
+    root.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      for (const it of items) {
+        if (it.kind === 'file' && /^image\//.test(it.type)) {
+          e.preventDefault();
+          const f = it.getAsFile();
+          if (f) await bringIn(f);
+          return;
+        }
+      }
+    });
 
     // Erasing removes whole shapes, which is what a drawing made of shapes can
     // do. Dragging rubs out everything the pointer passes over, in one undo step.
@@ -1304,6 +1453,9 @@
 
   window.CallistoDraw = {
     show, hide, apply, undo, download,
+    // Bringing a picture in from outside the studio - a generated image, or
+    // anything else that already has a File to hand.
+    addImageFile,
     flip: (axis) => flip(axis === 'v' ? 'v' : 'h'),
     isOpen: () => open,
     describe,

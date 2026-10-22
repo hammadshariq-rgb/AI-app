@@ -9451,6 +9451,13 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 
 .ds-stage svg.ds-erasing { cursor: cell; }
 
+/* Dragging a picture over the canvas, so it is obvious it will be taken. */
+.ds-stage svg.ds-dropping {
+  outline: 2px dashed rgba(90, 160, 255, 0.75);
+  outline-offset: -6px;
+  background: rgba(90, 160, 255, 0.07);
+}
+
 /* Asking for the words on the canvas, since Electron has no window.prompt. */
 .ds-text-entry {
   position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 7;
