@@ -2966,6 +2966,44 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
+  // Making a picture, start to finish, in the Image Studio.
+  //
+  // Everything about this used to happen in the chat and a side card: a line
+  // saying it had started, then silence, then the picture in a small panel
+  // with a DOWNLOAD IMAGE button under it. A 3D model and a video each got a
+  // proper studio; the picture did not. Now it is the same stage, the same
+  // ring, and the same place to come back to.
+  async function runImageGeneration(prompt) {
+    const studio = window.CallistoImageStudio;
+    const title = String(prompt || 'image').slice(0, 60);
+    if (studio) {
+      studio.onRegenerate((p) => runImageGeneration(p));
+      studio.showLoading({ title, prompt });
+    }
+    try {
+      const result = await window.jarvis.generateImage(prompt, '1024x1024');
+      if (result && result.url) {
+        window._lastImage = { url: result.url, title };
+        window.jarvis.setLatestMedia?.('image', window._lastImage);
+        if (studio) studio.open(result.url, { title, prompt });
+        else showCard({ type: 'image', imageUrl: result.url, prompt, title });
+        say(`Here's your image of ${prompt}.`);
+        return;
+      }
+      const errMsg = (result && result.error) ? result.error : 'Unknown error';
+      console.error('[image] server returned error:', errMsg);
+      // Said where they are looking. A failure that only appears in the chat
+      // leaves the studio sitting on a ring that never finishes.
+      if (studio) studio.fail(`Couldn't generate that image: ${errMsg}`);
+      else addMessage('assistant', `❌ Couldn't generate the image: ${errMsg}`);
+    } catch (err) {
+      console.error('[image] IPC error:', err.message);
+      if (studio) studio.fail(`Image generation failed: ${err.message || 'Unknown error'}`);
+      else addMessage('assistant', `❌ Image generation failed: ${err.message || 'Unknown error'}`);
+    }
+  }
+  window._runImageGeneration = runImageGeneration;
+
   // ── Image generation: "make me an image of X" / "generate image of X" ────
   // Must contain an explicit image-type word so it doesn't match "make me believe" etc.
   const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
@@ -2973,27 +3011,11 @@ window._checkQuickLaunch = async function(text) {
              || t.match(/(?:make|paint)\s+me\s+(?:a\s+|an\s+)?(?:picture|drawing|painting|illustration)\s+(?:of\s+)?(.+)/i);
   if (imgM) {
     const prompt = imgM[1].trim();
-    addMessage('assistant', `🎨 Generating image of **${prompt}**…`);
     say(`Creating an image of ${prompt}.`);
-    (async () => {
-      try {
-        const result = await window.jarvis.generateImage(prompt, '1024x1024');
-        if (result && result.url) {
-          window._lastImage = { url: result.url, title: String(prompt || 'image').slice(0, 60) };
-          window.jarvis.setLatestMedia?.('image', window._lastImage);
-          showCard({ type: 'image', imageUrl: result.url, prompt, title: prompt });
-          addMessage('assistant', `✅ Here's your image of **${prompt}**.`);
-          say(`Here's your image of ${prompt}.`);
-        } else {
-          const errMsg = result && result.error ? result.error : 'Unknown error';
-          console.error('[image] server returned error:', errMsg);
-          addMessage('assistant', `❌ Couldn't generate the image: ${errMsg}`);
-        }
-      } catch (err) {
-        console.error('[image] IPC error:', err.message);
-        addMessage('assistant', `❌ Image generation failed: ${err.message || 'Unknown error'}`);
-      }
-    })();
+    // The studio opens now, with the ring running, exactly as a 3D model or a
+    // video does. It used to show nothing until the picture arrived and then
+    // put it in a small card off to the side.
+    runImageGeneration(prompt);
     return true;
   }
 
@@ -4672,6 +4694,17 @@ function showCard(card) {
       document.getElementById('charWikiLink')?.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl(card.sourceUrl); });
       document.getElementById('charHero')?.addEventListener('click', () => { if (card.sourceUrl) window.jarvis.openUrl(card.sourceUrl); });
     }, 50);
+  } else if (card.type === 'image' && window.CallistoImageStudio && card.imageUrl) {
+    // A picture Callisto made belongs in the Image Studio, whichever route
+    // asked for it - the typed shortcut or the model's own generate_image.
+    // This branch used to be the only home it had: a small side card with a
+    // download button under it.
+    const t = card.title || card.description || 'Image';
+    // Only offer "Make another" when there is something behind the button.
+    // Handing it a wrapper that might call nothing would show a button that
+    // does nothing, which is worse than not offering it.
+    window.CallistoImageStudio.onRegenerate(window._runImageGeneration || null);
+    window.CallistoImageStudio.open(card.imageUrl, { title: String(t).slice(0, 60), prompt: card.prompt || card.description || '' });
   } else if (card.type === 'image') {
     cardContent.innerHTML = `
       <div class="card-image">
@@ -7769,11 +7802,9 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
         const addressAs = p.displayName || title;
         const briefing = await composeDailyBriefing(addressAs);
-        // Written as well as spoken. It used to be spoken only, so on a machine
-        // where the voice did not come out - a Mac with the audio route still
-        // warming up, most often - the app simply opened blank and looked
-        // broken. The words are the greeting; the voice is a bonus.
-        addMessage('assistant', briefing.text);
+        // Spoken, not written into the chat. A greeting and the weather sitting
+        // there as a message is clutter in a conversation they have not started
+        // yet, and it pushed the real first exchange down the page.
         // ONE synthesis for the whole thing. Four of them in a row was the
         // thing that made this sound broken.
         const audio = await window.jarvis.speak(briefing.text).catch(() => null);

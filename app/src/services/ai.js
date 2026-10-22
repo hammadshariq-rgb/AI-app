@@ -1526,6 +1526,16 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const local = tryLocalCommand(message, assistantName);
   if (local) return { ...local, memory: null };
 
+  // Its own name comes off before the model ever sees the sentence.
+  //
+  // Stripping it inside tryLocalCommand only was not enough: anything that
+  // rule did not catch went to the model with "hey Callisto" still on the
+  // front, and the model copied the whole sentence into the argument. "Hey
+  // Callisto, play xyz on Spotify" became a search for "hey callisto xyz" and
+  // played something else entirely. It is wrong in the same way for a reminder
+  // title or a search, so it is removed once, here, for all of them.
+  message = stripAddress(message, assistantName);
+
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
   const isDocWork = DOC_INTENT.test(message);
   const intent = afterSecondThoughts(message);
@@ -1634,6 +1644,10 @@ async function respondStreaming({ message, history = [], assistantName, memories
   beginTurn();
   const local = tryLocalCommand(message, assistantName);
   if (local) { if (onSentence) onSentence(local.text, local.text); return { ...local, memory: null }; }
+
+  // As above: the name comes off before the model sees it, or it ends up
+  // inside whatever argument the model builds out of the sentence.
+  message = stripAddress(message, assistantName);
 
   // Cap on the whole streaming operation. Long answers (biographies, explanations)
   // genuinely take longer, so they get more room before we stop waiting.

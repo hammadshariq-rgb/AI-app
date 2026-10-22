@@ -395,33 +395,54 @@ function sendUpdateReady() {
 // up front and said plainly, with the right Settings pane opened.
 //   'accessibility'   - Magic Editor, which types Cmd+C to copy the selection
 //   'screen'          - Magic Cursor, which captures the screen
-function macPermissionMissing(kind) {
+// What each permission is actually for, in the words of the feature being
+// used. These used to be fixed strings, so Screen Assist told people "Magic
+// Cursor needs Screen Recording access" and writing into a draft told them
+// "Magic Editor needs Accessibility access" - naming a feature they had not
+// asked for, which reads like the app is confused about what it is doing.
+const MAC_PERMISSION = {
+  accessibility: {
+    name: 'Accessibility',
+    pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+    granted: (sp) => sp.isTrustedAccessibilityClient(false),
+  },
+  screen: {
+    name: 'Screen Recording',
+    pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+    granted: (sp) => sp.getMediaAccessStatus('screen') === 'granted',
+  },
+  automation: {
+    name: 'Automation',
+    pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
+    // macOS has no direct read for this one; what was learned at startup by
+    // sending a harmless event is the best answer available.
+    granted: () => {
+      const seen = store.get('macAppControl');
+      return !seen || seen.systemEvents !== false;
+    },
+  },
+};
+
+function macPermissionMissing(kind, feature) {
   if (process.platform !== 'darwin') return null;
+  const spec = MAC_PERMISSION[kind];
+  if (!spec) return null;
   try {
     const { systemPreferences } = require('electron');
-    if (kind === 'accessibility') {
-      if (systemPreferences.isTrustedAccessibilityClient(false)) return null;
-      return {
-        pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-        text: 'Magic Editor needs Accessibility access on this Mac so it can copy what you have highlighted. '
-          + 'I have opened the setting — switch Callisto on in the list, then try again.',
-      };
-    }
-    if (kind === 'screen') {
-      if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return null;
-      return {
-        pane: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
-        text: 'Magic Cursor needs Screen Recording access on this Mac so it can see what you circle. '
-          + 'I have opened the setting — switch Callisto on in the list, then try again.',
-      };
-    }
+    if (spec.granted(systemPreferences)) return null;
+    const who = feature || 'Callisto';
+    return {
+      pane: spec.pane,
+      text: `${who} needs ${spec.name} access on this Mac. `
+        + 'I have opened the setting — switch Callisto on in the list, then try again.',
+    };
   } catch (_) { /* if the check itself fails, let the feature try anyway */ }
   return null;
 }
 
 // Says what is wrong and opens the right pane. Returns true when blocked.
-function blockedByMacPermission(kind) {
-  const miss = macPermissionMissing(kind);
+function blockedByMacPermission(kind, feature) {
+  const miss = macPermissionMissing(kind, feature);
   if (!miss) return false;
   sendToHud('hud:card', { type: 'info', text: miss.text, ttl: 9000 });
   try { shell.openExternal(miss.pane); } catch (_) {}
@@ -970,12 +991,36 @@ function requestMacAppControlPermissions() {
   }, 4000);   // after the mic/camera prompts, so they don't stack on top of each other
 }
 
+// ── Mac: permission to see the screen ────────────────────────────────────────
+// Screen Assist and the Magic Cursor are both useless without this, and it was
+// the one permission nothing ever asked for: the microphone and camera are
+// requested outright, Automation and Accessibility are prompted by sending a
+// harmless event, and Screen Recording was only ever CHECKED, at the moment
+// somebody pressed the key expecting it to work.
+//
+// There is no askForMediaAccess('screen') - macOS shows that prompt when an
+// app first tries to read the screen, so trying once, quietly, is the request.
+function requestMacScreenPermission() {
+  if (process.platform !== 'darwin') return;
+  setTimeout(() => {
+    try {
+      const { systemPreferences, desktopCapturer } = require('electron');
+      if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return;
+      // The smallest possible read. We want the prompt, not the picture.
+      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+        .catch(() => {});
+    } catch (err) {
+      console.error('[mac screen permission]', err.message);
+    }
+  }, 7000);   // after the mic, camera and automation prompts, not on top of them
+}
+
 ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
-  const panes = {
-    automation: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
-    accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-  };
-  if (process.platform === 'darwin' && panes[pane]) shell.openExternal(panes[pane]);
+  // From the one list, so a pane cannot be offered in a message and then be
+  // missing here. Screen Recording was exactly that: named in the text people
+  // were shown, absent from this, so the button did nothing.
+  const spec = MAC_PERMISSION[pane];
+  if (process.platform === 'darwin' && spec) shell.openExternal(spec.pane);
   return true;
 });
 
@@ -1027,6 +1072,7 @@ app.whenReady().then(async () => {
     systemPreferences.askForMediaAccess('microphone').catch(() => {});
     systemPreferences.askForMediaAccess('camera').catch(() => {});
     requestMacAppControlPermissions();
+    requestMacScreenPermission();
   }
   tts.setSpeed(store.get('voiceSpeed') || 0.88);
 
@@ -1146,7 +1192,7 @@ app.whenReady().then(async () => {
       ? ['Alt+Shift+X', 'CommandOrControl+Shift+X']
       : ['CommandOrControl+Shift+X', 'Alt+Shift+X'], () => {
     if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) { closeCaptureOverlay(); return; }
-    if (blockedByMacPermission('screen')) return;
+    if (blockedByMacPermission('screen', 'Magic Cursor')) return;
     // Where the user was decides where the answer goes (see capture:identify).
     captureFromApp = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
     if (captureWindow && !captureWindow.isDestroyed()) closeCaptureOverlay();   // a finished one still identifying
@@ -1209,7 +1255,7 @@ app.whenReady().then(async () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('jarvis:magic-edit-stop');
       return;
     }
-    if (blockedByMacPermission('accessibility')) return;
+    if (blockedByMacPermission('accessibility', 'Magic Editor')) return;
     // Which window they are editing in. The rewrite is typed back there a few
     // seconds later, by which time the front window may be something else.
     rememberFrontApp();
@@ -2912,9 +2958,28 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
 
   if (finalAction?.type === 'play_music') {
+    // "hey callisto", "callisto," or a bare leading name - taken off a search
+    // term, never out of the middle of one, so a song actually called
+    // "Callisto" is still findable.
+    function _stripAssistantName(q) {
+      const names = ['callisto', 'jarvis'];
+      const mine = String(getAssistantName() || '').toLowerCase().trim();
+      if (mine && !names.includes(mine)) names.push(mine);
+      const alt = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const out = String(q || '')
+        .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
+        .replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '')
+        .trim();
+      // Never reduce a search to nothing: "play Callisto" means the song.
+      return out || String(q || '').trim();
+    }
     const parts = finalAction.arg.split('|');
     const aiService = (parts[0] || '').trim();
-    const query = (parts[1] || parts[0] || '').trim();
+    // Belt and braces on the name. It is stripped before the model sees the
+    // sentence, but a song search is the one place where a stray "hey
+    // callisto" is not a cosmetic problem - it goes into the search and
+    // something else plays - so it is checked again right before it is used.
+    const query = _stripAssistantName((parts[1] || parts[0] || '').trim());
     const preferredService = store.get('music.service') || '';
     const resolvedService = aiService || preferredService || 'youtube';
 
@@ -5814,7 +5879,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     // Typing into another app's box is the same permission the Magic Editor
     // needs, and without it macOS refuses the keystroke without saying so -
     // which looks exactly like the feature doing nothing at all.
-    if (blockedByMacPermission('accessibility')) {
+    if (blockedByMacPermission('accessibility', 'Writing into your draft')) {
       _sendTTS(e.sender, 'I need permission to type into other apps. I have opened the setting.');
       return { ok: false, reason: 'permission' };
     }
@@ -6568,7 +6633,7 @@ function startAssist() {
   // hands back a black picture. The model then genuinely cannot see the
   // question and replies "send me the question or upload a screenshot", which
   // reads as assist mode being broken rather than as a permission being off.
-  if (blockedByMacPermission('screen')) return { ok: false, reason: 'permission' };
+  if (blockedByMacPermission('screen', 'Screen assist')) return { ok: false, reason: 'permission' };
   // Which app they are in right now. "Write it here" means this one's box, and
   // by the time there is something to type the front window may have changed.
   rememberFrontApp();
