@@ -87,7 +87,6 @@ window._clickThroughActive = false;
   }
 
   function applyClickThrough(overUI) {
-    if (!window._clickThroughActive) return; // gesture mode off — never pass through
     if (overUI === _overUI) return;
     _overUI = overUI;
     if (window.jarvis && window.jarvis.setClickThrough) {
@@ -101,8 +100,14 @@ window._clickThroughActive = false;
   // had come back over a button - and every Callisto button stayed dead.
   if (window.jarvis && window.jarvis.onCursor) {
     window.jarvis.onCursor((pt) => {
-      if (!window._clickThroughActive) return;
       if (!pt) { applyClickThrough(false); return; }
+      // The few pixels at the very edge stay ours, or dragging the window
+      // bigger would pass straight through to whatever is behind it and the
+      // window could never be resized.
+      const EDGE = 6;
+      const atEdge = pt.x <= EDGE || pt.y <= EDGE
+        || pt.x >= window.innerWidth - EDGE || pt.y >= window.innerHeight - EDGE;
+      if (atEdge) { applyClickThrough(true); return; }
       applyClickThrough(isClickableEl(document.elementFromPoint(pt.x, pt.y)));
     });
   }
@@ -110,18 +115,28 @@ window._clickThroughActive = false;
   // The window's own events as well, where they arrive - they are quicker than
   // the poll, and on the pass where the window is listening they are exact.
   document.addEventListener('mousemove', (e) => {
-    if (!window._clickThroughActive) return;
     applyClickThrough(isClickableEl(document.elementFromPoint(e.clientX, e.clientY)));
   }, { passive: true });
 
-  // Exported so gesture-enable/disable code can call this
+  // ── Always, not only while the camera is on ────────────────────────────────
+  // This used to apply only in gesture mode. The rest of the time a window the
+  // size of the whole screen, that you can see straight through, was fully
+  // clickable across every pixel of it - so a press meant for a button in
+  // Chrome landed on Callisto and brought Callisto to the front instead. That
+  // is not a gesture-mode problem, it is what a see-through full-screen window
+  // does unless it is told otherwise, and it is why signing in to Google could
+  // not be completed at all.
+  //
+  // So the window passes the mouse through everywhere it is not actually
+  // painted, all the time.
+  window._clickThroughActive = true;
+  window.jarvis?.watchCursor?.(true);
+
+  // Kept because the gesture code calls it. Turning it "off" no longer means
+  // claiming the whole screen again - it only stops the extra polling.
   window._setClickThroughMode = (enabled) => {
-    window._clickThroughActive = enabled;
-    window.jarvis?.watchCursor?.(enabled);
-    if (!enabled) {
-      _overUI = false;
-      if (window.jarvis && window.jarvis.setClickThrough) window.jarvis.setClickThrough(false);
-    }
+    window.jarvis?.watchCursor?.(true);
+    if (!enabled) return;
   };
 })();
 

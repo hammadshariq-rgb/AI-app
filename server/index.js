@@ -2724,13 +2724,13 @@ Only list files you can actually read on screen. If none, use an empty array.
       // at $2.00/$8.00 per million - the dearest call in the app for a job
       // Luna does at $0.10/$0.50.
       model: 'gpt-6-luna',
-      max_completion_tokens: 1600,
+      max_completion_tokens: 900,
       messages: [{
         role: 'user',
         content: [
           {
             type: 'image_url',
-            image_url: { url: imageBase64, detail: 'high' },
+            image_url: { url: imageBase64, detail: 'auto' },
           },
           {
             type: 'text',

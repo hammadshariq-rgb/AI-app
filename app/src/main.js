@@ -5836,7 +5836,12 @@ async function _readScreenOnce(question, { mode, width, frame } = {}) {
   // A frame kept from earlier wins: when somebody speaks while assist mode
   // is watching, the screen that matters is the one they were looking at
   // when they pressed the key, not whatever is there a sentence later.
-  const shot = frame || await grabScreen(width || 1600);
+  // 1280, not 1600. The note below this used to say 1600 "takes about 3.3s
+  // against 2.3s and reads exactly the same things, down to the name on the
+  // message" - and then kept 1600 anyway for the small print. A second is a
+  // long time to sit waiting for an answer about your own screen, and the
+  // same note says the reading does not change, so the second is given back.
+  const shot = frame || await grabScreen(width || 1280);
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
     // It has to know what day it is, or "tomorrow at 5" cannot become a date.
