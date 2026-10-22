@@ -2338,15 +2338,14 @@
     </div>
 
     <div id="hnavPanelConn" style="display:none">
-      <div style="display:flex;flex-direction:column;gap:7px">
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(66,133,244,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📅</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">GOOGLE CAL...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(30,215,96,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎵</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">SPOTIFY</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(234,67,53,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📧</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">GMAIL</div><div style="font-size:10.5px;color:rgba(245,158,11,0.65);margin-top:1px">Coming soon</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,35,60,0.5);border:none;color:rgba(150,160,200,0.35);font-size:10.5px;font-weight:700;cursor:default">SOON</button></div>
-        <div style="display:flex;align-items:center;gap:7px;padding:10px 2px 4px"><span style="font-size:13px">📊</span><span style="font-family:var(--brand);font-size:8px;letter-spacing:2px;font-weight:700;color:rgba(90,110,160,0.5)">BUSINESS &amp; ANALYTICS</span></div>
-        <div style="font-size:11px;color:rgba(100,120,170,0.45);padding:0 2px 6px;line-height:1.5">Connect your platforms to ask about views and followers at any time.</div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(255,0,0,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">▶️</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">YOUTUBE ...</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(225,48,108,0.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📸</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">INSTAGRAM</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)"><div style="width:36px;height:36px;border-radius:9px;background:rgba(0,242,234,0.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎵</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#fff">TIKTOK STUDIO</div><div style="font-size:10.5px;color:rgba(120,140,180,0.6);margin-top:1px">Not connected</div></div><button style="padding:5px 10px;border-radius:6px;background:rgba(30,50,110,0.8);border:1px solid rgba(61,92,255,0.3);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">CONNECT</button></div>
+      <!-- Built from what the server says is connected, not drawn in advance.
+           This used to be static markup: every row said "Not connected" and
+           the CONNECT buttons had no handler of any kind. -->
+      <div id="webConnList" style="display:flex;flex-direction:column;gap:7px">
+        <div style="padding:16px 4px;text-align:center;color:rgba(90,110,160,0.45);font-size:11.5px">Loading…</div>
+      </div>
+      <div id="webConnNote" style="margin-top:12px;font-size:10.5px;line-height:1.55;color:rgba(110,130,175,0.55)">
+        Connections are kept on your Callisto account, not in this browser.
       </div>
     </div>
     <div id="hnavPanelAcct" style="display:none">
@@ -2833,6 +2832,100 @@
 
   // If a phone still refuses, say so rather than sitting there mute.
   let _voiceWarned = false;
+  // ── Connected accounts ─────────────────────────────────────────────────────
+  // The browser never sees a token. It asks the server which services are
+  // connected, opens the provider in a popup to connect one, and asks again
+  // when that popup closes. The key itself stays on the server.
+  const WEB_CONNECTORS = [
+    { id:'calendar',  name:'Google Calendar',  icon:'\u{1F4C5}', tint:'rgba(66,133,244,0.2)'   },
+    { id:'spotify',   name:'Spotify',          icon:'\u{1F3B5}', tint:'rgba(30,215,96,0.18)'   },
+    { id:'youtube',   name:'YouTube',          icon:'\u{25B6}',  tint:'rgba(255,0,0,0.18)'     },
+    { id:'instagram', name:'Instagram',        icon:'\u{1F4F8}', tint:'rgba(225,48,108,0.18)'  },
+    { id:'tiktok',    name:'TikTok',           icon:'\u{1F3AC}', tint:'rgba(105,201,208,0.18)' },
+    { id:'analytics', name:'Google Analytics', icon:'\u{1F4C8}', tint:'rgba(245,158,11,0.18)'  },
+  ];
+
+  async function webConnFetch(){
+    if(!token) return null;
+    try{
+      const r = await fetch(`${SERVER}/web/connections`, { headers:{ Authorization:`Bearer ${token}` } });
+      if(!r.ok) return null;
+      const d = await r.json();
+      return Array.isArray(d.connections) ? d.connections : [];
+    }catch(_){ return null; }
+  }
+
+  async function renderWebConnectors(){
+    const list = document.getElementById('webConnList');
+    if(!list) return;
+    if(!token){
+      list.innerHTML = '<div style="padding:16px 6px;text-align:center;color:rgba(130,150,195,0.6);font-size:11.5px;line-height:1.6">'
+        + 'Sign in to connect your accounts.<br><button id="webConnSignIn" style="margin-top:10px;padding:6px 14px;border-radius:7px;background:rgba(61,92,255,0.9);border:none;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer">Sign In</button></div>';
+      document.getElementById('webConnSignIn')?.addEventListener('click', showAuthForced);
+      return;
+    }
+    const live = await webConnFetch();
+    const byId = {};
+    (live || []).forEach(c => { byId[c.service] = c; });
+
+    list.innerHTML = WEB_CONNECTORS.map(c => {
+      const on = !!byId[c.id];
+      return `<div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
+        <div style="width:36px;height:36px;border-radius:9px;background:${c.tint};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${c.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:#fff">${c.name}</div>
+          <div style="font-size:10.5px;color:${on?'rgba(60,200,120,0.85)':'rgba(120,140,180,0.6)'};margin-top:1px">${on?'Connected':'Not connected'}</div>
+        </div>
+        <button data-conn="${c.id}" data-on="${on?'1':'0'}" style="padding:5px 10px;border-radius:6px;background:${on?'rgba(60,20,30,0.8)':'rgba(30,50,110,0.8)'};border:1px solid ${on?'rgba(255,90,90,0.3)':'rgba(61,92,255,0.3)'};color:#fff;font-size:10.5px;font-weight:700;cursor:pointer">${on?'DISCONNECT':'CONNECT'}</button>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('[data-conn]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-conn');
+        if(btn.getAttribute('data-on') === '1') webDisconnect(id, btn);
+        else webConnect(id, btn);
+      });
+    });
+  }
+
+  async function webConnect(service, btn){
+    if(!token) return showAuthForced();
+    btn.disabled = true; btn.textContent = 'OPENING...';
+    try{
+      const r = await fetch(`${SERVER}/web/connect/${service}`, {
+        method:'POST', headers:{ Authorization:`Bearer ${token}` },
+      });
+      const d = await r.json();
+      if(!d.url) throw new Error(d.error || 'could not start');
+      // Opened from the click itself, so a popup blocker allows it.
+      const win = window.open(d.url, 'callisto_connect', 'width=520,height=680');
+      btn.textContent = 'WAITING...';
+      // The popup is on another origin, so there is nothing to listen to -
+      // watch for it closing, then ask the server what changed.
+      const timer = setInterval(async () => {
+        if(win && !win.closed) return;
+        clearInterval(timer);
+        await renderWebConnectors();
+      }, 900);
+      setTimeout(() => { clearInterval(timer); renderWebConnectors(); }, 3 * 60 * 1000);
+    }catch(err){
+      btn.disabled = false; btn.textContent = 'CONNECT';
+      addVoiceBubble('ai', 'I could not start that connection: ' + err.message);
+    }
+  }
+
+  async function webDisconnect(service, btn){
+    btn.disabled = true; btn.textContent = 'REMOVING...';
+    try{
+      await fetch(`${SERVER}/web/connect/${service}`, {
+        method:'DELETE', headers:{ Authorization:`Bearer ${token}` },
+      });
+    }catch(_){}
+    renderWebConnectors();
+  }
+  window._renderWebConnectors = renderWebConnectors;
+
   window._calVoiceBlocked = function(){
     if(_voiceWarned) return;
     _voiceWarned = true;
@@ -3183,7 +3276,12 @@
     document.getElementById('authOverlay').classList.remove('hidden');
   };
   const showAuthForced = ()=>document.getElementById('authOverlay').classList.remove('hidden');
-  const hideAuth = ()=>document.getElementById('authOverlay').classList.add('hidden');
+  const hideAuth = ()=>{
+    document.getElementById('authOverlay').classList.add('hidden');
+    // Signing in is what the connector panel was waiting for, so redraw it
+    // rather than leaving the "Sign in to connect" placeholder behind.
+    if(typeof window._renderWebConnectors==='function') window._renderWebConnectors();
+  };
   document.getElementById('signinBtn')?.addEventListener('click', showAuthForced);
 
   function orbPulse(){
@@ -3541,6 +3639,9 @@
     const activeP=document.getElementById('hnavPanel'+tab.charAt(0).toUpperCase()+tab.slice(1));
     const activeN=document.getElementById('hnav'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(activeP){ activeP.style.display='block'; }
+    // Asked for fresh each time it is opened, so a connection made in the
+    // popup a moment ago is already showing.
+    if(tab==='conn' && typeof window._renderWebConnectors==='function'){ window._renderWebConnectors(); }
     if(activeN){
       activeN.style.border='1px solid rgba(61,92,255,0.45)';
       activeN.style.background='rgba(61,92,255,0.16)';
