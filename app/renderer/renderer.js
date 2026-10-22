@@ -8921,21 +8921,64 @@ function renderAnalyticsDashboard(data) {
     : `<div class="analytics-empty">No connected platforms.<br>Connect YouTube, Instagram,<br>TikTok or Shopify to see stats.</div>`;
 }
 
-async function loadAnalyticsDashboard() {
+// Opening this used to wait on all seven platforms at once and only draw
+// anything when the slowest of them had answered - which is why it felt like
+// it was hanging. Now whatever is already known is painted immediately, and
+// each platform is asked for separately and drawn the moment it lands, so one
+// slow connector costs you its own card and nothing else.
+async function loadAnalyticsDashboard({ fresh = false } = {}) {
   const content = document.getElementById('analyticsContent');
   const refreshBtn = document.getElementById('analyticsRefreshBtn');
   const lastUpdated = document.getElementById('analyticsLastUpdated');
-  if (content) content.innerHTML = '<div class="analytics-loading">Loading stats...</div>';
+
+  let acc = null;
+  if (!fresh) {
+    try { acc = await window.jarvis.analyticsCached?.(); } catch (_) { acc = null; }
+  }
+  if (acc) renderAnalyticsDashboard(acc);
+  else if (content) content.innerHTML = '<div class="analytics-loading">Loading stats...</div>';
   if (refreshBtn) { refreshBtn.style.opacity = '0.3'; refreshBtn.style.pointerEvents = 'none'; }
-  try {
-    const data = await window.jarvis.analyticsGet('all');
-    renderAnalyticsDashboard(data);
-    if (lastUpdated) {
-      const now = new Date();
-      lastUpdated.textContent = 'UPDATED ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    }
-  } catch (err) {
-    if (content) content.innerHTML = '<div class="analytics-empty">Failed to load stats. Check your connections and try again.</div>';
+  if (lastUpdated) lastUpdated.textContent = acc ? 'UPDATING…' : 'LOADING…';
+
+  acc = acc || {};
+  let queued = false;
+  const paint = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      // Redrawing the whole panel would otherwise throw them back to the top
+      // every time another platform answered.
+      const keep = content ? content.scrollTop : 0;
+      renderAnalyticsDashboard(acc);
+      if (content) content.scrollTop = keep;
+    });
+  };
+
+  // Money and the social accounts first: those are the cards people open this
+  // for, so they should be the ones that appear first.
+  const names = ['stripe', 'instagram', 'tiktok', 'youtube', 'googleAnalytics', 'shopify', 'squarespace'];
+  let reached = 0;
+  await Promise.all(names.map(async (name) => {
+    try {
+      const d = await window.jarvis.analyticsGet(name, { fresh });
+      if (d && name in d) {
+        acc[name] = d[name];
+        reached++;
+        // Only a platform that actually answered is worth redrawing for. A
+        // disconnected one comes back null, and painting that first would
+        // flash "No connected platforms" over a panel still loading.
+        if (d[name]) paint();
+      }
+    } catch (_) { /* that one platform is simply missing from the panel */ }
+  }));
+  paint();   // the true state, including the ones that are not connected
+
+  if (content && !reached && !Object.keys(acc).length) {
+    content.innerHTML = '<div class="analytics-empty">Failed to load stats. Check your connections and try again.</div>';
+  }
+  if (lastUpdated) {
+    lastUpdated.textContent = 'UPDATED ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
   if (refreshBtn) { refreshBtn.style.opacity = ''; refreshBtn.style.pointerEvents = ''; }
 }
@@ -8950,7 +8993,8 @@ document.getElementById('analyticsViewBtn')?.addEventListener('click', async () 
   loadAnalyticsDashboard();
 });
 
-document.getElementById('analyticsRefreshBtn')?.addEventListener('click', loadAnalyticsDashboard);
+// Refresh means refresh: go past what is remembered and ask the platforms.
+document.getElementById('analyticsRefreshBtn')?.addEventListener('click', () => loadAnalyticsDashboard({ fresh: true }));
 
 document.getElementById('analyticsClose')?.addEventListener('click', () => {
   document.getElementById('analyticsPanel').classList.add('hidden');

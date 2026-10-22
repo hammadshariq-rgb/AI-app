@@ -108,7 +108,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   onSentenceText: (cb) => ipcRenderer.on('jarvis:sentence-text', (_e, d) => cb(d)),
   driveSearch: (query) => ipcRenderer.invoke('drive:search', query),
   driveOpen: (fileId, mimeType, webViewLink) => ipcRenderer.invoke('drive:open', { fileId, mimeType, webViewLink }),
-  analyticsGet: (platform) => ipcRenderer.invoke('analytics:get', platform || 'all'),
+  analyticsGet: (platform, opts) => ipcRenderer.invoke('analytics:get', platform || 'all', opts || null),
+  // What is already known, with no network call behind it.
+  analyticsCached: () => ipcRenderer.invoke('analytics:cached'),
   reminderList: () => ipcRenderer.invoke('reminder:list'),
   reminderAdd: (r) => ipcRenderer.invoke('reminder:add', r),
   reminderDelete: (id) => ipcRenderer.invoke('reminder:delete', id),

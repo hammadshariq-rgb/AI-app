@@ -5466,20 +5466,68 @@ ipcMain.handle('email:send', async (_e, { to, subject, body }) => {
   return connectors.sendEmail({ to, subject, body });
 });
 
-ipcMain.handle('analytics:get', async (_e, platform) => {
+// ── The numbers, remembered ──────────────────────────────────────────────────
+// Opening the dashboard used to ask all seven platforms afresh every single
+// time, so it cost a live round trip to each one and the SLOWEST of them
+// decided how long you sat looking at "Loading stats...". That is the whole
+// reason it felt like it was hanging.
+//
+// Now each platform is remembered for a few minutes and handed back instantly,
+// and the panel asks for them one at a time so a slow connector delays only
+// its own card.
+const STAT_FETCHERS = {
+  youtube: () => connectors.getYouTubeStats(),
+  instagram: () => connectors.getInstagramStats(),
+  tiktok: () => connectors.getTikTokStats(),
+  shopify: () => connectors.getShopifyStats(),
+  squarespace: () => connectors.getSquarespaceStats(),
+  googleAnalytics: () => connectors.getGoogleAnalyticsStats(),
+  stripe: () => connectors.getStripeStats(),
+};
+const STAT_TTL_MS = 3 * 60 * 1000;
+const _statCache = new Map();    // platform -> { at, value }
+const _statFlight = new Map();   // platform -> the request already in the air
+
+async function _statFor(platform, fresh) {
+  const fn = STAT_FETCHERS[platform];
+  if (!fn) return null;
+  const hit = _statCache.get(platform);
+  if (!fresh && hit && Date.now() - hit.at < STAT_TTL_MS) return hit.value;
+  // One request per platform at a time. The panel, the morning briefing and a
+  // spoken question can all want Instagram within the same second; they should
+  // share one call rather than make three.
+  if (_statFlight.has(platform)) return _statFlight.get(platform);
+  const p = fn().catch(() => null).then((value) => {
+    _statCache.set(platform, { at: Date.now(), value });
+    _statFlight.delete(platform);
+    return value;
+  });
+  _statFlight.set(platform, p);
+  return p;
+}
+
+ipcMain.handle('analytics:get', async (_e, platform, opts) => {
+  const fresh = !!(opts && opts.fresh);
   if (platform && platform !== 'all') {
-    const fn = {
-      youtube: connectors.getYouTubeStats,
-      instagram: connectors.getInstagramStats,
-      tiktok: connectors.getTikTokStats,
-      shopify: connectors.getShopifyStats,
-      squarespace: connectors.getSquarespaceStats,
-      googleAnalytics: connectors.getGoogleAnalyticsStats,
-      stripe: connectors.getStripeStats,
-    }[platform];
-    return fn ? { [platform]: await fn().catch(() => null) } : {};
+    return STAT_FETCHERS[platform] ? { [platform]: await _statFor(platform, fresh) } : {};
   }
-  return connectors.getAllAnalytics();
+  const names = Object.keys(STAT_FETCHERS);
+  const values = await Promise.all(names.map((n) => _statFor(n, fresh)));
+  const out = {};
+  names.forEach((n, i) => { out[n] = values[i]; });
+  return out;
+});
+
+// Whatever is already known, with no network at all, so the panel can paint
+// the moment it opens rather than after seven round trips.
+ipcMain.handle('analytics:cached', () => {
+  const out = {};
+  let any = false;
+  for (const n of Object.keys(STAT_FETCHERS)) {
+    const hit = _statCache.get(n);
+    if (hit && hit.value) { out[n] = hit.value; any = true; }
+  }
+  return any ? out : null;
 });
 
 ipcMain.handle('stripe:connect', async (_e, { secret_key }) => {

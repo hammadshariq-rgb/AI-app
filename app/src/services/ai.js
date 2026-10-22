@@ -1328,12 +1328,47 @@ function stripAddress(raw, assistantName) {
   return s.trim() || original;
 }
 
+// Asking to READ the Instagram inbox - as opposed to sending to it, or asking
+// how the account is doing.
+//
+// Only the one phrasing people had been taught, "any new DMs on Instagram",
+// worked reliably. Everything else was left to the model, which answered "any
+// new messages on Instagram" with a follower count often enough to be a real
+// complaint; and "open Instagram messages" never reached the model at all,
+// because the open-an-app rule caught it first and simply launched Instagram.
+const IG_NAMED = /\b(?:instagram|insta|ig)\b/;
+const IG_MSG_WORD = /\b(?:dms?|messages?|inbox|msgs?)\b|\bmessaged\b/;
+
+function wantsInstagramInbox(lo) {
+  if (!IG_MSG_WORD.test(lo)) return false;
+  // Sending one is a different job, and so is replying to one.
+  if (/^(?:send|reply|respond|write|tell|dm|message)\b/.test(lo)) return false;
+  if (/\bto\s+(?!me\b|us\b)@?[a-z0-9._]+/.test(lo)) return false;
+  // A question about one particular person goes to the model, which picks a
+  // name out of a sentence far better than a pattern does.
+  if (/\bwhat\s+did\b|\bwhat'?s\s+\w+\s+say/.test(lo)) return false;
+  // About the account's numbers, not its inbox. This is the confusion that
+  // produced follower counts in answer to "any new messages".
+  if (/\b(?:followers?|subscribers?|views?|likes?|analytics|stats|insights|engagement|reach|growth)\b/.test(lo)) return false;
+  // A different inbox entirely.
+  if (/\b(?:email|emails|gmail|outlook|whatsapp|slack|discord|messenger|texts?|sms)\b/.test(lo)) return false;
+  // Either Instagram was named, or they said DMs or inbox - and Instagram is
+  // the only message inbox Callisto reads, so that is unambiguous too.
+  return IG_NAMED.test(lo) || /\bdms?\b|\binbox\b/.test(lo);
+}
+
 function tryLocalCommand(raw, assistantName) {
   const msg = stripAddress(raw, assistantName);
   const lo  = msg.toLowerCase().replace(/['']/g, "'").replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '').trim()
     .replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)$/, '');
   // Anything for the TV is the TV's job, never this computer's.
   if (/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:tv|television|chromecast)\b/.test(lo)) return null;
+
+  // Before the open-an-app rule below, which would otherwise take "open my
+  // Instagram messages" to mean "launch Instagram".
+  if (wantsInstagramInbox(lo)) {
+    return { text: 'Checking your Instagram messages.', action: { type: 'read_messages', payload: {} } };
+  }
 
   const openMatch = lo.match(/^(?:open|launch|start|load)\s+(.+)$/);
   // A file or folder is found on the computer, not launched as an app.
