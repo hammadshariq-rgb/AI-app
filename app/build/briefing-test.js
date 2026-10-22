@@ -48,7 +48,14 @@ const format = fmtCtx._f;
 const all = {
   instagram: { followers: 1240, views30: 50000, recentPosts: [{ views: 8300 }] },
   tiktok: { followers: 9800, likes: 44000, recentVideos: [{ views: 120400 }] },
-  googleAnalytics: { users: 312, period: 'this week' },
+  // The shape the connector REALLY returns. The first version of this test
+  // invented a flat {users, period}, which the briefing code then read - so
+  // the test passed while the website line never once appeared in the app.
+  googleAnalytics: {
+    siteName: 'callistoai.net',
+    last7Days: { sessions: 410, users: 312 },
+    last30Days: { sessions: 1800, users: 1340 },
+  },
   stripe: { currency: 'USD', today: { revenue: 240, orders: 12 }, yesterday: { revenue: 200 }, last7Days: { revenue: 1500 } },
   youtube: { subscribers: 5600, views28: 90000, recentVideos: [{ views: 14200 }] },
   shopify: null,
@@ -57,17 +64,35 @@ const all = {
 const line = format(all);
 
 check('all five platforms are mentioned',
-  ['Instagram', 'TikTok', 'website', 'taken', 'YouTube'].every((k) => line.includes(k)), true);
+  ['Instagram', 'TikTok', 'visited', 'taken', 'YouTube'].every((k) => line.includes(k)), true);
 order('Instagram before TikTok', line, 'Instagram', 'TikTok');
-order('TikTok before the website', line, 'TikTok', 'website');
-order('the website before Stripe', line, 'website', 'taken');
+order('TikTok before the website', line, 'TikTok', 'visited');
+order('the website before Stripe', line, 'visited', 'taken');
 order('Stripe before YouTube', line, 'taken', 'YouTube');
 
 check('Instagram says its followers', line.includes('1,240 followers'), true);
 check('Instagram says the latest post views', line.includes('latest post has 8,300 views'), true);
 check('TikTok says its followers', line.includes('9,800 followers'), true);
 check('TikTok says the latest video views', line.includes('latest video has 120,400 views'), true);
-check('the website says its visitors', line.includes('312 people visited your website'), true);
+check('the website says its visitors', line.includes('312 people have visited'), true);
+check('and names the site', line.includes('callistoai.net'), true);
+
+// A quiet week must not silence the website entirely: fall back to the month
+// rather than saying nothing.
+const quiet = format({ googleAnalytics: { last7Days: { users: 0, sessions: 0 }, last30Days: { users: 1340 } } });
+check('a quiet week falls back to the month', quiet.includes('1,340'), true);
+check('and says which period that is', quiet.includes('thirty days'), true);
+
+// One visitor reads as one person, not "1 people".
+const one = format({ googleAnalytics: { last7Days: { users: 1 } } });
+check('one visitor reads properly', one.includes('1 person has visited'), true);
+
+// Sessions when users are missing, which some properties do.
+const sess = format({ googleAnalytics: { last7Days: { sessions: 88 } } });
+check('falls back to sessions', sess.includes('88 people have visited'), true);
+
+// Analytics connected but genuinely empty says nothing rather than "0 people".
+check('a brand new property says nothing', format({ googleAnalytics: { last7Days: {}, last30Days: {} } }), null);
 check('Stripe says the money', line.includes('USD 240 today'), true);
 check('Stripe counts the payments', line.includes('12 payments'), true);
 check('YouTube says its subscribers', line.includes('5,600 subscribers'), true);

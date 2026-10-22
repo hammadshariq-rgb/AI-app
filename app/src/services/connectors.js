@@ -1288,11 +1288,28 @@ function formatAnalyticsForBriefing(a) {
     parts.push(line + '.');
   }
 
-  // The website: whichever of the three is connected, said the same way.
+  // The website.
+  //
+  // This read ga.users and ga.sessions off the top of the object, and the
+  // connector has never put them there - they live under last7Days and
+  // last30Days. So the condition was false every time and the website line
+  // was simply never said, however well Analytics was connected.
   const ga = a.googleAnalytics;
-  if (ga && (ga.users != null || ga.sessions != null)) {
-    const who = ga.users != null ? ga.users : ga.sessions;
-    parts.push(`${n(who)} people visited your website${ga.period ? ` ${ga.period}` : ' this week'}.`);
+  if (ga) {
+    const week = ga.last7Days || {};
+    const month = ga.last30Days || {};
+    // Visitors for the week, falling back to sessions, then to the month -
+    // a site with a quiet week still has something true to report.
+    let who = week.users != null ? week.users : week.sessions;
+    let when = 'in the last week';
+    if (!who) {
+      who = month.users != null ? month.users : month.sessions;
+      when = 'in the last thirty days';
+    }
+    if (who != null) {
+      const site = ga.siteName && ga.siteName !== 'Your Website' ? ga.siteName : 'your website';
+      parts.push(`${n(who)} ${Number(who) === 1 ? 'person has' : 'people have'} visited ${site} ${when}.`);
+    }
   }
 
   if (a.stripe && a.stripe.today) {
