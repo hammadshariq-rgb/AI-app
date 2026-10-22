@@ -4416,9 +4416,18 @@ ipcMain.handle('task:start', async (e, { goal, folder } = {}) => {
   const g = String(goal || '').trim();
   if (!g) return { ok: false, error: 'No goal.' };
   if (TASK.on) return { ok: false, error: 'busy', goal: TASK.goal };
+
+  // No folder means no work. This used to fall back to the home directory,
+  // which is not a project - it is everything they own, and an agent writing
+  // files into it is the worst version of this feature. The chat offers a
+  // picker when it sees no folder; this is the same refusal one level down,
+  // for anything that reaches the handler another way.
+  const where = folder || store.get('project.folder') || null;
+  if (!where) return { ok: false, error: 'no-folder' };
+
   Object.assign(TASK, {
     on: true, goal: g, steps: [], sender: e.sender,
-    folder: folder || store.get('project.folder') || app.getPath('home'),
+    folder: where,
     awaiting: null, pending: null, startedAt: Date.now(), runs: 0,
   });
   _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
@@ -5794,6 +5803,117 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     // Could not read the screen - fall through and answer normally.
   }
 
+  // Code with something wrong with it. What is worth giving back is the
+  // corrected code, laid out so it can be read and copied - not two sentences
+  // describing a change they then have to make themselves.
+  if (wantsCodeFix(q)) {
+    const fixed = await _readScreenOnce(
+      'They are looking at their screen and said, out loud: "' + q + '"\n'
+      + '\n'
+      + 'FIRST: if the screen does not show code, reply with exactly [NOTCODE] '
+      + 'and nothing else. A spreadsheet, an email, a photograph, a web page '
+      + 'they are reading - all [NOTCODE].\n'
+      + '\n'
+      + 'Otherwise read the code on screen - whatever the language, whatever the '
+      + 'editor, IDE or terminal it is sitting in - and reply in these sections, '
+      + 'each label on its own line:\n'
+      + '[SUMMARY]\n'
+      + 'One short line saying what you changed.\n'
+      + '[WHY]\n'
+      + 'One line for each thing that was wrong: what it did, and why that broke. '
+      + 'Plain words.\n'
+      + '[CODE]\n'
+      + 'The corrected code, in the SAME language it is already written in, '
+      + 'complete enough to paste back over what they had. Keep their names, '
+      + 'their indentation and their style. No fences, no commentary, no line '
+      + 'numbers.\n'
+      + '[ASK]\n'
+      + 'Only if the fix genuinely depends on something only they can tell you - '
+      + 'a value, a path, which of two behaviours they meant. One question. '
+      + 'Leave this section out entirely when you do not need it.\n'
+      + '\n'
+      + 'This overrides the two-or-three-sentence rule: the [CODE] section may be '
+      + 'as long as the code needs. Set action to null.',
+      { frame: ASSIST.frame }
+    );
+    const raw = fixed.ok ? String(fixed.text || '') : '';
+    if (raw && raw.indexOf('[NOTCODE]') < 0) {
+      const sec = _sections(raw, ['SUMMARY', 'WHY', 'CODE', 'ASK']);
+      if (sec.CODE) {
+        const summary = sec.SUMMARY || 'Fixed the code on your screen';
+        sendToHud('hud:card', { type: 'magic-edit', text: sec.CODE.slice(0, 600) });
+        // Spoken: the summary only. Reading a function aloud helps nobody.
+        _sendTTS(e.sender, summary + '. The code is in the chat.');
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.webContents.send('assist:result', {
+            kind: 'codefix',
+            summary,
+            why: sec.WHY || '',
+            editedText: sec.CODE,
+            ask: sec.ASK || '',
+            question: q,
+            shot: _assistThumb(fixed.shot),
+          });
+        }
+        return { ok: true, text: sec.CODE };
+      }
+    }
+    // Not code, or it came back in a shape we cannot use - answer normally.
+  }
+
+  // Being taught, rather than having it done for them. The steps have to name
+  // what is actually on their screen, or it is advice that would fit any
+  // program and help with none.
+  if (WANTS_TEACHING.test(q)) {
+    const taught = await _readScreenOnce(
+      'They are looking at their screen and said, out loud: "' + q + '"\n'
+      + '\n'
+      + 'Teach them to do it themselves, using what is on the screen in front of '
+      + 'them. Reply in these sections, each label on its own line:\n'
+      + '[SUMMARY]\n'
+      + 'One line saying what they are about to learn to do.\n'
+      + '[STEPS]\n'
+      + 'One step per line, in order, each starting with a number and a full '
+      + 'stop. Name the real button, tab, menu or field AS IT IS LABELLED ON '
+      + 'THEIR SCREEN and say where it is, so they can find it by looking rather '
+      + 'than guessing. If something they need is not visible, say which menu to '
+      + 'open to reach it. Never give advice that would fit any program - you '
+      + 'can see theirs.\n'
+      + '[WATCH]\n'
+      + 'Optional. One line for each thing that commonly goes wrong at this '
+      + 'point and how they will know it has. Leave the section out if there is '
+      + 'nothing worth saying.\n'
+      + '\n'
+      + 'This overrides the two-or-three-sentence rule: give as many steps as it '
+      + 'actually takes. Set action to null.',
+      { frame: ASSIST.frame }
+    );
+    if (taught.ok && taught.text) {
+      const sec = _sections(String(taught.text), ['SUMMARY', 'STEPS', 'WATCH']);
+      if (sec.STEPS) {
+        const summary = sec.SUMMARY || 'Here is how to do it';
+        sendToHud('hud:card', { type: 'info', text: (summary + '\n\n' + sec.STEPS).slice(0, 1200) });
+        // Spoken: the first couple of steps, then let them read the rest. Eight
+        // numbered steps read aloud is not teaching, it is noise.
+        const spoken = sec.STEPS.split('\n').map((l) => l.trim()).filter(Boolean);
+        _sendTTS(e.sender, summary + '. ' + spoken.slice(0, 2).join(' ')
+          + (spoken.length > 2 ? ' The rest of the steps are in the chat.' : ''));
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.webContents.send('assist:result', {
+            kind: 'teach',
+            summary,
+            steps: sec.STEPS,
+            watch: sec.WATCH || '',
+            question: q,
+            shot: _assistThumb(taught.shot),
+          });
+        }
+        return { ok: true, text: sec.STEPS };
+      }
+    }
+    // Came back in a shape we cannot lay out - answer normally.
+  }
+
   // No "Thinking…" card here: the second key press already sent one, and two
   // of them stacked is the card appearing twice.
   const out = await _readScreenOnce(
@@ -5816,13 +5936,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     // With the picture. The answer on its own, in a window they were not even
     // looking at, gives no way to tell which screen it was about.
-    let thumb = ASSIST.thumb;
-    if (!thumb && out.shot) {
-      try {
-        thumb = require('electron').nativeImage
-          .createFromDataURL(out.shot).resize({ width: 560 }).toDataURL();
-      } catch (_) { thumb = null; }
-    }
+    const thumb = _assistThumb(out.shot);
     overlayWindow.webContents.send('assist:result', {
       // The question goes with the answer so both sides land in the
       // conversation. Without it, "explain that in more detail" a moment
@@ -5984,6 +6098,75 @@ function wantsWriteInPlace(q) {
   }
   return true;
 }
+
+// Sections out of a model's reply, found by scanning for the labels rather
+// than with a regular expression. "[CODE]" written as a pattern is a character
+// class - it matches a single C, O, D or E anywhere - which is exactly how the
+// Magic Editor parser came to return nonsense. Plain indexOf cannot do that.
+function _sections(text, names) {
+  const s = String(text || '');
+  const marks = [];
+  for (const n of names) {
+    const tag = '[' + n + ']';
+    let from = 0;
+    for (;;) {
+      const at = s.indexOf(tag, from);
+      if (at < 0) break;
+      marks.push({ name: n, at, end: at + tag.length });
+      from = at + tag.length;
+    }
+  }
+  marks.sort((a, b) => a.at - b.at);
+  const out = {};
+  for (let i = 0; i < marks.length; i++) {
+    const stop = i + 1 < marks.length ? marks[i + 1].at : s.length;
+    const body = s.slice(marks[i].end, stop).trim();
+    if (body && !out[marks[i].name]) out[marks[i].name] = body;
+  }
+  return out;
+}
+
+// The screen it was looking at, small enough to sit in a chat bubble. The
+// answer on its own gives no way to tell which screen it was about.
+function _assistThumb(shot) {
+  if (ASSIST.thumb) return ASSIST.thumb;
+  if (!shot) return null;
+  try {
+    return require('electron').nativeImage
+      .createFromDataURL(shot).resize({ width: 560 }).toDataURL();
+  } catch (_) { return null; }
+}
+
+// Code on screen with something wrong with it. Asked while looking at an
+// editor or a terminal, so what they want back is the corrected code, not a
+// paragraph about it.
+//
+// The regular expression only decides whether it is WORTH asking for a fix.
+// Whether the screen really holds code is settled by the model, which can see
+// it - it answers [NOTCODE] and we fall through to a normal answer. Trying to
+// tell "what is wrong with this" about a function from the same words about a
+// photograph, before looking at either, is not a job for a pattern.
+// The apostrophe is written both ways on purpose. A phone and most editors
+// produce the curly one, and a pattern that only knows the straight one reads
+// "won't compile" as ordinary prose - the same slip that once made every
+// quoted instruction fall through to the model.
+const CODE_TROUBLE = new RegExp(
+  '\\b(?:fix|debug|broken|breaking|wrong with|error|erroring|failing|fails?'
+  + '|exception|traceback|stack ?trace|crash(?:ing|ed)?|not working|undefined|syntax)\\b'
+  + '|\\b(?:wo|do|does|did|is|are|ca|would|could|should)n[\'’]?t\\b'
+  + '[^.?!]{0,20}?\\b(?:run|compile|build|works?|working|load|start|launch|open)\\b', 'i');
+const CODE_PROSE = /\b(?:spelling|grammar|wording|tone|email|message|essay|paragraph|sentence|caption|subject line)\b/i;
+
+function wantsCodeFix(q) {
+  const s = String(q || '');
+  if (!CODE_TROUBLE.test(s)) return false;
+  if (CODE_PROSE.test(s)) return false;
+  return true;
+}
+
+// "Teach me how", not "do it for me". The difference matters: the answer has
+// to leave them able to do it again without Callisto sitting there.
+const WANTS_TEACHING = /\b(?:teach me|show me how|walk me through|talk me through|guide me through|how do i|how can i|how would i|step by step|explain how)\b/i;
 
 // ── Assist mode ───────────────────────────────────────────────────────────────
 // Callisto watching over your shoulder while you work in something else.

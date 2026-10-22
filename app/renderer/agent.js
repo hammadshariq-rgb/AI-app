@@ -50,6 +50,9 @@
       return true;
     }
     if (r && r.error === 'busy') { say(`I am still working on "${r.goal}". Say *"stop"* if you want me to drop it.`); return true; }
+    // The handler refuses rather than falling back to the home directory, so
+    // whatever route got here still ends at the picker rather than at nothing.
+    if (r && r.error === 'no-folder') { pendingGoal = goal; askForFolder(); return true; }
     return false;
   }
 

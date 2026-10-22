@@ -789,6 +789,48 @@ function showCodeFixBubble(res) {
       userInput.placeholder = res.ask;
     }
   });
+  return row.querySelector('.msg.assistant');
+}
+
+// Being shown how, from screen assist. Numbered steps that name the real
+// buttons on their screen, and the things that usually go wrong.
+function showTeachBubble(res) {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  const steps = String(res.steps || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const watch = String(res.watch || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  row.innerHTML = `
+    <div class="msg-avatar">${SPARKLES_SVG}</div>
+    <div class="msg assistant">
+      <span class="msg-text"><b>🎓 ${esc(res.summary || 'Here is how to do it')}</b></span>
+      <div style="margin:10px 0 2px;font-size:12.5px;line-height:1.7;color:rgba(205,222,255,.9)">
+        ${steps.map((l) => `<div style="margin:5px 0 5px 2px">${esc(l)}</div>`).join('')}
+      </div>
+      ${watch.length ? `<div style="margin-top:11px;padding:9px 11px;border-radius:8px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.25)">
+        <div style="font-size:10px;letter-spacing:.09em;opacity:.65;margin-bottom:5px">WATCH OUT FOR</div>
+        ${watch.map((l) => `<div style="margin:3px 0;font-size:12px;line-height:1.6">• ${esc(l)}</div>`).join('')}
+      </div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="gleam gleam-sm" data-teach="again"><span>Show me again</span></button>
+        <button class="gleam gleam-sm" data-teach="stuck"><span>I'm stuck on a step</span></button>
+      </div>
+    </div>`;
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+
+  // Both put the follow-up in the box rather than sending it, so they can say
+  // which step before it goes.
+  row.querySelector('[data-teach="again"]')?.addEventListener('click', () => {
+    if (userInput) { userInput.value = 'Show me that again, slower'; userInput.focus(); }
+  });
+  row.querySelector('[data-teach="stuck"]')?.addEventListener('click', () => {
+    if (userInput) {
+      userInput.value = '';
+      userInput.focus();
+      userInput.placeholder = 'Which step are you stuck on?';
+    }
+  });
+  return row.querySelector('.msg.assistant');
 }
 
 // Markdown that is still being written. The tail of a stream is usually
@@ -5346,29 +5388,53 @@ window.jarvis.onClipboardAI(({ text }) => {
 // Assist mode worked something out from the screen while you were in another
 // app. The card over that app is gone in a few seconds, so the same answer
 // lands in here too — somewhere it can be read properly and copied from.
-window.jarvis.onAssistResult?.(({ title, text, question, shot }) => {
-  if (!text) return;
+// The screen it was looking at, under the answer. Without it the answer
+// arrives in here with nothing to say which screen it was about, which is no
+// use at all once you have moved on to something else.
+function _attachAssistShot(bubble, shot) {
+  if (!shot || !bubble) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-attachment assist-shot';
+  const img = document.createElement('img');
+  img.src = shot;
+  img.alt = 'What was on your screen';
+  img.loading = 'lazy';
+  wrap.appendChild(img);
+  bubble.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+window.jarvis.onAssistResult?.((res) => {
+  if (!res) return;
+  const { kind, title, text, question, shot } = res;
+
   // Both sides go into the conversation, exactly as a typed exchange would.
   // Screen assist answers were display-only, so a follow-up like "explain
   // that in more detail" found an empty history and Callisto asked them to
   // paste the very question it had just worked through.
-  if (question) history.push({ role: 'user', content: question });
-  history.push({ role: 'assistant', content: text });
-  const bubble = addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
-  // And the screen it was looking at. Without it the answer arrives in here
-  // with nothing to say which screen it was about, which is no use at all once
-  // you have moved on to something else.
-  if (shot && bubble) {
-    const wrap = document.createElement('div');
-    wrap.className = 'msg-attachment assist-shot';
-    const img = document.createElement('img');
-    img.src = shot;
-    img.alt = 'What was on your screen';
-    img.loading = 'lazy';
-    wrap.appendChild(img);
-    bubble.appendChild(wrap);
-    chat.scrollTop = chat.scrollHeight;
+  const remember = (answer) => {
+    if (question) history.push({ role: 'user', content: question });
+    history.push({ role: 'assistant', content: answer });
+  };
+
+  // Code it fixed while watching the screen gets the same layout as a Magic
+  // Editor fix - what it now reads, what was wrong, and a button when the fix
+  // needs something only they can answer.
+  if (kind === 'codefix' && res.editedText) {
+    remember(res.summary + '\n\n' + res.editedText);
+    _attachAssistShot(showCodeFixBubble(res), shot);
+    return;
   }
+
+  if (kind === 'teach' && res.steps) {
+    remember(res.summary + '\n\n' + res.steps);
+    _attachAssistShot(showTeachBubble(res), shot);
+    return;
+  }
+
+  if (!text) return;
+  remember(text);
+  _attachAssistShot(addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text), shot);
 });
 
 // Something offered from the screen that is really a conversation. Put it in
