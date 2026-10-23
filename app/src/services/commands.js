@@ -140,6 +140,30 @@ const LINUX_CMDS = {
 // ─── WEB FALLBACKS ────────────────────────────────────────────────────────────
 // Used when the desktop app isn't installed
 const BROWSER_FALLBACKS = {
+  // The assistants people actually ask for by name. Most have no desktop app
+  // on most machines, so without these "open ChatGPT" found nothing, fell off
+  // the end of every lookup, and did nothing at all.
+  chatgpt:           'https://chatgpt.com/',
+  'chat gpt':        'https://chatgpt.com/',
+  gpt:               'https://chatgpt.com/',
+  openai:            'https://chatgpt.com/',
+  claude:            'https://claude.ai/',
+  'claude ai':       'https://claude.ai/',
+  anthropic:         'https://claude.ai/',
+  gemini:            'https://gemini.google.com/',
+  'google gemini':   'https://gemini.google.com/',
+  bard:              'https://gemini.google.com/',
+  copilot:           'https://copilot.microsoft.com/',
+  'microsoft copilot': 'https://copilot.microsoft.com/',
+  perplexity:        'https://www.perplexity.ai/',
+  grok:              'https://grok.com/',
+  deepseek:          'https://chat.deepseek.com/',
+  mistral:           'https://chat.mistral.ai/',
+  'le chat':         'https://chat.mistral.ai/',
+  poe:               'https://poe.com/',
+  huggingface:       'https://huggingface.co/',
+  'hugging face':    'https://huggingface.co/',
+
   instagram:         'https://www.instagram.com/',
   whatsapp:          'https://web.whatsapp.com/',
   telegram:          'https://web.telegram.org/',
@@ -218,6 +242,17 @@ function openInChrome(url) {
 }
 
 // ─── LAUNCH APP ───────────────────────────────────────────────────────────────
+// Nothing on this machine answers to that name. Rather than doing nothing at
+// all - which is what every dead end below used to do - look it up.
+//
+// "Open ChatGPT" on a machine with no ChatGPT app found no scheme, no exe and
+// no fallback, fell off the end of the lookup and resolved false in silence.
+// A search is nearly always what the person wanted anyway.
+function lastResortSearch(name) {
+  const url = "https://www.google.com/search?q=" + encodeURIComponent(name);
+  return openInChrome(url).then(() => true).catch(() => false);
+}
+
 function launchApp(name) {
   return new Promise((resolve) => {
     // Sanitize: allow only alphanumeric, spaces, dots, hyphens (no shell metacharacters)
@@ -236,7 +271,7 @@ function launchApp(name) {
           shell.openExternal(uri2).then(() => resolve(true)).catch(() => {
             const web = BROWSER_FALLBACKS[lower];
             if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-            else resolve(false);
+            else lastResortSearch(name).then(resolve);
           });
           return;
         }
@@ -246,7 +281,7 @@ function launchApp(name) {
           if (!e2 && appPath) { exec(`open "${appPath}"`, () => resolve(true)); return; }
           const web = BROWSER_FALLBACKS[lower];
           if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-          else resolve(false);
+          else lastResortSearch(name).then(resolve);
         });
       });
       return;
@@ -272,13 +307,13 @@ function launchApp(name) {
             } else {
               const web = BROWSER_FALLBACKS[lower];
               if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-              else resolve(false);
+              else lastResortSearch(name).then(resolve);
             }
           });
         } else {
           const web = BROWSER_FALLBACKS[lower];
           if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-          else resolve(false);
+          else lastResortSearch(name).then(resolve);
         }
       });
       return;
@@ -303,8 +338,11 @@ function launchApp(name) {
           const web = BROWSER_FALLBACKS[lower];
           if (web) { openInChrome(web).then(() => resolve(false)).catch(() => resolve(false)); return; }
           exec(`start "" "${name}"`, (err2) => {
-            if (err2) exec(`start ${name}`, () => resolve(false));
-            else resolve(true);
+            if (!err2) { resolve(true); return; }
+            exec(`start ${name}`, (err3) => {
+              if (!err3) { resolve(true); return; }
+              lastResortSearch(name).then(resolve);
+            });
           });
         }
       });
@@ -321,7 +359,10 @@ function launchApp(name) {
           if (!e2 && appPath) { exec(`open "${appPath}"`, () => resolve(true)); return; }
           const web = BROWSER_FALLBACKS[lower];
           if (web) { openInChrome(web).then(() => resolve(false)).catch(() => resolve(false)); return; }
-          exec(`open -a "${name}"`, () => resolve(false));
+          exec(`open -a "${name}"`, (e3) => {
+            if (!e3) { resolve(true); return; }
+            lastResortSearch(name).then(resolve);
+          });
         });
       });
       return;
@@ -334,7 +375,7 @@ function launchApp(name) {
         if (!err) { resolve(true); return; }
         const web = BROWSER_FALLBACKS[lower];
         if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-        else resolve(false);
+        else lastResortSearch(name).then(resolve);
       });
       return;
     }
@@ -349,7 +390,7 @@ function launchApp(name) {
           if (!e2) { resolve(true); return; }
           const web = BROWSER_FALLBACKS[lower];
           if (web) openInChrome(web).then(() => resolve(false)).catch(() => resolve(false));
-          else resolve(false);
+          else lastResortSearch(name).then(resolve);
         });
       }
     });
