@@ -86,6 +86,30 @@ window._clickThroughActive = false;
     return false;
   }
 
+  // Is there Callisto anywhere NEAR the pointer, not just exactly under it?
+  //
+  // The pointer is read a few times a second. Moving straight onto a small
+  // button - the X on a studio, the close on the dashboard - and clicking
+  // before the next read meant the window was still passing the mouse
+  // through, and the click went to whatever was behind. That is why those
+  // crosses worked sometimes and not others.
+  //
+  // So a ring around the pointer counts too. The window becomes clickable
+  // just BEFORE the pointer lands on a button rather than just after, which
+  // is the difference between a cross that works and one that does not.
+  const NEAR = 14;
+  function uiNear(x, y) {
+    if (isClickableEl(document.elementFromPoint(x, y))) return true;
+    for (const [dx, dy] of [[NEAR, 0], [-NEAR, 0], [0, NEAR], [0, -NEAR],
+                            [NEAR, NEAR], [-NEAR, -NEAR], [NEAR, -NEAR], [-NEAR, NEAR]]) {
+      const px = x + dx;
+      const py = y + dy;
+      if (px < 0 || py < 0 || px >= window.innerWidth || py >= window.innerHeight) continue;
+      if (isClickableEl(document.elementFromPoint(px, py))) return true;
+    }
+    return false;
+  }
+
   function applyClickThrough(overUI) {
     if (overUI === _overUI) return;
     _overUI = overUI;
@@ -108,14 +132,14 @@ window._clickThroughActive = false;
       const atEdge = pt.x <= EDGE || pt.y <= EDGE
         || pt.x >= window.innerWidth - EDGE || pt.y >= window.innerHeight - EDGE;
       if (atEdge) { applyClickThrough(true); return; }
-      applyClickThrough(isClickableEl(document.elementFromPoint(pt.x, pt.y)));
+      applyClickThrough(uiNear(pt.x, pt.y));
     });
   }
 
   // The window's own events as well, where they arrive - they are quicker than
   // the poll, and on the pass where the window is listening they are exact.
   document.addEventListener('mousemove', (e) => {
-    applyClickThrough(isClickableEl(document.elementFromPoint(e.clientX, e.clientY)));
+    applyClickThrough(uiNear(e.clientX, e.clientY));
   }, { passive: true });
 
   // ── Always, not only while the camera is on ────────────────────────────────
@@ -2699,14 +2723,46 @@ function parseWhen(phrase) {
     }
   }
 
-  const tm = cut(/\s(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=\s|$)/i)
-          || cut(/\sat\s+(\d{1,2}):(\d{2})\b/i);
-  if (tm) {
-    hour = Number(tm[1]) % 12 + (/^p/i.test(tm[3] || '') ? 12 : 0);
-    if (!tm[3]) hour = Number(tm[1]);
-    minute = Number(tm[2] || 0);
+  // Said in full - "at 5pm" - which settles it.
+  const tmSaid = cut(/\s(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=\s|$)/i);
+  // Or a bare hour, which does not settle anything.
+  //
+  // "at 5" used to match NEITHER pattern - the first needed an am or a pm and
+  // the second needed a colon - so the time was dropped on the floor and the
+  // reminder quietly landed at ten in the morning, a time nobody had said.
+  // And "at 7:30" did match, with no am or pm, and was always taken as the
+  // morning. Both are why things turned up at the wrong end of the day.
+  const tmBare = tmSaid ? null : cut(/\sat\s+(\d{1,2})(?::(\d{2}))?(?=\s|$)/i);
+
+  let bareHour = null;
+  if (tmSaid) {
+    hour = Number(tmSaid[1]) % 12 + (/^p/i.test(tmSaid[3]) ? 12 : 0);
+    minute = Number(tmSaid[2] || 0);
+  } else if (tmBare) {
+    bareHour = Number(tmBare[1]);
+    minute = Number(tmBare[2] || 0);
+    hour = bareHour;
   } else if (cut(/\s(?:at\s+)?noon\b/i)) hour = 12;
   else if (cut(/\s(?:at\s+)?midnight\b/i)) hour = 0;
+
+  // A bare hour means the next one of those there is, not the morning one.
+  // 12 and 0 are left alone: "at 12" is midday to everybody.
+  if (bareHour !== null && bareHour >= 1 && bareHour <= 11) {
+    const amH = bareHour;
+    const pmH = bareHour + 12;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    if (!day) {
+      // No day named, so take whichever comes round next.
+      if (amH * 60 + minute > nowMins) hour = amH;
+      else if (pmH * 60 + minute > nowMins) hour = pmH;
+      else hour = amH;        // both gone today; tomorrow morning, set below
+    } else {
+      // A day WAS named, so nothing is "already past" and the clock cannot
+      // help. One to seven is the afternoon when people say it bare -
+      // "Friday at 5" is not five in the morning.
+      hour = (bareHour >= 1 && bareHour <= 7) ? pmH : amH;
+    }
+  }
 
   if (!day) {
     day = new Date(now);
@@ -5866,7 +5922,36 @@ async function _runLocalShortcuts(part, attachments) {
   return false;
 }
 
-async function sendToJarvis(text) {
+// Its own name, off the front, before anything reads the sentence.
+//
+// The model path already strips it. The handlers in this window did not, and
+// they do not merely pass the words on - they cut them up. "Hey Callisto, make
+// me a 3D model of a dragon" has the verb removed from the MIDDLE by the 3D
+// rule, leaving "hey callisto ... of a dragon", and the tidy-up after it only
+// works from the start of the line - which is now the name. So the model was
+// made of "hey callisto model a dragon". The same applies to a video or an
+// image: whatever is left after the verb is lifted out becomes the subject.
+function stripAssistantName(s) {
+  const names = ['callisto', 'jarvis'];
+  try {
+    // The same field the main process reads for this, so a renamed assistant
+    // has its own name taken off too.
+    const mine = String((typeof profile === 'object' && profile && profile.name) || '').toLowerCase().trim();
+    if (mine && !names.includes(mine)) names.push(mine);
+  } catch (_) { /* not set yet */ }
+  const alt = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const out = String(s || '')
+    .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
+    .replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '')
+    .trim();
+  // Never strip a sentence away to nothing.
+  return out || String(s || '').trim();
+}
+window._stripAssistantName = stripAssistantName;
+
+async function sendToJarvis(rawText) {
+  // Every handler below reads this, so the name comes off once, here.
+  let text = stripAssistantName(rawText);
   // Before anything is sent: is an account missing that this needs?
   if (window.CallistoGate) {
     const need = window.CallistoGate.needsService(text);

@@ -238,6 +238,16 @@ function showOverlay() {
   overlayWindow.focus();
 }
 
+// A file or folder chooser, NOT hung off the overlay window.
+//
+// Passing overlayWindow made the dialog a sheet attached to it, and that
+// window is see-through, the size of the screen and always there - so on a
+// Mac the chooser came up fighting Finder and could not be used. A dialog
+// with no parent is an ordinary window the person can actually work in.
+function dialogParent() {
+  return process.platform === "darwin" ? null : overlayWindow;
+}
+
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   overlayWindow = new BrowserWindow({
@@ -1524,7 +1534,11 @@ function startCursorWatch() {
       const inside = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
       overlayWindow.webContents.send('app:cursor', inside ? { x: pt.x - b.x, y: pt.y - b.y } : null);
     } catch (_) { /* the window went away mid-tick */ }
-  }, 60);
+    // Read often. At 60ms, moving onto a small button and clicking before the
+    // next read meant the window was still passing the mouse through and the
+    // click went to whatever was behind - which is why the crosses on the
+    // dashboard and the studios worked sometimes and not others.
+  }, 30);
   if (_cursorTimer.unref) _cursorTimer.unref();
 }
 
@@ -1655,7 +1669,7 @@ ipcMain.handle('artifacts:save', async (_e, { id }) => {
     const ext = { image: 'png', model: 'glb', video: 'mp4' }[item.kind];
     const where = { image: 'pictures', model: 'documents', video: 'videos' }[item.kind];
     const name = String(item.title).replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto';
-    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+    const { canceled, filePath } = await dialog.showSaveDialog(dialogParent(), {
       title: 'Save', defaultPath: path.join(app.getPath(where), `${name}.${ext}`),
       filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
     });
@@ -4240,7 +4254,7 @@ ipcMain.handle('publish:pickFile', async (_e, kind) => {
   const filters = kind === 'image'
     ? [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
     : [{ name: 'Videos', extensions: ['mp4', 'mov'] }];
-  const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openFile'], filters });
+  const res = await dialog.showOpenDialog(dialogParent(), { properties: ['openFile'], filters });
   if (res.canceled || !res.filePaths?.length) return null;
   return res.filePaths[0];
 });
@@ -4253,7 +4267,7 @@ ipcMain.handle('model:saveFile', async (_e, { bytes, suggestedName }) => {
     if (!bytes || !bytes.byteLength) return { ok: false, error: 'Nothing to save.' };
     const safe = String(suggestedName || 'callisto-model')
       .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-model';
-    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+    const { canceled, filePath } = await dialog.showSaveDialog(dialogParent(), {
       title: 'Save 3D model',
       defaultPath: path.join(app.getPath('documents'), `${safe}.glb`),
       filters: [{ name: '3D model (GLB)', extensions: ['glb'] }],
@@ -4273,7 +4287,7 @@ ipcMain.handle('media:saveVideo', async (_e, { url, suggestedName }) => {
     const fs = require('fs');
     const safe = String(suggestedName || 'callisto-video')
       .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-video';
-    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+    const { canceled, filePath } = await dialog.showSaveDialog(dialogParent(), {
       title: 'Save video',
       defaultPath: path.join(app.getPath('videos'), `${safe}.mp4`),
       filters: [{ name: 'MP4 video', extensions: ['mp4'] }],
@@ -4304,7 +4318,7 @@ ipcMain.handle('media:saveImage', async (_e, { url, suggestedName }) => {
     const safe = String(suggestedName || 'callisto-image')
       .replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'callisto-image';
 
-    const { canceled, filePath } = await dialog.showSaveDialog(overlayWindow, {
+    const { canceled, filePath } = await dialog.showSaveDialog(dialogParent(), {
       title: 'Save image',
       defaultPath: path.join(app.getPath('pictures'), `${safe}.png`),
       filters: [{ name: 'PNG image', extensions: ['png'] }],
@@ -4798,7 +4812,7 @@ ipcMain.handle('command:setFolder', (_e, folder) => {
 
 // The folder commands run in — picked once, remembered after.
 ipcMain.handle('command:pickFolder', async () => {
-  const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openDirectory'], title: 'Choose your project folder' });
+  const res = await dialog.showOpenDialog(dialogParent(), { properties: ['openDirectory'], title: 'Choose your project folder' });
   if (res.canceled || !res.filePaths[0]) return { ok: false };
   const picked = res.filePaths[0];
   // The dialog will happily let somebody choose their home folder or a whole
@@ -4828,7 +4842,7 @@ ipcMain.handle('jarvis:speak', async (_e, text) => {
 });
 
 ipcMain.handle('jarvis:openFile', async () => {
-  const res = await dialog.showOpenDialog(overlayWindow, { properties: ['openFile'] });
+  const res = await dialog.showOpenDialog(dialogParent(), { properties: ['openFile'] });
   if (res.canceled || !res.filePaths[0]) return null;
   const filePath = res.filePaths[0];
   await shell.openPath(filePath);
