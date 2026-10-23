@@ -1207,9 +1207,30 @@ app.whenReady().then(async () => {
     autoUpdater.on('update-not-available', () => console.log('[UPDATE] already on the latest version'));
     autoUpdater.on('download-progress', (p) => console.log(`[UPDATE] ${Math.round(p.percent)}%`));
 
-    // Check on startup, then every 4 hours
-    autoUpdater.checkForUpdates().catch(() => {});
-    setInterval(() => { autoUpdater.checkForUpdates().catch(() => {}); }, 4 * 60 * 60 * 1000);
+    // Check at startup, when the window comes back, and periodically.
+    //
+    // It used to be startup and then every four hours, and most people never
+    // quit this app - it parks in the tray. So a version could be out for most
+    // of a day before the app that was already running bothered to look, and
+    // from the outside that is indistinguishable from updates not working.
+    // Coming back to the window is the moment somebody is actually there to
+    // be told.
+    let _lastUpdateCheck = 0;
+    const checkUpdatesNow = (why) => {
+      const now = Date.now();
+      if (now - _lastUpdateCheck < 10 * 60 * 1000) return;   // never hammer it
+      _lastUpdateCheck = now;
+      console.log('[UPDATE] checking (' + why + ')');
+      autoUpdater.checkForUpdates().catch(() => {});
+    };
+
+    checkUpdatesNow('startup');
+    setInterval(() => checkUpdatesNow('timer'), 90 * 60 * 1000);
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.on('focus', () => checkUpdatesNow('window focused'));
+      overlayWindow.on('show', () => checkUpdatesNow('window shown'));
+    }
+    app.on('activate', () => checkUpdatesNow('app activated'));
     startDmWatcher();   // tells you when someone messages, whatever you are doing
   }
 
