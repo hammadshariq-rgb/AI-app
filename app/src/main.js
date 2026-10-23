@@ -1624,6 +1624,24 @@ ipcMain.handle('creative:genimage', async (_e, { prompt, size }) => {
   } catch (err) { return { error: err.message }; }
 });
 
+// Changing a picture somebody already has, rather than making a new one.
+// Same model, same daily allowance, and nothing extra on this machine - which
+// is the point: editing locally would mean shipping an image library and a
+// bigger download for everybody.
+ipcMain.handle('creative:editimage', async (_e, { imageBase64, prompt, size }) => {
+  try {
+    if (!imageBase64) return { error: 'I need a picture to work on.' };
+    if (!prompt) return { error: 'Tell me what to change.' };
+    const res = await ai.serverFetch('image-edit',
+      { imageBase64, prompt, size: size || 'auto' },
+      { timeout: 120000, retries: 0 });   // an edit is slower than a fresh one
+    const data = await res.json();
+    if (data.error) return { error: data.error };
+    if (data.url) artifacts.add({ kind: 'image', url: data.url, prompt, source: 'AI edit' });
+    return { url: data.url };
+  } catch (err) { return { error: err.message }; }
+});
+
 // ── Artifacts (this week's creations) ────────────────────────────────────────
 // Spreadsheets Callisto made: open in Excel, or show in the folder. Only files
 // inside Documents/Callisto — the renderer can't open arbitrary paths this way.

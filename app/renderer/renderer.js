@@ -3118,11 +3118,70 @@ window._checkQuickLaunch = async function(text) {
   }
   window._runImageGeneration = runImageGeneration;
 
+  // ── Changing a picture they already have ───────────────────────────────────
+  // An attached photo, or the last one Callisto made, plus "blur the
+  // background" / "remove the background" / "make it black and white". The
+  // same model that makes a picture edits one, so this costs the download
+  // nothing - and it comes out of the same daily image allowance, because it
+  // is the same call.
+  const EDIT_PHOTO = /\b(?:blur|remove|replace|change|swap|erase|delete|take\s+out|clean\s+up|fix|touch\s*up|retouch|recolour|recolor|brighten|darken|crop|turn)\b[^.?!]{0,40}\b(?:backgrounds?|bg|backdrops?|sky|faces?|person|people|objects?|logos?|text|watermarks?|colou?rs?|lighting|shadows?)\b/i
+    .source;
+  const EDIT_PHOTO_RE = new RegExp(EDIT_PHOTO + '|\\b(?:make|turn)\\s+(?:it|this|the\\s+(?:photo|picture|image))\\s+(?:black\\s+and\\s+white|greyscale|grayscale|sepia|brighter|darker|a\\s+cartoon|into\\s+a\\s+\\w+)', 'i');
+
+  // What picture are we talking about? One they just attached wins over one
+  // Callisto made, because attaching it IS the request.
+  function _photoToEdit() {
+    const att = (typeof pendingAttachments !== 'undefined' ? pendingAttachments : [])
+      .filter((a) => a && a.kind === 'image' && a.dataUrl);
+    if (att.length) return { data: att[att.length - 1].dataUrl, from: 'attached' };
+    if (window._lastImage && window._lastImage.url) return { data: window._lastImage.url, from: 'made' };
+    return null;
+  }
+
+  async function runPhotoEdit(instruction) {
+    const pic = _photoToEdit();
+    if (!pic) return false;
+    const studio = window.CallistoImageStudio;
+    const title = instruction.slice(0, 60);
+    if (studio) {
+      studio.onRegenerate(null);        // "make another" means nothing for an edit
+      studio.showLoading({ title, prompt: instruction });
+    }
+    say('Editing that picture now.');
+    try {
+      const r = await window.jarvis.editImage?.(pic.data, instruction);
+      if (r && r.url) {
+        window._lastImage = { url: r.url, title };
+        window.jarvis.setLatestMedia?.('image', window._lastImage);
+        if (studio) studio.open(r.url, { title, prompt: instruction });
+        else showCard({ type: 'image', imageUrl: r.url, prompt: instruction, title });
+        say('Here it is.');
+        return true;
+      }
+      const why = (r && r.error) || 'I could not edit that picture.';
+      if (studio) studio.fail(why); else addMessage('assistant', why);
+      return true;
+    } catch (err) {
+      const why = `I could not edit that picture: ${err.message || 'unknown problem'}`;
+      if (studio) studio.fail(why); else addMessage('assistant', why);
+      return true;
+    }
+  }
+  window._runPhotoEdit = runPhotoEdit;
+
   // ── Image generation: "make me an image of X" / "generate image of X" ────
   // Must contain an explicit image-type word so it doesn't match "make me believe" etc.
   const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
              || t.match(/(?:generate|create|draw|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)[\s,]+(?:of\s+)?(.+)/i)
              || t.match(/(?:make|paint)\s+me\s+(?:a\s+|an\s+)?(?:picture|drawing|painting|illustration)\s+(?:of\s+)?(.+)/i);
+  // Before making a NEW picture: are they asking to change one that already
+  // exists? "Blur the background" with a photo attached is an edit, not a
+  // request for a fresh picture of a blurred background.
+  if (EDIT_PHOTO_RE.test(t) && _photoToEdit()) {
+    runPhotoEdit(t);
+    return true;
+  }
+
   if (imgM) {
     const prompt = imgM[1].trim();
     say(`Creating an image of ${prompt}.`);
@@ -6489,11 +6548,22 @@ if (window.jarvis.onSentenceText) {
   window._checkHiggsfield = async function(text, attachments) {
     if (!HIGGS_RE.test(text)) return false;
     // Get image from attachments if any
+    // The photo they attached, if they attached one.
+    //
+    // This looked for a.type starting with "image/", and an attachment in this
+    // app has no .type at all - it has kind:'image' and mimeType. So the test
+    // never matched, an attached photo was never found, and "turn this photo
+    // into a video" quietly made a video out of the words instead of the
+    // picture sitting right there in the message.
     let imageBase64 = null;
-    if (attachments && attachments.length > 0) {
-      const img = attachments.find(a => a.type && a.type.startsWith('image/'));
-      if (img) imageBase64 = img.data || img.base64 || null;
-    }
+    const atts = (attachments && attachments.length)
+      ? attachments
+      : (typeof pendingAttachments !== 'undefined' ? pendingAttachments : []);
+    const img = (atts || []).filter(Boolean).find((a) =>
+      a.kind === 'image'
+      || (a.mimeType && a.mimeType.startsWith('image/'))
+      || (a.type && a.type.startsWith('image/')));
+    if (img) imageBase64 = img.dataUrl || img.data || img.base64 || null;
     // Same experience as 3D models: a centred studio card with a progress ring.
     // Closing it doesn't stop the render; a "Video ready" notice brings it back.
     const VV = window.CallistoVideoViewer;

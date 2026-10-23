@@ -2306,6 +2306,80 @@ app.post('/ai/stt', authMiddleware, aiLimiter, async (req, res) => {
 });
 
 // Image generation
+// ── Changing a picture somebody already has ──────────────────────────────────
+// Blur or replace a background, take something out, change what is there. The
+// same model that makes a picture will edit one, so nothing new is needed on
+// the machine - which matters, because doing this locally would mean shipping
+// an image library and a bigger download.
+//
+// It spends from the SAME daily image allowance as making one. They cost the
+// same and they are the same model; two separate counts would be a way round
+// the limit rather than a second feature.
+app.post('/ai/image-edit', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const { imageBase64, prompt, size } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+    if (!prompt) return res.status(400).json({ error: 'prompt required' });
+
+    const imgAllow = await usage.allowance(req.userId, {
+      paidPerDay: IMAGE_USES_PER_DAY, trialPerDay: TRIAL_IMAGE_USES_PER_DAY,
+    });
+    const imgSlot = await usage.reserve('image', req.userId, imgAllow.limit, imgAllow.period);
+    if (!imgSlot.ok) {
+      return res.status(429).json({
+        error: imgAllow.plan === 'trial'
+          ? `The free trial includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
+          : `You've used all ${imgAllow.limit} of today's images. Try again tomorrow.`,
+        upgrade: imgAllow.plan === 'trial',
+      });
+    }
+    const refund = () => usage.release('image', req.userId, imgAllow.period).catch(() => {});
+
+    // The picture arrives as a data URL or bare base64; the API wants bytes.
+    const b64 = String(imageBase64).includes(',')
+      ? String(imageBase64).split(',')[1]
+      : String(imageBase64);
+    const bytes = Buffer.from(b64, 'base64');
+    if (!bytes.length) { refund(); return res.status(400).json({ error: 'That image could not be read.' }); }
+    // 20MB is the API's own ceiling; refusing here beats a confusing failure.
+    if (bytes.length > 20 * 1024 * 1024) {
+      refund();
+      return res.status(413).json({ error: 'That picture is too large to edit. Under 20MB, please.' });
+    }
+
+    const safePrompt = String(prompt)
+      .replace(/\b(naked|nude|explicit|nsfw|sexual|porn|gore|blood|violent|kill|murder|terrorist)\b/gi, '')
+      .trim() || String(prompt);
+
+    try {
+      const { toFile } = require('openai');
+      const file = await toFile(bytes, 'image.png', { type: 'image/png' });
+      const out = await openai.images.edit({
+        model: 'gpt-image-1',
+        image: file,
+        prompt: safePrompt,
+        size: size || 'auto',
+      });
+      const first = out && out.data && out.data[0];
+      const url = first && (first.url || (first.b64_json ? `data:image/png;base64,${first.b64_json}` : null));
+      if (!url) { refund(); return res.status(502).json({ error: 'The edit came back empty.' }); }
+      return res.json({ ok: true, url });
+    } catch (err) {
+      refund();
+      console.error('[image-edit]', err.message);
+      // A refusal is the model declining the picture or the instruction, which
+      // is worth saying plainly rather than as a server error.
+      const msg = /safety|policy|moderation|rejected/i.test(err.message || '')
+        ? 'I cannot make that change to this picture.'
+        : 'I could not edit that picture just now.';
+      return res.status(502).json({ error: msg });
+    }
+  } catch (err) {
+    console.error('[image-edit]', err.message);
+    res.status(500).json({ error: 'Something went wrong editing that.' });
+  }
+});
+
 app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { prompt, size } = req.body;

@@ -260,6 +260,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   higgsGenerate: (opts)   => ipcRenderer.invoke('higgsfield:generate', opts),
   // Creative: painting + 3D
   generateImage: (prompt, size)    => ipcRenderer.invoke('creative:genimage', { prompt, size }),
+  editImage: (imageBase64, prompt, size) => ipcRenderer.invoke('creative:editimage', { imageBase64, prompt, size }),
   openPaint3D:   (subject, imageUrl) => ipcRenderer.invoke('creative:paint', { subject, imageUrl }),
   openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
 
