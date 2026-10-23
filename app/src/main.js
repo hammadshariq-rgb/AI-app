@@ -60,7 +60,8 @@ for (const scheme of ['callisto', 'jarvis']) {
   }
 }
 
-const store = new Store();
+const { createStore } = require('./safe-store');
+const store = createStore();
 // The panel refreshes itself whenever something is created, and a finished
 // creation says so out loud — the user often closes the progress window and
 // waits for it in the background.
@@ -2012,6 +2013,18 @@ ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
 
 // ── Open external apps / URLs ──────────────────────────────────────────────
 ipcMain.handle('jarvis:openExternal', async (_e, url) => {
+  // Only schemes we mean to hand to the operating system.
+  //
+  // This took whatever it was given and handed it straight to the OS, and
+  // openExternal will start whatever is registered for a scheme - file:, and
+  // anything an installed program has claimed. The URLs reaching it are not
+  // always ours: a link in an answer, a source on a card, something read off
+  // a page. jarvis:openUrl two hundred lines below has checked this list for
+  // a long time; this one never did.
+  if (typeof url !== 'string' || !ALLOWED_URL_SCHEMES.test(url)) {
+    console.warn('[openExternal] refused:', String(url).slice(0, 80));
+    return { ok: false, error: 'That kind of link cannot be opened.' };
+  }
   await shell.openExternal(url);
   return { ok: true };
 });
@@ -2644,6 +2657,16 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const needsCard = (CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest && !_aboutItself;
   const needsNews = !isEmailQuery && NEWS_REGEX.test(message);
 
+  // Does the ANSWER need the card, or only the screen? A share price, a score
+  // or a match the model cannot know is worth waiting for. "What is a
+  // tortoise" is not - it already knows, and holding the answer back for a
+  // picture is how a question anybody could answer took three seconds.
+  function _liveCardNeeded(q) {
+    return /\b(?:stock|share|shares|price|ticker|nasdaq|dow|s&p|crypto|bitcoin|btc|eth|ethereum|market\s+cap|exchange\s+rate|worth\s+(?:now|today))\b/i.test(q)
+      || /\b(?:score|scores|scored|match|fixture|kick.?off|playing|played|beat|wins?|winning|won|loses?|losing|lost|draw|drew|vs\.?|versus|against|final|semi.?final|league|tournament)\b/i.test(q)
+      || /\b(?:weather|temperature|forecast|raining|snowing)\b/i.test(q);
+  }
+
   // Run ALL data fetches in parallel — don't wait for one before starting another
   // Every one of these races the answer. Measured: a card lookup took between
   // 1.4 and 4.6 seconds and ran BEFORE a word was spoken, so a question could
@@ -2662,7 +2685,15 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
     isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 3000) : Promise.resolve(null),
     (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 1500) : Promise.resolve(null),
-    (!isPureAction && needsCard) ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), 2500) : Promise.resolve(null),
+    // A card is worth waiting for when the ANSWER depends on it - a share
+    // price or a score, which the model cannot know. For a plain "what is X"
+    // it does not: the model already knows, and the card is a picture beside
+    // the words. That question is the most common one anybody asks, and it
+    // was sitting behind a two and a half second lookup before a single word
+    // could be spoken.
+    (!isPureAction && needsCard)
+      ? _cap(realtime.fetchCardData(searchMessage).catch(() => null), _liveCardNeeded(message) ? 2500 : 1100)
+      : Promise.resolve(null),
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 

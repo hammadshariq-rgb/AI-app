@@ -1,6 +1,7 @@
 const fetch = require('node-fetch');
 const Store = require('electron-store');
-const store = new Store();
+const { createStore } = require('../safe-store');
+const store = createStore();
 
 const { safeStorage } = require('electron');
 const SERVER = () => process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
@@ -714,7 +715,7 @@ const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, lan
   const timeStr = now.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const Store = require('electron-store');
-  const _store = new Store();
+  const _store = createStore();
   const pendingReminders = (_store.get('reminders') || []).filter(r => !r.triggered);
   const reminderBlock = pendingReminders.length > 0
     ? `\n\nACTIVE REMINDERS (already set — do NOT set these again):\n${pendingReminders.map((r, i) => `${i + 1}. "${r.text}" at ${new Date(r.datetime).toLocaleString()}`).join('\n')}`

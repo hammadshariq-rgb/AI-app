@@ -1,6 +1,7 @@
 const fetch = require('node-fetch');
 const Store = require('electron-store');
-const store = new Store();
+const { createStore } = require('../safe-store');
+const store = createStore();
 
 // OpenAI's voices each carry a fixed accent — fable is British, nova American, and
 // there is no Australian at all. So we pick the closest base voice for each

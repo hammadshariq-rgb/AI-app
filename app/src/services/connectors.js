@@ -1,7 +1,8 @@
 const fetch = require('node-fetch');
 const Store = require('electron-store');
 const { safeStorage } = require('electron');
-const store = new Store();
+const { createStore } = require('../safe-store');
+const store = createStore();
 
 function encryptSecret(plaintext) {
   if (!safeStorage.isEncryptionAvailable()) return plaintext;
