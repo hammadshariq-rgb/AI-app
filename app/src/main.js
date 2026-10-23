@@ -722,6 +722,10 @@ ipcMain.on('capture:prepare', (_e, bounds) => {
 
 // IPC: overlay sends selection bounds → screenshot → crop → vision API → HUD + TTS
 let _pendingCircleContext = null;
+// The files behind the last circle, kept as real paths. A tool that has to
+// open them needs locations, not the names the model read off the screen.
+// Cleared by age, so nothing acts on something circled half an hour ago.
+let _circledFiles = null;
 const nlJoin = (t) => String.fromCharCode(10,10) + t;
 
 ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
@@ -781,6 +785,10 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
 
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         _pendingCircleContext = context;
+        // The real paths, kept as paths. The context above is prose for the
+        // model to read; a tool that has to open these files needs the
+        // locations themselves, and a file name is not a location.
+        _circledFiles = { at: Date.now(), files: found };
         overlayWindow.webContents.send('capture:act', { instruction, context, files: found });
       }
     }
@@ -3910,6 +3918,36 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // ── Opening a file: side by side. Opening an app: get out of the way ──────
   // A file is something you read *with* Callisto, so both belong on screen. An
   // app is somewhere you are going instead, so it takes the whole display.
+  // Joining PDFs the person pointed at - circled with the Magic Cursor, or
+  // named out loud. Screen assist could already do this through its own list
+  // of offers; asking for it in words reached a model with nothing to act
+  // with, so it said it would join them and joined nothing.
+  if (finalAction && finalAction.type === 'combine_pdfs') {
+    const want = (finalAction.payload && finalAction.payload.files) || [];
+    // Prefer the real paths the Magic Cursor already resolved: the model is
+    // repeating names it read off a screen, and a name is not a location.
+    const fresh = _circledFiles && Date.now() - _circledFiles.at < 5 * 60 * 1000;
+    const known = fresh ? _circledFiles.files : [];
+    const files = want.map((f) => {
+      const base = String(f || '').toLowerCase();
+      const hit = known.find((k) => String(k).toLowerCase().endsWith(base)
+        || path.basename(String(k)).toLowerCase() === base);
+      return hit || f;
+    });
+    if (files.length < 2) {
+      const spoken = 'I need at least two PDFs to join. Circle them, or tell me their names.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, card: null, hasAction: false };
+    }
+    const r = await pdfs.combine(files, (finalAction.payload && finalAction.payload.title) || 'Combined');
+    const spoken = r.ok
+      ? `Done — ${path.basename(r.path)}, ${r.pages} pages from ${r.count} files. The originals are untouched.`
+      : (r.error || 'I could not join those.');
+    if (r.ok) { try { shell.showItemInFolder(r.path); } catch (_) {} }
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken, audio: null, card: null, hasAction: r.ok };
+  }
+
   if (finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_folder')) {
     try {
       const { width, height, x: sx, y: sy } = screen.getPrimaryDisplay().workArea;

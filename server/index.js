@@ -1476,7 +1476,12 @@ app.get('/connect/instagram', (req, res) => {
     // pages_manage_posts also lets Callisto post to the user's Facebook Page;
     // instagram_manage_messages + pages_messaging cover reading and replying to
     // DMs. Both message scopes need Advanced Access from Meta's app review.
-    params.set('scope', 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_manage_messages,pages_messaging');
+    // instagram_content_publish and pages_manage_posts are gone. They were
+    // asked for and never used: there is no posting code behind them, and
+    // asking somebody for permission to publish to their account for a
+    // feature that does not exist is worse than not having the feature.
+    // Posting stays on YouTube, which does have it.
+    params.set('scope', 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,instagram_manage_messages,pages_messaging');
   }
   res.redirect(`https://www.facebook.com/v23.0/dialog/oauth?${params}`);
 });

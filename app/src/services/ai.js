@@ -130,6 +130,30 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      // Screen assist could already join PDFs, through its own action list.
+      // The Magic Cursor could not: circling two of them worked out which
+      // files they were and found them on disk, then handed them to a model
+      // with nothing to act with - so it described joining them and joined
+      // nothing. This is what was missing at the end of that chain.
+      name: 'combine_pdfs',
+      description: 'Join two or more PDF files on this computer into one new PDF. Use when the user asks to combine, merge or join PDFs - including when they circled them on screen and said "combine these". The originals are never changed; a new file is made beside them. Only use it for PDFs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'The PDFs to join, in the order they should appear. Use the full paths when they are given to you; otherwise the file names exactly as shown on screen.',
+          },
+          title: { type: 'string', description: 'A name for the finished file, without the .pdf' },
+        },
+        required: ['files'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'open_url',
       description: 'Open a website in the browser. Use this ONLY when the user names a site or clearly wants a page opened: "open YouTube", "go to amazon.com", "open the BBC website". NEVER use it to answer a question. Opening a Google search is not an answer - they asked YOU, not a browser - and it is the difference between being useful and being a bookmark. A question about a car, a person, a product, a place or the news is answered in words, with show_image for the picture. If you genuinely cannot answer, say so; do not open a search instead. When a site IS named, use its own URL; if a web search is explicitly asked for ("google this", "search the web for"), use https://www.google.com/search?q=SEARCH+TERMS.',
       parameters: {
@@ -1469,6 +1493,7 @@ function mapToolCall(fnName, args) {
       if (fnName === 'open_url')           return { type: 'open_url',      arg: args.url };
       else if (fnName === 'open_folder')   return { type: 'open_folder',   arg: args.name };
       else if (fnName === 'open_file')     return { type: 'open_file',     arg: args.name };
+      else if (fnName === 'combine_pdfs')  return { type: 'combine_pdfs',  payload: { files: args.files || [], title: args.title || 'Combined' } };
       else if (fnName === 'open_app')      return { type: 'open_app',      arg: args.name };
       else if (fnName === 'open_chat')     return { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
       else if (fnName === 'read_messages') return { type: 'read_messages', payload: { from: args.from || '' } };
