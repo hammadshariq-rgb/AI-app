@@ -40,7 +40,18 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "renderer/**/*"
+      "renderer/**/*",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.md",
+      "!**/*.markdown",
+      "!**/{test,tests,__tests__,spec,example,examples,docs,doc}/**",
+      "!**/{.github,.vscode,.idea,.nyc_output,coverage}/**",
+      "!**/{CHANGELOG,CONTRIBUTING,AUTHORS,HISTORY}*",
+      "!node_modules/exceljs/dist/**",
+      "!node_modules/pdf-lib/dist/**",
+      "!node_modules/pdf-lib/es/**",
+      "!node_modules/pdf-lib/ts3.4/**"
     ],
     "extraResources": [
       {

@@ -233,10 +233,47 @@ let magicEditActive = false; // true while the Magic Editor is listening (Ctrl+S
 let isQuitting    = false;   // true only during a real quit, so 'close' can hide instead
 
 // Bring the app back up from the tray/dock. Recreates the window if it is gone.
+// Bring Callisto back, whatever state it got itself into.
+//
+// This used to call focus() and nothing else whenever the window counted as
+// visible - and a see-through window that is passing the mouse through is
+// invisible AND unclickable while still counting as visible. Focusing it
+// changes nothing you can see, so the app looked gone and the only way back
+// was to launch it again from Applications.
+//
+// It is also possible to be off-screen entirely: a display unplugged, or a
+// laptop opened on a different setup from the one the bounds were saved on.
 function showOverlay() {
   if (!overlayWindow || overlayWindow.isDestroyed()) { createOverlayWindow(); return; }
-  if (!overlayWindow.isVisible()) overlayWindow.show();
-  overlayWindow.focus();
+  try {
+    // Whatever was ignoring the mouse, stop. The cursor watch puts it back a
+    // frame later if the pointer really is over nothing.
+    overlayWindow.setIgnoreMouseEvents(false);
+
+    // Somewhere a person can actually see. If no display contains the window's
+    // top-left corner, it is on a screen that is not here any more.
+    const b = overlayWindow.getBounds();
+    const onAScreen = screen.getAllDisplays().some((d) => {
+      const w = d.workArea;
+      return b.x < w.x + w.width && b.x + b.width > w.x
+          && b.y < w.y + w.height && b.y + b.height > w.y;
+    });
+    if (!onAScreen || b.width < 200 || b.height < 200) {
+      const w = screen.getPrimaryDisplay().workArea;
+      overlayWindow.setBounds({ x: w.x, y: w.y, width: w.width, height: w.height });
+    }
+
+    if (overlayWindow.isMinimized()) overlayWindow.restore();
+    overlayWindow.show();
+    overlayWindow.moveTop();
+    overlayWindow.focus();
+    // macOS will not bring an app forward from a background process unless it
+    // is asked to, so the window can be shown and still sit behind everything.
+    if (process.platform === 'darwin') { try { app.focus({ steal: true }); } catch (_) {} }
+  } catch (err) {
+    console.error('[showOverlay]', err.message);
+    try { overlayWindow.show(); overlayWindow.focus(); } catch (_) {}
+  }
 }
 
 // A file or folder chooser, NOT hung off the overlay window.

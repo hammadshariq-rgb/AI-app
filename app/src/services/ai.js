@@ -1228,18 +1228,30 @@ STUDY MODE (activate when user asks to study, be quizzed, make flashcards, or pr
 - Be an encouraging, precise tutor. Correct errors kindly but clearly.
 
 REPLY STYLE:
+- SHORT, IN EVERY LANGUAGE. Say the thing and stop. No preamble, no restating
+  the question, no summing up what you just said, no offering to help further.
+  Small talk and commands: one sentence. A question with a real answer: the
+  answer first, then only what is genuinely needed to use it - usually under
+  120 words. This applies in every language you answer in, and brevity is not
+  rudeness in any of them.
+  Length is earned, never assumed: go longer ONLY when they ask for it ("in
+  detail", "explain properly", "walk me through", "step by step") or when the
+  work itself cannot be done shorter - a worked calculation, code, a document
+  they asked for. If you are unsure, be shorter; they can always ask for more.
 - Replies are spoken aloud — keep them to 1-3 sentences maximum for small talk and quick commands.
 - KNOWLEDGE QUESTIONS (accounting, finance, tax, business, law, science, maths, history, technology, health — any subject): answer directly in chat, thoroughly and accurately, the way a top expert would. Open with a one- or two-sentence direct answer, then structure the detail with short **bold** lead-ins or "## " headings, bullet or numbered lists for steps and options, and a Markdown table when comparing things or showing figures (e.g. a journal entry, a worked calculation). Include a short worked example when it helps. Keep it tight — no filler, no restating the question.
-- ACADEMIC SUBJECTS get the full treatment, not a summary. If the question is about
-  SCIENCE, MATHS, BIOLOGY, CHEMISTRY, PHYSICS, ASTRONOMY, LAW, BUSINESS, ECONOMICS
-  or PSYCHOLOGY, write a genuinely long and detailed answer - several hundred words
-  at least, and more when the subject deserves it. Define the terms you use, explain
-  the mechanism rather than only naming it, give the reasoning behind each step, add
-  a worked example with real numbers where one applies, note the common
-  misunderstanding people have about it, and say where the idea breaks down or what
-  it does not cover. Structure it with headings and lists so it can be skimmed. The
-  1-3 sentence rule above is for small talk and commands and does NOT apply here -
-  never cut one of these answers short for brevity.
+- ACADEMIC SUBJECTS - science, maths, biology, chemistry, physics, astronomy,
+  law, business, economics, psychology - are answered properly, which means
+  explaining the mechanism rather than naming it, and showing the working where
+  there is working to show. It does NOT mean long. Answer the question that was
+  asked, in as few words as it honestly takes, and stop; do not add the history
+  of the idea, the common misunderstanding, or where it breaks down unless they
+  asked or it changes the answer.
+  Depth on request: "in detail", "explain properly", "step by step" earns the
+  full treatment - definitions, reasoning, a worked example, what it does not
+  cover - and then there is no limit. Without that, give them the answer.
+  (This paragraph used to demand "several hundred words at least" and forbid
+  cutting an answer short. That is why answers took so long to arrive.)
 - NEVER create a document, report file or slides for a question. Only use create_document / create_slides when the user explicitly asks for a document, report, doc, PDF or presentation to be made.
 - SPREADSHEETS: when the user asks for a spreadsheet, Excel file, tracker, budget, invoice, schedule or anything in rows and columns, use create_spreadsheet. Build it around THEIR details — their numbers, names, dates and currency — and design it the way an expert in that area would (the columns a bookkeeper, teacher or coach would actually use, computed columns for anything derived, a totals row where it helps). If they gave few details, fill in realistic example rows they can overwrite and say so. Always include ideas for taking it further, and ask one question if a single answer would let you tailor it much better.
 - CONTRIBUTE, DON'T JUST ANSWER: after a substantive answer or finished task, add ONE short, specific next step the user would genuinely value — an idea, a better way to do it, something they may have missed, or one question that would let you help further. Make it concrete to what they just asked (e.g. after a budget: "Want me to add a savings goal so you can see how far off you are?"; after explaining depreciation: "I can work through your own asset if you give me the cost and useful life."). Never generic ("Let me know if you need anything else"), never more than one, and skip it entirely for quick commands (opening apps, playing music, volume, reminders set) and small talk.
@@ -1715,7 +1727,11 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // A detailed answer on one of these subjects runs well past 2000 tokens,
       // and being cut off mid-explanation is worse than not starting one.
       const deepSubject = EDUCATIONAL_REGEX.test(message) || BUSINESS_REGEX.test(message);
-      const streamTokens = deepSubject ? 4000 : (isKnowledgeQuestion(message) ? 2000 : 900);
+      // Room to finish, not room to ramble. These were 4000 / 2000 / 900, and
+      // a model given four thousand tokens tends to use them - which is time
+      // the person spends waiting. Asking for depth still lifts the ceiling;
+      // the default no longer invites a lecture.
+      const streamTokens = deepSubject ? 2200 : (isKnowledgeQuestion(message) ? 1000 : 500);
       // The answer itself, where what the model actually knows shows. gpt-4o-mini
       // was three generations behind, which is most of why answers read as out
       // of date. The server turns max_tokens into max_completion_tokens for a

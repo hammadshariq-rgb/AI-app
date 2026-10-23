@@ -34,7 +34,14 @@
   'use strict';
 
   // Shipped with the app, not fetched at runtime. See ensureLoader below.
-  const GLTF_LIB = 'vendor/GLTFLoader.js';
+  //
+  // This pointed at a second, separate copy in vendor/ that was never once
+  // loaded: index.html loads GLTFLoader.global.js two lines before this file,
+  // so THREE.GLTFLoader always existed and ensureLoader always returned early.
+  // A hundred kilobytes shipped to everybody and read by nobody. The fallback
+  // now points at the same file the page already uses, so it still works if
+  // that tag ever fails.
+  const GLTF_LIB = 'GLTFLoader.global.js';
 
   const SWATCHES = [
     ['Crimson', '#c8102e'], ['Gold', '#d4a537'], ['Silver', '#c9ced6'], ['Black', '#111114'],

@@ -3273,6 +3273,43 @@
       // feel does not change when the frame rate does.
       const emaAlpha = (dt, tau) => 1 - Math.exp(-dt / tau);
 
+      // ── Smoothing that knows whether the hand is moving ───────────────────
+      //
+      // A fixed amount of smoothing can be steady or it can be responsive, and
+      // it cannot be both: smooth enough to kill the shake of a held-still
+      // hand is sluggish the moment you move, and quick enough to feel direct
+      // leaves the cursor trembling when you are trying to hold it on a
+      // button. Stage two below was exactly that compromise.
+      //
+      // This is the one-euro filter: it watches how fast the value is actually
+      // changing and smooths hard when that is near zero, barely at all when
+      // it is not. Still hand, still cursor; fast hand, no lag added.
+      function OneEuro(minCutoff, beta, dCutoff) {
+        let xHat = null, dxHat = 0, lastT = 0;
+        const alpha = (dt, cutoff) => {
+          const tau = 1 / (2 * Math.PI * cutoff);
+          return 1 / (1 + tau / dt);
+        };
+        return {
+          reset() { xHat = null; dxHat = 0; lastT = 0; },
+          filter(x, tMs) {
+            if (xHat === null) { xHat = x; lastT = tMs; return x; }
+            const dt = Math.max(0.001, (tMs - lastT) / 1000);
+            lastT = tMs;
+            const dx = (x - xHat) / dt;
+            dxHat += alpha(dt, dCutoff) * (dx - dxHat);
+            // The faster it is genuinely moving, the less it is smoothed.
+            const cutoff = minCutoff + beta * Math.abs(dxHat);
+            xHat += alpha(dt, cutoff) * (x - xHat);
+            return xHat;
+          },
+        };
+      }
+      // 1.1Hz when still is heavy smoothing; beta lets it open right up when
+      // the hand actually travels.
+      const euroX = OneEuro(1.1, 0.012, 1.0);
+      const euroY = OneEuro(1.1, 0.012, 1.0);
+
       // Hover throttle
       let _hoverEl = null;
       let _cursorFrame = 0;
@@ -3308,6 +3345,11 @@
           // Snap instantly on first detection
           cursorX = rawX; cursorY = rawY;
           smoothX = rawX; smoothY = rawY;
+          // Start the filter here too, or it eases in from wherever the hand
+          // was last seen and the cursor swims across the screen on every
+          // fresh detection.
+          euroX.reset(); euroY.reset();
+          euroX.filter(rawX, nowMs); euroY.filter(rawY, nowMs);
           velX = 0; velY = 0;
           _lastRawX = rawX; _lastRawY = rawY; _lastLmAt = nowMs;
         } else {
@@ -3332,10 +3374,11 @@
           cursorX += aFast * ((rawX + leadX) - cursorX);
           cursorY += aFast * ((rawY + leadY) - cursorY);
 
-          // Stage 2: silky display smoothing
-          const aDisp = emaAlpha(dt, TAU_DISP);
-          smoothX += aDisp * (cursorX - smoothX);
-          smoothY += aDisp * (cursorY - smoothY);
+          // Stage 2: display smoothing that adapts to how fast the hand is
+          // actually going, rather than one fixed amount for both holding
+          // still and sweeping across the screen.
+          smoothX = euroX.filter(cursorX, nowMs);
+          smoothY = euroY.filter(cursorY, nowMs);
         }
 
         // ONE transform per frame — compositor-only, no layout hit
@@ -3762,12 +3805,15 @@
       // This version is time-based (so it behaves the same at any frame rate),
       // measures palm centres rather than a single knuckle, and treats "hands
       // vanished immediately after a fast close" as the clap landing.
-      const CLAP_WINDOW_MS  = 650;   // how far back we look
-      const CLAP_FAR_START  = 0.32;  // palms must have been at least this far apart
-      const CLAP_NEAR       = 0.17;  // counts as contact
-      const CLAP_MIN_DROP   = 0.18;  // total closing distance
-      const CLAP_MIN_SPEED  = 0.5;   // normalised units per second
-      const CLAP_LOST_GRACE = 300;   // ms after a fast close where losing a hand still counts
+      // All measured in HAND-WIDTHS, so they mean the same close to the camera
+      // and across the room. They used to be fractions of the frame, which is
+      // why clapping worked at one distance and not at another.
+      const CLAP_WINDOW_MS  = 800;   // how far back we look - a clap can be unhurried
+      const CLAP_FAR_START  = 2.0;   // palms must have been at least this far apart
+      const CLAP_NEAR       = 1.15;  // counts as contact (palms touching are ~1 apart)
+      const CLAP_MIN_DROP   = 0.9;   // total closing distance
+      const CLAP_MIN_SPEED  = 2.2;   // hand-widths per second
+      const CLAP_LOST_GRACE = 420;   // ms after a fast close where losing a hand still counts
 
       let clapSamples = [];
       let clapArmedAt = 0;
@@ -3784,7 +3830,19 @@
       function checkClap(lms, now) {
         if (lms.length >= 2) {
           const a = palmCenter(lms[0]), b = palmCenter(lms[1]);
-          clapSamples.push({ t: now, d: Math.hypot((a.x - b.x) * (window.__gestureAspect || 1), a.y - b.y) });
+          // Measured in hand-widths, not in fractions of the camera frame.
+          //
+          // The thresholds below were fractions of the frame, so what counted
+          // as a clap depended on how far away you were sitting. Close to the
+          // camera your hands fill the picture and every near-miss registers;
+          // a step back and they never get 0.32 of the frame apart at all, so
+          // a perfectly good clap could not register however hard you tried.
+          // The span of the hand itself is the unit that does not change.
+          const span = (h) => Math.hypot(
+            (h[0].x - h[9].x) * (window.__gestureAspect || 1), h[0].y - h[9].y);
+          const scale = Math.max(0.03, (span(lms[0]) + span(lms[1])) / 2);
+          const gap = Math.hypot((a.x - b.x) * (window.__gestureAspect || 1), a.y - b.y);
+          clapSamples.push({ t: now, d: gap / scale });
         }
         const cutoff = now - CLAP_WINDOW_MS;
         while (clapSamples.length && clapSamples[0].t < cutoff) clapSamples.shift();
