@@ -1956,7 +1956,12 @@ app.get('/web/news', async (_req, res) => {
   }
 });
 
-app.post('/web/voice', aiLimiter, async (req, res) => {
+// Talking to Callisto on the website counts the same as typing to it.
+//
+// This route had a rate limit and no daily one, so the fifteen a day applied
+// to the typed box and not to the microphone beside it - the same assistant,
+// the same cost, and an unlimited way round the limit for anyone who noticed.
+app.post('/web/voice', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req, res) => {
   try {
     const { audio_b64, text } = req.body;
     let transcript = text || '';
@@ -2178,7 +2183,12 @@ function tokenCap(model, n) {
 app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
-    const chosen = model || 'gpt-4.1-mini';
+    // The answering model, settable on the server rather than fixed in a
+    // shipped app. A newer one can be tried - and taken back - by changing one
+    // variable, instead of building and releasing to everybody to find out
+    // whether it is better. Without CHAT_MODEL the app's own choice stands and
+    // nothing changes.
+    const chosen = process.env.CHAT_MODEL || model || 'gpt-4.1-mini';
     const params = { model: chosen, messages, ...tokenCap(chosen, max_tokens || 512), temperature: temperature ?? 0.2, top_p: 0.9 };
     if (tools) { params.tools = tools; params.tool_choice = tool_choice || 'required'; }
     const result = await openai.chat.completions.create(params);
@@ -2195,7 +2205,12 @@ app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (r
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    const chosen = model || 'gpt-4.1-mini';
+    // The answering model, settable on the server rather than fixed in a
+    // shipped app. A newer one can be tried - and taken back - by changing one
+    // variable, instead of building and releasing to everybody to find out
+    // whether it is better. Without CHAT_MODEL the app's own choice stands and
+    // nothing changes.
+    const chosen = process.env.CHAT_MODEL || model || 'gpt-4.1-mini';
     const stream = await openai.chat.completions.create({
       model: chosen,
       messages,
