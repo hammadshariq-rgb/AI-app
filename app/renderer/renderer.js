@@ -11987,7 +11987,14 @@ if (window.jarvis.onMacNeedsAutomation) {
   // It has to be about *their* numbers. "How does Stripe work" is a question.
   const MINE = /\b(my|mine|i|me|we|our|us)\b/i;
   const ASKING = /\b(how much|how many|how(?:'?s| is| are)?|what(?:'?s| is| are)?|show|open|check|give me|tell me|doing|going|look|see)\b/i;
-  const NOT_STATS = /\b(explain|what does|how does|who (?:owns|made)|history of|compare|versus|vs\b|tutorial|learn)\b/i;
+  // Asking about MESSAGES is not asking about numbers.
+  //
+  // "Check my insta messages" matched every test here - "check" is asking,
+  // "insta" is a platform, "my" makes it theirs - so it opened the follower
+  // count and never reached the part that reads the inbox. Somebody asking
+  // whether anyone had messaged them got told how many followers they have,
+  // which is not an answer to anything they said.
+  const NOT_STATS = /\b(explain|what does|how does|who (?:owns|made)|history of|compare|versus|vs\b|tutorial|learn|dms?|messages?|msgs?|inbox|messaged|texted|replied|wrote)\b/i;
 
   const n = (v) => Number(v || 0).toLocaleString();
 
@@ -12007,16 +12014,42 @@ if (window.jarvis.onMacNeedsAutomation) {
     }
     // One follower is a follower, not "1 followers".
     const plural = (v, word) => `${n(v)} ${Number(v) === 1 ? word : word + 's'}`;
+    // How the newest thing is doing, which is the figure anybody asking about
+    // their account actually wants. None of these said it: Instagram gave the
+    // follower count and a month total that is null whenever the insights
+    // call does not come back, so most of the time the answer was a follower
+    // count and nothing else.
+    const latestOf = (list) => (Array.isArray(list) && list.length ? list[0] : null);
+    const latestLine = (item, what) => {
+      if (!item) return '';
+      if (item.views != null) return ` Your latest ${what} has ${plural(item.views, 'view')}.`;
+      if (item.likes != null) return ` Your latest ${what} has ${plural(item.likes, 'like')}.`;
+      return '';
+    };
+
     if (key === 'instagram') {
-      return `Instagram is on ${plural(d.followers, 'follower')}` +
-        (d.views30 != null ? `, with ${plural(d.views30, 'view')} this month.` : '.');
+      const latest = latestOf(d.recentPosts);
+      let s = `Instagram is on ${plural(d.followers, 'follower')}`;
+      s += d.views30 != null ? `, with ${plural(d.views30, 'view')} this month.` : '.';
+      s += latestLine(latest, 'post');
+      if (latest && latest.comments != null && latest.views == null && latest.likes == null) {
+        s += ` Your latest post has ${plural(latest.comments, 'comment')}.`;
+      }
+      return s;
+    }
+    if (key === 'youtube') {
+      let s = `YouTube is on ${plural(d.subscribers, 'subscriber')}`;
+      s += d.views28 != null ? `, with ${plural(d.views28, 'view')} in the last 28 days.` : '.';
+      s += latestLine(latestOf(d.recentVideos), 'video');
+      return s;
     }
     if (key === 'facebook') {
       return `Your Facebook Page has ${plural(d.followers, 'follower')}` +
         (d.reach != null ? `, reaching ${plural(d.reach, 'person').replace('persons', 'people')}.` : '.');
     }
     if (key === 'tiktok') {
-      return `TikTok has ${n(d.followers)} followers and ${n(d.likes)} likes.`;
+      return `TikTok has ${plural(d.followers, 'follower')} and ${plural(d.likes, 'like')}.`
+        + latestLine(latestOf(d.recentVideos), 'video');
     }
     return null;
   }

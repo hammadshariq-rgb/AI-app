@@ -3009,7 +3009,12 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   function flushSentenceBuffer() {
     while (sentenceAudioBuffer[sentenceNextPlay] !== undefined) {
-      _e.sender.send('jarvis:sentence-audio', { audio: sentenceAudioBuffer[sentenceNextPlay] });
+      const clip = sentenceAudioBuffer[sentenceNextPlay];
+      // A sentence whose voice never came back is skipped, not played as
+      // nothing. It still has to leave the queue, or everything behind it
+      // waits for it for ever - which is what made the voice stop partway
+      // through an answer and never come back.
+      if (clip !== null) _e.sender.send('jarvis:sentence-audio', { audio: clip });
       delete sentenceAudioBuffer[sentenceNextPlay];
       sentenceNextPlay++;
     }
@@ -3062,13 +3067,28 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
           if (isEmailSendRequest && /^(Dear|Hi|Hello)\b/i.test(clean)) return;
           if (isEmailSendRequest && /\b(Subject:|With all my love|Best regards|Sincerely|Warm regards)\b/i.test(clean)) return;
           const myIdx = sentenceIdx++;
-          const p = tts.synthesize(clean).then(audio => {
-            if (audio) {
-              streamedAudio = true;
-              sentenceAudioBuffer[myIdx] = audio;
-              flushSentenceBuffer(); // send any consecutive ready clips in order
-            }
-          }).catch(() => {});
+          // Every sentence fills its slot, whether or not it got a voice.
+          //
+          // It used to fill the slot ONLY on success, and the queue plays
+          // strictly in order - so one sentence failing to synthesise left a
+          // hole that nothing behind it could get past. The answer stopped
+          // mid-way and the rest was never spoken at all. A null is "this one
+          // had no sound", which the queue steps over.
+          //
+          // And a slot that is taking too long is given up on rather than
+          // holding the rest of the answer behind it.
+          let settled = false;
+          const fill = (audio) => {
+            if (settled) return;
+            settled = true;
+            if (audio) streamedAudio = true;
+            sentenceAudioBuffer[myIdx] = audio || null;
+            flushSentenceBuffer(); // send any consecutive ready clips in order
+          };
+          const slow = setTimeout(() => fill(null), 7000);
+          const p = tts.synthesize(clean)
+            .then((audio) => { clearTimeout(slow); fill(audio); })
+            .catch(() => { clearTimeout(slow); fill(null); });
           sentencePending.push(p);
         },
       });
