@@ -3786,6 +3786,103 @@
       // every gesture check that runs after it. Everywhere else that resets
       // these already sets them to [].
       const waveHist = [[], []]; // per hand-slot, not per label
+
+      // ── Swipe: one sweep of the hand, left or right ───────────────────────
+      //
+      // Switching between the windows that are open is a swipe, not a wave.
+      // The wave below wants nine changes of direction inside twenty frames -
+      // a frantic shake, not something anybody does naturally - and it
+      // measures distance as a fraction of the camera frame, so whether it
+      // works at all depends on how far away you are sitting. A swipe is one
+      // movement in one direction, which is both what people actually do and
+      // far easier to be sure about.
+      //
+      // Measured in hand-widths, so it means the same across the room.
+      const SWIPE_MS      = 500;   // how long a sweep may take
+      const SWIPE_MIN     = 1.9;   // hand-widths travelled
+      const SWIPE_STRAIGHT = 1.7;  // sideways travel must beat vertical by this
+      const SWIPE_BACKTRACK = 0.42; // a wave doubles back; a swipe does not
+      const SWIPE_SETTLE_MS = 190;  // wait this long to see if the hand returns
+      const swipeHist = [[], []];
+      const swipeArmed = [null, null];
+
+      function checkSwipe(lm, idx, now) {
+        const h = swipeHist[idx] || (swipeHist[idx] = []);
+
+        // A sweep that has happened but is not confirmed yet.
+        //
+        // The first half of a wave IS a clean sweep - there is no way to tell
+        // them apart at the moment it happens, only afterwards, by whether the
+        // hand came back. So a sweep is held for a moment and thrown away if
+        // it returns. This is why waving no longer switches apps.
+        const armed = swipeArmed[idx];
+        if (armed) {
+          const spanNow = Math.max(0.03, Math.hypot(
+            (lm[0].x - lm[9].x) * (window.__gestureAspect || 1), lm[0].y - lm[9].y));
+          const xNow = (lm[0].x / spanNow) * (window.__gestureAspect || 1);
+          const back = (armed.endX - xNow) * Math.sign(armed.dx);
+          if (back > Math.abs(armed.dx) * SWIPE_BACKTRACK) {
+            swipeArmed[idx] = null;        // it came back: that was a wave
+            swipeHist[idx] = [];
+            return null;
+          }
+          // Still moving is not settled. At the end of a swipe the hand stops;
+          // part-way through a wave it is travelling at its fastest, and 190ms
+          // after the outward half it has not come back far enough to look
+          // like a return yet. Waiting for it to be STILL tells them apart;
+          // waiting for a clock alone does not.
+          const moved = Math.abs(xNow - (armed.lastX === undefined ? xNow : armed.lastX));
+          armed.lastX = xNow;
+          if (moved > 0.09) armed.at = Math.max(armed.at, now - SWIPE_SETTLE_MS + 60);
+
+          if (now - armed.at >= SWIPE_SETTLE_MS) {
+            swipeArmed[idx] = null;
+            swipeHist[idx] = [];
+            return armed.dir;              // stopped where it landed: a swipe
+          }
+          // Not for ever, though - a hand that never quite stops should not
+          // leave something armed behind it.
+          if (now - armed.firstAt > 900) { swipeArmed[idx] = null; swipeHist[idx] = []; }
+          return null;                     // still waiting to be sure
+        }
+        const span = Math.hypot(
+          (lm[0].x - lm[9].x) * (window.__gestureAspect || 1), lm[0].y - lm[9].y);
+        const scale = Math.max(0.03, span);
+        h.push({ t: now, x: lm[0].x / scale, y: lm[0].y / scale });
+        while (h.length && now - h[0].t > SWIPE_MS) h.shift();
+        if (h.length < 5) return null;
+
+        const first = h[0], last = h[h.length - 1];
+        const dx = (last.x - first.x) * (window.__gestureAspect || 1);
+        const dy = last.y - first.y;
+        if (Math.abs(dx) < SWIPE_MIN) return null;
+        if (Math.abs(dx) < Math.abs(dy) * SWIPE_STRAIGHT) return null;   // too diagonal
+
+        // One direction throughout. A wave goes out and comes back, and the
+        // furthest point against the direction of travel is what gives it
+        // away - without this, waving would switch apps too.
+        let worst = 0;
+        for (const p of h) {
+          const along = (p.x - first.x) * (window.__gestureAspect || 1) * Math.sign(dx);
+          if (along < worst) worst = along;
+        }
+        if (Math.abs(worst) > Math.abs(dx) * SWIPE_BACKTRACK) return null;
+
+        // Held, not fired. Confirmed above once the hand has stayed where it
+        // ended up rather than swinging back.
+        //
+        // The camera is mirrored, so moving your hand to YOUR left shows up as
+        // moving right on screen. "Swipe left" has to mean the person's left.
+        swipeArmed[idx] = {
+          dir: dx > 0 ? 'left' : 'right',
+          dx,
+          endX: last.x * (window.__gestureAspect || 1),
+          at: now,
+          firstAt: now,
+        };
+        return null;
+      }
+
       const WAVE_WIN = 20, WAVE_RANGE = 0.24, WAVE_FLIPS = 9;
       function checkWave(lm, idx) {
         const h = waveHist[idx] || (waveHist[idx] = []);
@@ -4151,8 +4248,20 @@
             handState[i] = null;
           }
 
+          // ── 5a. SWIPE — one sweep sideways → the next window along ──────
+          // Checked before the wave, because a swipe is the clearer gesture
+          // and should not be swallowed by a looser one.
+          const swipeDir = checkSwipe(lm, i, now);
+          if (swipeDir && canFire('wave')) {
+            showGesture(swipeDir === 'left' ? '👈' : '👉',
+              swipeDir === 'left' ? 'Previous app' : 'Next app');
+            window.jarvis.switchApp?.(swipeDir === 'left' ? 'prev' : 'next')
+              .then((r) => { if (r && r.ok && r.app) showGesture('🪟', r.app.slice(0, 28)); })
+              .catch(() => {});
+          }
+
           // ── 5. WAVE — wrist oscillation → scroll markets OR switch mode ─
-          if (checkWave(lm, i) && canFire('wave')) {
+          else if (checkWave(lm, i) && canFire('wave')) {
             if (typeof marketsOverlayOpen !== 'undefined' && marketsOverlayOpen) {
               // Left hand wave scrolls between market cards
               const wh = waveHist[i] || [];

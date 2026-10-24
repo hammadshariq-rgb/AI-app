@@ -3998,6 +3998,21 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // named out loud. Screen assist could already do this through its own list
   // of offers; asking for it in words reached a model with nothing to act
   // with, so it said it would join them and joined nothing.
+  // Closing something that is open. The window is asked to close rather than
+  // the process killed, so anything unsaved still gets to say so.
+  if (finalAction && finalAction.type === 'close_app') {
+    const what = String(finalAction.arg || '').trim();
+    if (/^callisto\b/i.test(what)) {
+      const spoken = 'I will not close myself. Press the X if you want me gone.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, card: null, hasAction: false };
+    }
+    const r = await commands.closeApp(what);
+    const spoken = r.ok ? `Closed ${what}.` : (r.error || `I could not close ${what}.`);
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken, audio: null, card: null, hasAction: !!r.ok };
+  }
+
   if (finalAction && finalAction.type === 'combine_pdfs') {
     const want = (finalAction.payload && finalAction.payload.files) || [];
     // Prefer the real paths the Magic Cursor already resolved: the model is
@@ -7346,6 +7361,13 @@ function _insideHome(p) {
   const full = path.resolve(p);
   return full === home || full.startsWith(home + path.sep);
 }
+
+// ── The windows that are open ────────────────────────────────────────────────
+ipcMain.handle('apps:list', () => commands.listOpenApps().catch(() => []));
+ipcMain.handle('apps:switch', (_e, dir) =>
+  commands.switchApp(dir === 'prev' ? 'prev' : 'next').catch((err) => ({ ok: false, error: err.message })));
+ipcMain.handle('apps:close', (_e, name) =>
+  commands.closeApp(name).catch((err) => ({ ok: false, error: err.message })));
 
 ipcMain.handle('files:roots', () => _pickRoots());
 

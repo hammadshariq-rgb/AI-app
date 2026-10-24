@@ -1036,4 +1036,121 @@ async function openDocumentFile(name) {
   return { ok: false, error: `Couldn't find "${name}" on this computer.` };
 }
 
-module.exports = { run, findFolder, findFile, parseFileQuery, readFileContent, makeCall, openChat, openInChrome, openDocumentFile };
+// ── Closing what was opened, and moving between what is open ─────────────────
+//
+// "Open WhatsApp" worked and "close it" did nothing, because there was no
+// closing at all - only opening. And switching between the windows that are
+// already open had no way in either, so waving a hand could change Callisto's
+// own mode and nothing else.
+//
+// Both are done by asking the operating system, with no native module added:
+// a native window library is a compiled dependency on every machine and a
+// bigger download, for something a built-in shell can already do.
+
+// The windows a person would recognise as "an app that is open", newest last.
+// Callisto's own window is never one of them - switching to the thing you are
+// already looking at is not switching.
+function listOpenApps() {
+  return new Promise((resolve) => {
+    if (IS_WIN) {
+      // Single quotes inside: the whole command is already wrapped in double
+      // quotes for the shell, and a double quote in here closes it early.
+      const ps = "Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | "
+        + 'Select-Object Id,ProcessName,MainWindowTitle | ConvertTo-Json -Compress';
+      exec(`powershell -NoProfile -Command "${ps}"`, { timeout: 6000, windowsHide: true }, (err, out) => {
+        if (err) return resolve([]);
+        let rows = [];
+        try { rows = JSON.parse(out || '[]'); } catch (_) { return resolve([]); }
+        if (!Array.isArray(rows)) rows = [rows];
+        // Windows counts several of its own pieces as having a window:
+        // the touch keyboard, the start menu, the search box. Nobody thinks
+        // of those as an app they switched away from, so swiping must not
+        // land on them.
+        const SYSTEM = /^(TextInputHost|ApplicationFrameHost|ShellExperienceHost|SearchHost|SearchApp|StartMenuExperienceHost|SystemSettings|LockApp|PickerHost|Widgets|WidgetBoard|explorer)$/i;
+        resolve(rows
+          .filter((r) => r && r.MainWindowTitle
+            && !/callisto/i.test(r.ProcessName || '')
+            && !SYSTEM.test(r.ProcessName || ''))
+          .map((r) => ({ id: r.Id, name: r.ProcessName, title: r.MainWindowTitle })));
+      });
+      return;
+    }
+    if (IS_MAC) {
+      const as = 'tell application "System Events" to get name of every application process '
+        + 'whose visible is true and background only is false';
+      exec(`osascript -e '${as}'`, { timeout: 6000 }, (err, out) => {
+        if (err) return resolve([]);
+        resolve(String(out || '').split(',')
+          .map((s) => s.trim())
+          .filter((s) => s && !/callisto|electron/i.test(s))
+          .map((s) => ({ id: s, name: s, title: s })));
+      });
+      return;
+    }
+    resolve([]);
+  });
+}
+
+function focusApp(app) {
+  return new Promise((resolve) => {
+    if (!app) return resolve(false);
+    if (IS_WIN) {
+      // AppActivate takes the process id, which is exact - a title can change
+      // under you between listing and switching.
+      const ps = `$s = New-Object -ComObject WScript.Shell; $s.AppActivate(${Number(app.id)})`;
+      exec(`powershell -NoProfile -Command "${ps}"`, { timeout: 5000, windowsHide: true }, (err) => resolve(!err));
+      return;
+    }
+    if (IS_MAC) {
+      const safe = String(app.name).replace(/["\\]/g, '');
+      exec(`osascript -e 'tell application "System Events" to set frontmost of process "${safe}" to true'`,
+        { timeout: 5000 }, (err) => resolve(!err));
+      return;
+    }
+    resolve(false);
+  });
+}
+
+// Where we are in that list, so a second swipe carries on rather than
+// bouncing between the same two windows.
+let _switchIdx = 0;
+let _switchAt = 0;
+
+async function switchApp(direction) {
+  const apps = await listOpenApps();
+  if (!apps.length) return { ok: false, error: 'Nothing else is open.' };
+  // A run of swipes walks the list; starting again after a pause starts at
+  // the front, which is what somebody expects after they have been working.
+  if (Date.now() - _switchAt > 4000) _switchIdx = 0;
+  _switchAt = Date.now();
+  _switchIdx = (_switchIdx + (direction === 'prev' ? -1 : 1) + apps.length) % apps.length;
+  const target = apps[_switchIdx];
+  const ok = await focusApp(target);
+  return ok ? { ok: true, app: target.title || target.name } : { ok: false, error: 'Could not switch to it.' };
+}
+
+// Closing. Asks the window to close rather than killing the process, so
+// anything unsaved still gets its chance to say so.
+function closeApp(name) {
+  return new Promise((resolve) => {
+    const want = String(name || '').trim();
+    if (!want) return resolve({ ok: false, error: 'Close what?' });
+    if (IS_WIN) {
+      const safe = want.replace(/["'`$;&|<>]/g, '');
+      const ps = `Get-Process | Where-Object { ($_.ProcessName -like '*${safe}*' -or $_.MainWindowTitle -like '*${safe}*') `
+        + `-and $_.MainWindowTitle -ne '' } | ForEach-Object { $_.CloseMainWindow() | Out-Null }`;
+      exec(`powershell -NoProfile -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) =>
+        resolve(err ? { ok: false, error: `I could not close ${want}.` } : { ok: true, closed: want }));
+      return;
+    }
+    if (IS_MAC) {
+      const safe = want.replace(/["\\]/g, '');
+      exec(`osascript -e 'tell application "${safe}" to quit'`, { timeout: 8000 }, (err) =>
+        resolve(err ? { ok: false, error: `I could not close ${want}.` } : { ok: true, closed: want }));
+      return;
+    }
+    resolve({ ok: false, error: 'I cannot close apps on this system.' });
+  });
+}
+
+module.exports = { run, findFolder, findFile, parseFileQuery, readFileContent, makeCall, openChat, openInChrome, openDocumentFile, listOpenApps, switchApp, closeApp };

@@ -135,6 +135,22 @@ const TOOLS = [
       // files they were and found them on disk, then handed them to a model
       // with nothing to act with - so it described joining them and joined
       // nothing. This is what was missing at the end of that chain.
+      // "Open WhatsApp" worked and "close it" did nothing at all: there was
+      // opening and no closing anywhere in the app.
+      name: 'close_app',
+      description: 'Close an app or window that is open on this computer: "close WhatsApp", "close Chrome", "shut that down", "close it". For "close it" or "close that", use the app you most recently opened for them. The window is ASKED to close, so anything unsaved still gets its chance to prompt. Never use this to close Callisto itself.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'The app or window to close, e.g. "WhatsApp", "Chrome", "Spotify"' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'combine_pdfs',
       description: 'Join two or more PDF files on this computer into one new PDF. Use when the user asks to combine, merge or join PDFs - including when they circled them on screen and said "combine these". The originals are never changed; a new file is made beside them. Only use it for PDFs.',
       parameters: {
@@ -1506,6 +1522,7 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'open_folder')   return { type: 'open_folder',   arg: args.name };
       else if (fnName === 'open_file')     return { type: 'open_file',     arg: args.name };
       else if (fnName === 'combine_pdfs')  return { type: 'combine_pdfs',  payload: { files: args.files || [], title: args.title || 'Combined' } };
+      else if (fnName === 'close_app')     return { type: 'close_app',     arg: args.name };
       else if (fnName === 'open_app')      return { type: 'open_app',      arg: args.name };
       else if (fnName === 'open_chat')     return { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
       else if (fnName === 'read_messages') return { type: 'read_messages', payload: { from: args.from || '' } };

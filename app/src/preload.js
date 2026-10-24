@@ -123,6 +123,11 @@ contextBridge.exposeInMainWorld('jarvis', {
   watchCursor:  (on) => ipcRenderer.invoke('app:watchCursor', !!on),
   onCursor:     (cb) => ipcRenderer.on('app:cursor', (_e, p) => cb(p)),
 
+  // Moving between the windows that are open, and closing one.
+  switchApp: (dir)  => ipcRenderer.invoke('apps:switch', dir),
+  listApps:  ()     => ipcRenderer.invoke('apps:list'),
+  closeApp:  (name) => ipcRenderer.invoke('apps:close', name),
+
   fileRoots:  ()      => ipcRenderer.invoke('files:roots'),
   fileBrowse: (dir)   => ipcRenderer.invoke('files:browse', dir || null),
   fileRead:   (p)     => ipcRenderer.invoke('files:read', p),
