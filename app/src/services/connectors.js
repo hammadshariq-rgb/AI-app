@@ -686,12 +686,55 @@ async function getInstagramStats() {
     const since = until - 30 * DAY;
     // Insights need their own permission and can be refused (a brand-new account
     // has none yet), so each part is optional — the basics still come back.
-    const [igData, mediaData, daily, totals] = await Promise.all([
+    // Graph answers an unknown or unsupported metric with an error for the
+    // WHOLE call, so asking for three at once means one bad one loses all
+    // three. Meta has also renamed these more than once - impressions became
+    // views - so the name that works depends on the account and the version.
+    // Asked one at a time, a metric that is not available costs only itself.
+    //
+    // And an error from Graph arrives as an ordinary object, so it used to be
+    // treated as data and the figures silently came back null with nothing to
+    // say why. Now it is said out loud in the log.
+    const metric = async (name) => {
+      try {
+        const r = await graph(`${igId}/insights?metric=${name}&period=day&since=${since}&until=${until}`);
+        if (r && r.error) {
+          console.warn(`[instagram] ${name}: ${r.error.message || 'refused'}`);
+          return null;
+        }
+        return r;
+      } catch (err) {
+        console.warn(`[instagram] ${name}: ${err.message}`);
+        return null;
+      }
+    };
+
+    // The media list, with insights where they are allowed and without them
+    // where they are not. A still photo and a reel do not support the same
+    // metrics, so asking for all of them can lose the entire list - including
+    // the likes and comments that would have come back perfectly well.
+    const mediaFields = 'id,caption,timestamp,like_count,comments_count,media_type,media_product_type,permalink,thumbnail_url,media_url';
+    const mediaWithInsights = async () => {
+      const withIns = await graph(`${igId}/media?fields=${mediaFields},insights.metric(views,reach)&limit=25`);
+      if (withIns && !withIns.error && Array.isArray(withIns.data)) return withIns;
+      if (withIns && withIns.error) {
+        console.warn('[instagram] media insights refused:', withIns.error.message || '');
+      }
+      return graph(`${igId}/media?fields=${mediaFields}&limit=25`);
+    };
+
+    const [igData, mediaData, viewsDay, reachDay, profileDay, totals] = await Promise.all([
       graph(`${igId}?fields=name,username,followers_count,follows_count,media_count,profile_picture_url`),
-      graph(`${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,media_product_type,permalink,thumbnail_url,media_url,insights.metric(views,reach,saved,shares)&limit=25`),
-      graph(`${igId}/insights?metric=views,reach,profile_views&period=day&since=${since}&until=${until}`).catch(() => ({})),
+      mediaWithInsights(),
+      metric('views'),
+      metric('reach'),
+      metric('profile_views'),
       graph(`${igId}/insights?metric=accounts_engaged,total_interactions&metric_type=total_value&period=days_28`).catch(() => ({})),
     ]);
+    // Put back together in the shape the rest of this expects.
+    const daily = { data: [viewsDay, reachDay, profileDay]
+      .filter((r) => r && Array.isArray(r.data))
+      .flatMap((r) => r.data) };
 
     // A day-by-day metric comes back as a list of values to add up.
     const sumDaily = (name) => {
