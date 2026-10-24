@@ -33,12 +33,14 @@ async function safeJson(res) {
   catch { return { error: 'The server gave an answer I could not read. Please try again in a moment.' }; }
 }
 
-async function signup(email, password, name) {
+async function signup(email, password, name, age) {
   try {
     const res = await fetchWithTimeout(`${SERVER}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name }),
+      // Age rides along only when it was given, so the server can tell "not
+      // answered" from an answer.
+      body: JSON.stringify({ email, password, name, ...(age != null ? { age } : {}) }),
     });
     return safeJson(res);
   } catch (e) {

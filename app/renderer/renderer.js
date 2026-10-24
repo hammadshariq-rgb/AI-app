@@ -7367,7 +7367,23 @@ authSubmit.addEventListener('click', async () => {
 
   let result;
   if (authMode === 'signup') {
-    result = await window.jarvis.authSignup({ email, password, name: pendingAssistantName || 'My AI' });
+    // Checked here so they are told plainly, and again on the server, because
+    // a rule that only lives in the form it is typed into is not a rule.
+    const ageRaw = (document.getElementById('authAge')?.value || '').trim();
+    const age = ageRaw === '' ? null : Number(ageRaw);
+    if (ageRaw !== '' && (!Number.isInteger(age) || age < 13 || age > 120)) {
+      authError.textContent = (Number.isInteger(age) && age < 13)
+        ? 'You need to be at least 13 to use Callisto.'
+        : 'Please enter your age as a number between 13 and 120.';
+      authError.classList.remove('hidden');
+      authSubmit.disabled = false;
+      authSubmit.textContent = 'CREATE ACCOUNT';
+      return;
+    }
+    result = await window.jarvis.authSignup({
+      email, password, name: pendingAssistantName || 'My AI',
+      ...(age !== null ? { age } : {}),
+    });
   } else {
     result = await window.jarvis.authLogin({ email, password });
   }

@@ -89,7 +89,10 @@ async function pending(limit = 100) {
     .sort({ createdAt: -1 })
     .limit(Math.max(1, Math.min(200, Number(limit) || 100)))
     .toArray();
-  return rows.map((r) => ({ ...publicShape(r), ip: r.ip || null }));
+  // No address here either. What arrives is already a one-way hash and is
+  // only used to spot the same poster twice, which the count below says
+  // without handing the whole value to a screen.
+  return rows.map((r) => ({ ...publicShape(r), fromSamePoster: r.ip ? String(r.ip).slice(0, 8) : null }));
 }
 
 function _id(id) {

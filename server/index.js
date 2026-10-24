@@ -328,8 +328,10 @@ app.get('/reviews', async (req, res) => {
 
 app.post('/reviews', async (req, res) => {
   try {
-    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
-    const r = await reviews.add({ ...(req.body || {}), ip });
+    // Hashed, not stored. It is only ever used to notice the same person
+    // posting six reviews in a minute, and that works just as well on a hash -
+    // so a database dump contains no addresses.
+    const r = await reviews.add({ ...(req.body || {}), ip: visitorKey(req) });
     res.status(r.ok ? 200 : 400).json(r);
   } catch (err) {
     res.status(500).json({ ok: false, error: 'Could not save that just now.' });
@@ -471,8 +473,22 @@ function isAlwaysFree(email) {
 }
 
 app.post('/auth/signup', authLimiter, async (req, res) => {
-  const { email, password, name } = req.body || {};
+  const { email, password, name, age } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  // Age, checked here as well as in the form. A rule that only exists in the
+  // page it is typed into is not a rule: anybody can post straight to this.
+  const ageNum = age === undefined || age === null || age === '' ? null : Number(age);
+  if (ageNum !== null && (!Number.isFinite(ageNum) || !Number.isInteger(ageNum))) {
+    return res.status(400).json({ error: 'Please enter your age as a number.' });
+  }
+  if (ageNum !== null && (ageNum < 13 || ageNum > 120)) {
+    return res.status(400).json({
+      error: ageNum < 13
+        ? 'You need to be at least 13 to use Callisto.'
+        : 'Please enter a valid age.',
+    });
+  }
   // There was no rule at all, so "a" was a valid password. The likeliest way
   // into anyone's account is still their own password, and that is the
   // customer's data and our AI bill behind it.
@@ -488,7 +504,11 @@ app.post('/auth/signup', authLimiter, async (req, res) => {
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
   const isFreeUser = isAlwaysFree(email);
-  const user = await users.create({ email, passwordHash, name: name || '', ...(isFreeUser ? { freeAccess: true } : {}) });
+  const user = await users.create({
+    email, passwordHash, name: name || '',
+    ...(ageNum !== null ? { age: ageNum } : {}),
+    ...(isFreeUser ? { freeAccess: true } : {}),
+  });
   // Not awaited: a slow or misconfigured mailbox must not hold up the signup
   // that just succeeded.
   mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
@@ -1777,10 +1797,28 @@ const usage = require('./usage');
 const IMAGE_USES_PER_DAY = Number(process.env.IMAGE_USES_PER_DAY) || 5;
 const TRIAL_IMAGE_USES_PER_DAY = Number(process.env.TRIAL_IMAGE_USES_PER_DAY) || 1;
 
+// Somebody's address, turned into something that identifies them for counting
+// and for nothing else.
+//
+// Counting how many messages one visitor has had, or whether the same person
+// posted six reviews in a minute, needs a value that is the same each time
+// for the same visitor. It does not need to be their address, and an address
+// is where they live. This is a one-way hash with the server's own secret:
+// the same visitor hashes the same way, and nothing that gets out of here -
+// a log, a database dump, an admin screen - contains an address at all.
+function visitorKey(req) {
+  const raw = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim() || 'unknown';
+  try {
+    return crypto.createHmac('sha256', JWT_SECRET).update(raw).digest('hex').slice(0, 32);
+  } catch (_) {
+    return raw;   // hashing unavailable; counting still has to work
+  }
+}
+
 async function checkGuestOrUserLimit(req, res, next) {
   if (!req.userId) {
-    // Guest: IP-based 15/day limit
-    const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    // Guest: 15/day, counted per visitor rather than per address.
+    const ip = visitorKey(req);
     const today = new Date().toISOString().slice(0, 10);
     const entry = guestIpMap.get(ip) || { count: 0, date: today };
     if (entry.date !== today) { entry.count = 0; entry.date = today; }

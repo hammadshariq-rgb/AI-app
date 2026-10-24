@@ -1508,8 +1508,8 @@ ipcMain.handle('profile:set', (_e, profile) => {
 });
 
 // ── Auth IPC ──────────────────────────────────────────────────────────────────
-ipcMain.handle('auth:signup', async (_e, { email, password, name }) => {
-  const result = await authService.signup(email, password, name);
+ipcMain.handle('auth:signup', async (_e, { email, password, name, age }) => {
+  const result = await authService.signup(email, password, name, age);
   if (result.token) saveAuthToken(result.token);
   if (result.user) store.set('profile', { name: result.user.name || name, email: result.user.email });
   return result;

@@ -2257,6 +2257,7 @@
     <form id="signupForm" class="hidden">
       <input type="text" id="sName" class="auth-input" placeholder="Your name" required autocomplete="name" />
       <input type="email" id="sEmail" class="auth-input" placeholder="Email address" required autocomplete="email" />
+      <input type="number" id="sAge" class="auth-input" placeholder="Your age" min="13" max="120" step="1" inputmode="numeric" />
       <input type="password" id="sPass" class="auth-input" placeholder="Password (min 8 chars)" required minlength="8" />
       <button type="submit" class="auth-submit">Create Account</button>
       <p class="auth-err" id="sErr"></p>
@@ -3367,6 +3368,22 @@
   const checkoutUrl = (plan) =>
     `${SERVER}/checkout?token=${encodeURIComponent(token || '')}&plan=${plan === 'annual' ? 'annual' : 'monthly'}`;
 
+  // Age, only when they filled it in. Left blank it is simply not sent, so
+  // the server can tell "not answered" from an answer. Checked here so they
+  // are told plainly, and again on the server, because a rule that only lives
+  // in the form it is typed into is not a rule - anybody can post past it.
+  function _signupAge(){
+    const raw = (document.getElementById('sAge')?.value || '').trim();
+    if (raw === '') return {};
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 13 || n > 120) {
+      throw new Error(Number.isInteger(n) && n < 13
+        ? 'You need to be at least 13 to use Callisto.'
+        : 'Please enter your age as a number between 13 and 120.');
+    }
+    return { age: n };
+  }
+
   const goStripe = plan => {
     // Nobody pays without an account: there would be nowhere to put the
     // subscription, and they would come back to find themselves still on the
@@ -3878,7 +3895,11 @@
   document.getElementById('signupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('sErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
+    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value}, _signupAge()))});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}
+    // Say what was actually wrong. A bad age is thrown by _signupAge and is
+    // not a connection problem; telling somebody their internet is down when
+    // their age is out of range sends them looking in the wrong place.
+    catch(e){ err.textContent = (e && e.message && !/fetch|network|load failed/i.test(e.message)) ? e.message : 'Connection error.'; }
   });
 
   // Open chat — works even if not signed in yet
