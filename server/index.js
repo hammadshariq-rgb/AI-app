@@ -225,6 +225,13 @@ app.use(cors({
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  // A browser can only read a header it has been told it may read. The server
+  // has been handing back a renewed token in X-Refresh-Token for a long time
+  // and the website could never see it: the desktop app could, because it is
+  // not held to this rule. So a website token quietly ran out instead of
+  // being swapped, and the person was asked to sign in again for no reason
+  // they could see.
+  exposedHeaders: ['X-Refresh-Token'],
 }));
 
 // ── Stripe webhook (raw body before json parser) ──────────────────────────────

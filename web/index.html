@@ -3890,12 +3890,12 @@
   document.getElementById('loginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('lErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
+    try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;reflectSignedIn();hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
   });
   document.getElementById('signupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('sErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value}, _signupAge()))});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;hideAuth();if(!resumeBuy())openChat();}
+    try{const r=await fetch(`${SERVER}/auth/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({name:document.getElementById('sName').value,email:document.getElementById('sEmail').value,password:document.getElementById('sPass').value}, _signupAge()))});const d=await r.json();if(!r.ok){err.textContent=d.error||'Signup failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;reflectSignedIn();hideAuth();if(!resumeBuy())openChat();}
     // Say what was actually wrong. A bad age is thrown by _signupAge and is
     // not a connection problem; telling somebody their internet is down when
     // their age is out of range sends them looking in the wrong place.
@@ -3925,7 +3925,67 @@
   document.getElementById('cnUser')?.addEventListener('click',()=>{if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}});
 
   // Auto-login
-  (async()=>{if(!token)return;try{const r=await fetch(`${SERVER}/auth/me`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok){token=null;localStorage.removeItem('cal_tok');return;}const d=await r.json();user=d.user;isPrem=d.active;}catch{}})();
+  // ── Coming back ────────────────────────────────────────────────────────────
+  // Signing in is meant to last. Two things stopped it lasting:
+  //
+  //  - ANY reply that was not OK threw the token away. A cold start on the
+  //    server, a 502, a moment of bad wifi - all of them signed the person
+  //    out permanently, and from their side that is "it keeps forgetting me".
+  //    Only the server saying the token is no good is a reason to forget it.
+  //  - Nothing on the page was told once the account came back, so the avatar
+  //    said Guest and the Sign In button stayed up even though they WERE
+  //    signed in. It looked exactly like being signed out.
+  async function restoreSession(){
+    if(!token) return false;
+    try{
+      const r = await fetch(`${SERVER}/auth/me`, { headers:{ Authorization:`Bearer ${token}` } });
+
+      // A token close to its end is swapped for a fresh one as it is used, so
+      // somebody who comes back regularly is never asked to sign in again.
+      const fresh = r.headers.get('X-Refresh-Token');
+      if(fresh){ token = fresh; try{ localStorage.setItem('cal_tok', fresh); }catch(_){} }
+
+      if(r.status === 401 || r.status === 403){
+        token = null;
+        try{ localStorage.removeItem('cal_tok'); }catch(_){}
+        return false;
+      }
+      if(!r.ok) return false;          // server having a moment: keep the token
+
+      const d = await r.json();
+      user = d.user; isPrem = d.active;
+      reflectSignedIn();
+      return true;
+    }catch(_){
+      return false;                    // offline: still signed in, just unproven
+    }
+  }
+
+  // Everything on the page that shows who is signed in. Called after a restore
+  // as well as after a sign-in, because coming back has to look the same as
+  // arriving.
+  function reflectSignedIn(){
+    try{
+      if(!user) return;
+      const init = (user.name || user.email || '?')[0].toUpperCase();
+      const av = document.getElementById('cnAvatar'); if(av) av.textContent = init;
+      const un = document.getElementById('cnUname');
+      if(un) un.textContent = user.name || (user.email||'').split('@')[0] || '';
+      const si = document.getElementById('signinBtn'); if(si) si.style.display = 'none';
+      const n = document.getElementById('hnavName'); if(n) n.textContent = user.name || '';
+      const e = document.getElementById('hnavEmail'); if(e) e.textContent = user.email || '';
+      const pl = document.getElementById('hnavPlan');
+      if(pl) pl.textContent = isPrem ? '⭐ Premium — Unlimited' : 'Free Plan — 15 messages/day';
+      const ac = document.getElementById('hnavAcctContent'); if(ac) ac.style.display = 'flex';
+      const sp = document.getElementById('hnavSignInPrompt'); if(sp) sp.style.display = 'none';
+      if(typeof loadUsage === 'function') loadUsage();
+      if(typeof renderSess === 'function') renderSess();
+      if(typeof window._renderWebConnectors === 'function') window._renderWebConnectors();
+    }catch(_){}
+  }
+  window._reflectSignedIn = reflectSignedIn;
+
+  restoreSession();
 
   async function loadUsage(){try{const r=await fetch(`${SERVER}/web/usage`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok)return;usage=await r.json();isPrem=usage.isPremium;updateUsageUI();}catch{}}
   function updateUsageUI(){const box=document.getElementById('usageBox');if(isPrem){box.classList.add('hidden');return;}box.classList.remove('hidden');const u=usage.used||0,l=usage.limit||15,p=Math.min(100,(u/l)*100);document.getElementById('usageCt').textContent=`${u} / ${l}`;const f=document.getElementById('usageFill');f.style.width=p+'%';f.className='usage-fill'+(p>=100?' full':p>=80?' warn':'');}
