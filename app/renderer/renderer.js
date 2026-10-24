@@ -3118,6 +3118,33 @@ window._checkQuickLaunch = async function(text) {
   }
   window._runImageGeneration = runImageGeneration;
 
+  // ── Holding something up to be looked at ───────────────────────────────────
+  // "Turn on the camera", "how does this look", "what am I wearing", "can you
+  // see this". Callisto takes one picture at a size worth reading, gives the
+  // camera straight back, and says what it makes of it.
+  const WANTS_CAMERA = new RegExp(
+    // Asking for the camera itself.
+    '\\b(?:turn on|open|start|use|switch on)\\b[^.?!]{0,16}\\b(?:camera|webcam|cam)\\b'
+    + '|\\b(?:camera|webcam)\\b[^.?!]{0,10}\\b(?:on|please)\\b'
+    // Or asking it to look, which means the same thing.
+    + '|\\b(?:look at|have a look at|check out|see|watch)\\b\\s+(?:this|that|these|me|what)\\b'
+    + '|\\bcan you see\\b|\\bwhat (?:am|do) i\\b[^.?!]{0,20}\\b(?:wearing|holding|look)\\b'
+    + '|\\bhow (?:does|do) (?:this|that|these|i|it)\\b[^.?!]{0,14}\\blook\\b'
+    + '|\\bwhat do you think of (?:this|that|my)\\b'
+    + '|\\b(?:tell me )?what(?:\x27s| is) (?:wrong with )?this\\b[^.?!]{0,16}\\b(?:on camera|in front of me)\\b',
+    'i');
+
+  function wantsCameraLook(t) {
+    if (!WANTS_CAMERA.test(t)) return false;
+    // "look at this screen" and "what is on my screen" are screen assist's
+    // job, and it can already see the screen without a camera.
+    if (/\b(?:screen|display|monitor|my tab|this page|this window)\b/i.test(t)) return false;
+    // A picture already in hand is edited or described, not re-photographed.
+    if (/\b(?:photo|picture|image)\b/i.test(t) && _photoToEdit()) return false;
+    return true;
+  }
+  window._wantsCameraLook = wantsCameraLook;
+
   // ── Changing a picture they already have ───────────────────────────────────
   // An attached photo, or the last one Callisto made, plus "blur the
   // background" / "remove the background" / "make it black and white". The
@@ -3174,6 +3201,12 @@ window._checkQuickLaunch = async function(text) {
   const imgM = t.match(/(?:make|create|generate|draw|paint|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)\s+of\s+(.+)/i)
              || t.match(/(?:generate|create|draw|render)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:image|picture|photo|illustration|artwork|drawing|painting)[\s,]+(?:of\s+)?(.+)/i)
              || t.match(/(?:make|paint)\s+me\s+(?:a\s+|an\s+)?(?:picture|drawing|painting|illustration)\s+(?:of\s+)?(.+)/i);
+  // Asking Callisto to look at something in the room.
+  if (wantsCameraLook(t) && window.CallistoCameraLook) {
+    window.CallistoCameraLook.start(t);
+    return true;
+  }
+
   // Before making a NEW picture: are they asking to change one that already
   // exists? "Blur the background" with a photo attached is an edit, not a
   // request for a fresh picture of a blurred background.

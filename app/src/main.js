@@ -7362,6 +7362,41 @@ function _insideHome(p) {
   return full === home || full.startsWith(home + path.sep);
 }
 
+// ── Looking through the camera ───────────────────────────────────────────────
+// Holding something up to be looked at: what you are wearing, a drawing, a
+// board with a burnt component on it. The picture is taken in the window, at
+// a size worth reading, and comes here to be described.
+//
+// It is NOT the gesture camera: that runs at 320x240 because hand tracking
+// does not need more, and at that size a circuit board is a grey smudge.
+ipcMain.handle('camera:look', async (_e, { imageBase64, question }) => {
+  try {
+    if (!imageBase64) return { error: 'No picture came through from the camera.' };
+    const token = loadAuthToken();
+    if (!token) return { error: 'Sign in first and I can look at that.' };
+    const res = await fetch(`${_serverBase()}/ai/vision`, {
+      method: 'POST',
+      headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        instruction: question
+          || 'They are holding this up to the camera for you to look at. Say what you see and '
+           + 'give them the useful remark about it - whether it goes together, what is wrong with '
+           + 'it, what you would change. Two or three sentences, as a person would say it.',
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { error: body.error || 'I could not get a look at that.' };
+    }
+    const data = await res.json();
+    const text = data && (data.answer || data.text || data.subject);
+    return text ? { ok: true, text, subject: data.subject || '' } : { error: 'I could not make sense of that.' };
+  } catch (err) {
+    return { error: 'I could not get a look at that just now.' };
+  }
+});
+
 // ── The windows that are open ────────────────────────────────────────────────
 ipcMain.handle('apps:list', () => commands.listOpenApps().catch(() => []));
 ipcMain.handle('apps:switch', (_e, dir) =>
