@@ -1063,9 +1063,29 @@
     .mrow { display: flex; padding: 5px 18px; gap: 10px; animation: fadeUp 0.18s ease; max-width: 680px; width: 100%; margin-left: auto; margin-right: auto; box-sizing: border-box; }
     .mrow.user { flex-direction: row-reverse; }
     .mav { display: none; }
-    .mbub { max-width: 78%; padding: 9px 13px; border-radius: 13px; font-size: 13.5px; line-height: 1.68; }
-    .mbub.ai { background: rgba(255,255,255,0.035); border: 1px solid var(--border); color: var(--text); border-top-left-radius: 4px; }
-    .mbub.user { background: rgba(61,92,255,0.14); border: 1px solid rgba(61,92,255,0.2); color: var(--text); border-top-right-radius: 4px; }
+    /* The same bubbles as the app: the corner that points at the speaker is
+       the BOTTOM one beside the avatar, the glass is heavier, and there is a
+       shadow to lift it off the page. The website had a lighter, flatter
+       version with the pointed corner on the wrong side. */
+    .mbub { max-width: 78%; padding: 10px 14px; border-radius: 18px; font-size: 13.5px;
+            line-height: 1.68; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 14px -2px rgba(0,0,0,0.40); }
+    .mbub.ai { background: rgba(30,35,55,0.90); border: 1px solid rgba(255,255,255,0.09);
+               color: #e2ecff; border-bottom-left-radius: 4px; }
+    .mbub.user { background: linear-gradient(135deg, rgba(61,92,255,0.92), rgba(94,60,220,0.92));
+                 border: 1px solid rgba(120,150,255,0.30); color: #fff;
+                 border-bottom-right-radius: 4px; }
+    /* Copy, under Callisto's answers. Faint until the bubble is hovered, so
+       it is there when wanted and not shouting the rest of the time. */
+    .mbub-bar { margin-top: 8px; display: flex; gap: 7px; opacity: 0; transition: opacity .15s; }
+    .mbub:hover .mbub-bar, .mbub-bar:focus-within { opacity: 1; }
+    .mbub-btn { padding: 4px 10px; border-radius: 7px; cursor: pointer; font-size: 11px;
+                font-weight: 600; background: rgba(255,255,255,0.07);
+                border: 1px solid rgba(255,255,255,0.14); color: rgba(205,222,255,0.9); }
+    .mbub-btn:hover { background: rgba(255,255,255,0.14); }
+    .mbub-link { color: #8fb4ff; text-decoration: underline; }
+    #stopBtn { display: flex; align-items: center; justify-content: center;
+               background: rgba(220,60,70,0.92); border: none; cursor: pointer; }
     .mbub code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
     .mbub pre { background: rgba(0,0,0,0.4); border-radius: 8px; padding: 10px; margin: 6px 0; overflow-x: auto; font-size: 11.5px; }
     .mbub strong { color: #fff; }
@@ -2483,6 +2503,12 @@
           </button>
           <button id="sendBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+          <!-- Takes the send button's place while an answer is on its way,
+               so there is a way to call one off. There was none: once asked,
+               you waited. -->
+          <button id="stopBtn" title="Stop" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
           </button>
         </div>
         <button id="shiftVoiceBtn" onclick="(function(){document.getElementById('chatApp').classList.add('hidden');var land=document.getElementById('landing');land.classList.remove('hidden');land.style.removeProperty('display');document.getElementById('hero').style.display='flex';})()">
@@ -3995,6 +4021,26 @@
   uIn.addEventListener('input',()=>{uIn.style.height='auto';uIn.style.height=Math.min(uIn.scrollHeight,110)+'px';});
   uIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
   sBt.addEventListener('click',send);
+
+  // ── Stopping an answer that is on its way ──────────────────────────────────
+  // There was no way to call one off: once asked, you waited for it however
+  // long it took and however wrong the question had been.
+  let _inFlight = null;
+  const stopBtn = document.getElementById('stopBtn');
+
+  function showStop(on){
+    if(stopBtn) stopBtn.style.display = on ? '' : 'none';
+    if(sBt) sBt.style.display = on ? 'none' : '';
+  }
+  function stopAnswer(){
+    if(_inFlight){ try{ _inFlight.abort(); }catch(_){} _inFlight = null; }
+    document.getElementById('tRow')?.remove();
+    busy = false; sBt.disabled = false; showStop(false);
+    document.getElementById('chatOrb')?.classList.remove('thinking');
+    const st = document.getElementById('chatOrbStatus'); if(st) st.textContent = 'READY';
+  }
+  stopBtn?.addEventListener('click', stopAnswer);
+  window._stopAnswer = stopAnswer;
   document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{uIn.value=c.dataset.q;send();}));
   document.getElementById('newChatBtn')?.addEventListener('click',()=>{sessId=null;msgs=[];msgsEl.innerHTML='';msgsEl.appendChild(welcomeEl);welcomeEl.classList.remove('hidden');renderSess();});
 
@@ -4004,9 +4050,92 @@
     const av=document.createElement('div');av.className='mav '+(role==='user'?'usr':'ai');av.textContent=role==='user'?(user?.name?.[0]||'U').toUpperCase():'C';
     const b=document.createElement('div');b.className='mbub '+(role==='user'?'user':'ai');
     b.innerHTML=fmt(text);
+    // Copy, on Callisto's answers. The app has had this for a long time and
+    // the website had no way to take an answer out of it at all, short of
+    // selecting it by hand.
+    if(role!=='user'){
+      const bar=document.createElement('div'); bar.className='mbub-bar';
+      const copy=document.createElement('button');
+      copy.className='mbub-btn'; copy.type='button'; copy.textContent='Copy';
+      copy.title='Copy this answer';
+      copy.addEventListener('click',()=>{
+        try{
+          navigator.clipboard.writeText(text);
+          copy.textContent='Copied';
+          setTimeout(()=>{ copy.textContent='Copy'; },1600);
+        }catch(_){ copy.textContent='Could not copy'; }
+      });
+      bar.appendChild(copy);
+      b.appendChild(bar);
+    }
     row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;
+    return b;
   }
-  function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>').replace(/^/,'<p>').replace(/$/,'</p>');}
+  // ── Things the website cannot do ───────────────────────────────────────────
+  // Asking for a 3D model or a video on the website used to go to the model,
+  // which would happily describe making one and make nothing - there is no
+  // studio here to make it in. Saying so plainly, in the conversation, is
+  // better than a pop-up over the top of it, and far better than a promise
+  // that quietly does not happen.
+  const WEB_CANNOT = [
+    [/\b3d\b[^.?!]{0,20}\bmodel\b|\bmodel\b[^.?!]{0,10}\bin 3d\b|\bblender\b|\bmesh\b/i,
+      'Making 3D models'],
+    [/\b(?:make|create|generate|turn [^.?!]{0,20}into)\b[^.?!]{0,24}\b(?:video|animation|clip|reel)\b|\banimate\b/i,
+      'Making videos'],
+    [/\b(?:circle|magic cursor)\b|\bwhat(?:\x27s| is) on my screen\b|\bscreen assist\b|\blook at my screen\b/i,
+      'Reading your screen'],
+    [/\bmagic edit(?:or)?\b|\bedit (?:my |this )?(?:highlighted|selected)\b/i,
+      'Editing text in other apps'],
+    [/\bon (?:my|the) tv\b|\bchromecast\b|\bcast\b[^.?!]{0,12}\btv\b/i,
+      'Controlling your TV'],
+    [/\b(?:open|close)\b[^.?!]{0,16}\b(?:whatsapp|notepad|word|excel|chrome|spotify|file explorer|finder)\b/i,
+      'Opening and closing apps on your computer'],
+    [/\brun\b[^.?!]{0,14}\b(?:command|terminal|code)\b|\bterminal\b/i,
+      'Running commands'],
+    [/\b(?:open|find)\b[^.?!]{0,16}\b(?:my )?(?:files?|folders?)\b/i,
+      'Opening files on your computer'],
+    [/\b(?:remind me|set a reminder|add .{0,20}to my calendar)\b/i,
+      'Reminders and calendar'],
+    [/\bhand (?:control|gestures?)\b|\bcontrol .{0,16}with my hands?\b/i,
+      'Hand control'],
+  ];
+
+  // Asking without answering, so the caller can put their message up first.
+  window._webCannotTest = (text) => WEB_CANNOT.some(([re]) => re.test(text));
+  window._webNeedsAccountTest = (text) => !token && WEB_NEEDS_ACCOUNT.test(text);
+
+  // Returns true when it answered, so the caller does not also send it on.
+  window._webCannot = function(text){
+    for(const [re, what] of WEB_CANNOT){
+      if(re.test(text)){
+        addMsg('ai',
+          `**${what}** is only in the downloaded app — this page cannot do it.\n\n`
+          + `Callisto on your computer can, along with everything else here. `
+          + `[Download it](https://github.com/hammadshariq-rgb/AI-app/releases/latest) — it is free.`);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Things that work here but need an account first.
+  const WEB_NEEDS_ACCOUNT = /\b(?:my|our)\b[^.?!]{0,16}\b(?:numbers|stats|analytics|followers|subscribers|revenue|sales|payments|instagram|tiktok|youtube|website)\b|\bgive me an update\b|\bhow (?:are|is) (?:my|the) (?:numbers|accounts|channels?)\b|\bconnect (?:my |an )?\w+/i;
+
+  window._webNeedsAccount = function(text){
+    if(token) return false;
+    if(!WEB_NEEDS_ACCOUNT.test(text)) return false;
+    addMsg('ai', 'That one needs an account — it reads from your own connected accounts, so there has to be an account to attach them to. It is free and takes a moment.');
+    setTimeout(()=>{ try{ showAuthForced(); }catch(_){} }, 600);
+    return true;
+  };
+
+  function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    // Links, which this did not render at all - a markdown link came out as
+    // literal brackets, so "Download it" read as punctuation. Only http and
+    // https: anything else here would be a way to put a javascript: link into
+    // the page.
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" class="mbub-link">$1</a>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>').replace(/^/,'<p>').replace(/$/,'</p>');}
   function showTyping(){const row=document.createElement('div');row.className='mrow ai';row.id='tRow';const av=document.createElement('div');av.className='mav ai';av.textContent='C';const b=document.createElement('div');b.className='mbub ai';b.innerHTML='<div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;}
 
   // ── Web Action Detection ────────────────────────────────────────────────────
@@ -4074,7 +4203,7 @@
   // ────────────────────────────────────────────────────────────────────────────
 
   function clearChat(){
-    msgs=[];sessId=null;busy=false;sBt.disabled=false;
+    msgs=[];sessId=null;busy=false;sBt.disabled=false;showStop(false);_inFlight=null;
     msgsEl.innerHTML='';
     document.getElementById('welcome').classList.remove('hidden');
     document.getElementById('chatOrb').classList.remove('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='STANDBY';}
@@ -4186,7 +4315,22 @@
     if(typeof window._webNumbersIntent==='function' && window._webNumbersIntent(t)){
       uIn.value='';addMsg('user',t);addMsg('ai','Here are your numbers.');return;
     }
+    // Things this page cannot do, and things that need an account. Said in
+    // the conversation rather than as a pop-up over it, and said BEFORE the
+    // model is asked - it would otherwise describe making a 3D model and make
+    // nothing, because there is no studio here to make it in.
+    if((typeof window._webCannot==='function' && window._webCannotTest(t))
+       || (typeof window._webNeedsAccount==='function' && window._webNeedsAccountTest(t))){
+      // Their message goes up first, or the answer appears above the question.
+      uIn.value=''; uIn.style.height='auto';
+      addMsg('user',t);
+      if(window._webCannotTest(t)) window._webCannot(t);
+      else window._webNeedsAccount(t);
+      return;
+    }
+
     uIn.value='';uIn.style.height='auto';sBt.disabled=true;busy=true;
+    showStop(true);
     document.getElementById('chatOrb').classList.add('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='THINKING';}
     const pendingAction=detectAction(t);
     msgs.push({role:'user',content:t});addMsg('user',t);showTyping();
@@ -4204,14 +4348,15 @@
         + (numbers ? `\n\nTHEIR OWN ACCOUNTS, READ JUST NOW - answer questions about their numbers from these and nothing else, and never say you cannot see them:\n${numbers}` : '');
       const headers={'Content-Type':'application/json'};
       if(token) headers['Authorization']=`Bearer ${token}`;
-      const r=await fetch(`${SERVER}/web/chat`,{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
+      _inFlight=new AbortController();
+      const r=await fetch(`${SERVER}/web/chat`,{method:'POST',signal:_inFlight.signal,headers,body:JSON.stringify({messages:[{role:'system',content:sys},...msgs.slice(-20)]})});
       keepRenewedToken(r);
 
       // Handle 401 — needs sign in
-      if(r.status===401){msgs.pop();document.getElementById('tRow')?.remove();showAuth();busy=false;sBt.disabled=false;return;}
+      if(r.status===401){msgs.pop();document.getElementById('tRow')?.remove();showAuth();busy=false;sBt.disabled=false;showStop(false);_inFlight=null;return;}
       // Handle 429 — daily limit
-      if(r.status===429){const d=await r.json();if(d.error==='daily_limit_reached'){msgs.pop();document.getElementById('limitModal').classList.remove('hidden');busy=false;sBt.disabled=false;return;}}
-      if(!r.ok){document.getElementById('tRow')?.remove();addMsg('assistant','Sorry, something went wrong.');busy=false;sBt.disabled=false;return;}
+      if(r.status===429){const d=await r.json();if(d.error==='daily_limit_reached'){msgs.pop();document.getElementById('limitModal').classList.remove('hidden');busy=false;sBt.disabled=false;showStop(false);_inFlight=null;return;}}
+      if(!r.ok){document.getElementById('tRow')?.remove();addMsg('assistant','Sorry, something went wrong.');busy=false;sBt.disabled=false;showStop(false);_inFlight=null;return;}
 
       // Streaming — show words as they arrive
       document.getElementById('tRow')?.remove();
@@ -4243,8 +4388,15 @@
           }catch{}
         }
       }
-    }catch{document.getElementById('tRow')?.remove();addMsg('assistant','Connection error.');}
-    busy=false;sBt.disabled=false;uIn.focus();
+    }catch(e){
+      document.getElementById('tRow')?.remove();
+      // Pressing Stop makes fetch throw. That is not a connection problem and
+      // must not be reported as one - they asked for it to stop and it did.
+      if(!(e && (e.name==='AbortError' || /abort/i.test(e.message||'')))){
+        addMsg('assistant','Connection error.');
+      }
+    }
+    busy=false;sBt.disabled=false;showStop(false);_inFlight=null;uIn.focus();
     document.getElementById('chatOrb').classList.remove('thinking');{const st=document.getElementById('chatOrbStatus');if(st)st.textContent='STANDBY';}
   }
 
