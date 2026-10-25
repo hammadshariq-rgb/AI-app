@@ -5264,16 +5264,78 @@ const GOOGLE_OAUTH_SCOPES = {
   googleAccount: 'openid email profile',  // minimal — just identifies which Google account to use
 };
 
+// The exact loopback addresses registered on the Google OAuth client. Google
+// matches these character for character, so every one of them has to exist in
+// the console under "Authorised redirect URIs" - as http://127.0.0.1:PORT,
+// with no trailing slash and no path.
+const OAUTH_PORTS = [53123, 53124, 53125];
+
+// Take the first of those ports that is free. A port already in use throws
+// EADDRINUSE asynchronously, so each attempt needs its own error handler, and
+// the handler has to be removed again or the first failure keeps firing on the
+// listener that eventually succeeds.
+function startOAuthListener(server, done) {
+  let i = 0;
+  let settled = false;
+  const attempt = () => {
+    if (i >= OAUTH_PORTS.length) { if (!settled) { settled = true; done(null); } return; }
+    const port = OAUTH_PORTS[i++];
+
+    // Both handlers are removed by whichever fires. Passing the callback to
+    // listen() instead looks tidier and is wrong: a failed bind leaves that
+    // callback attached to 'listening', so when a LATER port succeeds the old
+    // callback fires too and reports the port that failed. That put the wrong
+    // port in the redirect URI while the server sat on a different one - the
+    // same redirect_uri_mismatch this whole change exists to fix.
+    const cleanup = () => {
+      server.removeListener('error', onError);
+      server.removeListener('listening', onListening);
+    };
+    const onError = (err) => {
+      cleanup();
+      if (err && err.code === 'EADDRINUSE') { attempt(); return; }
+      console.error('[OAuth] could not listen on ' + port + ':', err && err.message);
+      if (!settled) { settled = true; done(null); }
+    };
+    const onListening = () => {
+      cleanup();
+      // Report the port actually bound, never the one we asked for.
+      const bound = server.address() && server.address().port;
+      if (!settled) { settled = true; done(bound || port); }
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '127.0.0.1');
+  };
+  attempt();
+}
+
 async function startGoogleOAuthFlow(service) {
   const http = require('http');
   const scope = GOOGLE_OAUTH_SCOPES[service];
   if (!scope) return false;
 
-  // Spin up a one-shot local HTTP server on a random port to catch the redirect
+  // Spin up a one-shot local HTTP server to catch the redirect.
+  //
+  // The port used to be whatever the OS handed out (listen(0)), and that is
+  // why connecting YouTube, Calendar, Analytics or the Google account failed
+  // with redirect_uri_mismatch every time. Google only ignores the port for
+  // an OAuth client of type "Desktop app"; for a "Web application" client the
+  // redirect must match one registered in the console EXACTLY, port included
+  // - and a random port can never match something registered in advance.
+  //
+  // So the port is now one of a small fixed set, each of which is registered
+  // in the console. This works whichever type the client turns out to be,
+  // which a random port never could. Several, because a single hard-coded
+  // port is one conflicting program away from being unusable.
   return new Promise((resolve) => {
     const server = http.createServer();
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
+    startOAuthListener(server, (port) => {
+      if (!port) {
+        console.error('[OAuth] none of the callback ports were free:', OAUTH_PORTS.join(', '));
+        resolve(false);
+        return;
+      }
       const redirectUri = `http://127.0.0.1:${port}`;
 
       server.once('request', async (req, res) => {
