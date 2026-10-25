@@ -32,7 +32,7 @@
   // Writing code is its own way of asking, and none of the words above cover
   // it: nobody says "fix me a login page for me". These are the shapes people
   // actually use when they want something built.
-  const CODE_START = /^(?:ok(?:ay)?[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:write|code|build|create|make|add|implement|scaffold|generate|set\s+up)\b[^.?!]{0,100}\b(?:page|screen|component|function|class|script|file|endpoint|route|api|form|button|test|tests|feature|app|site|game|bot|hook|module|method|model|schema|migration|style(?:s|sheet)?|css|html|react|vue|svelte|python|node|server|login|signup|dashboard|toggle|modal|navbar|sidebar|footer|header)\b|^(?:start|begin)\s+coding\b|\bwrite\s+(?:me\s+)?(?:some|the)?\s*code\b/i;
+  const CODE_START = /^(?:ok(?:ay)?[,\s]+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:write|code|build|create|make|add|implement|scaffold|generate|set\s+up)\b[^.?!]{0,100}\b(?:page|web ?page|web ?site|website|web ?app|landing ?page|screen|component|function|class|script|file|endpoint|route|api|form|button|test|tests|feature|app|site|game|portfolio|blog|shop|store|bot|hook|module|method|model|schema|migration|style(?:s|sheet)?|css|html|react|vue|svelte|next(?:\.?js)?|python|node|server|login|signup|dashboard|toggle|modal|navbar|sidebar|footer|header)\b|^(?:start|begin)\s+coding\b|\bwrite\s+(?:me\s+)?(?:some|the)?\s*code\b/i;
 
   // ...but not when they mean a picture, a video, a document or a 3D model,
   // which have their own makers and must not be swallowed by this.

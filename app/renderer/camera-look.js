@@ -71,6 +71,10 @@
         <div class="cl-row">
           <button class="cl-btn" id="clSnap" disabled>Look now</button>
           <button class="cl-btn ghost" id="clAgain" hidden>Take another</button>
+          <!-- What was photographed, made into something. Shown only once
+               there is a picture to work from. -->
+          <button class="cl-btn ghost" id="cl3d" hidden>Make a 3D model</button>
+          <button class="cl-btn ghost" id="clVid" hidden>Make a video</button>
           <button class="cl-btn ghost" id="clClose">Close</button>
         </div>
       </div>`;
@@ -81,6 +85,42 @@
     root.querySelector('#clClose').addEventListener('click', close);
     root.querySelector('#clSnap').addEventListener('click', () => capture(0));
     root.querySelector('#clAgain').addEventListener('click', () => { shotEl.hidden = true; videoEl.hidden = false; start(lastQuestion); });
+
+    // Turning what was photographed into something else. The subject Callisto
+    // worked out from the picture is what gets built, so "turn this into a 3D
+    // model" means the thing in your hand rather than the words you said.
+    root.querySelector('#cl3d').addEventListener('click', () => {
+      if (!lastSubject) return;
+      close();
+      const ask = `make a 3d model of ${lastSubject}`;
+      if (typeof addMessage === 'function') addMessage('user', ask);
+      if (typeof sendToJarvis === 'function') sendToJarvis(ask);
+    });
+    root.querySelector('#clVid').addEventListener('click', () => {
+      close();
+      // Straight from the photograph, not from a description of it: the
+      // video maker takes a picture, and this is the picture.
+      if (typeof addMessage === 'function') {
+        addMessage('user', `make a video of ${lastSubject || 'this'}`);
+      }
+      if (window.jarvis && window.jarvis.higgsGenerate && lastShot) {
+        if (window.CallistoVideoViewer) {
+          window.CallistoVideoViewer.showLoading({ title: lastSubject || 'Video' });
+        }
+        window.jarvis.higgsGenerate({
+          prompt: lastSubject ? `${lastSubject}, cinematic` : 'bring this to life, cinematic',
+          imageBase64: lastShot,
+        }).then((r) => {
+          if (r && r.url && window.CallistoVideoViewer) {
+            window.CallistoVideoViewer.open(r.url, { title: lastSubject || 'Video' });
+          } else if (window.CallistoVideoViewer) {
+            window.CallistoVideoViewer.fail((r && r.error) || 'That video did not come back.');
+          }
+        }).catch((err) => {
+          window.CallistoVideoViewer?.fail(err.message || 'That video did not come back.');
+        });
+      }
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && root && !root.classList.contains('hidden')) close();
     });
@@ -88,6 +128,8 @@
 
   let stream = null;
   let lastQuestion = '';
+  let lastShot = null;      // the photograph itself
+  let lastSubject = '';     // what Callisto said it was
 
   function stopCamera() {
     // Given back the moment the picture is taken. A camera that stays on
@@ -102,6 +144,10 @@
     lastQuestion = question || '';
     root.classList.remove('hidden');
     root.querySelector('#clAgain').hidden = true;
+    // Nothing to make anything from until there is a new picture.
+    root.querySelector('#cl3d').hidden = true;
+    root.querySelector('#clVid').hidden = true;
+    lastShot = null; lastSubject = '';
     shotEl.hidden = true;
     videoEl.hidden = false;
     statusEl.textContent = 'Starting the camera…';
@@ -152,6 +198,7 @@
     const dataUrl = c.toDataURL('image/jpeg', 0.88);
 
     // Freeze what was taken, and hand the camera back immediately.
+    lastShot = dataUrl;
     shotEl.src = dataUrl;
     shotEl.hidden = false;
     videoEl.hidden = true;
@@ -162,6 +209,9 @@
       const r = await window.jarvis.cameraLook?.(dataUrl, lastQuestion || null);
       if (r && r.ok && r.text) {
         statusEl.textContent = r.text;
+        lastSubject = (r.subject || '').trim();
+        root.querySelector('#cl3d').hidden = !lastSubject;
+        root.querySelector('#clVid').hidden = false;
         // Into the conversation as well, so it can be asked about afterwards.
         if (typeof addMessage === 'function') addMessage('assistant', r.text);
         if (typeof say === 'function') say(r.text);

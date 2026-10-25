@@ -936,6 +936,7 @@ function handleDeepLink(url) {
         else if (service === 'youtube') connectors.saveYouTubeTokens(tokens);
         else if (service === 'instagram') connectors.saveInstagramTokens(tokens);
         else if (service === 'tiktok') connectors.saveTikTokTokens(tokens);
+        forgetConnectorCaches();
         if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
       }
     }
@@ -5266,7 +5267,8 @@ async function startGoogleOAuthFlow(service) {
               const ui = await uiRes.json();
               if (ui.email) {
                 connectors.saveGoogleAccountEmail(ui.email);
-                if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'googleAccount', email: ui.email });
+                forgetConnectorCaches();
+        if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'googleAccount', email: ui.email });
               }
             } catch (e) {
               console.error('[OAuth] googleAccount userinfo failed:', e.message);
@@ -5289,7 +5291,8 @@ async function startGoogleOAuthFlow(service) {
             return;
           }
 
-          if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
+          forgetConnectorCaches();
+        if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service });
           resolve(true);
         } catch (err) {
           console.error(`[OAuth] ${service} token exchange failed:`, err.message);
@@ -5369,7 +5372,8 @@ async function startMicrosoftOAuthFlow() {
             expires_in: tokens.expires_in || 3600,
           });
 
-          if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'outlook' });
+          forgetConnectorCaches();
+        if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'outlook' });
           resolve(true);
         } catch (err) {
           console.error('[OAuth] Outlook token exchange failed:', err.message);
@@ -5421,6 +5425,7 @@ ipcMain.handle('connector:connect', async (_e, service) => {
       const props = await connectors.listAnalyticsProperties();
       overlayWindow.webContents.send('analytics:showPropertyPicker', { properties: props });
     } else {
+      forgetConnectorCaches();
       overlayWindow.webContents.send('connector:connected', { service });
     }
   });
@@ -5443,7 +5448,8 @@ ipcMain.handle('analytics:changeProperty', async () => {
 
 ipcMain.handle('analytics:selectProperty', async (_e, propertyId) => {
   connectors.saveAnalyticsPropertyId(propertyId);
-  if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'analytics' });
+  forgetConnectorCaches();
+        if (overlayWindow) overlayWindow.webContents.send('connector:connected', { service: 'analytics' });
   return { ok: true };
 });
 ipcMain.handle('connector:disconnect', (_e, service) => {
@@ -7215,6 +7221,22 @@ ipcMain.handle('dm:send', async (_e, { platform, to, text, contactId }) => {
 // five APIs, and it returns null when nothing is connected.
 let _briefCache = { day: '', text: null };
 
+// Everything remembered about what is connected and what it says, thrown away
+// the moment a connection changes.
+//
+// Three caches held an answer from before: the morning round-up kept its line
+// for a day, the per-platform figures for three minutes, and the spoken
+// round-up for two. Connect Instagram and Callisto would still be saying
+// nothing is connected, from memory, without going to look - which is
+// indistinguishable from the connection not having worked.
+function forgetConnectorCaches(why) {
+  try { _briefCache = { day: "", text: null }; } catch (_) {}
+  try { _statCache.clear(); _statFlight.clear(); } catch (_) {}
+  try { _roundUpCache = { at: 0, text: null }; } catch (_) {}
+  console.log("[connectors] forgot what was cached (" + (why || "changed") + ")");
+}
+
+
 // Everything "give me an update" should actually cover: the follower counts,
 // how the newest post on each platform is doing, the takings, and the
 // portfolio - each in one line. Nothing is allowed to hold the rest up, and a
@@ -7328,7 +7350,14 @@ ipcMain.handle('outlook:send', (_e, msg) => connectors.sendOutlookEmail(msg || {
 
 ipcMain.handle('connector:statsBriefing', async () => {
   const today = new Date().toDateString();
-  if (_briefCache.day === today) return _briefCache.text;
+  // A day is far too long to remember "nothing is connected".
+  //
+  // This cached whatever came back, including nothing, for the rest of the
+  // day. So asking once before connecting anything meant every ask after
+  // that - including right after connecting Instagram - answered "nothing is
+  // connected yet" from memory, without going to look. Only a real answer is
+  // worth keeping.
+  if (_briefCache.day === today && _briefCache.text) return _briefCache.text;
   try {
     // Same cache again. The morning briefing and the dashboard are usually
     // opened within moments of each other, and this used to fetch all seven

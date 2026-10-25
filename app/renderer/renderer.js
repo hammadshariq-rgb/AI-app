@@ -2823,6 +2823,35 @@ window._checkQuickLaunch = async function(text) {
   // briefing says it - followers, views, visitors, orders and what Stripe has
   // taken - with the panel opened alongside. Routing this through the model
   // meant it sometimes answered in writing and said nothing at all.
+  // ── "I'm back" ─────────────────────────────────────────────────────────────
+  // Not the numbers - the whole brief: the weather, the news, the accounts,
+  // and what is on today. The same thing said on the first open of the day,
+  // asked for when somebody comes back to the desk.
+  // Anchored at BOTH ends on purpose. "I'm back" is a greeting; "I'm back in
+  // the office tomorrow at five" is a sentence that happens to start the same
+  // way and is almost certainly a reminder. Without the end anchor the second
+  // one got a weather report instead.
+  const IM_BACK = /^(?:ok(?:ay)?[,\s]+)?(?:i(?:'|’)?m|i am|im)\s+(?:back|awake|here|up|home)\s*[.!]*$|^(?:good\s+)?(?:morning|afternoon|evening)\s*[.!]*$|^(?:hey|hi|hello)\s*[.!]*$|^\s*(?:catch me up|brief me|what did i miss)\s*[?.!]*$/i;
+  if (IM_BACK.test(t) && typeof composeDailyBriefing === 'function') {
+    (async () => {
+      setState('thinking');
+      try {
+        const p = profile || {};
+        const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
+        const who = p.displayName || title;
+        const b = await composeDailyBriefing(who);
+        addMessage('assistant', b.text);
+        const audio = await window.jarvis.speak(b.text).catch(() => null);
+        if (audio) playAudioChunks([audio]);
+        if (b.hadTasks) window.tkRefresh?.();
+      } catch (err) {
+        addMessage('assistant', 'Welcome back. I could not put the briefing together just now.');
+      }
+      setState('idle');
+    })();
+    return true;
+  }
+
   const STATS_RE = /\b(?:show|tell|give|read|what(?:'?s| are| is)?|how(?:'?s| are| is)?)\b[^.?!]{0,20}\b(?:my|the)\b[^.?!]{0,16}\b(?:stats|statistics|analytics|numbers|figures|metrics|socials)\b|^(?:my )?(?:stats|analytics|numbers)$/i;
   if (STATS_RE.test(t) && window.jarvis.connectorStatsBriefing) {
     (async () => {
@@ -3131,7 +3160,10 @@ window._checkQuickLaunch = async function(text) {
     + '|\\bcan you see\\b|\\bwhat (?:am|do) i\\b[^.?!]{0,20}\\b(?:wearing|holding|look)\\b'
     + '|\\bhow (?:does|do) (?:this|that|these|i|it)\\b[^.?!]{0,14}\\blook\\b'
     + '|\\bwhat do you think of (?:this|that|my)\\b'
-    + '|\\b(?:tell me )?what(?:\x27s| is) (?:wrong with )?this\\b[^.?!]{0,16}\\b(?:on camera|in front of me)\\b',
+    + '|\\b(?:tell me )?what(?:\x27s| is) (?:wrong with )?this\\b[^.?!]{0,16}\\b(?:on camera|in front of me)\\b'
+    // Asked for by name, which is what it is called in the quick commands.
+    + '|\\bcamera scanner\\b|\\bscan(?:ner)?\\b[^.?!]{0,10}\\b(?:mode|this|it)\\b'
+    + '|\\bwhat is this\\b|\\bwhat am i (?:holding|showing)\\b',
     'i');
 
   function wantsCameraLook(t) {

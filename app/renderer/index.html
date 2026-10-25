@@ -893,6 +893,19 @@
     #gesturePanel.hidden { display: none !important; }
     @keyframes gpSlideUp { from { opacity:0; transform:translateY(16px) scale(0.95); } to { opacity:1; transform:none; } }
     #gesturePanel::before { content:''; position:absolute; top:0; left:0; right:0; height:1.5px; background:linear-gradient(90deg,transparent,rgba(61,255,180,0.7),rgba(0,180,255,0.5),transparent); }
+    /* Hiding the camera view, not the camera. Sits over the corner of the
+       preview; hand control carries on behind it. */
+    #gpHideCam { position:absolute; top:6px; right:6px; z-index:5; width:24px; height:24px;
+      border-radius:7px; border:1px solid rgba(255,255,255,0.18); cursor:pointer;
+      background:rgba(0,0,0,0.55); color:rgba(235,242,255,0.9); font-size:12px;
+      line-height:1; display:flex; align-items:center; justify-content:center; padding:0 }
+    #gpHideCam:hover { background:rgba(0,0,0,0.8) }
+    /* Put away: the picture goes, the panel and the readout stay. */
+    .gp-cam-wrap.cam-hidden { aspect-ratio:auto; height:34px }
+    .gp-cam-wrap.cam-hidden video, .gp-cam-wrap.cam-hidden canvas { display:none }
+    .gp-cam-wrap.cam-hidden::after { content:'Camera hidden — hands still working';
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      font-size:10px; letter-spacing:.06em; color:rgba(150,175,225,0.75) }
     .gp-cam-wrap { position:relative; width:100%; aspect-ratio:4/3; background:#000; overflow:hidden; }
     #gestureCamPreview { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); opacity:0.88; }
     #gestureOverlayCanvas { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); pointer-events:none; }
@@ -2392,6 +2405,10 @@
       <button id="gestureToggleBtn" data-keys-title="Toggle gesture control (Ctrl+Shift+G)" title="Toggle gesture control (Ctrl+Shift+G)">👋</button>
       <div id="gesturePanel" class="hidden">
         <div class="gp-cam-wrap">
+          <!-- Puts the camera view away WITHOUT stopping hand control. The
+               camera keeps running and your hands keep working; you just stop
+               having to look at yourself. -->
+          <button id="gpHideCam" title="Hide the camera view — hand control keeps working" aria-label="Hide camera view">&#10005;</button>
           <video id="gestureCamPreview" autoplay playsinline muted></video>
           <canvas id="gestureOverlayCanvas"></canvas>
         </div>
@@ -3241,6 +3258,23 @@
       const toggleBtn     = document.getElementById('gestureToggleBtn');
       const panel         = document.getElementById('gesturePanel');
       const video         = document.getElementById('gestureCamPreview');
+
+      // Hiding the camera VIEW, which is not the same as turning the camera
+      // off. The stream keeps running and every gesture keeps working - the
+      // picture of yourself just goes away. Stopping the stream here would
+      // stop hand control with it, which is the opposite of what is wanted.
+      (function () {
+        const wrap = document.querySelector('.gp-cam-wrap');
+        const btn = document.getElementById('gpHideCam');
+        if (!wrap || !btn) return;
+        btn.addEventListener('click', () => {
+          const hidden = wrap.classList.toggle('cam-hidden');
+          btn.innerHTML = hidden ? '&#128065;' : '&#10005;';
+          btn.title = hidden
+            ? 'Show the camera view again'
+            : 'Hide the camera view — hand control keeps working';
+        });
+      })();
       const overlayCanvas = document.getElementById('gestureOverlayCanvas');
       const gpIcon        = document.getElementById('gpGestureIcon');
       const gpAction      = document.getElementById('gpActionText');
