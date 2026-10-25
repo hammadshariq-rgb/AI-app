@@ -619,20 +619,20 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'create_document',
-      description: 'Create a richly formatted document for the user with headings, paragraphs, bullet lists, and colourful tables. Use when the user says "create a document about X", "write a document on X", "make a document regarding X", "write me a report on X", "create a word file about X", "draft a document about X", or similar. Produce thorough, well-researched content with multiple sections and at least one table where appropriate.',
+      description: 'Write a real document (.docx) for the user — a report, proposal, brief, plan, letter, policy, essay, summary, guide or anything else they want as a file. Use when they say "create a document about X", "write me a report on X", "draft a proposal for X", "make a word file about X", or similar.\n\nWrite it the way somebody who does this for a living would hand it over — a finished piece of work, not an outline with the thinking left out:\n- Open with a short section that states the point of the document and its conclusion, so a reader who stops after the first page still has the answer. Do not open with "In this document we will…".\n- Write in full paragraphs of real prose, 3-6 sentences each. A document that is nothing but bullet points is a notepad, not a document. Use bullets for genuine lists — criteria, steps, options — and paragraphs for everything else.\n- Be specific. Name the figures, dates, standards, names and trade-offs. "Significant savings" is worth nothing; "roughly 18% lower, about £40k a year" is worth something. Where you do not know a real figure, say what it depends on rather than inventing one, and mark any illustrative number as an example.\n- Use everything the user told you — their situation, numbers, constraints, audience, deadline — rather than writing the generic version of the topic.\n- Put anything with more than two dimensions in a table (comparisons, costs, timelines, responsibilities, risk and mitigation). Give each table a different header colour. A table beats three paragraphs describing the same grid.\n- Structure it with real headings in a sensible order, 5-8 sections for anything substantial, each doing a different job. Never repeat the same point under two headings.\n- Use **bold** for the words that carry the meaning and [text](url) for sources — both come through into Word as real formatting.\n- Close with what should happen next: the recommendation, the decision needed, or the open questions. Not a summary of what the reader just read.\n- Match length to the ask: a letter is one page, a report on a serious subject is several. Never pad to look thorough.',
       parameters: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'A concise, descriptive title for the document.' },
+          title: { type: 'string', description: 'A concise, descriptive title for the document — what it is about, not "Document".' },
           sections: {
             type: 'array',
-            description: 'Ordered array of document sections. Alternate headings, paragraphs, bullet lists, and tables to create a rich document. Include at least 4-6 sections with detailed content.',
+            description: 'The document in order. Alternate headings, prose paragraphs, bullet lists and tables. 5-8 sections for anything substantial, each with real content — not placeholders.',
             items: {
               type: 'object',
               properties: {
-                type: { type: 'string', enum: ['heading', 'subheading', 'paragraph', 'bullet_list', 'table'], description: 'Section type' },
-                text: { type: 'string', description: 'Text for heading/subheading/paragraph types' },
-                items: { type: 'array', items: { type: 'string' }, description: 'List items for bullet_list type' },
+                type: { type: 'string', enum: ['heading', 'subheading', 'paragraph', 'bullet_list', 'numbered_list', 'table', 'quote'], description: 'Section type. Use numbered_list for ordered steps and quote for a pulled-out quotation.' },
+                text: { type: 'string', description: 'Text for heading/subheading/paragraph/quote. Paragraphs may use **bold**, *italic* and [text](url), which become real Word formatting.' },
+                items: { type: 'array', items: { type: 'string' }, description: 'List items for bullet_list / numbered_list. A full clause each, not one word.' },
                 headers: { type: 'array', items: { type: 'string' }, description: 'Column header labels for table type' },
                 rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Data rows for table type — each row is an array of cell strings matching the headers' },
                 color: { type: 'string', description: 'Optional hex colour for the table header row, e.g. "#e53935". Pick a different colour for each table.' },
@@ -1269,6 +1269,12 @@ REPLY STYLE:
   (This paragraph used to demand "several hundred words at least" and forbid
   cutting an answer short. That is why answers took so long to arrive.)
 - NEVER create a document, report file or slides for a question. Only use create_document / create_slides when the user explicitly asks for a document, report, doc, PDF or presentation to be made.
+- DOCUMENTS: the brevity rule above governs what you SAY in chat, never what you
+  write inside a document. A document is the finished work, so write it in full:
+  real paragraphs of prose rather than a bulleted skeleton, the actual figures
+  and names, a table wherever something has more than two dimensions, and a
+  closing section saying what should happen next. Everything the user told you
+  about their situation goes in. In chat, say only that it is ready, in one line.
 - SPREADSHEETS: when the user asks for a spreadsheet, Excel file, tracker, budget, invoice, schedule or anything in rows and columns, use create_spreadsheet. Build it around THEIR details — their numbers, names, dates and currency — and design it the way an expert in that area would (the columns a bookkeeper, teacher or coach would actually use, computed columns for anything derived, a totals row where it helps). If they gave few details, fill in realistic example rows they can overwrite and say so. Always include ideas for taking it further, and ask one question if a single answer would let you tailor it much better.
 - CONTRIBUTE, DON'T JUST ANSWER: after a substantive answer or finished task, add ONE short, specific next step the user would genuinely value — an idea, a better way to do it, something they may have missed, or one question that would let you help further. Make it concrete to what they just asked (e.g. after a budget: "Want me to add a savings goal so you can see how far off you are?"; after explaining depreciation: "I can work through your own asset if you give me the cost and useful life."). Never generic ("Let me know if you need anything else"), never more than one, and skip it entirely for quick commands (opening apps, playing music, volume, reminders set) and small talk.
 - When opening or launching something, respond with short, composed phrases: "Right away.", "Consider it done.", "Opening that for you now." Never over-explain. Never end a response with "Understood." as a standalone word or sentence.
@@ -1336,11 +1342,46 @@ function isKnowledgeQuestion(message) {
 // to come out well.
 const FAST_PATH_TOOLS = new Set([
   'open_url', 'open_folder', 'open_file', 'open_app', 'open_chat',
-  'read_messages', 'send_message', 
+  'read_messages', 'send_message',
   'play_music', 'notify', 'generate_image', 'get_analytics',
   'set_reminder', 'add_task', 'list_tasks', 'mark_emails_read', 'set_volume',
   'system_power', 'remember_fact', 'forget_fact', 'get_briefing',
+  // Calendar and closing an app are plain, unambiguous actions - the quick
+  // model gets them right. Leaving them off meant "what's on tomorrow" paid
+  // for the quick answer AND then waited for the full model to say the same
+  // thing, so the simplest requests were among the slowest.
+  'add_event', 'get_events', 'clear_schedule', 'close_app',
 ]);
+
+// Requests the quick router must not be asked about at all.
+//
+// It can only end one of two ways: it picks a tool outside the fast set and
+// the whole request falls through to the full model anyway - two round trips
+// for one answer - or it picks a creative tool and does it badly. Either way
+// the call was wasted, so these skip it and go straight to the full model.
+// Deliberately NOT a list of nouns. "app", "model", "code", "clip" and "game"
+// all appeared here first, and they made "open the camera app" and "play a clip
+// of that song" skip the router - so the most ordinary commands in the app got
+// SLOWER, which is the exact opposite of the point. Every pattern below needs
+// the creative act to be present, not just a word that can appear near one.
+const HEAVY_INTENT = new RegExp([
+  // The act itself is unmistakable.
+  '\\b(?:draw|sketch|paint|doodle|animate|retouch|upscale|outpaint|sculpt)\\b',
+  '\\bdrawing|painting\\b',
+  // Nouns that mean only one thing.
+  '\\b(?:3d|three.?d) ?(?:model|print|render)',
+  '\\bpdfs?\\b', '\\bslide ?deck\\b', '\\bpowerpoint\\b', '\\bpresentation\\b',
+  '\\bspreadsheet\\b', '\\bexcel\\b', '\\blanding ?page\\b',
+  // Making a thing: the verb and the thing together.
+  '\\b(?:make|made|create|generate|build|write|draft|design|produce|code|program|put together|turn .{0,20}into)\\b[^.?!\\n]{0,30}'
+    + '\\b(?:video|movie|film|clip|reel|short|document|doc|report|essay|article|blog|website|web ?site|web ?app|'
+    + 'logo|poster|thumbnail|banner|wallpaper|icon|mockup|game|script|program|code|app|model|song|track|beat)\\b',
+  // Changing a file or a picture.
+  '\\b(?:combine|merge|join|stitch|split|compress|convert)\\b[^.?!\\n]{0,30}\\b(?:pdfs?|files?|documents?|images?|photos?|pictures?|videos?)\\b',
+  '\\b(?:edit|fix|clean up|change|remove)\\b[^.?!\\n]{0,24}\\b(?:background|photo|picture|image|face|faces)\\b',
+  // Running something, which is never a job for the quick router.
+  '\\brun\\b[^.?!\\n]{0,20}\\b(?:command|terminal|shell|script)\\b',
+].join('|'), 'i');
 
 // Tools offered for this message — document/slide creation only when requested.
 function toolsFor(message) {
@@ -1596,8 +1637,11 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const intent = afterSecondThoughts(message);
   const needsTools = isDocWork || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
 
-  // Fast path: action queries with no context get a minimal prompt and trimmed history for speed
-  if (fast && needsTools && !realtimeContext && !isDocWork) {
+  // Fast path: action queries with no context get a minimal prompt and trimmed
+  // history for speed. Creative and file work skips it - see HEAVY_INTENT: for
+  // those the quick call could only be thrown away, and paying for a round trip
+  // before the real one started was pure added wait.
+  if (fast && needsTools && !realtimeContext && !isDocWork && !HEAVY_INTENT.test(message)) {
     const fastMessages = [
       { role: 'system', content: FAST_SYSTEM_PROMPT(assistantName) },
       ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
@@ -1652,7 +1696,11 @@ async function respond({ message, history = [], assistantName, memories = [], re
   const body = {
     // Building a spreadsheet or document is one long, careful answer: a stronger
     // model, and enough room that the JSON isn't cut off part-way through a row.
-    model: hasImages ? 'gpt-4o' : (isDocWork ? 'gpt-4.1' : 'gpt-4o-mini'),
+    //
+    // Documents were still being written by gpt-4.1 while ordinary chat had
+    // already moved to gpt-5.4, so the one answer that gets kept as a file was
+    // coming from the weaker model. The writing is the whole product here.
+    model: hasImages ? 'gpt-4o' : (isDocWork ? 'gpt-5.4' : 'gpt-4o-mini'),
     max_tokens: isDocWork ? 12000 : (needsTools ? 1500 : (hasImages ? 3000 : (isKnowledgeQuestion(message) ? 4000 : 1024))),
     messages,
   };

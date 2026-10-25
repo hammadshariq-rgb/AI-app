@@ -111,8 +111,12 @@
           prompt: lastSubject ? `${lastSubject}, cinematic` : 'bring this to life, cinematic',
           imageBase64: lastShot,
         }).then((r) => {
-          if (r && r.url && window.CallistoVideoViewer) {
-            window.CallistoVideoViewer.open(r.url, { title: lastSubject || 'Video' });
+          // The handler answers with videoUrl, not url - reading the wrong one
+          // meant every video made from the camera reported itself as failed
+          // while the video itself was sitting there finished.
+          const url = r && (r.videoUrl || r.url);
+          if (url && window.CallistoVideoViewer) {
+            window.CallistoVideoViewer.open(url, { title: lastSubject || 'Video' });
           } else if (window.CallistoVideoViewer) {
             window.CallistoVideoViewer.fail((r && r.error) || 'That video did not come back.');
           }

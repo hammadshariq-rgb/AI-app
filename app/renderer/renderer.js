@@ -6610,6 +6610,28 @@ if (window.jarvis.onSentenceText) {
   // ── Detection: "animate this / make a video / higgsfield" ───────────────────
   const HIGGS_RE = /\b(animate|make a video|make me a video|make me video|create me a video|i want a video|generate a video|create a video|higgsfield|make it move|bring to life|video of|turn.*into.*video|apply.*effect)\b/i;
 
+  // How long they want it. Spoken, not dialled: "a 10 second video", "15s",
+  // "make it twelve seconds". Anything outside 5-15 is pulled into range,
+  // because the generators will not take more and less is not worth watching.
+  const _SPOKEN_SECS = {
+    five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
+  };
+  function _videoSeconds(text) {
+    const lo = String(text || '').toLowerCase();
+    let n = null;
+    // \b before the digits, or "a 1990s car" reads its own tail as 90 seconds.
+    const digits = /\b(\d{1,2})\s*(?:-|\s)?\s*(?:s\b|sec\b|secs\b|second|seconds)/.exec(lo);
+    if (digits) n = Number(digits[1]);
+    if (n == null) {
+      const words = new RegExp(`\\b(${Object.keys(_SPOKEN_SECS).join('|')})\\s*(?:-|\\s)?\\s*(?:s\\b|sec\\b|secs\\b|second|seconds)`).exec(lo);
+      if (words) n = _SPOKEN_SECS[words[1]];
+    }
+    if (n == null || !isFinite(n)) return null;
+    return Math.min(15, Math.max(5, Math.round(n)));
+  }
+  window._videoSeconds = _videoSeconds;
+
   window._checkHiggsfield = async function(text, attachments) {
     if (!HIGGS_RE.test(text)) return false;
     // Get image from attachments if any
@@ -6637,6 +6659,11 @@ if (window.jarvis.onSentenceText) {
       .replace(/\bh[io]c?k?g?g?s\s*f[ei]{1,2}ld\b/gi, ' ')
       .replace(/\s+/g, ' ').trim().slice(0, 60) || 'Your video';
     const jobKey = `vid-${Date.now()}`;
+    // "make me a 10 second video of a storm" - the length is spoken inside the
+    // request, so it is read out of the words rather than set on a dial. The
+    // generators only offer a few fixed lengths, so this is a wish: what it
+    // actually comes back as is reported once it is known.
+    const wantSecs = _videoSeconds(text);
     addMessage('assistant', `🎬 Making your video — this usually takes 1–3 minutes.`);
     if (VV) VV.showLoading({ title, jobKey });
 
@@ -6661,7 +6688,7 @@ if (window.jarvis.onSentenceText) {
           } catch (_) {}
         }
       }
-      res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64, imageUrl: seedUrl });
+      res = await window.jarvis.higgsGenerate({ prompt: text, imageBase64, imageUrl: seedUrl, seconds: wantSecs });
     } catch (e) {
       res = { error: e.message };
     }
@@ -6679,7 +6706,12 @@ if (window.jarvis.onSentenceText) {
       const video = { url: res.videoUrl, title };
       window._lastVideo = video;
       window.jarvis.setLatestMedia?.('video', video);
-      say('Your video is ready.');
+      // If they asked for longer than the generator can give, say what they got
+      // rather than letting them count the seconds and wonder.
+      const got = res.seconds || null;
+      say(got && wantSecs && got < wantSecs
+        ? `Your video is ready — ${got} seconds, the longest the generator does.`
+        : 'Your video is ready.');
       if (onScreen) {
         VV.open(video.url, { title });
       } else if (VV && typeof _modelTell === 'function') {

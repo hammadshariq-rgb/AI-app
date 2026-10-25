@@ -286,6 +286,40 @@ function dialogParent() {
   return process.platform === "darwin" ? null : overlayWindow;
 }
 
+// How much of the conversation to send back with the next question.
+//
+// This was the last 30 turns, whole. The model has to read every one of those
+// before it can write the first word of the answer, so in a long conversation
+// - especially one with a few long answers in it - most of the wait was the
+// model re-reading things nobody had asked about again. Thirty turns of
+// detailed answers is comfortably more prompt than the answer itself.
+//
+// So: the recent turns, and a character budget on top. Oldest go first, always
+// whole turns so a question never arrives without its answer, and a single
+// enormous message (a pasted document) is cut rather than allowed to evict
+// the entire conversation around it.
+function trimForSpeed(history, maxTurns, maxChars) {
+  const all = (history || []).filter((h) => h && h.content);
+  const recent = all.slice(-maxTurns);
+
+  // One huge message should not push everything else out.
+  const PER_MESSAGE = Math.floor(maxChars / 2);
+  const sized = recent.map((h) => {
+    const text = String(h.content);
+    return text.length > PER_MESSAGE
+      ? { ...h, content: text.slice(0, PER_MESSAGE) + ' …' }
+      : h;
+  });
+
+  let total = sized.reduce((n, h) => n + String(h.content).length, 0);
+  let from = 0;
+  while (total > maxChars && from < sized.length - 2) {
+    total -= String(sized[from].content).length;
+    from++;
+  }
+  return sized.slice(from);
+}
+
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   overlayWindow = new BrowserWindow({
@@ -1651,13 +1685,14 @@ ipcMain.handle('higgsfield:saveKey', (_e, key) => {
 ipcMain.handle('higgsfield:getKey', () => store.get('higgsfield_api_key') || null);
 // Runs on the license server with Callisto's own Higgsfield account (daily limits
 // apply there), so customers no longer paste a key.
-ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl }) => {
+ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl, seconds }) => {
   const token = loadAuthToken();
   if (!token) return { error: 'Please sign in first.' };
   try {
     // A picture Callisto already made can be the video's opening frame, so the
-    // thing in the video is the thing they just looked at.
-    const r = await video.generate({ token, prompt, imageBase64, imageUrl });
+    // thing in the video is the thing they just looked at. `seconds` is a wish
+    // between 5 and 15 - the generator rounds it down to a length it supports.
+    const r = await video.generate({ token, prompt, imageBase64, imageUrl, seconds });
     if (r.ok) artifacts.add({ kind: 'video', url: r.url, prompt, source: 'Higgsfield' });
     // The filter belongs to the video generator, not to Callisto, and what it
     // nearly always objects to is a named character someone else owns - Iron
@@ -1667,7 +1702,7 @@ ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl
     if (!r.ok && /content.?filter|content.?policy|safety|moderat|blocked|rejected|not allowed/i.test(String(r.error || ''))) {
       return { error: 'The video generator refused that one. It blocks named characters and brands it does not have the rights to — Iron Man, Mario, that sort of thing — however harmless the scene is. Describe the look instead and it will go through: "a man in a red and gold armoured flying suit, repulsors glowing, streaking over a city".' };
     }
-    return r.ok ? { ok: true, videoUrl: r.url } : { error: r.error };
+    return r.ok ? { ok: true, videoUrl: r.url, seconds: r.seconds || null } : { error: r.error };
   } catch (err) {
     return { error: err.message };
   }
@@ -2076,12 +2111,18 @@ ipcMain.handle('jarvis:openGoogleSlides', async (_e, d) => {
   }
 });
 
-ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
+ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content, sections }) => {
   const dir = app.getPath('documents');
   try {
     // A real .docx, so headings, bullets and tables survive into Word. This
     // used to write RTF with a Word icon on it, which opened but looked wrong.
-    const filePath = await documents.writeWord(title || 'Document', content || '', dir);
+    //
+    // `sections` is the structure the model actually produced. It was being
+    // ignored here in favour of `content`, a flattened plain-text version of
+    // the same thing, so every heading, bullet and table was discarded on the
+    // way to the file. Prefer the structure; fall back to the text.
+    const body = (sections && sections.length) ? sections : (content || '');
+    const filePath = await documents.writeWord(title || 'Document', body, dir);
     await shell.openPath(filePath);
     return { ok: true, path: filePath };
   } catch (err) {
@@ -2090,7 +2131,21 @@ ipcMain.handle('jarvis:saveWordDoc', async (_e, { title, content }) => {
     const fs2 = require('fs');
     const safe = (title || 'Document').replace(/[<>:"/\|?*]/g, '_');
     const filePath = path.join(dir, safe + '.rtf');
-    fs2.writeFileSync(filePath, buildRTF(title || 'Document', content || ''), 'utf8');
+    // The RTF path only understands text. When the document came in as
+    // structure, flatten it here rather than writing an empty file.
+    let text = content || '';
+    if (!text && sections && sections.length) {
+      text = documents.sectionBlocks(sections).map((b) => {
+        if (b.t === 'h') return '#'.repeat(b.level) + ' ' + b.text;
+        if (b.t === 'li') return (b.ordered ? '1. ' : '- ') + b.text;
+        if (b.t === 'quote') return '> ' + b.text;
+        if (b.t === 'code') return (b.lines || []).join('\n');
+        if (b.t === 'hr') return '---';
+        if (b.t === 'table') return (b.rows || []).map((r) => '| ' + r.join(' | ') + ' |').join('\n');
+        return b.text || '';
+      }).filter(Boolean).join('\n\n');
+    }
+    fs2.writeFileSync(filePath, buildRTF(title || 'Document', text), 'utf8');
     await shell.openPath(filePath);
     return { ok: true, path: filePath, fallback: true };
   }
@@ -2986,7 +3041,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     && /\?\s*$/.test(String(_lastAssistant.content || '').trim())
     && String(message || '').trim().length < 40);
 
-  const trimmedHistory = needsAction ? history.slice(-5) : history.slice(-30);
+  const trimmedHistory = needsAction ? history.slice(-5) : trimForSpeed(history, 14, 7000);
   // While the screen is being watched, what the user is looking at is part of
   // the conversation — "combine these two PDFs" needs no screenshot, because
   // Callisto already knows what is on screen.
@@ -6304,16 +6359,25 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       'They are looking at their screen and said, out loud: "' + q + '"\n'
       + '\n'
       + 'Teach them to do it themselves, using what is on the screen in front of '
-      + 'them. Reply in these sections, each label on its own line:\n'
+      + 'them. Works for anything they are in - a website, a web app, a desktop '
+      + 'program, a settings panel, a form. Reply in these sections, each label '
+      + 'on its own line:\n'
       + '[SUMMARY]\n'
       + 'One line saying what they are about to learn to do.\n'
       + '[STEPS]\n'
       + 'One step per line, in order, each starting with a number and a full '
-      + 'stop. Name the real button, tab, menu or field AS IT IS LABELLED ON '
-      + 'THEIR SCREEN and say where it is, so they can find it by looking rather '
-      + 'than guessing. If something they need is not visible, say which menu to '
-      + 'open to reach it. Never give advice that would fit any program - you '
-      + 'can see theirs.\n'
+      + 'stop. Every step is ONE THING TO PRESS, TYPE OR CHOOSE - not an '
+      + 'explanation of the feature. Name the real button, tab, menu, link or '
+      + 'field AS IT IS LABELLED ON THEIR SCREEN, in quotes, and say WHERE it is '
+      + '("top right, next to your photo", "the blue button under the box"), so '
+      + 'they can find it by looking rather than guessing.\n'
+      + 'Carry on past the first screen: the steps should run all the way to the '
+      + 'thing being done - the post published, the form submitted, the setting '
+      + 'saved - including the buttons on the dialogs that open along the way, '
+      + 'and say what they will see after each press so they know it worked. If '
+      + 'something they need is not visible yet, say which menu or button opens '
+      + 'it first. Never give advice that would fit any program or any website - '
+      + 'you can see theirs.\n'
       + '[WATCH]\n'
       + 'Optional. One line for each thing that commonly goes wrong at this '
       + 'point and how they will know it has. Leave the section out if there is '
@@ -6601,7 +6665,38 @@ function wantsCodeFix(q) {
 
 // "Teach me how", not "do it for me". The difference matters: the answer has
 // to leave them able to do it again without Callisto sitting there.
-const WANTS_TEACHING = /\b(?:teach me|show me how|walk me through|talk me through|guide me through|how do i|how can i|how would i|step by step|explain how)\b/i;
+// Being taught to do the thing on screen, in all the ways people actually ask.
+// "How do I…" was the only phrasing this caught, and it is not how most people
+// say it - they say what they want and that they are stuck: "I want to post
+// this on LinkedIn but I don't know how", "where do I click to send it",
+// "I'm stuck". Any of those should get numbered steps naming the real buttons
+// on their screen.
+//
+// Guessing wrong here is cheap: if the model cannot produce steps from the
+// screen, the reply falls through to an ordinary answer below. So this leans
+// towards catching too much rather than too little.
+const WANTS_TEACHING = new RegExp('\\b(?:' + [
+  // Asked outright.
+  'teach me', 'show me how', 'walk me through', 'talk me through',
+  'guide me', 'how do (?:i|you|we)', 'how can i', 'how would i',
+  'how does (?:one|this work)', 'step.?by.?step', 'explain how',
+  // Asked as "which thing do I touch", which is the real question most of
+  // the time: they can see the screen, they just cannot find the control.
+  'wh(?:at|ich) (?:button|option|tab|menu|link|field)',
+  'what do i (?:press|click|tap|do|select|choose|pick|hit)',
+  'where do i (?:press|click|tap|go|find|put|type|look)',
+  'where (?:is|are) the',
+  'do i (?:press|click|tap) ',
+  // Said as being stuck, which never reads as a question at all.
+  'do(?:n|)[’\']?t know how', 'do not know how', 'not sure how',
+  'no idea how', 'never done (?:this|that|it)',
+  'can(?:no|)[’\']?t (?:work out|figure out|find|see) how',
+  'cannot (?:work out|figure out|find) how',
+  'i(?:[’\']m| am) stuck', 'stuck (?:on|with|here)',
+  'help me (?:to )?(?:post|upload|send|share|publish|apply|submit|book|change|set ?up|sign|log|find|do|make|add|delete|cancel|reply|comment|message|schedule|pay|order|register|download|install|connect|enable|turn)',
+  'what (?:do i do|should i do|happens) (?:now|next|here)?',
+  'what(?:[’\']s| is) next',
+].join('|') + ')\\b', 'i');
 
 // ── Assist mode ───────────────────────────────────────────────────────────────
 // Callisto watching over your shoulder while you work in something else.
