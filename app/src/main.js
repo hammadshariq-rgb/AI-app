@@ -302,11 +302,15 @@ function trimForSpeed(history, maxTurns, maxChars) {
   const all = (history || []).filter((h) => h && h.content);
   const recent = all.slice(-maxTurns);
 
-  // One huge message should not push everything else out.
+  // One huge message should not push everything else out. The last two turns
+  // are exempt: "explain the third point again" refers to the answer that was
+  // just given, so cutting that one short would break the follow-up it exists
+  // to support.
   const PER_MESSAGE = Math.floor(maxChars / 2);
-  const sized = recent.map((h) => {
+  const keepWhole = Math.max(0, recent.length - 2);
+  const sized = recent.map((h, i) => {
     const text = String(h.content);
-    return text.length > PER_MESSAGE
+    return (i < keepWhole && text.length > PER_MESSAGE)
       ? { ...h, content: text.slice(0, PER_MESSAGE) + ' …' }
       : h;
   });

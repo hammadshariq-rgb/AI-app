@@ -68,12 +68,26 @@ const withPaste = [
   { role: 'user', content: 'x'.repeat(50000) },
   { role: 'assistant', content: 'That is a lot of text.' },
   { role: 'user', content: 'summarise it' },
+  { role: 'assistant', content: 'Here is the summary.' },
 ];
 const pasteOut = trim(withPaste, 14, 7000);
-ok('the huge message survives in some form', pasteOut.length === 3, 'turns dropped: now ' + pasteOut.length);
+ok('the huge message survives in some form', pasteOut.length === 4, 'turns dropped: now ' + pasteOut.length);
 ok('the huge message was cut down', String(pasteOut[0].content).length < 50000);
 ok('the cut is marked', /…$/.test(String(pasteOut[0].content)));
-ok('the later turns are intact', pasteOut[2].content === 'summarise it');
+ok('the later turns are intact', pasteOut[3].content === 'Here is the summary.');
+
+/* A long answer that was JUST given must survive whole, because the next
+   question is usually about it ("explain the third point again"). */
+const longAnswer = [
+  { role: 'user', content: 'tell me about depreciation in detail' },
+  { role: 'assistant', content: 'Depreciation. '.repeat(600) },     // ~8,400 chars
+  { role: 'user', content: 'explain the third point again' },
+];
+const longOut = trim(longAnswer, 14, 7000);
+const answerNow = String(longOut.find((h) => h.role === 'assistant').content);
+ok('the answer just given is not truncated', !/…$/.test(answerNow), 'it was cut short');
+ok('the answer just given is intact', answerNow.length === ('Depreciation. '.repeat(600)).length);
+ok('the follow-up question is there', longOut[longOut.length - 1].content === 'explain the third point again');
 
 /* Rubbish in, no crash out. */
 for (const bad of [null, undefined, [], [null], [{ role: 'user' }], [{ content: '' }]]) {
