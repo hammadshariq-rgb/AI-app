@@ -72,10 +72,33 @@ const bare = body.split('\n').filter((l) => /^\s*(else )?resolve\(false\);\s*$/.
 check('no silent give-ups left', bare.length, 0);
 
 // And the helper itself actually opens something.
-check('the search helper opens a search',
-  /lastResortSearch[\s\S]{0,400}google\.com\/search/.test(src), true);
-check('and the name is escaped into it',
-  /lastResortSearch[\s\S]{0,400}encodeURIComponent\(name\)/.test(src), true);
+//
+// The window here used to be 400 characters, which quietly encoded an
+// assumption that the helper did nothing but search the web. It now looks for
+// the user's own file first, so the checks are about ORDER: their files, then
+// their folders, then the web - because "open budget" with budget.xlsx on the
+// Desktop should open the file, not search Google for the word.
+const lrs = (() => {
+  const at = src.indexOf('function lastResortSearch');
+  const start = src.indexOf('{', at);
+  let d = 0;
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === '{') d++;
+    else if (src[i] === '}') { d--; if (d === 0) return src.slice(at, i + 1); }
+  }
+  return '';
+})();
+
+check('the search helper exists', lrs.length > 0, true);
+check('it looks for their file first', lrs.indexOf('findFile') > -1, true);
+check('it tries their folders too', lrs.indexOf('findFolder') > -1, true);
+check('the web is still there as a fallback', /google\.com\/search/.test(lrs), true);
+check('and the name is escaped into it', /encodeURIComponent\(name\)/.test(lrs), true);
+// Order is the whole point: a web search before a file lookup is the bug.
+check('the file lookup comes BEFORE the web search',
+  lrs.indexOf('findFile') < lrs.indexOf('google.com/search'), true);
+check('the folder lookup comes before the web search too',
+  lrs.indexOf('findFolder') < lrs.indexOf('google.com/search'), true);
 
 console.log('\n  ' + pass + '/' + (pass + fail) + ' passed' + (fail ? '  (' + fail + ' FAILED)' : ''));
 process.exit(fail ? 1 : 0);

@@ -248,7 +248,30 @@ function openInChrome(url) {
 // "Open ChatGPT" on a machine with no ChatGPT app found no scheme, no exe and
 // no fallback, fell off the end of the lookup and resolved false in silence.
 // A search is nearly always what the person wanted anyway.
-function lastResortSearch(name) {
+async function lastResortSearch(name) {
+  // Before the web: is it something of theirs?
+  //
+  // "Open budget" used to go straight to a Google search for the word
+  // "budget", even with budget.xlsx sitting on the Desktop - the file search
+  // that would have found it was right here and never ran, so people learned
+  // to say "open the budget excel file" to get their own file open. Their own
+  // things come first; the web is the fallback, not the first answer.
+  try {
+    const file = await findFile(name);
+    if (file) {
+      await shell.openPath(file);
+      return true;
+    }
+  } catch (_) {}
+
+  try {
+    const folder = findFolder(name);
+    if (folder) {
+      openFileManager(folder);
+      return true;
+    }
+  } catch (_) {}
+
   const url = "https://www.google.com/search?q=" + encodeURIComponent(name);
   return openInChrome(url).then(() => true).catch(() => false);
 }

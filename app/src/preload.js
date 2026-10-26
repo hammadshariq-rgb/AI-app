@@ -213,6 +213,18 @@ contextBridge.exposeInMainWorld('jarvis', {
   saveModelFile: (bytes, suggestedName) => ipcRenderer.invoke('model:saveFile', { bytes, suggestedName }),
   fetchModelFile: (url) => ipcRenderer.invoke('model:fetchFile', url),
   artifactsList:   ()   => ipcRenderer.invoke('artifacts:list'),
+
+  // Skills installed from GitHub — instructions Callisto follows, never code.
+  skillsList:      ()     => ipcRenderer.invoke('skills:list'),
+  skillsInstall:   (url)  => ipcRenderer.invoke('skills:install', url),
+  skillsRemove:    (id)   => ipcRenderer.invoke('skills:remove', id),
+  onSkillsChanged: (cb)   => ipcRenderer.on('skills:changed', () => cb()),
+
+  // Long jobs that carry on after the conversation ends.
+  longTaskStart:   (d)    => ipcRenderer.invoke('longtask:start', d),
+  longTaskList:    ()     => ipcRenderer.invoke('longtask:list'),
+  longTaskCollect: ()     => ipcRenderer.invoke('longtask:collect'),
+  onLongTaskProgress: (cb) => ipcRenderer.on('longtask:progress', (_e, d) => cb(d)),
   artifactsRemove: (id) => ipcRenderer.invoke('artifacts:remove', id),
   artifactsSave:   (id) => ipcRenderer.invoke('artifacts:save', { id }),
   onModelProgress: (cb) => ipcRenderer.on('model:progress', (_e, d) => cb(d)),

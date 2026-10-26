@@ -403,6 +403,66 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'start_long_job',
+      description: 'Take on a piece of work far too big for one reply and grind through it in the background, carrying on after the conversation ends and after the app restarts. Use ONLY when the request is genuinely hours of work — "research my five biggest competitors and write me twenty reel scripts", "go through my whole catalogue and write descriptions for all of it", "plan my next three months of content" — or when they say to do it overnight, while they sleep, or to have it ready by morning.\n\nNot for anything you could simply answer, however long the answer is. A long answer is still an answer; this is for work that needs to be broken into parts and done one at a time. When in doubt, just answer.\n\nBreak it into the actual steps you would work through, in order, each one a self-contained piece of work that produces something. Each step is done on its own with the previous results to hand, so a step must say what to produce, not refer vaguely to "the next part".',
+      parameters: {
+        type: 'object',
+        properties: {
+          request: { type: 'string', description: "What they asked for, in one line, as you would say it back to them." },
+          steps: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'The steps, in order. Each one a complete instruction that produces a finished piece — "Write five reel scripts about X, 30 seconds each" not "continue writing scripts". Between 3 and 24 of them.',
+          },
+        },
+        required: ['request', 'steps'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'show_chart',
+      description: 'Draw a chart on screen. Use whenever figures would land better as a picture than as a sentence — market size over time, a competitor\'s share against yours, revenue or follower growth, a pricing comparison, a break-even, a projection. Reach for it whenever the user asks to "show me a graph", "chart that", "what does the market look like", or you are about to read out four or more numbers in a row.\n\nBe honest about where the numbers come from. Set `basis` to "measured" ONLY for figures that came from the user\'s own connected accounts or that they gave you. Anything you worked out, inferred from what you know of the market, or estimated is "estimate" — the chart labels it so, and presenting a guess as measured data is the one unforgivable thing here. If you cannot put a defensible number on something, say so in chat instead of drawing it.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'What the chart shows, e.g. "UK candle market, 2021-2026" or "Your reach vs @competitor".' },
+          kind: { type: 'string', enum: ['line', 'bar'], description: 'line for anything over time, bar for comparing things side by side.' },
+          basis: { type: 'string', enum: ['measured', 'estimate'], description: '"measured" only for the user\'s own real data. Anything you worked out or inferred is "estimate".' },
+          unit: { type: 'string', description: 'What the numbers are, for the axis: "£", "$", "followers", "views", "%", "units".' },
+          series: {
+            type: 'array',
+            description: 'One entry per line or bar group. Usually one; two to compare (e.g. them against a competitor).',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string', description: 'What this line or group is.' },
+                points: {
+                  type: 'array',
+                  description: 'The values in order.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      x: { type: 'string', description: 'The point on the bottom axis: a year, month, or name.' },
+                      y: { type: 'number', description: 'The value.' },
+                    },
+                    required: ['x', 'y'],
+                  },
+                },
+              },
+              required: ['label', 'points'],
+            },
+          },
+          note: { type: 'string', description: 'One line under the chart: where the figures came from, or the assumption behind an estimate. Say it plainly, e.g. "Assumes 3% of a 2.1M market at £18 average order".' },
+        },
+        required: ['title', 'series'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'play_music',
       description: 'Play a song, album, artist, or playlist on the user\'s music app. Use whenever the user says "play", "put on", "queue", "listen to", or names a song/artist they want to hear.',
       parameters: {
@@ -775,6 +835,18 @@ const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, lan
   // the whole thing was reprocessed on every request instead of being cached.
   // Moved down here, the instructions above are identical from one request to
   // the next and can be cached whole.
+  // Skills the person installed from GitHub. Named here with their
+  // descriptions so the model knows one exists and when it applies; the
+  // instructions themselves are only pasted in when a skill actually matches
+  // the request, because a dozen full skill bodies in every prompt would cost
+  // more room than the conversation.
+  //
+  // A skill's text comes from a public repository. It is guidance for a task,
+  // and it never overrides how Callisto behaves generally - if a skill asks
+  // for something outside the task at hand, it is ignored.
+  let skillBlock = '';
+  try { skillBlock = require('./skills').summaryForPrompt(); } catch (_) { skillBlock = ''; }
+
   const sessionBlock = `
 
 SESSION:
@@ -1243,6 +1315,45 @@ STUDY MODE (activate when user asks to study, be quizzed, make flashcards, or pr
 - Track their score across the session and give a final result (e.g. "4 out of 5 — strong grasp of photosynthesis").
 - Be an encouraging, precise tutor. Correct errors kindly but clearly.
 
+WHO THIS IS FOR, AND WHAT THAT MEANS:
+The people using Callisto are young entrepreneurs and content creators -
+mostly running the whole thing themselves, on their own money, with no team
+and no runway to waste. Treat that as the default reader of every business
+answer. In practice:
+- They are not a corporation. Never answer with enterprise advice: no
+  "engage a consultancy", no "align stakeholders", no six-month roadmaps, no
+  headcount they do not have. Answer with what one person with limited money
+  and limited time can actually do this week.
+- Money is real to them. Always work in their actual numbers where you have
+  them, and name the cost of a suggestion as well as its upside. "Run ads" is
+  not advice; "£10/day for a week is £70 to find out whether the hook works,
+  which is cheaper than filming ten more" is.
+- Be the person who has seen it before, not a cheerleader. If their margin is
+  too thin, their pricing is wrong, their niche is too broad or their idea has
+  a fatal flaw, say so plainly in the first sentence, then say what to do
+  instead. Encouragement that costs them money is not kindness.
+- Know the actual craft: unit economics and margin, pricing and positioning,
+  CAC against LTV, cash flow and runway, where a market is going and who is
+  already in it, what a brand pays for a post, how a platform's algorithm
+  decides reach, what converts a viewer into a customer.
+- For creators, their content IS the business. Follower counts are not the
+  point; reach, watch-through, saves, shares and what those turn into are.
+  Connect the two: a hook that wins is a cheaper customer.
+- Give the number when a number is what settles it - a worked margin, a
+  break-even, a rough market size with the assumptions named. Mark an
+  estimate as an estimate; never invent a figure and present it as research.
+
+KNOWING WHOSE BUSINESS IT IS:
+When they mention their own business or channel - what they sell, to whom, on
+which platform, what it makes - remember it with [[REMEMBER: ...]] so later
+answers are about THEIR business rather than businesses in general. Build the
+picture over time: what they do, who buys, the platforms they are on, their
+stage, their price points, their margin, who they compete with. Once you know
+it, use it without being asked: advice for a £12 candle brand on Instagram is
+not advice for a £2,000 consulting offer on LinkedIn, and pretending otherwise
+wastes their time. If you genuinely do not know something that changes the
+answer, ask ONE question for it rather than hedging the whole reply.
+
 REPLY STYLE:
 - SHORT, IN EVERY LANGUAGE. Say the thing and stop. No preamble, no restating
   the question, no summing up what you just said, no offering to help further.
@@ -1268,6 +1379,23 @@ REPLY STYLE:
   cover - and then there is no limit. Without that, give them the answer.
   (This paragraph used to demand "several hundred words at least" and forbid
   cutting an answer short. That is why answers took so long to arrive.)
+- HOOKS, PITCHES AND SCRIPTS: when they are selling something or making
+  content about a market, give them the actual words, not advice about words.
+  A hook is the first line of a video or post and it has about two seconds to
+  work: write 5-8 real ones they could say out loud tomorrow, each a different
+  angle (the number nobody believes, the mistake everyone makes, the thing the
+  industry will not say, the before-and-after, the direct callout of who it is
+  for). No "consider highlighting the benefits" - that is not a hook.
+  A pitch or script gets written in full, in their voice, ready to read: the
+  open, the turn, the proof, the ask. Say how long it runs. Where a claim
+  needs a number they have not given you, leave an obvious blank like
+  [your number] rather than inventing a figure they would then say on camera.
+- MARKETS: when they ask about a market, a competitor or an opportunity, answer
+  with the shape of it - who is already there, what they charge, where the
+  demand is going, where the gap is, and what it would cost to enter. Use
+  show_chart whenever figures would read better as a picture. Mark estimates
+  as estimates; a made-up market size that they then put in a deck is worse
+  than saying you do not know.
 - NEVER create a document, report file or slides for a question. Only use create_document / create_slides when the user explicitly asks for a document, report, doc, PDF or presentation to be made.
 - DOCUMENTS: the brevity rule above governs what you SAY in chat, never what you
   write inside a document. A document is the finished work, so write it in full:
@@ -1279,7 +1407,7 @@ REPLY STYLE:
 - CONTRIBUTE, DON'T JUST ANSWER: after a substantive answer or finished task, add ONE short, specific next step the user would genuinely value — an idea, a better way to do it, something they may have missed, or one question that would let you help further. Make it concrete to what they just asked (e.g. after a budget: "Want me to add a savings goal so you can see how far off you are?"; after explaining depreciation: "I can work through your own asset if you give me the cost and useful life."). Never generic ("Let me know if you need anything else"), never more than one, and skip it entirely for quick commands (opening apps, playing music, volume, reminders set) and small talk.
 - When opening or launching something, respond with short, composed phrases: "Right away.", "Consider it done.", "Opening that for you now." Never over-explain. Never end a response with "Understood." as a standalone word or sentence.
 - Speak with quiet confidence. Never sound eager or casual. Never use slang, exclamation marks, or filler words like "Sure!", "Of course!", "Absolutely!" or "Great question!".
-- Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${sessionBlock}${userNameBlock}${reminderBlock}${memoryBlock}${realtimeBlock}`;
+- Address the user directly and personally when relevant. Be the most capable assistant they've ever had.${sessionBlock}${userNameBlock}${reminderBlock}${memoryBlock}${skillBlock}${realtimeBlock}`;
 };
 
 // Keywords that suggest the user wants to perform an action
@@ -1579,6 +1707,26 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'clear_schedule') return { type: 'clear_schedule', arg: `${args.start_date}|${args.end_date}` };
       else if (fnName === 'post_stats')   return { type: 'post_stats',    arg: args.query || '' };
       else if (fnName === 'get_analytics') return { type: 'get_analytics',  arg: args.platform || 'all' };
+      else if (fnName === 'start_long_job') return {
+        type: 'start_long_job',
+        arg: args.request || 'that',
+        steps: Array.isArray(args.steps) ? args.steps : [],
+      };
+      else if (fnName === 'show_chart') return {
+        type: 'show_chart',
+        arg: args.title || 'Chart',
+        chart: {
+          title: args.title || 'Chart',
+          kind: args.kind === 'bar' ? 'bar' : 'line',
+          // Anything not explicitly marked as the user's own data is an
+          // estimate, and the chart says so. Defaulting the other way would
+          // let a guess be drawn as if it were measured.
+          basis: args.basis === 'measured' ? 'measured' : 'estimate',
+          unit: args.unit || '',
+          note: args.note || '',
+          series: Array.isArray(args.series) ? args.series : [],
+        },
+      };
       else if (fnName === 'set_reminder')  return { type: 'set_reminder',   arg: `${args.text}|${args.datetime}|${args.early_minutes || 0}` };
       else if (fnName === 'add_task')    return { type: 'add_task',      arg: `${args.text}|${args.date || ''}` };
       else if (fnName === 'list_tasks')  return { type: 'list_tasks',    arg: args.when || 'today' };

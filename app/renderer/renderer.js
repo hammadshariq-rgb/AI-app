@@ -2839,9 +2839,26 @@ window._checkQuickLaunch = async function(text) {
         const p = profile || {};
         const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
         const who = p.displayName || title;
+        // Anything finished while they were away comes FIRST. Somebody who
+        // left a night's work running wants to hear it was done before they
+        // hear the weather, and collecting it marks it told so the same work
+        // is not reported again tomorrow.
+        let done = null;
+        try { done = await window.jarvis.longTaskCollect?.(); } catch (_) {}
+
         const b = await composeDailyBriefing(who);
-        addMessage('assistant', b.text);
-        const audio = await window.jarvis.speak(b.text).catch(() => null);
+        const spoken = done && done.spoken
+          ? `Welcome back, ${who}. ${done.spoken} ${b.text}`
+          : b.text;
+
+        addMessage('assistant', spoken);
+        // The work itself goes in the chat underneath, where it can be read
+        // and copied — not read aloud, which would take all morning.
+        for (const job of (done && done.jobs) || []) {
+          if (job.transcript) addMessage('assistant', job.transcript);
+        }
+
+        const audio = await window.jarvis.speak(spoken).catch(() => null);
         if (audio) playAudioChunks([audio]);
         if (b.hadTasks) window.tkRefresh?.();
       } catch (err) {
@@ -3166,6 +3183,33 @@ window._checkQuickLaunch = async function(text) {
     + '|\\bwhat is this\\b|\\bwhat am i (?:holding|showing)\\b',
     'i');
 
+  // "Add a skill", said rather than clicked. Opens the same dialog the +
+  // button does, and takes a GitHub address said in the same breath.
+  const WANTS_SKILL = /\b(?:add|install|get|import)\b[^.?!\n]{0,24}\bskills?\b|\bskills?\b[^.?!\n]{0,16}\b(?:from github|github)\b|\b(?:show|see|manage|list|remove|delete)\b[^.?!\n]{0,16}\bmy skills\b/i;
+
+  window._checkSkillCommand = function (t) {
+    if (!WANTS_SKILL.test(t) || !window.CallistoSkills) return false;
+    // A repo named in the sentence goes straight in rather than making them
+    // paste it a second time.
+    const repo = /(?:https?:\/\/)?(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+(?:\/tree\/[^\s]+)?/i.exec(t);
+    if (/\b(?:show|see|manage|list|remove|delete)\b/i.test(t) && !repo) {
+      window.CallistoSkills.manage();
+      addMessage('assistant', 'Here are the skills you have added.');
+      return true;
+    }
+    window.CallistoSkills.add();
+    if (repo) {
+      setTimeout(() => {
+        const box = document.getElementById('skUrl');
+        if (box) { box.value = repo[0]; box.focus(); }
+      }, 60);
+    }
+    addMessage('assistant', repo
+      ? 'Pulling that one up — press Add skill to confirm.'
+      : 'Paste the GitHub address of the skill you want and I will follow it from then on.');
+    return true;
+  };
+
   function wantsCameraLook(t) {
     if (!WANTS_CAMERA.test(t)) return false;
     // "look at this screen" and "what is on my screen" are screen assist's
@@ -3238,6 +3282,9 @@ window._checkQuickLaunch = async function(text) {
     window.CallistoCameraLook.start(t);
     return true;
   }
+
+  // Adding or managing the skills they have installed from GitHub.
+  if (window._checkSkillCommand && window._checkSkillCommand(t)) return true;
 
   // Before making a NEW picture: are they asking to change one that already
   // exists? "Blur the background" with a photo attached is an edit, not a
@@ -5747,7 +5794,62 @@ function openAttachPicker() {
 }
 window._openAttachPicker = openAttachPicker;
 
-attachBtn.addEventListener('click', () => { debugFlash('ATTACH...'); openAttachPicker(); });
+// The + now offers a choice, because it does two things: attach something to
+// this message, or add a skill that changes how Callisto works from then on.
+// A plain click still goes straight to the file picker when hand control is
+// driving, where a small menu would be fiddly to hit.
+attachBtn.addEventListener('click', (e) => {
+  debugFlash('ATTACH...');
+  if (window._gestureActive) { openAttachPicker(); return; }
+  openPlusMenu(e);
+});
+
+function openPlusMenu() {
+  const existing = document.getElementById('plusMenu');
+  if (existing) { existing.remove(); return; }       // a second click closes it
+
+  const menu = document.createElement('div');
+  menu.id = 'plusMenu';
+  menu.innerHTML = `
+    <button class="pm-item" data-act="file">
+      <span class="pm-ico">📎</span>
+      <span><b>Attach a file</b><i>An image, PDF or document for this message</i></span>
+    </button>
+    <button class="pm-item" data-act="skill">
+      <span class="pm-ico">✦</span>
+      <span><b>Add a skill</b><i>From GitHub — teaches Callisto a way of working</i></span>
+    </button>
+    <button class="pm-item" data-act="manage">
+      <span class="pm-ico">⚙</span>
+      <span><b>Your skills</b><i>See and remove what you have added</i></span>
+    </button>`;
+  document.body.appendChild(menu);
+
+  // Sit it just above the + button.
+  const r = attachBtn.getBoundingClientRect();
+  menu.style.left = Math.max(12, Math.min(window.innerWidth - 312, r.left - 8)) + 'px';
+  menu.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+
+  menu.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.pm-item');
+    if (!btn) return;
+    menu.remove();
+    if (btn.dataset.act === 'file') openAttachPicker();
+    else if (btn.dataset.act === 'skill') window.CallistoSkills?.add();
+    else window.CallistoSkills?.manage();
+  });
+
+  // Any click elsewhere puts it away.
+  setTimeout(() => {
+    const away = (ev) => {
+      if (!menu.contains(ev.target) && ev.target !== attachBtn) {
+        menu.remove();
+        document.removeEventListener('mousedown', away);
+      }
+    };
+    document.addEventListener('mousedown', away);
+  }, 0);
+}
 
 attachInput.addEventListener('change', () => {
   processFiles([...attachInput.files]);
@@ -6262,6 +6364,15 @@ async function sendToJarvis(rawText) {
   if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
 
   // Document creation — show Save options
+  // A chart that came back with the answer — market size, a comparison,
+  // a projection. Drawn into the message it belongs to.
+  if (res.chart && msgEl) {
+    try {
+      const body = msgEl.querySelector('.message-content') || msgEl;
+      window.CallistoMarketChart?.render(res.chart, body);
+    } catch (_) {}
+  }
+
   if (res.docTitle && (res.docSections || res.docContent) && msgEl) {
     const docSections = res.docSections || [];
     const docRow = document.createElement('div');
@@ -6632,7 +6743,49 @@ if (window.jarvis.onSentenceText) {
   }
   window._videoSeconds = _videoSeconds;
 
+  // "Make it longer", said about the video that was just made. It names no
+  // subject, so on its own it reads as a brand new request with nothing to
+  // make a video of - which is why it used to come back as a video of the
+  // words "make it longer".
+  const LONGER_RE = /\b(?:make|do|try|render|generate)?\s*(?:it|this|that|the (?:video|clip))?\s*(?:a bit |a little |much |way )?(?:longer|extend(?:ed)?|more seconds|bit more)\b|\b(?:longer|extend) (?:version|one|video|clip)\b/i;
+  const ABOUT_LAST_VIDEO = /\b(?:it|this|that|the (?:video|clip|last one))\b/i;
+  // Plenty of other things can be asked to be longer, and a short sentence is
+  // not enough to tell them apart: "make the essay longer" is four words and
+  // has nothing to do with the video. Naming something else settles it.
+  const LONGER_SOMETHING_ELSE = /\b(?:document|doc|essay|report|article|email|letter|message|post|caption|script|answer|reply|text|story|blog|paragraph|summary|list|song|track|audio|podcast)\b/i;
+
+  function wantsLongerVideo(text) {
+    const t = String(text || '').trim();
+    if (!/\blonger|\bextend/i.test(t)) return false;
+    if (!LONGER_RE.test(t)) return false;
+    // Asking for a longer something-else is never this, however short the
+    // sentence is - unless they also said "video", which settles it the
+    // other way.
+    if (LONGER_SOMETHING_ELSE.test(t) && !/\b(?:video|clip|reel)\b/i.test(t)) return false;
+    // Only when there is something to lengthen, and only when they mean THAT
+    // thing - "make a longer video about dogs" is a fresh request, not this.
+    const last = window._lastVideo;
+    if (!last || !last.prompt) return false;
+    return ABOUT_LAST_VIDEO.test(t) || t.split(/\s+/).length <= 6;
+  }
+
   window._checkHiggsfield = async function(text, attachments) {
+    // Remaking the last one, a few seconds longer. Handled before the normal
+    // match, because "make it longer" does not look like a video request.
+    if (wantsLongerVideo(text)) {
+      const last = window._lastVideo;
+      const asked = _videoSeconds(text);                 // "make it 12 seconds"
+      // Up a step from whatever it was, unless they named a length. 15 is the
+      // ceiling; the generator rounds down to a length it really offers.
+      const next = Math.min(15, asked || Math.max(10, (last.seconds || 5) + 5));
+      if (!asked && last.seconds && next <= last.seconds) {
+        addMessage('assistant', `That one is already ${last.seconds} seconds, which is as long as the generator goes.`);
+        say(`That one is already ${last.seconds} seconds, which is as long as the generator goes.`);
+        return true;
+      }
+      return window._checkHiggsfield(`${last.prompt} — ${next} second version`, attachments);
+    }
+
     if (!HIGGS_RE.test(text)) return false;
     // Get image from attachments if any
     // The photo they attached, if they attached one.
@@ -6703,7 +6856,10 @@ if (window.jarvis.onSentenceText) {
     }
 
     if (res && res.videoUrl) {
-      const video = { url: res.videoUrl, title };
+      // The prompt and the length are kept with it, so "make it longer" can
+      // remake THIS video a few seconds longer instead of asking them to
+      // describe the whole thing again.
+      const video = { url: res.videoUrl, title, prompt: text, seconds: res.seconds || wantSecs || 5 };
       window._lastVideo = video;
       window.jarvis.setLatestMedia?.('video', video);
       // If they asked for longer than the generator can give, say what they got
