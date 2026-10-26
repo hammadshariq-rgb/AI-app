@@ -1179,12 +1179,17 @@
       50%{     box-shadow: 0 0 0 6px rgba(0,220,100,0.35), 0 0 40px rgba(0,220,100,0.65), 0 0 70px rgba(0,200,80,0.3); }
     }
 
-    /* ── Mic wave bars (below mic button, visible when recording) ── */
+    /* ── The listening wave (below the mic button, while recording) ──
+       Same canvas and the same size as the desktop app's, so the two look
+       like one product. */
     #micWave {
-      display:none; align-items:flex-end; justify-content:center;
-      gap:3px; height:36px; margin-top:6px;
+      display:none; margin-top:6px; width:180px; height:36px;
+      /* Above the background wave layers (#waveCanvas and #shaderBg both sit
+         at z-index 0), or the dot surface draws straight over the top of it
+         and the bars disappear into it. */
+      position: relative; z-index: 12;
     }
-    #micWave.active { display:flex; }
+    #micWave.active { display:block; }
     .mw-bar {
       width:3px; border-radius:2px;
       background:linear-gradient(to top, rgba(0,220,100,0.6), rgba(0,255,140,0.9));
@@ -1832,11 +1837,11 @@
         </div>
       </div>
       <div id="clickToSpeak">CLICK TO SPEAK</div>
-      <div id="micWave">
-        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
-        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
-        <div class="mw-bar"></div><div class="mw-bar"></div><div class="mw-bar"></div>
-      </div>
+      <!-- The listening wave. This was nine CSS bars pulsing on a fixed
+           timer — the same loop whether you spoke, shouted or said nothing,
+           which is not a waveform, it is a decoration shaped like one. It is
+           now the app's: a canvas driven by the real microphone. -->
+      <canvas id="micWave" width="180" height="36"></canvas>
       <button id="shiftBtn" class="app-pill">⌨ SHIFT TO TYPING</button>
       <!-- Wikipedia image card -->
       <div id="voiceCard">
@@ -1868,7 +1873,7 @@
     <div class="demo-grid demo-grid-two">
       <figure class="demo-card">
         <div class="demo-frame">
-          <video class="demo-video" playsinline muted loop preload="metadata"
+          <video class="demo-video" playsinline muted loop preload="none"
                  controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
                  poster="assets/demo/demo-1.jpg">
             <source src="assets/demo/demo-1.mp4" type="video/mp4">
@@ -1882,7 +1887,7 @@
       </figure>
       <figure class="demo-card">
         <div class="demo-frame">
-          <video class="demo-video" playsinline muted loop preload="metadata"
+          <video class="demo-video" playsinline muted loop preload="none"
                  controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
                  poster="assets/demo/demo-2.jpg">
             <source src="assets/demo/demo-2.mp4" type="video/mp4">
@@ -3693,11 +3698,17 @@
 
     mediaRec.ondataavailable = e=>{ if(e.data.size>0) audioChunks.push(e.data); };
 
-    mediaRec.onstart = ()=>{ landingRecording=true; setOrbState('listen'); };
+    mediaRec.onstart = ()=>{
+      landingRecording=true;
+      setOrbState('listen');
+      // The real wave, off the real microphone — same one the app draws.
+      try{ window.CallistoMicWave && window.CallistoMicWave.start(stream); }catch(_){}
+    };
 
     mediaRec.onstop = async ()=>{
       landingRecording = false;
       landingBusy = true;
+      try{ window.CallistoMicWave && window.CallistoMicWave.stop(); }catch(_){}
       stream.getTracks().forEach(t=>t.stop());
 
       const blob = new Blob(audioChunks, {type: mimeType});
@@ -4068,9 +4079,30 @@
       bar.appendChild(copy);
       b.appendChild(bar);
     }
+    // Any chart the answer asked for, drawn into the bubble. Same renderer the
+    // app uses, so a market graph looks the same in both places.
+    drawCharts(b, text);
     row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;
     return b;
   }
+
+  // ```callisto-chart blocks, turned into real charts.
+  //
+  // The JSON comes from the model, so every one of these is wrapped: a chart
+  // that will not parse is simply left out, and the words around it still
+  // read. An answer that breaks because a number was malformed would be worse
+  // than an answer with no picture in it.
+  function drawCharts(bubble, text){
+    if(!window.CallistoMarketChart || !text) return;
+    const re=/```callisto-chart\s*\n([\s\S]*?)```/gi;
+    let m;
+    while((m=re.exec(text))){
+      let spec=null;
+      try{ spec=JSON.parse(m[1].trim()); }catch(_){ continue; }
+      try{ window.CallistoMarketChart.render(spec, bubble); }catch(_){}
+    }
+  }
+  window._drawCharts = drawCharts;
   // ── Things the website cannot do ───────────────────────────────────────────
   // Asking for a 3D model or a video on the website used to go to the model,
   // which would happily describe making one and make nothing - there is no
@@ -4098,6 +4130,13 @@
       'Reminders and calendar'],
     [/\bhand (?:control|gestures?)\b|\bcontrol .{0,16}with my hands?\b/i,
       'Hand control'],
+    // Skills change how the assistant behaves across your files, screen and
+    // apps — none of which a web page has — so they live in the app.
+    [/\b(?:add|install|get|import|load)\b[^.?!]{0,24}\bskills?\b|\bskills?\b[^.?!]{0,16}\b(?:from )?github\b|\bgithub (?:repo|repository)\b[^.?!]{0,20}\bskill/i,
+      'Skills from GitHub'],
+    // Overnight work needs something that keeps running; a browser tab does not.
+    [/\b(?:overnight|while i sleep|while i(?:\x27m| am) (?:asleep|away)|by (?:the )?morning|through the night)\b/i,
+      'Work that runs overnight'],
   ];
 
   // Asking without answering, so the caller can put their message up first.
@@ -4129,7 +4168,12 @@
     return true;
   };
 
-  function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+  function fmt(t){return String(t==null?'':t)
+    // The chart block is drawn, not printed. Left in, it would show the reader
+    // a wall of raw JSON underneath the picture of the same numbers.
+    .replace(/```callisto-chart\s*\n[\s\S]*?```/gi,'')
+    .replace(/\[\[REMEMBER:[^\]]*\]\]/gi,'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     // Links, which this did not render at all - a markdown link came out as
     // literal brackets, so "Download it" read as punctuation. Only http and
     // https: anything else here would be a way to put a javascript: link into
@@ -4380,6 +4424,10 @@
             if(d.delta){fullText+=d.delta;bubble.innerHTML=fmt(fullText);msgsEl.scrollTop=msgsEl.scrollHeight;}
             if(d.done){
               msgs.push({role:'assistant',content:fullText});
+              // Charts are drawn once, at the end. Doing it on every delta
+              // would redraw a half-written chart dozens of times and the
+              // JSON is not valid until the block closes anyway.
+              try{ window._drawCharts && window._drawCharts(bubble, fullText); }catch(_){}
               if(pendingAction)showActionCard(pendingAction);
               if(!isPrem&&d.remaining!=null){usage.used=(usage.limit||15)-d.remaining;updateUsageUI();if(d.remaining>0&&d.remaining<=3){const w=document.createElement('div');w.style.cssText='text-align:center;font-size:11px;color:rgba(245,158,11,0.65);padding:4px 18px';w.textContent=`⚠ ${d.remaining} free message${d.remaining!==1?'s':''} left today`;msgsEl.appendChild(w);}}
               saveSess(t);
@@ -5068,21 +5116,23 @@
     .catch(function () {});
 })();
 </script>
-<script src="/panels/bridge.js?v=1"></script>
-<script src="/wave-app.js?v=1"></script>
-  <script src="/wave-lines.js?v=1"></script>
-  <script src="/panels/panels.js?v=1"></script>
-<script src="/panels/portfolio.js?v=1"></script>
-<script src="/gates.js?v=1"></script>
-<script src="/create-web.js?v=1"></script>
-<script src="/draw-studio.js?v=4"></script>
-<script src="/draw-web.js?v=1"></script>
+<script defer src="/market-chart.js?v=1"></script>
+<script defer src="/mic-wave.js?v=1"></script>
+<script defer src="/panels/bridge.js?v=1"></script>
+<script defer src="/wave-app.js?v=1"></script>
+  <script defer src="/wave-lines.js?v=1"></script>
+  <script defer src="/panels/panels.js?v=1"></script>
+<script defer src="/panels/portfolio.js?v=1"></script>
+<script defer src="/gates.js?v=1"></script>
+<script defer src="/create-web.js?v=1"></script>
+<script defer src="/draw-studio.js?v=4"></script>
+<script defer src="/draw-web.js?v=1"></script>
 <!-- news-web.js built a second headline bar at the foot of the page, on top of the ticker already in the hero. One is enough. -->
-<script src="/documents-web.js?v=1"></script>
-<script src="/gestures.js?v=1"></script>
-<script src="/gestures-web.js?v=1"></script>
-<script src="/gestures-ui.js?v=1"></script>
-<script src="/panels/calendar-overlay.js?v=1"></script>
+<script defer src="/documents-web.js?v=1"></script>
+<script defer src="/gestures.js?v=1"></script>
+<script defer src="/gestures-web.js?v=1"></script>
+<script defer src="/gestures-ui.js?v=1"></script>
+<script defer src="/panels/calendar-overlay.js?v=1"></script>
 
 <!-- Hand control. Hidden until the browser proves it can do it: the camera API
      needs a secure origin, and MediaPipe needs a reasonably modern browser. -->

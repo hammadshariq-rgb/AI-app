@@ -77,7 +77,12 @@
 .rp-save-btn:hover { background: rgba(80,120,255,0.40) !important; }
 .rp-cancel-btn { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.10) !important; border-radius: 8px !important; color: rgba(160,185,230,0.60) !important; font-size: 10px !important; padding: 6px 10px !important; cursor: pointer !important; transition: background 0.2s !important; }
 .rp-cancel-btn:hover { background: rgba(255,255,255,0.10) !important; }
-#finPanel { position: absolute !important; bottom: 22px !important; right: 22px !important; width: 288px !important; background: rgba(8,12,28,0.72) !important; backdrop-filter: blur(28px) saturate(180%) !important; -webkit-backdrop-filter: blur(28px) saturate(180%) !important; border: 1px solid rgba(255,255,255,0.10) !important; border-radius: 18px !important; box-shadow: 0 8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important; overflow: hidden !important; z-index: 498 !important; display: flex !important; flex-direction: column !important; -webkit-app-region: no-drag !important; }
+/* No bottom here. panels.js anchors this from the TOP and clears bottom
+   inline — but an inline style loses to !important, so this rule kept
+   winning and the panel was pinned top AND bottom at once. With no height
+   of its own it was then stretched between the two, which is why the
+   portfolio came out oversized and jumped as the panels above it loaded. */
+#finPanel { position: absolute !important; right: 22px !important; width: 288px !important; background: rgba(8,12,28,0.72) !important; backdrop-filter: blur(28px) saturate(180%) !important; -webkit-backdrop-filter: blur(28px) saturate(180%) !important; border: 1px solid rgba(255,255,255,0.10) !important; border-radius: 18px !important; box-shadow: 0 8px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important; overflow: hidden !important; z-index: 498 !important; display: flex !important; flex-direction: column !important; -webkit-app-region: no-drag !important; }
 #finPanel.fp-hidden { display: none !important; }
 #finPanelHeader { display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 10px 14px 8px !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
 #finPanelLabel { font-family: 'Share Tech Mono', monospace !important; font-size: 9px !important; letter-spacing: 2px !important; color: rgba(160,185,230,0.55) !important; }

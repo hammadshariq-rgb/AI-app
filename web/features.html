@@ -38,6 +38,10 @@
     --plan-bg:   rgba(157,140,247,0.12);
     --never:     #e08a9a;
     --never-bg:  rgba(224,138,154,0.10);
+    /* App only: a deliberate choice, so it reads as a destination rather than
+       a refusal — warm, not the red of "not possible". */
+    --app:       #e0b37a;
+    --app-bg:    rgba(224,179,122,0.12);
     --font:      'Inter', system-ui, sans-serif;
     --brand:     'Rajdhani', sans-serif;
     --mono:      'Share Tech Mono', ui-monospace, monospace;
@@ -162,6 +166,7 @@
   .p-wait  { background: var(--wait-bg);  color: var(--wait); }
   .p-plan  { background: var(--plan-bg);  color: var(--plan); }
   .p-never { background: var(--never-bg); color: var(--never); }
+  .p-app   { background: var(--app-bg);   color: var(--app); }
   .p-none  { color: var(--text3); font-size: 12px; }
 
   /* ── Closing call to action ──────────────────────────────────────────── */
@@ -231,6 +236,7 @@
       <div><span class="pill p-live">Live</span> working today</div>
       <div><span class="pill p-wait">Waiting</span> built, pending a platform review</div>
       <div><span class="pill p-plan">Planned</span> agreed, not started</div>
+      <div><span class="pill p-app">App only</span> belongs on your computer by design</div>
       <div><span class="pill p-never">Not possible</span> the platform forbids it</div>
     </div>
   </header>
@@ -265,7 +271,8 @@
     call:   '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
     tv:     '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>',
     money:  '<path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h7v7"/>',
-    core:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+    core:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    brain:  '<path d="M12 5a3 3 0 0 0-3 3 3 3 0 0 0-2 5.2A3 3 0 0 0 9 19a3 3 0 0 0 3-1.5 3 3 0 0 0 3 1.5 3 3 0 0 0 2-5.8A3 3 0 0 0 15 8a3 3 0 0 0-3-3z"/><path d="M12 5v14"/>'
   };
 
   var F = [
@@ -343,6 +350,15 @@
       ['Shopping — Amazon, eBay, AliExpress, Temu', '', 'live', '', 'never', '']
     ]],
 
+    ['Business and skills', 'brain', [
+      ['Skills from GitHub', '', 'live', 'Point it at a repo of SKILL.md files and it works that way. Instructions, never code', 'app', 'A page can’t change how it works across your files and screen'],
+      ['Built for founders and creators', '', 'live', 'Margin, pricing, runway, reach — answered for one person with their own money', 'live', 'Same on both'],
+      ['Remembers your business', '', 'live', 'What you sell, to whom, at what margin, against whom', 'live', 'Sign in · shared with the app'],
+      ['Market charts', '', 'live', 'Stamped YOUR DATA or ESTIMATE so a guess is never mistaken for research', 'live', 'Same charts as the app'],
+      ['Hooks, pitches and scripts', '', 'live', 'Written out in full, ready to read', 'live', 'Same on both'],
+      ['Big jobs that run overnight', '', 'live', 'Carries on after the chat ends and after a restart; reports back when you say you’re back', 'app', 'A browser tab can’t keep working once it’s closed']
+    ]],
+
     ['The product', 'core', [
       ['Signed on Windows and Mac', '', 'live', 'No security warning on install', '', ''],
       ['Automatic updates', '', 'live', '', '', ''],
@@ -350,7 +366,11 @@
     ]]
   ];
 
-  var LABEL = { live: 'Live', wait: 'Waiting', plan: 'Planned', never: 'Not possible' };
+  // "App only" is its own state, not a flavour of "Not possible". The
+  // difference matters: these are deliberate choices about where a feature
+  // belongs, not things a browser forbids, and filing them under "Not
+  // possible" would read as a gap waiting to be closed when it is not.
+  var LABEL = { live: 'Live', wait: 'Waiting', plan: 'Planned', never: 'Not possible', app: 'App only' };
 
   function cell(state, note, forWhat) {
     var inner = state

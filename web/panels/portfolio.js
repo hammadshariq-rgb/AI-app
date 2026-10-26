@@ -598,4 +598,8 @@ window._checkMarketsOverlay = async function(text) {
 };
 
 
-setTimeout(() => finLoad().catch(() => {}), 1200);
+// Was 1200ms, to keep it clear of the splash. That is most of a second where
+// the panel sits there empty before anything appears, and the first thing it
+// draws is cached data anyway - which costs nothing and needs no network. A
+// short hop off the critical path is enough.
+setTimeout(() => finLoad().catch(() => {}), 200);

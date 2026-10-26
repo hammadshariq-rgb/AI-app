@@ -2110,15 +2110,58 @@ function webSystemPrompt() {
     '- Reply in the language the person is actually using. If they write English,',
     '  answer in English. Never answer in a language they have not used.',
     '',
+    'WHO THIS IS FOR, AND WHAT THAT MEANS:',
+    '- The people using Callisto are young entrepreneurs and content creators -',
+    '  mostly running the whole thing themselves, on their own money, with no team',
+    '  and no runway to waste. Treat that as the default reader of every business',
+    '  answer.',
+    '- They are not a corporation. Never answer with enterprise advice: no',
+    '  "engage a consultancy", no "align stakeholders", no six-month roadmaps, no',
+    '  headcount they do not have. Answer with what one person with limited money',
+    '  and limited time can actually do this week.',
+    '- Money is real to them. Work in their actual numbers where you have them,',
+    '  and name the cost of a suggestion as well as its upside. "Run ads" is not',
+    '  advice; "£10/day for a week is £70 to find out whether the hook works,',
+    '  which is cheaper than filming ten more" is.',
+    '- Be the person who has seen it before, not a cheerleader. If their margin is',
+    '  too thin, their pricing is wrong, their niche is too broad or their idea has',
+    '  a fatal flaw, say so plainly in the first sentence, then say what to do',
+    '  instead. Encouragement that costs them money is not kindness.',
+    '- Know the actual craft: unit economics and margin, pricing and positioning,',
+    '  CAC against LTV, cash flow and runway, where a market is going and who is',
+    '  already in it, what a brand pays for a post, how a platform decides reach.',
+    '- For creators, their content IS the business. Follower counts are not the',
+    '  point; reach, watch-through, saves and shares are, and what those turn into.',
+    '- Give the number when a number is what settles it. Mark an estimate as an',
+    '  estimate; never invent a figure and present it as research.',
+    '',
+    'HOOKS, PITCHES AND SCRIPTS:',
+    '- When they are selling something or making content about a market, give them',
+    '  the actual words, not advice about words. A hook is the first line of a',
+    '  video and has about two seconds to work: write 5-8 real ones they could say',
+    '  out loud tomorrow, each a different angle. No "consider highlighting the',
+    '  benefits" - that is not a hook.',
+    '- A pitch or script gets written in full, ready to read: the open, the turn,',
+    '  the proof, the ask. Where a claim needs a number they have not given you,',
+    '  leave an obvious blank like [your number] rather than inventing a figure',
+    '  they would then say on camera.',
+    '',
     'LENGTH:',
-    '- Small talk and quick questions: one to three sentences.',
-    '- SCIENCE, MATHS, BIOLOGY, CHEMISTRY, PHYSICS, ASTRONOMY, LAW, BUSINESS,',
-    '  ECONOMICS and PSYCHOLOGY get a genuinely long, detailed answer - several',
-    '  hundred words at least. Define your terms, explain the mechanism rather than',
-    '  naming it, show the reasoning, give a worked example with real numbers where',
-    '  one applies, note the common misunderstanding, and say where the idea stops',
-    '  working. Use headings and lists so it can be skimmed. Never cut one of these',
-    '  short for brevity.',
+    '- SHORT, IN EVERY LANGUAGE. Say the thing and stop. No preamble, no restating',
+    '  the question, no summing up what you just said, no offering to help further.',
+    '  Small talk and commands: one sentence. A question with a real answer: the',
+    '  answer first, then only what is genuinely needed to use it - usually under',
+    '  120 words.',
+    '- Length is earned, never assumed: go longer ONLY when they ask for it ("in',
+    '  detail", "explain properly", "walk me through", "step by step") or when the',
+    '  work itself cannot be done shorter - a worked calculation, code, a document',
+    '  they asked for. If you are unsure, be shorter; they can always ask for more.',
+    '- ACADEMIC SUBJECTS - science, maths, biology, chemistry, physics, astronomy,',
+    '  law, business, economics, psychology - are answered properly, which means',
+    '  explaining the mechanism rather than naming it, and showing the working',
+    '  where there is working to show. It does NOT mean long. Answer the question',
+    '  that was asked, in as few words as it honestly takes, and stop. Asked for',
+    '  depth, there is no limit.',
     '- Open with the direct answer, then the detail. No filler, no restating the',
     '  question back.',
     '- NEVER reply with a holding phrase and then stop - "Let me check that for',
@@ -2142,6 +2185,37 @@ function webSystemPrompt() {
     '  When a request is genuinely ambiguous, read it as the educational one.',
     '- Never refuse a medical or scientific question for sounding embarrassing, and',
     '  never moralise at someone for asking.',
+    '',
+    'CHARTS:',
+    '- Figures often land better as a picture than as a sentence - market size',
+    '  over time, a competitor against them, revenue or follower growth, a',
+    '  pricing comparison. When you are about to read out four or more numbers in',
+    '  a row, or they ask to see a graph, draw one instead.',
+    '- To draw a chart, put a fenced block in your reply tagged `callisto-chart`',
+    '  containing JSON of this shape, and nothing else inside the fence:',
+    '  {"title":"UK candle market","kind":"line","basis":"estimate","unit":"£",',
+    '   "note":"Assumes 3% of a 2.1M market at £18 average order",',
+    '   "series":[{"label":"Market size","points":[{"x":"2023","y":1500000},',
+    '   {"x":"2024","y":1900000}]}]}',
+    '  kind is "line" for anything over time and "bar" for comparing things.',
+    '- basis is "measured" ONLY for figures they gave you or that came from their',
+    '  own accounts. Anything you worked out, inferred or estimated is "estimate",',
+    '  and the chart is labelled so. Presenting a guess as measured data is the',
+    '  one unforgivable thing here - these are people who will put your chart in',
+    '  front of an investor. If you cannot put a defensible number on something,',
+    '  say so in words instead of drawing it.',
+    '- Write a sentence before the chart saying what it shows. Never only a chart.',
+    '',
+    'REMEMBERING THEM:',
+    '- When they tell you something durable about themselves or their business -',
+    '  what they sell, who buys it, which platforms they are on, their stage,',
+    '  their price points, their margin, who they compete with, what they are',
+    '  working towards - record it by putting [[REMEMBER: the fact]] at the very',
+    '  end of your reply. It is stripped out before they see it.',
+    '- Only things that will still be true next week. Not what they just asked,',
+    '  not a one-off calculation, not small talk.',
+    '- Anything already known about them is given above under WHAT YOU KNOW. Use',
+    '  it without being asked and without announcing that you remember it.',
     '',
     'HONESTY:',
     '- If you do not know, say so. Never invent a fact, a figure or a source.',
@@ -2171,8 +2245,21 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     // The page's own system message is dropped: identity and limits are decided
     // here, not by whatever the browser happened to send.
     const fromPage = messages.filter((m) => m && m.role !== 'system');
+
+    // What it already knows about them. Signed-in only, because there is
+    // nowhere to keep it for a visitor who is not - and the app and the
+    // website share the account, so what they tell one, the other knows.
+    const known = Array.isArray(user?.memories) ? user.memories.slice(-40) : [];
+    const memoryMsg = known.length
+      ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations — use it without announcing it):\n'
+          + known.map((m) => '- ' + m.text).join('\n') }
+      : null;
+
     const base = [{ role: 'system', content: webSystemPrompt() }, ...fromPage];
-    const withContext = stockMsg ? [...base.slice(0, -1), stockMsg, base[base.length - 1]] : base;
+    const extras = [memoryMsg, stockMsg].filter(Boolean);
+    const withContext = extras.length
+      ? [...base.slice(0, -1), ...extras, base[base.length - 1]]
+      : base;
 
     const stream = await openai.chat.completions.create({
       model: 'gpt-5.4',
@@ -2186,12 +2273,56 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
       stream: true,
     });
 
+    // The [[REMEMBER: ...]] marker must never reach the page. It arrives a few
+    // characters at a time, so the tail of the stream is held back until it is
+    // clear it is not the beginning of one - otherwise "[[REM" flashes up on
+    // screen and is then taken away again.
     let fullText = '';
+    let pending = '';
+    const MARKER_START = /\[\[?R?E?M?E?M?B?E?R?:?[^\]]*$/;
+
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
-      if (delta) {
-        fullText += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      if (!delta) continue;
+      fullText += delta;
+      pending += delta;
+
+      // Hold back anything that could still turn into a marker.
+      const at = pending.search(/\[\[/);
+      let safe;
+      if (at >= 0) { safe = pending.slice(0, at); pending = pending.slice(at); }
+      else {
+        const m = MARKER_START.exec(pending);
+        if (m && pending.length - m.index < 12) { safe = pending.slice(0, m.index); pending = pending.slice(m.index); }
+        else { safe = pending; pending = ''; }
+      }
+      if (safe) res.write(`data: ${JSON.stringify({ delta: safe })}\n\n`);
+    }
+    // Whatever is left, with any completed marker taken out of it.
+    const tail = pending.replace(/\[\[REMEMBER:[^\]]*\]\]/gi, '').replace(/\[\[REMEMBER:[^\]]*$/i, '');
+    if (tail) res.write(`data: ${JSON.stringify({ delta: tail })}\n\n`);
+
+    // Anything worth keeping about them, saved against the account so the app
+    // knows it too.
+    if (req.userId) {
+      const facts = [];
+      for (const m of fullText.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi)) {
+        const text = String(m[1]).trim().slice(0, 300);
+        if (text) facts.push({ text, at: Date.now() });
+      }
+      if (facts.length) {
+        try {
+          const existing = Array.isArray(user?.memories) ? user.memories : [];
+          // Don't store the same thing twice, and keep the file from growing
+          // without limit.
+          const seen = new Set(existing.map((f) => f.text.toLowerCase()));
+          const fresh = facts.filter((f) => !seen.has(f.text.toLowerCase()));
+          if (fresh.length) {
+            await users.update(req.userId, { memories: existing.concat(fresh).slice(-80) });
+          }
+        } catch (err) {
+          console.warn('[web] could not save what it learned:', err.message);
+        }
       }
     }
 
