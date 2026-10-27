@@ -169,25 +169,118 @@ for (const key of REQUIRED_ENV) {
   if (!process.env[key]) { console.error(`Missing required env var: ${key}`); process.exit(1); }
 }
 
-// 100 AI requests per minute per user
-const aiLimiter = rateLimit({
+// ── Who is this request actually from? ───────────────────────────────────────
+// Everything below depends on this one line.
+//
+// Railway puts a proxy in front of the app. Without trust proxy, Express
+// reports req.ip as THE PROXY — the same value for every visitor on earth.
+// Every limiter keyed on req.ip therefore shared ONE bucket, which turned the
+// brute-force protection into the attack: ten bad logins from anybody locked
+// every real user out of signing in for fifteen minutes.
+//
+// The value is 1, not true. `true` tells Express to believe the whole
+// X-Forwarded-For header, which the client controls - so anyone could put a
+// fresh fake address in it on every request and never hit a limit at all.
+// 1 means "there is exactly one proxy in front of us, take the address it
+// appended", which is true on Railway and cannot be spoofed past.
+// (Set just after the app is created, further down — it cannot be done here
+// because `app` does not exist yet.)
+
+// ── Rate limits ──────────────────────────────────────────────────────────────
+// Signed in, we limit the ACCOUNT; signed out, the address. Keying only on the
+// address would let one person with an account exhaust the limit for everyone
+// sharing their office or campus network.
+const byUserOrIp = (req) => (req.user?.id ? 'u:' + req.user.id : 'ip:' + (req.ip || 'unknown'));
+
+function limiter(opts) {
+  return rateLimit({
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: byUserOrIp,
+    // A blocked request must cost less than the thing it was trying to reach,
+    // or the limiter becomes the load.
+    handler: (req, res) => res.status(429).json(opts.body || { error: 'Too many requests. Please slow down.' }),
+    ...opts,
+  });
+}
+
+// Everything, as a floor. A route with no specific limit still cannot be used
+// to hammer the box, and a route added next year is protected before anybody
+// remembers to think about it.
+const globalLimiter = limiter({
   windowMs: 60 * 1000,
-  max: 100,
-  keyGenerator: (req) => req.user?.id || req.ip,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests. Please slow down.' },
+  max: 300,
+  body: { error: 'Too many requests. Please slow down.' },
 });
 
-// 10 auth attempts per 15 minutes per IP (brute force protection)
-const authLimiter = rateLimit({
+// 100 AI requests per minute per user
+const aiLimiter = limiter({ windowMs: 60 * 1000, max: 100 });
+
+// Signing in. Per address, because an attacker trying passwords has no account
+// of their own yet. Successful logins are not counted: somebody who keeps
+// getting it right is not attacking anything.
+const authLimiter = limiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  keyGenerator: (req) => req.ip,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+  keyGenerator: (req) => 'ip:' + (req.ip || 'unknown'),
+  skipSuccessfulRequests: true,
+  body: { error: 'Too many attempts. Please try again in 15 minutes.' },
 });
+
+// Creating accounts. Far tighter than signing in, and deliberately so: the
+// damage from a flood here is a database full of junk accounts that stays
+// there, rather than a few wasted guesses.
+const signupLimiter = limiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => 'ip:' + (req.ip || 'unknown'),
+  body: { error: 'Too many accounts created from here. Try again later.' },
+});
+
+// Anything that spends real money per call - image, video, 3D, speech,
+// vision, screen reads. The daily allowances are the real control; this stops
+// a single account burning a month of credit in an afternoon before those
+// allowances have a chance to say no.
+const expensiveLimiter = limiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  body: { error: 'That is a lot at once. Give it a minute.' },
+});
+
+// Endpoints that cost us money but belong to somebody else's API - stock
+// prices, news, places, search.
+const upstreamLimiter = limiter({ windowMs: 60 * 1000, max: 40 });
+
+// The OAuth dance: starts, callbacks, polls and refreshes. Generous, because
+// polling is how these work, but not unlimited.
+const connectLimiter = limiter({ windowMs: 60 * 1000, max: 120 });
+
+// Guessing at the admin secret, and anything else where one wrong answer
+// should be expensive.
+const adminLimiter = limiter({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => 'ip:' + (req.ip || 'unknown'),
+  body: { error: 'Forbidden' },
+});
+
+// Writing something the public can see.
+const writeLimiter = limiter({ windowMs: 60 * 60 * 1000, max: 10 });
+
+// Constant-time secret comparison. A plain !== leaks the answer a character at
+// a time through how long it takes to fail, which with enough attempts is a
+// way in; the limiter above makes that slow, this makes it useless.
+function secretMatches(given, expected) {
+  if (!expected) return false;
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(String(expected));
+  if (a.length !== b.length) {
+    // Still compare something, so the timing does not reveal the length.
+    crypto.timingSafeEqual(b, b);
+    return false;
+  }
+  return crypto.timingSafeEqual(a, b);
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // PUBLIC_URL must be set in Railway env vars to the actual Railway URL.
@@ -207,6 +300,20 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:4000').split(',').map(s => s.trim());
 
 const app = express();
+
+// Errors go somewhere that will tell you, rather than scrolling past in a log
+// nobody is reading. Dormant without SENTRY_DSN; everything else still works.
+const monitoring = require('./monitoring');
+monitoring.init(app);
+monitoring.catchEverything();
+app.use(monitoring.requestTimer);
+
+// Railway runs this behind exactly one proxy. Without this, req.ip is the
+// PROXY's address for every visitor, so every limit keyed on it shared a
+// single bucket — ten bad logins from anyone locked out the whole world.
+// See the note by the limiters above for why this is 1 and not true.
+app.set('trust proxy', 1);
+
 // Security headers. This is a JSON API that also serves a couple of static
 // pages, so the defaults are right apart from the resource policy: the app and
 // the site are different origins from this server, and cross-origin reads have
@@ -297,6 +404,15 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 });
 
 app.use(express.json({ limit: '50mb' }));
+
+// The floor, under everything below. Specific routes add their own tighter
+// limits on top; this is what catches a route nobody thought about, and a
+// route added later by somebody who forgot. It sits AFTER the Stripe webhook
+// above on purpose - Stripe retries failed deliveries in bursts and must
+// never be turned away - and after express.json so a 429 costs almost nothing
+// to send.
+app.use(globalLimiter);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Whether outgoing mail actually works, so a silent mailbox can be diagnosed
@@ -304,7 +420,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 // password - only whether Gmail accepted the credentials, and why not.
 // Sends one real letter to MAIL_TEST_TO and reports what the email API said.
 // The recipient is fixed in the environment, never taken from the request.
-app.get('/health/mail/test', async (_req, res) => {
+// Sends a real email every time it is called. Open and unlimited, that is a
+// button anyone on the internet can hold down to empty the mail quota and get
+// the sending address flagged as a spammer. It is a diagnostic, so it is
+// behind the admin secret now.
+app.get('/health/mail/test', adminLimiter, async (req, res) => {
+  if (!secretMatches(req.query.secret, process.env.ADMIN_SECRET)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
     res.json(await mail.sendTest());
   } catch (err) {
@@ -333,7 +456,7 @@ app.get('/reviews', async (req, res) => {
   }
 });
 
-app.post('/reviews', async (req, res) => {
+app.post('/reviews', writeLimiter, async (req, res) => {
   try {
     // Hashed, not stored. It is only ever used to notice the same person
     // posting six reviews in a minute, and that works just as well on a hash -
@@ -352,23 +475,26 @@ function reviewAdmin(req, res) {
   const key = process.env.REVIEW_ADMIN_KEY;
   if (!key) { res.status(404).json({ ok: false, error: 'Not available.' }); return false; }
   const given = String(req.headers['x-review-key'] || req.query.key || '');
-  if (given !== key) { res.status(401).json({ ok: false, error: 'Wrong key.' }); return false; }
+  // Constant-time, and the routes carry adminLimiter: a plain !== leaks the
+  // key a character at a time through how long it takes to fail, and without
+  // a limiter there was nothing to stop someone simply trying.
+  if (!secretMatches(given, key)) { res.status(401).json({ ok: false, error: 'Wrong key.' }); return false; }
   return true;
 }
 
-app.get('/reviews/pending', async (req, res) => {
+app.get('/reviews/pending', adminLimiter, async (req, res) => {
   if (!reviewAdmin(req, res)) return;
   try { res.json({ ok: true, reviews: await reviews.pending() }); }
   catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-app.post('/reviews/:id/approve', async (req, res) => {
+app.post('/reviews/:id/approve', adminLimiter, async (req, res) => {
   if (!reviewAdmin(req, res)) return;
   try { res.json(await reviews.approve(req.params.id)); }
   catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-app.post('/reviews/:id/hide', async (req, res) => {
+app.post('/reviews/:id/hide', adminLimiter, async (req, res) => {
   if (!reviewAdmin(req, res)) return;
   try { res.json(await reviews.hide(req.params.id)); }
   catch (err) { res.status(500).json({ ok: false, error: err.message }); }
@@ -479,9 +605,31 @@ function isAlwaysFree(email) {
   return !!email && FREE_ACCESS_EMAILS.includes(String(email).toLowerCase().trim());
 }
 
-app.post('/auth/signup', authLimiter, async (req, res) => {
+// signupLimiter, not authLimiter: five an hour from one address, not ten
+// every fifteen minutes. Getting a password wrong a few times is ordinary;
+// creating ten accounts an hour is not anything a real person does, and the
+// mess a flood leaves behind — junk rows, welcome emails sent to addresses
+// that never asked — stays in the database afterwards.
+app.post('/auth/signup', signupLimiter, async (req, res) => {
   const { email, password, name, age } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  // A name is a name. Unbounded, it is a free megabyte of storage per account
+  // and a payload to hand to anything that later renders it.
+  if (name !== undefined && (typeof name !== 'string' || name.length > 100)) {
+    return res.status(400).json({ error: 'Please use a shorter name.' });
+  }
+  // Addresses have a documented maximum of 254 characters; anything longer is
+  // not an address, it is someone seeing what happens.
+  if (typeof email !== 'string' || email.length > 254) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+  // bcrypt only reads the first 72 bytes, so a megabyte password is a
+  // megabyte of hashing work for no added security — a cheap way to tie up
+  // the process.
+  if (typeof password === 'string' && password.length > 200) {
+    return res.status(400).json({ error: 'Please use a shorter password.' });
+  }
 
   // Age, checked here as well as in the form. A rule that only exists in the
   // page it is typed into is not a rule: anybody can post straight to this.
@@ -525,6 +673,11 @@ app.post('/auth/signup', authLimiter, async (req, res) => {
 app.post('/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  // Same reason as signup: bcrypt ignores everything past 72 bytes, so a huge
+  // password is only a way to make the server do pointless work.
+  if (typeof password !== 'string' || password.length > 200) {
+    return res.status(401).json({ error: 'Wrong password. Please try again.' });
+  }
   const user = await users.findByEmail(email);
   if (!user) return res.status(401).json({ error: 'No account found. Please sign up.' });
   if (!user.passwordHash) return res.status(401).json({ error: 'This account uses Google sign-in.' });
@@ -558,7 +711,7 @@ function rememberGoogleAuth(state, payload) {
   }
 }
 
-app.get('/auth/google', (req, res) => {
+app.get('/auth/google', connectLimiter, (req, res) => {
   const base = getPublicUrl(req);
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
@@ -575,7 +728,7 @@ app.get('/auth/google', (req, res) => {
 
 // The app asks here for the result of its own sign-in. A state is good once:
 // handing the same token out twice would let anyone who saw it replay it.
-app.get('/auth/google/poll', (req, res) => {
+app.get('/auth/google/poll', connectLimiter, (req, res) => {
   const state = String(req.query.state || '');
   if (!state) return res.status(400).json({ error: 'missing state' });
   const hit = pendingGoogleAuth.get(state);
@@ -584,7 +737,7 @@ app.get('/auth/google/poll', (req, res) => {
   res.json({ token: hit.token, name: hit.name, email: hit.email });
 });
 
-app.get('/auth/google/callback', async (req, res) => {
+app.get('/auth/google/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   const base = getPublicUrl(req);
   if (!code) return res.status(400).send('No code received from Google.');
@@ -678,7 +831,7 @@ app.get('/auth/google/callback', async (req, res) => {
 // ── Google OAuth code exchange (Electron loopback flow) ──────────────────────
 // The Electron app catches the redirect code and sends it here so the
 // client secret never needs to be bundled inside the app.
-app.post('/connect/google/exchange', async (req, res) => {
+app.post('/connect/google/exchange', connectLimiter, async (req, res) => {
   const { code, redirectUri, service } = req.body || {};
   if (!code || !redirectUri) return res.status(400).json({ error: 'code and redirectUri required' });
   const scope = {
@@ -705,10 +858,10 @@ app.post('/connect/google/exchange', async (req, res) => {
 });
 
 // ── Gmail connector — disabled, not included in this version ─────────────────
-app.get('/connect/gmail', (_req, res) => res.status(410).json({ error: 'Gmail connector not available in this version.' }));
-app.get('/connect/gmail/callback', (_req, res) => res.status(410).send('Gmail connector not available.'));
-app.get('/connect/gmail/poll', (_req, res) => res.json({ ok: false }));
-app.post('/connect/gmail/refresh', (_req, res) => res.status(410).json({ error: 'Gmail connector not available.' }));
+app.get('/connect/gmail', connectLimiter, (_req, res) => res.status(410).json({ error: 'Gmail connector not available in this version.' }));
+app.get('/connect/gmail/callback', connectLimiter, (_req, res) => res.status(410).send('Gmail connector not available.'));
+app.get('/connect/gmail/poll', connectLimiter, (_req, res) => res.json({ ok: false }));
+app.post('/connect/gmail/refresh', connectLimiter, (_req, res) => res.status(410).json({ error: 'Gmail connector not available.' }));
 
 // Temporary token store (in-memory, cleared after pickup)
 const pendingTokens = {};
@@ -757,7 +910,7 @@ const WEB_CONNECTABLE = new Set([
   'spotify', 'calendar', 'youtube', 'instagram', 'tiktok', 'analytics', 'outlook',
 ]);
 
-app.post('/web/connect/:service', authMiddleware, (req, res) => {
+app.post('/web/connect/:service', connectLimiter, authMiddleware, (req, res) => {
   const service = String(req.params.service || '').toLowerCase();
   if (!WEB_CONNECTABLE.has(service)) return res.status(400).json({ error: 'Unknown service.' });
   // The same shape of secret the desktop app uses, so the existing routes and
@@ -767,7 +920,7 @@ app.post('/web/connect/:service', authMiddleware, (req, res) => {
   res.json({ ok: true, url: `${PUBLIC_URL}/connect/${service}?state=${state}` });
 });
 
-app.get('/web/connections', authMiddleware, async (req, res) => {
+app.get('/web/connections', connectLimiter, authMiddleware, async (req, res) => {
   try {
     res.json({ ok: true, connections: await connections.listPublic(req.userId) });
   } catch (err) {
@@ -803,7 +956,7 @@ app.get('/web/stats', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/web/connect/:service', authMiddleware, async (req, res) => {
+app.delete('/web/connect/:service', connectLimiter, authMiddleware, async (req, res) => {
   const service = String(req.params.service || '').toLowerCase();
   try {
     const gone = await connections.remove(req.userId, service);
@@ -912,7 +1065,7 @@ setInterval(() => {
 // Needs STRIPE_CONNECT_CLIENT_ID (the ca_... from Stripe Dashboard → Settings
 // → Connect → Platform settings) alongside the existing STRIPE_SECRET_KEY,
 // which is used only to exchange the code.
-app.get('/connect/stripe', (req, res) => {
+app.get('/connect/stripe', connectLimiter, (req, res) => {
   const clientId = process.env.STRIPE_CONNECT_CLIENT_ID;
   if (!clientId) return res.status(500).send('Stripe Connect is not set up on this server yet.');
   const params = new URLSearchParams({
@@ -928,7 +1081,7 @@ app.get('/connect/stripe', (req, res) => {
   res.redirect(`https://connect.stripe.com/oauth/authorize?${params}`);
 });
 
-app.get('/connect/stripe/callback', async (req, res) => {
+app.get('/connect/stripe/callback', connectLimiter, async (req, res) => {
   const { code, error_description } = req.query;
   if (error_description) return res.send(`<p>Stripe connection failed: ${String(error_description).slice(0, 200)}</p>`);
   if (!code) return res.status(400).send(oauthRefusal(req));
@@ -958,7 +1111,7 @@ app.get('/connect/stripe/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/stripe/poll', (req, res) => {
+app.get('/connect/stripe/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'stripe');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
@@ -988,7 +1141,7 @@ async function appSpotifyToken() {
   return data.access_token;
 }
 
-app.get('/spotify/search', authMiddleware, async (req, res) => {
+app.get('/spotify/search', upstreamLimiter, authMiddleware, async (req, res) => {
   try {
     const raw = String(req.query.q || '').trim();
     if (!raw) return res.status(400).json({ error: 'q required' });
@@ -1031,7 +1184,7 @@ app.get('/spotify/search', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/connect/spotify', (req, res) => {
+app.get('/connect/spotify', connectLimiter, (req, res) => {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) return res.status(500).send('Spotify not configured. Add SPOTIFY_CLIENT_ID to server .env');
   const params = new URLSearchParams({
@@ -1043,7 +1196,7 @@ app.get('/connect/spotify', (req, res) => {
   res.redirect(`https://accounts.spotify.com/authorize?${params}`);
 });
 
-app.get('/connect/spotify/callback', async (req, res) => {
+app.get('/connect/spotify/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1062,13 +1215,13 @@ app.get('/connect/spotify/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/spotify/poll', (req, res) => {
+app.get('/connect/spotify/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'spotify');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
 });
 
-app.post('/connect/spotify/refresh', async (req, res) => {
+app.post('/connect/spotify/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   try {
@@ -1083,7 +1236,7 @@ app.post('/connect/spotify/refresh', async (req, res) => {
 });
 
 // ── Outlook connector OAuth ───────────────────────────────────────────────────
-app.get('/connect/outlook', (req, res) => {
+app.get('/connect/outlook', connectLimiter, (req, res) => {
   const clientId = process.env.OUTLOOK_CLIENT_ID;
   if (!clientId) return res.status(500).send('Outlook not configured. Add OUTLOOK_CLIENT_ID to server .env');
   const params = new URLSearchParams({
@@ -1096,7 +1249,7 @@ app.get('/connect/outlook', (req, res) => {
   res.redirect(`https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`);
 });
 
-app.get('/connect/outlook/callback', async (req, res) => {
+app.get('/connect/outlook/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1119,7 +1272,7 @@ app.get('/connect/outlook/callback', async (req, res) => {
   }
 });
 
-app.post('/connect/outlook/refresh', async (req, res) => {
+app.post('/connect/outlook/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   try {
@@ -1141,7 +1294,7 @@ app.post('/connect/outlook/refresh', async (req, res) => {
 
 // ── Google Calendar connector OAuth ──────────────────────────────────────────
 // Uses calendar.events — the narrowest scope that can also add an event.
-app.get('/connect/calendar', (req, res) => {
+app.get('/connect/calendar', connectLimiter, (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/calendar/callback`,
@@ -1157,7 +1310,7 @@ app.get('/connect/calendar', (req, res) => {
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
-app.get('/connect/calendar/callback', async (req, res) => {
+app.get('/connect/calendar/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1181,13 +1334,13 @@ app.get('/connect/calendar/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/calendar/poll', (req, res) => {
+app.get('/connect/calendar/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'calendar');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
 });
 
-app.post('/connect/calendar/refresh', async (req, res) => {
+app.post('/connect/calendar/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   try {
@@ -1209,7 +1362,7 @@ app.post('/connect/calendar/refresh', async (req, res) => {
 
 // Verify token + check inactivity (called on app startup)
 app.get('/auth/me', authMiddleware, async (req, res) => {
-  const user = await users.findById(req.user.id);
+  const user = await users.findByIdCached(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   console.log('[auth/me] user:', user.email, 'status:', user.subscriptionStatus, 'freeAccess:', user.freeAccess, 'lastActive:', user.lastActiveAt);
   const alwaysFree = isAlwaysFree(user.email);
@@ -1229,9 +1382,13 @@ app.get('/auth/me', authMiddleware, async (req, res) => {
 
 // ── Admin: grant/revoke free access by email ──────────────────────────────────
 // Protected by ADMIN_SECRET env var — keep this secret, never share
-app.post('/admin/grant-free', async (req, res) => {
+// Hands somebody a free subscription, so the secret guarding it is worth as
+// much as the subscription. It had no limiter, which made it guessable at
+// whatever rate the network allowed, and compared with !==, which leaks the
+// answer through timing. Both fixed.
+app.post('/admin/grant-free', adminLimiter, async (req, res) => {
   const { secret, email, revoke } = req.body;
-  if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+  if (!secretMatches(secret, process.env.ADMIN_SECRET)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const user = await users.findByEmail(email);
@@ -1245,7 +1402,7 @@ app.post('/admin/grant-free', async (req, res) => {
 // GET: load all saved prefs for this user
 app.get('/user/prefs', authMiddleware, async (req, res) => {
   try {
-    const user = await users.findById(req.user.id);
+    const user = await users.findByIdCached(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ prefs: user.prefs || {} });
   } catch (err) {
@@ -1273,7 +1430,7 @@ app.patch('/user/prefs', authMiddleware, async (req, res) => {
   try {
     const { patch } = req.body;
     if (!patch || typeof patch !== 'object') return res.status(400).json({ error: 'patch object required' });
-    const user = await users.findById(req.user.id);
+    const user = await users.findByIdCached(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const merged = { ...(user.prefs || {}), ...patch };
     const size = Buffer.byteLength(JSON.stringify(merged), 'utf8');
@@ -1292,7 +1449,7 @@ app.post('/auth/activity', authMiddleware, async (req, res) => {
 });
 
 // ── Stripe checkout (email-based, not license key) ────────────────────────────
-app.get('/checkout', async (req, res) => {
+app.get('/checkout', authLimiter, async (req, res) => {
   const { token, plan } = req.query;
   // Pick price ID based on plan param: 'annual' uses yearly price, default = monthly
   // Picking annual must never quietly fall back to the monthly price — the
@@ -1353,7 +1510,7 @@ app.get('/checkout', async (req, res) => {
   }
 });
 
-app.get('/success', async (req, res) => {
+app.get('/success', connectLimiter, async (req, res) => {
   res.send(`
     <html>
     <head>
@@ -1370,7 +1527,7 @@ app.get('/success', async (req, res) => {
   `);
 });
 
-app.get('/account', (req, res) => {
+app.get('/account', connectLimiter, (req, res) => {
   res.send(`
     <html><body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
       <h2 style="color:#00c8ff;">Callisto AI — US$20/month</h2>
@@ -1383,14 +1540,14 @@ app.get('/account', (req, res) => {
 // ── Google Drive connector — REMOVED (pending ADA-CASA verification) ──────────
 // drive.readonly is a RESTRICTED scope requiring ADA-CASA AL1 assessment.
 // All Drive routes return 404 to avoid scope detection by Google's scanner.
-app.get('/connect/drive', (_req, res) => res.status(404).json({ error: 'Drive connector not available in this version.' }));
-app.get('/connect/drive/callback', (_req, res) => res.status(404).send('Not found.'));
-app.get('/connect/drive/poll', (_req, res) => res.status(404).json({ ok: false }));
-app.post('/connect/drive/refresh', (_req, res) => res.status(404).json({ error: 'Drive not available.' }));
+app.get('/connect/drive', connectLimiter, (_req, res) => res.status(404).json({ error: 'Drive connector not available in this version.' }));
+app.get('/connect/drive/callback', connectLimiter, (_req, res) => res.status(404).send('Not found.'));
+app.get('/connect/drive/poll', connectLimiter, (_req, res) => res.status(404).json({ ok: false }));
+app.post('/connect/drive/refresh', connectLimiter, (_req, res) => res.status(404).json({ error: 'Drive not available.' }));
 
 // ── YouTube Studio connector OAuth ────────────────────────────────────────────
 // Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — just adds YouTube scopes
-app.get('/connect/youtube', (req, res) => {
+app.get('/connect/youtube', connectLimiter, (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/youtube/callback`,
@@ -1402,7 +1559,7 @@ app.get('/connect/youtube', (req, res) => {
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
-app.get('/connect/youtube/callback', async (req, res) => {
+app.get('/connect/youtube/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1426,13 +1583,13 @@ app.get('/connect/youtube/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/youtube/poll', (req, res) => {
+app.get('/connect/youtube/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'youtube');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
 });
 
-app.post('/connect/youtube/refresh', async (req, res) => {
+app.post('/connect/youtube/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   try {
@@ -1463,7 +1620,7 @@ app.post('/connect/youtube/refresh', async (req, res) => {
 // The older route reaches Instagram through a Facebook Page, and is kept below
 // for an app configured that way. Which one runs is decided by which
 // credentials are set, so neither needs the other.
-app.get('/connect/instagram', (req, res) => {
+app.get('/connect/instagram', connectLimiter, (req, res) => {
   const igAppId = process.env.INSTAGRAM_APP_ID;
   if (igAppId) {
     const params = new URLSearchParams({
@@ -1513,7 +1670,7 @@ app.get('/connect/instagram', (req, res) => {
   res.redirect(`https://www.facebook.com/v23.0/dialog/oauth?${params}`);
 });
 
-app.get('/connect/instagram/callback', async (req, res) => {
+app.get('/connect/instagram/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
 
@@ -1586,7 +1743,7 @@ app.get('/connect/instagram/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/instagram/poll', (req, res) => {
+app.get('/connect/instagram/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'instagram');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
@@ -1594,7 +1751,7 @@ app.get('/connect/instagram/poll', (req, res) => {
 
 // ── TikTok connector OAuth ────────────────────────────────────────────────────
 // Requires TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET from TikTok for Developers
-app.get('/connect/tiktok', (req, res) => {
+app.get('/connect/tiktok', connectLimiter, (req, res) => {
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
   if (!clientKey) return res.status(500).send('TikTok not configured. Add TIKTOK_CLIENT_KEY to server .env');
   const params = new URLSearchParams({
@@ -1624,7 +1781,7 @@ app.get('/connect/tiktok', (req, res) => {
   res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
 });
 
-app.get('/connect/tiktok/callback', async (req, res) => {
+app.get('/connect/tiktok/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1651,7 +1808,7 @@ app.get('/connect/tiktok/callback', async (req, res) => {
 
 // TikTok's access token lasts a day, so the app refreshes here rather than
 // carrying the client secret, which has no business being in a distributed app.
-app.post('/connect/tiktok/refresh', async (req, res) => {
+app.post('/connect/tiktok/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   if (!process.env.TIKTOK_CLIENT_KEY) return res.status(500).json({ error: 'TikTok not configured on the server' });
@@ -1670,7 +1827,7 @@ app.post('/connect/tiktok/refresh', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/connect/tiktok/poll', (req, res) => {
+app.get('/connect/tiktok/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'tiktok');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
@@ -1678,7 +1835,7 @@ app.get('/connect/tiktok/poll', (req, res) => {
 
 // ── Shopify connector — API key entry (no OAuth redirect needed for custom apps) ──
 // Client sends store URL + access token; server validates and echoes back
-app.post('/connect/shopify/verify', async (req, res) => {
+app.post('/connect/shopify/verify', connectLimiter, async (req, res) => {
   const { shop, access_token } = req.body;
   if (!shop || !access_token) return res.status(400).json({ error: 'shop and access_token required' });
   try {
@@ -1695,7 +1852,7 @@ app.post('/connect/shopify/verify', async (req, res) => {
 });
 
 // ── Squarespace connector — API key validation ─────────────────────────────────
-app.post('/connect/squarespace/verify', async (req, res) => {
+app.post('/connect/squarespace/verify', connectLimiter, async (req, res) => {
   const { api_key } = req.body;
   if (!api_key) return res.status(400).json({ error: 'api_key required' });
   try {
@@ -1714,7 +1871,7 @@ app.post('/connect/squarespace/verify', async (req, res) => {
 
 // ── Google Analytics (GA4) connector OAuth ────────────────────────────────────
 // Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — adds Analytics readonly scope
-app.get('/connect/analytics', (req, res) => {
+app.get('/connect/analytics', connectLimiter, (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/connect/analytics/callback`,
@@ -1726,7 +1883,7 @@ app.get('/connect/analytics', (req, res) => {
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
-app.get('/connect/analytics/callback', async (req, res) => {
+app.get('/connect/analytics/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send(oauthRefusal(req));
   try {
@@ -1750,13 +1907,13 @@ app.get('/connect/analytics/callback', async (req, res) => {
   }
 });
 
-app.get('/connect/analytics/poll', (req, res) => {
+app.get('/connect/analytics/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'analytics');
   if (t) return res.json({ ok: true, ...t });
   res.json({ ok: false });
 });
 
-app.post('/connect/analytics/refresh', async (req, res) => {
+app.post('/connect/analytics/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
   try {
@@ -1775,7 +1932,7 @@ app.post('/connect/analytics/refresh', async (req, res) => {
 });
 
 // ── Stripe connector — secret key validation ──────────────────────────────────
-app.post('/connect/stripe/verify', async (req, res) => {
+app.post('/connect/stripe/verify', connectLimiter, async (req, res) => {
   const { secret_key } = req.body;
   if (!secret_key) return res.status(400).json({ error: 'secret_key required' });
   try {
@@ -1791,7 +1948,7 @@ app.post('/connect/stripe/verify', async (req, res) => {
 });
 
 // Legacy license check (kept for backwards compat during transition)
-app.post('/license/check', (req, res) => res.json({ active: false }));
+app.post('/license/check', connectLimiter, (req, res) => res.json({ active: false }));
 
 // ── AI proxy routes (keys never leave this server) ────────────────────────────
 // Keep this SHORT — a long prompt causes Whisper to hallucinate it verbatim when it hears silence/noise
@@ -1842,7 +1999,7 @@ async function checkGuestOrUserLimit(req, res, next) {
 
 async function checkDailyLimit(req, res, next) {
   try {
-    const user = await users.findById(req.userId);
+    const user = await users.findByIdCached(req.userId);
     if (!user) return next(); // user not found, treat as guest (already counted above)
     // Premium or free-access users — unlimited
     const isActive = user.freeAccess === true || user.subscriptionStatus === 'active';
@@ -1874,10 +2031,31 @@ async function checkDailyLimit(req, res, next) {
 // A build old enough not to send the header is not counted at all. That is
 // deliberate: those builds have never been limited, and silently charging them
 // mid-conversation would look like a fault rather than a plan.
+// Which calls are "a message" against the daily allowance.
+//
+// Decided by route, because the server knows what each route is and the
+// client cannot be trusted to say. Answering a question is a message; the
+// speech that reads the answer aloud, and the transcription of what was
+// said, are parts of the same message and must not each cost one — speech is
+// synthesised a sentence at a time, so counting it would spend the whole
+// allowance on a single reply.
+const MESSAGE_ROUTES = new Set([
+  '/ai/chat',
+  '/ai/chat/stream',
+  '/ai/screen-read',
+  '/ai/vision',
+  '/ai/agent-step',
+  '/ai/magic-edit',
+]);
+function countsAsMessage(req) {
+  const p = (req.path || req.originalUrl || '').split('?')[0].replace(/\/+$/, '');
+  return MESSAGE_ROUTES.has(p);
+}
+
 async function appMessageLimit(req, res, next) {
   try {
     if (!req.userId) return next();
-    const user = await users.findById(req.userId);
+    const user = await users.findByIdCached(req.userId);
     if (!user) return next();
     if (user.freeAccess === true || user.subscriptionStatus === 'active' || isAlwaysFree(user.email)) return next();
 
@@ -1891,8 +2069,26 @@ async function appMessageLimit(req, res, next) {
         upgrade: true,
       });
     }
-    if (req.headers['x-callisto-turn'] === '1') {
-      await users.update(user.id, { msgCount: count + 1, msgCountDate: today });
+
+    // Whether this call counts is decided HERE, by which route it is, not by
+    // whether the caller volunteered an "x-callisto-turn: 1" header.
+    //
+    // It used to be the header, and a client that simply left it out was
+    // never counted at all — fifteen messages a day became unlimited for
+    // anyone who noticed, which is a one-line change in a modified app or a
+    // single curl. The header survives only as a way for the app to say which
+    // call of a multi-call turn is the real one, and its ABSENCE no longer
+    // means free.
+    if (countsAsMessage(req)) {
+      const used = await users.countMessage(user.id, today);
+      // Won the race to the fifteenth place and lost: refuse it now that the
+      // count is known, rather than letting it through because the read a
+      // moment ago said fourteen.
+      if (used !== null && used > FREE_DAILY_LIMIT) {
+        return res.status(429).json({
+          error: 'daily_limit_reached', limit: FREE_DAILY_LIMIT, used: used - 1, upgrade: true,
+        });
+      }
     }
     next();
   } catch (_) {
@@ -1965,7 +2161,7 @@ function stockContextMessage(card) {
   };
 }
 
-app.get('/web/stock', async (req, res) => {
+app.get('/web/stock', upstreamLimiter, async (req, res) => {
   try {
     const symbol = String(req.query.symbol || '').trim();
     const q = String(req.query.q || '').trim();
@@ -1982,7 +2178,7 @@ app.get('/web/stock', async (req, res) => {
 
 // ── Headlines for the website's LIVE strip (public, cached) ───────────────────
 let _webNewsCache = { at: 0, headlines: [] };
-app.get('/web/news', async (_req, res) => {
+app.get('/web/news', upstreamLimiter, async (_req, res) => {
   try {
     if (Date.now() - _webNewsCache.at < 10 * 60 * 1000 && _webNewsCache.headlines.length) {
       return res.json({ headlines: _webNewsCache.headlines });
@@ -2227,7 +2423,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
-    const user = req.userId ? await users.findById(req.userId) : null;
+    const user = req.userId ? await users.findByIdCached(req.userId) : null;
     const today = new Date().toISOString().slice(0, 10);
     const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
     const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
@@ -2342,7 +2538,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
 // ── Get user message usage ────────────────────────────────────────────────────
 app.get('/web/usage', authMiddleware, async (req, res) => {
   try {
-    const user = await users.findById(req.userId);
+    const user = await users.findByIdCached(req.userId);
     const isActive = user?.freeAccess === true || user?.subscriptionStatus === 'active';
     const today = new Date().toISOString().slice(0, 10);
     const used = user?.msgCountDate === today ? (user?.msgCount || 0) : 0;
@@ -2491,7 +2687,7 @@ app.post('/ai/stt', authMiddleware, aiLimiter, async (req, res) => {
 // It spends from the SAME daily image allowance as making one. They cost the
 // same and they are the same model; two separate counts would be a way round
 // the limit rather than a second feature.
-app.post('/ai/image-edit', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/image-edit', authMiddleware, expensiveLimiter, async (req, res) => {
   try {
     const { imageBase64, prompt, size } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
@@ -2556,7 +2752,7 @@ app.post('/ai/image-edit', authMiddleware, aiLimiter, async (req, res) => {
   }
 });
 
-app.post('/ai/image', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/image', authMiddleware, expensiveLimiter, async (req, res) => {
   try {
     const { prompt, size } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
@@ -2653,7 +2849,7 @@ const SCREEN_ACTIONS = [
   'explain_selection', 'translate', 'extract_table', 'none',
 ];
 
-app.post('/ai/screen-watch', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/screen-watch', authMiddleware, expensiveLimiter, async (req, res) => {
   try {
     const { imageBase64, previous } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
@@ -2963,7 +3159,7 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
   }
 });
 
-app.post('/ai/vision', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/vision', authMiddleware, appMessageLimit, expensiveLimiter, async (req, res) => {
   try {
     const { imageBase64, instruction } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
@@ -3097,7 +3293,7 @@ Be direct, specific and intelligent — like a brilliant professor giving you th
 // Called by the desktop app when user says "find best X near me".
 // Requires GOOGLE_PLACES_API_KEY in server .env (enable "Places API" on Google Cloud Console).
 // Returns { places: [{ name, address, rating, totalRatings, open, mapsUrl, types }] }
-app.post('/ai/places', authMiddleware, async (req, res) => {
+app.post('/ai/places', upstreamLimiter, authMiddleware, async (req, res) => {
   try {
     const { query, lat, lng, city } = req.body;
     if (!query) return res.status(400).json({ error: 'query required' });
@@ -3150,7 +3346,7 @@ app.post('/ai/places', authMiddleware, async (req, res) => {
 // ── Find a business's phone number (for AI phone calls) ───────────────────────
 // "Call Zakir Tikka" names a local business the user hasn't saved, so look it up
 // near them and return the best match's number.
-app.post('/ai/place-phone', authMiddleware, async (req, res) => {
+app.post('/ai/place-phone', upstreamLimiter, authMiddleware, async (req, res) => {
   try {
     const { query, lat, lng, city, country } = req.body || {};
     if (!query) return res.status(400).json({ error: 'query required' });
@@ -3256,7 +3452,7 @@ app.post('/ai/stream-lookup', authMiddleware, aiLimiter, async (req, res) => {
 // for a press if it is not, and comes straight back here with the output.
 // The point of the design is that it stops and asks rather than guessing at
 // anything it cannot see for itself.
-app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/agent-step', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
     const { goal, steps = [], folder = '', os = '' } = req.body || {};
     if (!goal) return res.status(400).json({ error: 'goal required' });
@@ -3362,7 +3558,7 @@ app.post('/ai/agent-step', authMiddleware, aiLimiter, async (req, res) => {
   }
 });
 
-app.post('/ai/magic-edit', authMiddleware, aiLimiter, async (req, res) => {
+app.post('/ai/magic-edit', authMiddleware, appMessageLimit, expensiveLimiter, async (req, res) => {
   try {
     const { selectedText, instruction } = req.body;
     if (!selectedText || !instruction) return res.status(400).json({ error: 'selectedText and instruction required' });
@@ -3482,4 +3678,28 @@ require('./video').mountVideo(app, { authMiddleware, publicUrl: getPublicUrl });
 require('./media-host').mountMediaHost(app, { authMiddleware, publicUrl: getPublicUrl });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Jarvis auth server on :${PORT}`));
+// How the server itself is doing. Behind the admin secret: request counts,
+// memory and the slowest routes tell an attacker how hard they are hurting
+// you, which is not something to publish.
+app.get('/health/stats', adminLimiter, (req, res) => {
+  if (!secretMatches(req.query.secret, process.env.ADMIN_SECRET)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  res.json(monitoring.snapshot());
+});
+
+// LAST, after every route. Express picks the four-argument function as its
+// error handler, and only ever reaches it if nothing above has answered —
+// so this has to be registered after everything it is meant to catch.
+app.use(monitoring.errorHandler);
+
+app.listen(PORT, () => {
+  console.log(`Jarvis auth server on :${PORT}`);
+  // Indexes are applied once here rather than by whichever request happened
+  // to touch a collection first. Not awaited and never fatal: a server that
+  // refuses to start because an index already exists is worse than one
+  // running with a warning in the log.
+  require('./indexes').ensureIndexes().catch((err) => {
+    console.warn('[indexes] could not be applied:', err.message);
+  });
+});
