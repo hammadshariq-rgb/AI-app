@@ -3112,7 +3112,10 @@ app.post('/ai/image', authMiddleware, expensiveLimiter, async (req, res) => {
         model: 'gpt-image-1',
         prompt: safePrompt,
         n: 1,
-        size: targetSize,
+        // gpt-image-1 takes 1536 on the long side, not DALL-E's 1792. Asking it
+        // for 1792 failed every tall or wide picture over to dall-e-3, which
+        // garbles any words in it - posters most of all.
+        size: ({ '1024x1792': '1024x1536', '1792x1024': '1536x1024' })[targetSize] || targetSize,
         // Asking for the best this model does. Left to its default it renders
         // faster and noticeably rougher - soft edges, mangled detail - which
         // is most of what "the picture came out weird" meant.

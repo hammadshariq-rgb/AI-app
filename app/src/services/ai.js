@@ -354,7 +354,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'generate_image',
-      description: 'Generate a flat picture with AI. ONLY use this when the request names something visual - an image, picture, photo, illustration, artwork, drawing, logo, poster, wallpaper, render or design. The verb alone is NOT enough: "create", "make", "build" and "give me" are used far more often for things that are not pictures. "Create me an all-time football 11" is a list of players, "make me a plan" is a plan, "build me a table" is a table - answer those normally and do not generate anything. If no visual word appears, this is the wrong tool. Do NOT use this when they said draw, sketch or paint — those words mean the canvas, so call the draw tool instead. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
+      description: 'Generate a flat picture with AI. ONLY use this when the request names something visual - an image, picture, photo, illustration, artwork, drawing, logo, wallpaper, render or design. A POSTER, flyer or event/sale/promo graphic with words on it is make_poster, not this. The verb alone is NOT enough: "create", "make", "build" and "give me" are used far more often for things that are not pictures. "Create me an all-time football 11" is a list of players, "make me a plan" is a plan, "build me a table" is a table - answer those normally and do not generate anything. If no visual word appears, this is the wrong tool. Do NOT use this when they said draw, sketch or paint — those words mean the canvas, so call the draw tool instead. Only use generate_3d_model instead when they explicitly said 3D, mesh or sculpt, and only use video generation when they explicitly said video, clip or animation.',
       parameters: {
         type: 'object',
         properties: {
@@ -362,6 +362,27 @@ const TOOLS = [
           size: { type: 'string', enum: ['1024x1024', '1792x1024', '1024x1792'], description: 'Image size. Use 1792x1024 for wide/landscape, 1024x1792 for tall/portrait, 1024x1024 for square.' },
         },
         required: ['prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'make_poster',
+      description: 'Design a finished poster, flyer or promo graphic with real words on it: an event, a sale, a product launch, a menu, a gig, a class, a hiring notice, a motivational print. Use for "make me a poster for…", "design a flyer for my sale", "a poster for my gym opening", "an Instagram promo for my launch". Fill in the words yourself from what they said - never leave placeholders like [DATE]; if a detail was not given, leave that field out rather than inventing one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          headline: { type: 'string', description: 'The big words, short and punchy, 2 to 6 words. Spelled exactly.' },
+          subheading: { type: 'string', description: 'One supporting line under the headline. Optional.' },
+          details: { type: 'string', description: 'The small print that matters: date, time, place, price, offer, website or handle - only what the user actually gave. Separate items with " · ".' },
+          call_to_action: { type: 'string', description: 'A short button-style line, e.g. "Book now", "Shop the sale", "Free entry". Optional.' },
+          subject: { type: 'string', description: 'What the poster is for and the main image on it, described in a sentence.' },
+          style: { type: 'string', description: 'The look: e.g. bold modern minimal, retro 70s, neon nightlife, luxury black and gold, playful hand-drawn, corporate clean, grunge gig poster, Swiss typographic. Pick one that suits the subject if they did not say.' },
+          colours: { type: 'string', description: 'Brand or chosen colours, if any.' },
+          shape: { type: 'string', enum: ['portrait', 'square', 'landscape'], description: 'portrait for a printed poster or story, square for an Instagram post, landscape for a banner. Default portrait.' },
+        },
+        required: ['headline', 'subject'],
       },
     },
   },
@@ -809,6 +830,24 @@ const TOOLS = [
   },
 ];
 
+// A poster is a picture whose words must come out exactly right, so the words
+// are quoted and the layout is spelled out - left to a loose description the
+// image model invents text, misspells it, or buries it in the picture.
+function posterPrompt(a = {}) {
+  const q = (x) => String(x || '').replace(/"/g, "'").trim();
+  const lines = [
+    `A professionally designed ${q(a.shape) || 'portrait'} poster, print-ready graphic design, ${q(a.style) || 'bold modern minimal'} style.`,
+    `Subject and main visual: ${q(a.subject)}.`,
+    `Large headline text at the top, exactly: "${q(a.headline)}".`,
+  ];
+  if (a.subheading) lines.push(`Smaller subheading below it, exactly: "${q(a.subheading)}".`);
+  if (a.details) lines.push(`Clean small text block near the bottom, exactly: "${q(a.details)}".`);
+  if (a.call_to_action) lines.push(`A clear call-to-action badge or button reading exactly: "${q(a.call_to_action)}".`);
+  if (a.colours) lines.push(`Colour palette: ${q(a.colours)}.`);
+  lines.push('Strong visual hierarchy, generous margins, a grid layout, crisp legible typography, every word spelled exactly as quoted and no other text anywhere, no watermarks, no placeholder text, high contrast so it reads from a distance.');
+  return lines.join(' ');
+}
+
 const SYSTEM_PROMPT = (assistantName, memories = [], realtimeContext = null, language = 'English', userName = null, userTitle = null, userLocation = null) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -1107,7 +1146,7 @@ DRAWING — THE VERB DECIDES, AND IT IS NOT A JUDGEMENT CALL:
   space it sits in.
 
 CREATING THINGS (picture vs video vs 3D) — these get mixed up, so be strict:
-- "make me an image", "generate a picture", "create a photo", "design me a logo/poster/wallpaper" -> generate_image. This is the default for anything visual EXCEPT the words draw, sketch and paint, which are the drawing canvas (see DRAWING above).
+- "make me an image", "generate a picture", "create a photo", "design me a logo/wallpaper" -> generate_image. "make me a poster/flyer/promo for…" -> make_poster. This is the default for anything visual EXCEPT the words draw, sketch and paint, which are the drawing canvas (see DRAWING above).
 - "video", "clip", "animation", "reel", "animate this", "make it move" -> video generation.
 - ONLY the words "3D", "3D model", "3D print", "mesh" or "sculpt" -> generate_3d_model.
 - Never substitute one for another. "Make me an image of a dragon" is a picture, not a 3D model, even if a 3D model is already open on screen.
@@ -1471,7 +1510,7 @@ function isKnowledgeQuestion(message) {
 const FAST_PATH_TOOLS = new Set([
   'open_url', 'open_folder', 'open_file', 'open_app', 'open_chat',
   'read_messages', 'send_message',
-  'play_music', 'notify', 'generate_image', 'get_analytics',
+  'play_music', 'notify', 'generate_image', 'make_poster', 'get_analytics',
   'set_reminder', 'add_task', 'list_tasks', 'mark_emails_read', 'set_volume',
   'system_power', 'remember_fact', 'forget_fact', 'get_briefing',
   // Calendar and closing an app are plain, unambiguous actions - the quick
@@ -1699,6 +1738,7 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'play_music')    return { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
       else if (fnName === 'notify')        return { type: 'notify',        arg: args.message };
       else if (fnName === 'generate_image') return { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+      else if (fnName === 'make_poster') return { type: 'generate_image', arg: posterPrompt(args), size: ({ square: '1024x1024', landscape: '1792x1024' })[args.shape] || '1024x1792' };
             else if (fnName === 'generate_3d_model') return { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
             else if (fnName === 'upload_media') return { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
             else if (fnName === 'run_command') return { type: 'run_command', payload: { command: args.command || '', folder: args.folder || '', why: args.why || '' } };
