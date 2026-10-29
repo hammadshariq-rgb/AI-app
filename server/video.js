@@ -197,7 +197,7 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
         const msg = allow.plan === 'trial'
           ? (allow.limit === 0
               ? 'Video creation is available on the paid plan. Upgrade to start making videos.'
-              : `The free trial includes ${allow.limit} video${allow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${PER_USER_PER_DAY} a day.`)
+              : `The free plan includes ${allow.limit} video${allow.limit === 1 ? '' : 's'} a week, and you've used this week's. Upgrade for ${PER_USER_PER_DAY} a day.`)
           : `You've used all ${allow.limit} of today's videos. Try again tomorrow.`;
         return res.status(429).json({ error: msg, upgrade: allow.plan === 'trial' });
       }

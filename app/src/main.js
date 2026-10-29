@@ -1333,7 +1333,25 @@ app.whenReady().then(async () => {
 
     // Don't crash on update errors, but do say why — a silent catch is what made
     // the last broken updater so hard to diagnose.
-    autoUpdater.on('error', (err) => console.warn('[UPDATE]', err && err.message ? err.message : err));
+    autoUpdater.on('error', (err) => {
+      const msg = String((err && err.message) || err || '');
+      console.warn('[UPDATE]', msg);
+      // Windows refuses an update whose signature doesn't match the publisher
+      // name this copy was built with. Until 1.9.7 that name didn't match the
+      // certificate, so every Windows update was thrown away in silence. If it
+      // ever happens again, say so once and offer the download by hand.
+      if (/not signed|publisher|signature/i.test(msg) && !global._updateSigWarned) {
+        global._updateSigWarned = true;
+        try {
+          const n = new Notification({
+            title: 'Callisto AI update',
+            body: 'A new version is ready but could not install itself. Click to download it.',
+          });
+          n.on('click', () => shell.openExternal('https://github.com/hammadshariq-rgb/AI-app/releases/latest'));
+          n.show();
+        } catch (_) {}
+      }
+    });
     autoUpdater.on('checking-for-update', () => console.log('[UPDATE] checking…'));
     autoUpdater.on('update-not-available', () => console.log('[UPDATE] already on the latest version'));
     autoUpdater.on('download-progress', (p) => console.log(`[UPDATE] ${Math.round(p.percent)}%`));

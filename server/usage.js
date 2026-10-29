@@ -82,9 +82,17 @@ async function planFor(userId) {
 }
 
 // Resolve the allowance for a feature: { limit, period, plan }.
-async function allowance(userId, { paidPerDay, trialPerDay }) {
+// Free accounts get a weekly allowance (2 of each by default, from Monday),
+// not a daily one: pictures, video and 3D are the expensive part, and a daily
+// allowance let one free account cost more than a subscription brings in.
+// trialPerDay is kept in the signature so callers don't change; it's unused.
+const FREE_PER_WEEK = Number(process.env.FREE_MEDIA_PER_WEEK) || 2;
+
+async function allowance(userId, { paidPerDay }) {
   const plan = await planFor(userId);
-  return { plan, limit: plan === 'paid' ? paidPerDay : trialPerDay, period: 'day' };
+  return plan === 'paid'
+    ? { plan, limit: paidPerDay, period: 'day' }
+    : { plan, limit: FREE_PER_WEEK, period: 'week' };
 }
 
 module.exports = { reserve, release, allowance };

@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.9.6",
+  "version": "1.9.7",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -72,7 +72,7 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": "Hammad Shariq"
+      "publisherName": ["Muhammad Hammad Shariq", "Hammad Shariq"]
     },
     "mac": {
       "artifactName": "Callisto-AI-${version}-${arch}.${ext}",

@@ -114,7 +114,8 @@ check('never says undefined', noPosts.includes('undefined'), false);
 const briefSrc = slice(
   path.join(__dirname, '..', 'renderer', 'renderer.js'),
   'async function composeDailyBriefing(',
-  '\n// ',
+  // Up to the announcement card, so the line-splitting helper comes along.
+  '\n// The first-of-the-day update',
   ['Promise.all', 'weatherGreeting', 'connectorStatsBriefing', 'taskBriefing'],
 );
 

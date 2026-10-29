@@ -20,7 +20,7 @@
   #memOrb{position:fixed;inset:0;z-index:2147483000;display:flex;background:rgba(2,4,10,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .28s ease;font-family:inherit;color:#dce6fa}
   #memOrb.open{opacity:1}
   #memOrb .mo-stage{position:relative;flex:1;min-width:0;overflow:hidden}
-  #memOrb canvas{position:absolute;inset:0;width:100%;height:100%}
+  #memOrb canvas{position:absolute;inset:0;width:100%;height:100%}#memOrb .mo-fx{opacity:.9}
   #memOrb .mo-ring{position:absolute;border:1px solid rgba(110,160,255,.14);border-radius:50%;pointer-events:none}
   #memOrb .mo-chip{position:absolute;left:0;top:0;max-width:190px;padding:7px 12px;border-radius:999px;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(8,14,32,.86);border:1px solid var(--k);box-shadow:0 0 14px color-mix(in srgb,var(--k) 35%,transparent);cursor:pointer;transition:max-width .2s ease,background .2s ease;will-change:transform}
   #memOrb .mo-chip:hover,#memOrb .mo-chip.hot{max-width:340px;white-space:normal;background:rgba(14,24,52,.97);z-index:5}
@@ -93,6 +93,68 @@
     };
   }
 
+  // ── The sky behind it: electric mist with a lightning beam through the orb ──
+  // One WebGL layer for both, drawn at half resolution (it is soft by nature,
+  // and a full-size shader on a laptop GPU costs battery for nothing). Without
+  // WebGL the plain dark background simply shows.
+  function sky(canvas) {
+    const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+    if (!gl) return null;
+    const VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+    const FS = `precision mediump float;
+uniform vec2 res;uniform float t;
+float h1(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
+float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+float n2(vec2 x){vec2 p=floor(x),f=fract(x);f=f*f*(3.-2.*f);
+  return mix(mix(h2(p),h2(p+vec2(1,0)),f.x),mix(h2(p+vec2(0,1)),h2(p+vec2(1,1)),f.x),f.y);}
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+float mist(vec2 p,int oct){float z=2.,rz=0.;mat2 m=mat2(.8,.6,-.6,.8);
+  for(int i=0;i<5;i++){if(i>=oct)break;rz+=abs((n2(p*1.5)-.5)*4.)/z;z*=2.;p*=2.;p*=m;}return rz;}
+float bolt(vec2 p){float v=0.,a=.5;for(int i=0;i<8;i++){v+=a*n2(p);p*=rot(.45);p*=2.;a*=.5;}return v;}
+void main(){
+  vec2 uv=gl_FragCoord.xy/res;vec2 p=uv*2.-1.;p.x*=res.x/res.y;vec2 bp=p;
+  float tm=t*.2;
+  /* electric mist */
+  vec2 q=(p+5.)*.5;
+  float rb=mist(q*.5+tm*.17,3)*.1;
+  q*=rot(rb*.2+atan(q.y,q.x)*3.);
+  float rz=mist(q*.9-tm*.7,5)*12.*abs(sin(bp.x*.5-tm*4.-2.));
+  vec3 col=sqrt(abs(vec3(.098,.098,.44)/(1.-rz)));
+  col*=.55;
+  /* lightning beam, blue, down the middle */
+  vec2 l=p;l+=2.*bolt(l*2.+.8*t*1.6)-1.;
+  float d=abs(l.x);
+  vec3 bc=vec3(.24,.42,.8);
+  col+=bc*(mix(0.,.07,h1(floor(t*1.6*12.)))/max(d,.002))*.6;
+  /* fade the edges so the panel side stays calm */
+  col*=smoothstep(1.6,.2,length(bp*vec2(.8,1.)));
+  gl_FragColor=vec4(min(col,vec3(1.)),1.);
+}`;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; };
+    const vs = sh(gl.VERTEX_SHADER, VS), fs = sh(gl.FRAGMENT_SHADER, FS);
+    if (!vs || !fs) return null;
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+    gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p');
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const uRes = gl.getUniformLocation(prog, 'res'), uT = gl.getUniformLocation(prog, 't');
+    const start = performance.now();
+    const draw = (frozen) => {
+      const w = Math.max(1, canvas.clientWidth / 2 | 0), h = Math.max(1, canvas.clientHeight / 2 | 0);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      gl.viewport(0, 0, w, h);
+      gl.uniform2f(uRes, w, h);
+      gl.uniform1f(uT, frozen ? 3.0 : (performance.now() - start) / 1000);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+    draw.dispose = () => { try { gl.getExtension('WEBGL_lose_context')?.loseContext(); } catch (_) {} };
+    return draw;
+  }
+
   // ── Rings of memories ──────────────────────────────────────────────────
   function shown() {
     const q = search.toLowerCase();
@@ -155,7 +217,7 @@
     root.querySelector('.mo-foot-count').textContent = facts.length + ' of 120 memories · used in every reply';
   }
 
-  let chips = [], paused = false;
+  let chips = [], paused = false, fx = null;
   function refresh() { chips = buildOrbit(); renderPanel(); }
 
   function open() {
@@ -167,7 +229,7 @@
     root.id = 'memOrb';
     root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Memory');
     root.innerHTML = `
-      <div class="mo-stage"><canvas></canvas>
+      <div class="mo-stage"><canvas class="mo-fx" aria-hidden="true"></canvas><canvas class="mo-globe"></canvas>
         <div class="mo-title">MEMORY<b>What I know about you</b></div>
         <div class="mo-empty">Nothing yet. Tell me things as we talk — or add them on the right — and they'll orbit here.</div>
       </div>
@@ -183,8 +245,9 @@
     document.body.appendChild(root);
     requestAnimationFrame(() => root.classList.add('open'));
 
-    const canvas = root.querySelector('canvas'), stage = root.querySelector('.mo-stage');
+    const canvas = root.querySelector('canvas.mo-globe'), stage = root.querySelector('.mo-stage');
     const draw = globe(canvas);
+    fx = sky(root.querySelector('canvas.mo-fx'));
     const newIn = root.querySelector('.mo-new'), addBtn = root.querySelector('.mo-btn');
 
     root.querySelector('.mo-x').onclick = close;
@@ -217,6 +280,7 @@
     const loop = () => {
       const w = stage.clientWidth, h = stage.clientHeight, cx = w / 2, cy = h / 2 + 10;
       const span = Math.min(w, h) * 0.5;
+      if (fx) fx(still);
       draw(cx, cy, span * 0.26);
       stage.querySelectorAll('.mo-ring').forEach((r) => {
         const d = span * 2 * r.dataset.k;
@@ -241,6 +305,8 @@
   function close() {
     if (!root) return;
     cancelAnimationFrame(raf);
+    if (fx && fx.dispose) fx.dispose();
+    fx = null;
     document.removeEventListener('keydown', onKey);
     const r = root; root = null; chips = []; hot = null;
     r.classList.remove('open');

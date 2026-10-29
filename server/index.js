@@ -2902,6 +2902,28 @@ app.get('/web/usage', authMiddleware, async (req, res) => {
 // instead - the request is rejected outright, not quietly ignored. Temperature
 // and top_p they still take. Deciding it here means the app can name any model
 // without every call site having to know which era it belongs to.
+// Speed settings for the chat models. GPT-5.x can spend time reasoning before
+// it says anything; for conversation that is only delay, so it is asked not to.
+// prompt_cache_key keeps one person's long, unchanging instructions on the same
+// cache, so they are read back instead of processed again - faster and cheaper.
+// If OpenAI ever refuses either setting the call is simply retried without them
+// (see createChat), so this can never be the reason a reply fails.
+function speedParams(model, userId) {
+  const p = {};
+  if (/^gpt-5\./.test(String(model || ''))) p.reasoning_effort = 'none';
+  if (userId) p.prompt_cache_key = 'u' + String(userId).slice(-24);
+  return p;
+}
+async function createChat(params, userId) {
+  const fast = speedParams(params.model, userId);
+  try {
+    return await openai.chat.completions.create({ ...params, ...fast });
+  } catch (e) {
+    if (!Object.keys(fast).length || !/reasoning|prompt_cache|unrecognized|unsupported|invalid/i.test(String(e && e.message))) throw e;
+    return openai.chat.completions.create(params);
+  }
+}
+
 function tokenCap(model, n) {
   return /^gpt-[34]/.test(String(model || '')) ? { max_tokens: n } : { max_completion_tokens: n };
 }
@@ -2917,7 +2939,7 @@ app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res
     const chosen = process.env.CHAT_MODEL || model || 'gpt-4.1-mini';
     const params = { model: chosen, messages, ...tokenCap(chosen, max_tokens || 512), temperature: temperature ?? 0.2, top_p: 0.9 };
     if (tools) { params.tools = tools; params.tool_choice = tool_choice || 'required'; }
-    const result = await openai.chat.completions.create(params);
+    const result = await createChat(params, req.userId || (req.user && req.user.id));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2937,14 +2959,14 @@ app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (r
     // whether it is better. Without CHAT_MODEL the app's own choice stands and
     // nothing changes.
     const chosen = process.env.CHAT_MODEL || model || 'gpt-4.1-mini';
-    const stream = await openai.chat.completions.create({
+    const stream = await createChat({
       model: chosen,
       messages,
       ...tokenCap(chosen, max_tokens || 1024),
       temperature: temperature ?? 0.2,
       top_p: 0.9,
       stream: true,
-    });
+    }, req.userId || (req.user && req.user.id));
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
       if (delta) res.write(`data: ${JSON.stringify({ delta })}\n\n`);
@@ -3050,7 +3072,7 @@ app.post('/ai/image-edit', authMiddleware, expensiveLimiter, async (req, res) =>
     if (!imgSlot.ok) {
       return res.status(429).json({
         error: imgAllow.plan === 'trial'
-          ? `The free trial includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
+          ? `The free plan includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a week, and you've used this week's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
           : `You've used all ${imgAllow.limit} of today's images. Try again tomorrow.`,
         upgrade: imgAllow.plan === 'trial',
       });
@@ -3116,7 +3138,7 @@ app.post('/ai/image', authMiddleware, expensiveLimiter, async (req, res) => {
     if (!imgSlot.ok) {
       return res.status(429).json({
         error: imgAllow.plan === 'trial'
-          ? `The free trial includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
+          ? `The free plan includes ${imgAllow.limit} image${imgAllow.limit === 1 ? '' : 's'} a week, and you've used this week's. Upgrade for ${IMAGE_USES_PER_DAY} a day.`
           : `You've used all ${imgAllow.limit} of today's images. Try again tomorrow.`,
         upgrade: imgAllow.plan === 'trial',
       });
@@ -3141,10 +3163,10 @@ app.post('/ai/image', authMiddleware, expensiveLimiter, async (req, res) => {
         // for 1792 failed every tall or wide picture over to dall-e-3, which
         // garbles any words in it - posters most of all.
         size: ({ '1024x1792': '1024x1536', '1792x1024': '1536x1024' })[targetSize] || targetSize,
-        // Asking for the best this model does. Left to its default it renders
-        // faster and noticeably rougher - soft edges, mangled detail - which
-        // is most of what "the picture came out weird" meant.
-        quality: 'high',
+        // Medium for ordinary pictures: two to three times quicker than high
+        // and still sharp. Posters keep high, because small lettering is
+        // where the lower setting goes wrong.
+        quality: /\bposter\b/i.test(safePrompt) ? 'high' : 'medium',
       });
     } catch (e1) {
       console.warn('[image] gpt-image-1 failed:', e1.message, '— trying dall-e-3');

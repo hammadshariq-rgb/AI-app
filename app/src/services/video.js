@@ -6,7 +6,8 @@ const fetch = require('node-fetch');
 
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 
-const POLL_INTERVAL_MS = 5000;
+// Every 2 seconds: a finished video was waiting up to 5 seconds to be noticed.
+const POLL_INTERVAL_MS = 2000;
 const MAX_WAIT_MS = 6 * 60 * 1000;
 
 async function api(path, { token, method = 'GET', body, timeoutMs = 20000 } = {}) {

@@ -25,7 +25,7 @@ function limitMessage(a) {
   if (a.plan === 'trial') {
     return a.limit === 0
       ? '3D creation is available on the paid plan. Upgrade to start making models.'
-      : `The free trial includes ${a.limit} 3D creation${a.limit === 1 ? '' : 's'} a day, and you've used today's. Upgrade for ${MESHY_USES_PER_DAY} a day.`;
+      : `The free plan includes ${a.limit} 3D creation${a.limit === 1 ? '' : 's'} a week, and you've used this week's. Upgrade for ${MESHY_USES_PER_DAY} a day.`;
   }
   return `You've used all ${a.limit} of today's 3D creations (new models and repaints). Try again tomorrow.`;
 }
@@ -122,7 +122,7 @@ function mountModeling(app, { authMiddleware }) {
           method: 'POST',
           body: JSON.stringify({
             image_url: imageUrl,
-            enable_pbr: true,
+            enable_pbr: false,
             should_remesh: true,
             should_texture: true,
           }),
@@ -195,7 +195,9 @@ function mountModeling(app, { authMiddleware }) {
       if (!refineJobs.has(previewId)) {
         const starting = meshy('/text-to-3d', {
           method: 'POST',
-          body: JSON.stringify({ mode: 'refine', preview_task_id: previewId, enable_pbr: true }),
+          // No PBR maps: the extra metal/roughness passes add a long wait for
+          // detail the viewer barely shows. The colour texture is unchanged.
+          body: JSON.stringify({ mode: 'refine', preview_task_id: previewId, enable_pbr: false }),
         }).then((r) => r?.result);
         starting.catch(() => refineJobs.delete(previewId));
         refineJobs.set(previewId, starting);

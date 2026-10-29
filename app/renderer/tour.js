@@ -111,6 +111,12 @@
       pad: 8,
     },
     {
+      targets: [],
+      title: 'Sketch with your voice',
+      body: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> — <em>"draw me a house"</em> — and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
+      whenMissing: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> — <em>"draw me a house"</em> — and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
+    },
+    {
       open: 'connectors',
       targets: ['#lnavPaneConnectors'],
       title: 'Connect your accounts',
@@ -131,6 +137,14 @@
       title: 'Pick your colour',
       body: 'The orb sets the mood of the whole app. Pick a colour here and the rest of it follows.',
       whenMissing: 'In <b>Settings</b> you can change the orb colour, and the rest of the app follows it.',
+      pad: 8,
+    },
+    {
+      open: 'settings',
+      targets: ['#openMemoryOrb'],
+      title: 'It remembers you',
+      body: 'Tell Callisto things — your partner\'s name, your business, what you like — and it remembers them in every conversation. Open the <b>memory orb</b> here to see everything it knows, add more, or remove anything.',
+      whenMissing: 'Tell Callisto things — names, your business, what you like — and it remembers them. In <b>Account</b>, open the <b>memory orb</b> to see, add or remove what it knows.',
       pad: 8,
     },
     {

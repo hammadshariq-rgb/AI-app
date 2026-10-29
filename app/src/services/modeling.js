@@ -7,7 +7,9 @@ const fetch = require('node-fetch');
 
 const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 
-const POLL_INTERVAL_MS = 4000;
+// Every 2 seconds: the colour pass only starts when the shape is seen to be
+// done, so a slow check added its whole interval to every model.
+const POLL_INTERVAL_MS = 2000;
 const MAX_WAIT_MS = 8 * 60 * 1000;   // shape + colour passes
 
 async function api(path, { token, method = 'GET', body, timeoutMs = 20000 } = {}) {

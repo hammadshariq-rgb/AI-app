@@ -134,7 +134,7 @@
   async function poll(path, ui, onReady, label) {
     var tries = 0;
     while (tries < 150) {                     // about 7 minutes at 3s
-      await new Promise(function (r) { setTimeout(r, 3000); });
+      await new Promise(function (r) { setTimeout(r, 2000); });
       tries++;
       var job;
       try { job = await get(path); } catch (_) { continue; }
