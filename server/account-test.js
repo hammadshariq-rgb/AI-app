@@ -406,6 +406,17 @@ function call(method, p, { body, token, ip = '198.51.100.1' } = {}) {
   for (let i = 0; i < 20 && !sentMail.some((m) => m.mailType === 'code' && m.email === 'twofactor@example.com'); i++) await new Promise((r) => setTimeout(r, 100));
   ok('… and is emailed one', sentMail.some((m) => m.mailType === 'code' && m.email === 'twofactor@example.com'));
 
+  /* ════ 9. Memories from the website ════════════════════════════════════ */
+  const mt = old.body.token;
+  await db.collection('users').updateOne({ email: 'old-timer@example.com' }, { $set: { prefs: { language: 'English', memories: ['Likes sushi'] } } });
+  const m1 = await call('POST', '/user/memories', { token: mt, ip: '203.0.113.96', body: { add: '  Girlfriend is   called Sara ' } });
+  ok('a memory can be added', m1.status === 200 && m1.body.memories.join('|') === 'Likes sushi|Girlfriend is called Sara', JSON.stringify(m1.body));
+  ok('… without touching the other prefs', (await db.collection('users').findOne({ email: 'old-timer@example.com' })).prefs.language === 'English');
+  const m2 = await call('POST', '/user/memories', { token: mt, ip: '203.0.113.96', body: { remove: 'Likes sushi' } });
+  ok('and removed', m2.body.memories.join('|') === 'Girlfriend is called Sara');
+  ok('and read back', (await call('GET', '/user/memories', { token: mt, ip: '203.0.113.96' })).body.memories.length === 1);
+  ok('signed out cannot read them', (await call('GET', '/user/memories', { ip: '203.0.113.96' })).status === 401);
+
   /* ════ done ═════════════════════════════════════════════════════════════ */
   console.log = quiet;
   console.log('\n  ' + pass + '/' + (pass + fail) + ' passed');

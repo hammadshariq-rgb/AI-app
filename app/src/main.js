@@ -4576,7 +4576,26 @@ ipcMain.handle('session:delete', (_e, id) => {
   return true;
 });
 
-ipcMain.handle('memory:get', () => store.get('memories') || []);
+// Anything added on the website is folded in first, so the orb shows the same
+// memories in both places. Offline, the local list is the answer.
+ipcMain.handle('memory:get', async () => {
+  const local = store.get('memories') || [];
+  try {
+    const res = await fetch(`${_serverBase()}/user/memories`, { headers: _authHeader() });
+    if (!res.ok) return local;
+    const { memories } = await res.json();
+    if (!Array.isArray(memories)) return local;
+    const seen = new Set(local.map((m) => String(m).toLowerCase()));
+    const merged = local.concat(memories.filter((m) => typeof m === 'string' && !seen.has(m.toLowerCase())));
+    if (merged.length !== local.length) {
+      const kept = merged.slice(-120);
+      store.set('memories', kept);
+      cloudPushPrefs({ memories: kept }).catch(() => {});
+      return kept;
+    }
+  } catch (_) {}
+  return local;
+});
 ipcMain.handle('memory:clear', () => { store.delete('memories'); return true; });
 // The memory orb: adding and removing one fact by hand.
 ipcMain.handle('memory:add', (_e, fact) => {

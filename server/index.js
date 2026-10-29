@@ -1766,6 +1766,31 @@ app.post('/user/prefs', authMiddleware, async (req, res) => {
   }
 });
 
+// The memory orb on the website: one fact at a time, touching only
+// prefs.memories so nothing else in the prefs is overwritten. Same rules as
+// the app - 300 characters a fact, the newest 120 kept, no exact duplicates.
+app.get('/user/memories', authMiddleware, async (req, res) => {
+  const user = await users.findByIdCached(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ memories: (user.prefs && Array.isArray(user.prefs.memories)) ? user.prefs.memories : [] });
+});
+app.post('/user/memories', authMiddleware, async (req, res) => {
+  const user = await users.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  let list = (user.prefs && Array.isArray(user.prefs.memories)) ? user.prefs.memories.slice() : [];
+  const add = typeof req.body.add === 'string' ? req.body.add.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+  const remove = typeof req.body.remove === 'string' ? req.body.remove : '';
+  if (!add && !remove) return res.status(400).json({ error: 'Nothing to add or remove.' });
+  if (remove) list = list.filter((m) => m !== remove);
+  if (add) {
+    list = list.filter((m) => String(m).toLowerCase() !== add.toLowerCase());
+    list.push(add);
+    if (list.length > 120) list = list.slice(-120);
+  }
+  await users.update(req.user.id, { 'prefs.memories': list });
+  res.json({ memories: list });
+});
+
 // PATCH: merge-update specific pref keys (avoids sending the whole blob on every small change)
 app.patch('/user/prefs', authMiddleware, async (req, res) => {
   try {

@@ -54,6 +54,10 @@
   @media (prefers-reduced-motion:reduce){#memOrb{transition:none}}
   `;
 
+  // The app has window.jarvis; the website hands in its own adapter that talks
+  // to the server. Same three calls either way.
+  const api = () => window.CallistoMemoryApi || window.jarvis;
+
   let root = null, raf = 0, facts = [], filter = 'all', search = '', hot = null;
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -188,7 +192,7 @@
     const add = async () => {
       const v = newIn.value.trim(); if (!v) return;
       addBtn.disabled = true;
-      try { facts = await window.jarvis.addMemory(v); } catch (_) {}
+      try { facts = await api().addMemory(v); } catch (_) {}
       newIn.value = ''; refresh(); mark(v);
     };
     addBtn.onclick = add;
@@ -201,7 +205,7 @@
     root.querySelector('.mo-list').onclick = async (e) => {
       const row = e.target.closest('.mo-row'); if (!row) return;
       if (e.target.closest('.mo-del')) {
-        try { facts = await window.jarvis.removeMemory(row.dataset.f); } catch (_) {}
+        try { facts = await api().removeMemory(row.dataset.f); } catch (_) {}
         refresh();
       } else mark(hot === row.dataset.f ? null : row.dataset.f);
     };
@@ -227,7 +231,7 @@
       raf = requestAnimationFrame(loop);
     };
 
-    window.jarvis.getMemories().then((m) => { facts = Array.isArray(m) ? m : []; refresh(); loop(); })
+    api().getMemories().then((m) => { facts = Array.isArray(m) ? m : []; refresh(); loop(); })
       .catch(() => { facts = []; refresh(); loop(); });
     setTimeout(() => newIn.focus(), 300);
   }

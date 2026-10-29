@@ -165,8 +165,8 @@
       const p = panel(`
         <div class="ac-eyebrow">CALLISTO &middot; CONFIRM YOUR EMAIL</div>
         <div class="ac-title">Check your inbox</div>
-        <p class="ac-sub">We sent a 6-digit code to <b>${esc(email || 'your email')}</b>. Type it here to finish
-          creating your account. It can take a minute — check spam if it is not there.</p>
+        <p class="ac-sub">We sent a 6-digit code to <b>${esc(email || 'your email')}</b>. Type it here to confirm
+          it is you. It can take a minute — check spam if it is not there.</p>
         <label class="ac-label" for="acVcode">Code</label>
         <input class="ac-input code" id="acVcode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
         <div class="ac-msg" id="acMsg" role="status" aria-live="polite"></div>

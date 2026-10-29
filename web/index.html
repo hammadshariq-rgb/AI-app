@@ -2398,6 +2398,7 @@
         <button onclick="window._goStripe && window._goStripe('monthly')" style="padding:10px;border-radius:9px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
         <!-- Two-factor, devices, ending a subscription, deleting the account —
              the same screen as the app, so a website-only customer can cancel. -->
+        <button onclick="if(typeof closeNavPanel==='function')closeNavPanel(); window.CallistoMemoryOrb && window.CallistoMemoryOrb.open()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;border:1px solid rgba(110,160,255,.25);background:linear-gradient(135deg,rgba(15,55,180,.28),rgba(5,10,30,.6));color:#e1ecff;cursor:pointer;font-size:12.5px;font-weight:600;text-align:left"><span style="flex:none;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd8ff,#3aa9ff 40%,#0f37b4 75%,#040c3c);box-shadow:0 0 10px rgba(58,169,255,.55)"></span>Memory</button>
         <button onclick="window.CallistoAccount && window.CallistoAccount.open()" style="padding:10px;border-radius:9px;border:1px solid rgba(120,160,255,0.25);background:rgba(61,92,255,0.08);color:#cfe0ff;cursor:pointer;font-size:12.5px;font-weight:600">Account &amp; security</button>
         <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,0.09);background:transparent;color:rgba(130,155,210,0.6);cursor:pointer;font-size:12px">Sign Out</button>
         <div style="text-align:center"><a href="#downloadSec" onclick="closeNavPanel()" style="font-size:11px;color:rgba(100,140,255,0.55);text-decoration:none">⬇ Download Desktop App</a></div>
@@ -5201,6 +5202,37 @@
 <script defer src="/market-chart.js?v=1"></script>
 <script defer src="/mic-wave.js?v=1"></script>
 <script defer src="/account-security.js?v=1"></script>
+<script defer src="/memory-orb.js?v=1"></script>
+<script>
+  // The memory orb talks to the server here instead of the app's store.
+  (function(){
+    var BASE='https://ai-app-production-9224.up.railway.app';
+    function call(method, body){
+      var tok=null; try{ tok=localStorage.getItem('cal_tok'); }catch(_){}
+      if(!tok) return Promise.reject(new Error('signed out'));
+      return fetch(BASE+'/user/memories',{method:method,headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:body?JSON.stringify(body):undefined})
+        .then(function(r){return r.json();}).then(function(d){return d.memories||[];});
+    }
+    window.CallistoMemoryApi={
+      getMemories:function(){return call('GET');},
+      addMemory:function(f){return call('POST',{add:f});},
+      removeMemory:function(f){return call('POST',{remove:f});}
+    };
+    // An unconfirmed account asked for its emailed code wherever the AI turns
+    // it away - chat, pictures, video, 3D - not only at sign-in.
+    var _fetch=window.fetch, asking=false;
+    window.fetch=function(){
+      return _fetch.apply(this,arguments).then(function(res){
+        if(res.status===403 && !asking && window.CallistoAccount){
+          res.clone().json().then(function(d){
+            if(d && d.needsVerification){ asking=true; window.CallistoAccount.askEmailCode().then(function(){asking=false;}); }
+          }).catch(function(){});
+        }
+        return res;
+      });
+    };
+  })();
+</script>
 <script defer src="/panels/bridge.js?v=1"></script>
 <script defer src="/wave-app.js?v=1"></script>
   <script defer src="/wave-lines.js?v=1"></script>
