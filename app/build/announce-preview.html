@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset=utf-8><style>body{margin:0;height:100vh;background:#05070f;font-family:Segoe UI,sans-serif}</style></head><body><script>function _splitStatLines(text) {
+  if (!text) return [];
+  return String(text).trim().split(/(?<=[.!?])\s+(?=[A-Z])/).map((x) => x.trim()).filter(Boolean);
+}
+
+// The first-of-the-day update, as an announcement over the screen: a card
+// that slides down, lists each part, and goes away on its own or when closed.
+function _showDailyAnnouncement(addressAs, briefing) {
+  try {
+    document.getElementById('dailyAnnounce')?.remove();
+    if (!document.getElementById('dailyAnnounceCss')) {
+      const st = document.createElement('style');
+      st.id = 'dailyAnnounceCss';
+      st.textContent = `
+      #dailyAnnounce{position:fixed;left:50%;top:22px;z-index:2147482000;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 60px);overflow:auto;transform:translate(-50%,-24px);opacity:0;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .35s ease;
+        background:linear-gradient(160deg,rgba(14,22,48,.96),rgba(5,8,22,.97));border:1px solid rgba(110,160,255,.25);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 40px rgba(58,169,255,.12);color:#e3ecff;padding:20px 22px 16px}
+      #dailyAnnounce.in{transform:translate(-50%,0);opacity:1}
+      #dailyAnnounce .da-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+      #dailyAnnounce .da-orb{flex:none;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd8ff,#3aa9ff 40%,#0f37b4 75%,#040c3c);box-shadow:0 0 18px rgba(58,169,255,.6)}
+      #dailyAnnounce .da-k{font-size:10.5px;letter-spacing:.22em;color:rgba(150,185,240,.7)}
+      #dailyAnnounce .da-h{font-size:18px;font-weight:600;margin-top:2px}
+      #dailyAnnounce .da-x{margin-left:auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#cfdcf6;font-size:16px;cursor:pointer}
+      #dailyAnnounce .da-row{display:flex;gap:12px;padding:10px 0;border-top:1px solid rgba(110,160,255,.1);font-size:13.5px;line-height:1.5}
+      #dailyAnnounce .da-l{flex:none;width:96px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7fc4ff;padding-top:3px}
+      @media (prefers-reduced-motion:reduce){#dailyAnnounce{transition:none}}`;
+      document.head.appendChild(st);
+    }
+    const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const h = new Date().getHours();
+    const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const rows = (briefing.parts || []).map((p, i) => {
+      // The greeting row loses its "Welcome back" - the heading already says it.
+      const txt = p.kind === 'hello' ? p.text.replace(/^Welcome back,[^.]*\.\s*/, '') : p.text;
+      if (!txt) return '';
+      const prev = briefing.parts[i - 1];
+      const label = prev && prev.label === p.label ? '' : p.label === 'Welcome back' ? 'Today' : p.label;
+      return `<div class="da-row"><div class="da-l">${esc(label)}</div><div>${esc(txt)}</div></div>`;
+    }).join('');
+    const el = document.createElement('div');
+    el.id = 'dailyAnnounce';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="da-top"><div class="da-orb"></div><div><div class="da-k">DAILY UPDATE · ${esc(new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase())}</div><div class="da-h">${greet}, ${esc(addressAs)}</div></div><button class="da-x" aria-label="Close">×</button></div>${rows}`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('in'));
+    const bye = () => { el.classList.remove('in'); setTimeout(() => el.remove(), 450); };
+    el.querySelector('.da-x').onclick = bye;
+    // Long enough to be read along with the voice, then out of the way.
+    setTimeout(bye, Math.min(90000, 20000 + briefing.text.length * 55));
+  } catch (e) { console.error('[ANNOUNCE]', e); }
+}
+
+;const stats="Instagram has 1,240 followers and your latest reel has 3,410 views. TikTok is at 860 followers. Your website had 412 visitors yesterday. Stripe took GBP 129 today and GBP 940 this week.";const parts=[{kind:"hello",label:"Welcome back",text:"Welcome back, sir. It is 22 degrees and clear in Lahore, feels like 18."},{kind:"news",label:"The world",text:"Here is what is happening in the world. Spain train crash audio released. Brazil election aftermath."},..._splitStatLines(stats).map(t=>({kind:"numbers",label:"Your accounts",text:t})),{kind:"calendar",label:"Calendar",text:"On your calendar today: Call with supplier 3:00 PM, Gym 7:00 PM."},{kind:"tasks",label:"Tasks",text:"You have two tasks today: finish the landing page and post the reel."}];_showDailyAnnouncement("sir",{parts,text:parts.map(p=>p.text).join(" ")});</script></body></html>

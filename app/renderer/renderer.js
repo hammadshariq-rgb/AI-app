@@ -2832,7 +2832,12 @@ window._checkQuickLaunch = async function(text) {
   // way and is almost certainly a reminder. Without the end anchor the second
   // one got a weather report instead.
   const IM_BACK = /^(?:ok(?:ay)?[,\s]+)?(?:i(?:'|’)?m|i am|im)\s+(?:back|awake|here|up|home)\s*[.!]*$|^(?:good\s+)?(?:morning|afternoon|evening)\s*[.!]*$|^(?:hey|hi|hello)\s*[.!]*$|^\s*(?:catch me up|brief me|what did i miss)\s*[?.!]*$/i;
-  if (IM_BACK.test(t) && typeof composeDailyBriefing === 'function') {
+  // The same thing said any other way: "Daddy's home", "wake up Callisto, I'm
+  // back", "guess who's back", "I've returned". Short only - a long sentence
+  // that happens to contain "I'm home" is about something else.
+  const _words = t.split(/\s+/).filter(Boolean).length;
+  const BACK_LOOSE = /\b(?:i(?:'|’)?m|i am|im|i(?:'|’)?ve|daddy(?:'|’)?s|daddy is|mummy(?:'|’)?s|mommy(?:'|’)?s|mama(?:'|’)?s|guess who(?:'|’)?s|we(?:'|’)?re|boss(?:'|’)?s|the boss is)\s+(?:back|awake|up|home|here|returned|in the building)\b|\bwake up,?\s*(?:callisto|jarvis)?\b|\b(?:catch me up|brief me|what did i miss|daily (?:update|brief(?:ing)?))\b/i;
+  if ((IM_BACK.test(t) || (_words <= 9 && BACK_LOOSE.test(t))) && typeof composeDailyBriefing === 'function') {
     (async () => {
       setState('thinking');
       try {
@@ -2851,7 +2856,10 @@ window._checkQuickLaunch = async function(text) {
           ? `Welcome back, ${who}. ${done.spoken} ${b.text}`
           : b.text;
 
-        addMessage('assistant', spoken);
+        // A bubble for each part - weather, news, each account, the calendar,
+        // the list - so it reads like a briefing rather than one paragraph.
+        if (done && done.spoken) addMessage('assistant', done.spoken);
+        for (const part of b.parts) addMessage('assistant', part.text);
         // The work itself goes in the chat underneath, where it can be read
         // and copied — not read aloud, which would take all morning.
         for (const job of (done && done.jobs) || []) {
@@ -2870,7 +2878,11 @@ window._checkQuickLaunch = async function(text) {
   }
 
   const STATS_RE = /\b(?:show|tell|give|read|what(?:'?s| are| is)?|how(?:'?s| are| is)?)\b[^.?!]{0,20}\b(?:my|the)\b[^.?!]{0,16}\b(?:stats|statistics|analytics|numbers|figures|metrics|socials)\b|^(?:my )?(?:stats|analytics|numbers)$/i;
-  if (STATS_RE.test(t) && window.jarvis.connectorStatsBriefing) {
+  // "How's my website doing", "how is the business doing", "how's Callisto's
+  // Instagram doing", "give me an update", "update me". Anything about how a
+  // site, shop, channel or the business is doing - not "how's my mum doing".
+  const STATS_LOOSE = /\bhow(?:'|’)?s?\b(?:\s+is|\s+are)?\s+[^.?!]{0,30}\b(?:website|site|business|company|brand|shop|store|channel|page|account|instagram|insta|tiktok|youtube|stripe|shopify|squarespace|sales|revenue|traffic|socials?)\b[^.?!]{0,20}\b(?:doing|going|looking|performing)\b|^(?:please\s+)?(?:give me (?:an |my )?update|update me|any updates?)\b[^.?!]{0,20}$/i;
+  if ((STATS_RE.test(t) || STATS_LOOSE.test(t)) && window.jarvis.connectorStatsBriefing) {
     (async () => {
       setState('thinking');
       let text = null;
@@ -2882,6 +2894,9 @@ window._checkQuickLaunch = async function(text) {
         setState('idle');
         return;
       }
+      // In the chat as well as out loud: one bubble per platform.
+      addMessage('assistant', 'Here are your numbers.');
+      for (const line of _splitStatLines(text)) addMessage('assistant', line);
       const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
       if (audio) playAudioChunks([audio]);
       const ap = document.getElementById('analyticsPanel');
@@ -8347,6 +8362,8 @@ async function enterMain(skipWelcome = false, returningUser = false) {
         const title = p.title && p.title !== 'none' ? spokenTitle(p.title) : 'sir';
         const addressAs = p.displayName || title;
         const briefing = await composeDailyBriefing(addressAs);
+        // Shown as an announcement across the screen while it is read out.
+        _showDailyAnnouncement(addressAs, briefing);
         // Spoken, not written into the chat. A greeting and the weather sitting
         // there as a message is clutter in a conversation they have not started
         // yet, and it pushed the real first exchange down the page.
@@ -8399,25 +8416,90 @@ async function composeDailyBriefing(addressAs) {
     new Promise((r) => setTimeout(() => r(null), ms)),
   ]);
 
-  const [weather, news, stats, tasks] = await Promise.all([
+  // The accounts get longer than the rest: seven platforms answering through
+  // a cold cache took more than eight seconds, and the briefing went out with
+  // the weather and the news and none of the numbers.
+  const [weather, news, stats, tasks, cal] = await Promise.all([
     settle(window.jarvis.weatherGreeting?.(), 4000),
     settle(_newsBriefingText(), 5000),
-    settle(window.jarvis.connectorStatsBriefing?.(), 8000),
+    settle(window.jarvis.connectorStatsBriefing?.(), 15000),
     settle(window.jarvis.taskBriefing?.(), 4000),
+    settle(window.jarvis.calendarList?.(), 6000),
   ]);
 
-  const parts = [`Welcome back, ${addressAs}.`];
-  if (weather) parts.push(String(weather).trim());
-  if (news) parts.push(String(news).trim());
-  if (stats) parts.push(String(stats).trim());
+  const parts = [];
+  parts.push({ kind: 'hello', label: 'Welcome back', text: [`Welcome back, ${addressAs}.`, weather ? String(weather).trim() : ''].filter(Boolean).join(' ') });
+  if (news) parts.push({ kind: 'news', label: 'The world', text: String(news).trim() });
+  for (const line of _splitStatLines(stats)) parts.push({ kind: 'numbers', label: 'Your accounts', text: line });
+
+  // Today's calendar - only today, and only when Google Calendar is connected.
+  const todays = Array.isArray(cal) ? cal.filter((e) => e && e.start && new Date(e.start).toDateString() === new Date().toDateString()) : [];
+  if (todays.length) {
+    const when = (e) => e.allDay ? 'all day' : new Date(e.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const list = todays.slice(0, 4).map((e) => `${e.title} ${when(e)}`).join(', ');
+    parts.push({ kind: 'calendar', label: 'Calendar', text: `On your calendar today: ${list}${todays.length > 4 ? `, and ${todays.length - 4} more` : ''}.` });
+  }
 
   // Tasks last, and only when there are some. "You have no tasks today" is
   // not worth the breath.
   const taskLine = tasks && tasks.items && tasks.items.length
     ? String(tasks.spoken || '').trim() : '';
-  if (taskLine) parts.push(taskLine);
+  if (taskLine) parts.push({ kind: 'tasks', label: 'Tasks', text: taskLine });
 
-  return { text: parts.filter(Boolean).join(' '), hadTasks: !!taskLine };
+  return { text: parts.map((p) => p.text).join(' '), parts, hadTasks: !!taskLine };
+}
+
+// The stats briefing comes back as one run of sentences, a platform or two per
+// sentence. Split it back up so each can sit in its own bubble or row.
+function _splitStatLines(text) {
+  if (!text) return [];
+  return String(text).trim().split(/(?<=[.!?])\s+(?=[A-Z])/).map((x) => x.trim()).filter(Boolean);
+}
+
+// The first-of-the-day update, as an announcement over the screen: a card
+// that slides down, lists each part, and goes away on its own or when closed.
+function _showDailyAnnouncement(addressAs, briefing) {
+  try {
+    document.getElementById('dailyAnnounce')?.remove();
+    if (!document.getElementById('dailyAnnounceCss')) {
+      const st = document.createElement('style');
+      st.id = 'dailyAnnounceCss';
+      st.textContent = `
+      #dailyAnnounce{position:fixed;left:50%;top:22px;z-index:2147482000;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 60px);overflow:auto;transform:translate(-50%,-24px);opacity:0;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .35s ease;
+        background:linear-gradient(160deg,rgba(14,22,48,.96),rgba(5,8,22,.97));border:1px solid rgba(110,160,255,.25);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 40px rgba(58,169,255,.12);color:#e3ecff;padding:20px 22px 16px}
+      #dailyAnnounce.in{transform:translate(-50%,0);opacity:1}
+      #dailyAnnounce .da-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+      #dailyAnnounce .da-orb{flex:none;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd8ff,#3aa9ff 40%,#0f37b4 75%,#040c3c);box-shadow:0 0 18px rgba(58,169,255,.6)}
+      #dailyAnnounce .da-k{font-size:10.5px;letter-spacing:.22em;color:rgba(150,185,240,.7)}
+      #dailyAnnounce .da-h{font-size:18px;font-weight:600;margin-top:2px}
+      #dailyAnnounce .da-x{margin-left:auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#cfdcf6;font-size:16px;cursor:pointer}
+      #dailyAnnounce .da-row{display:flex;gap:12px;padding:10px 0;border-top:1px solid rgba(110,160,255,.1);font-size:13.5px;line-height:1.5}
+      #dailyAnnounce .da-l{flex:none;width:96px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7fc4ff;padding-top:3px}
+      @media (prefers-reduced-motion:reduce){#dailyAnnounce{transition:none}}`;
+      document.head.appendChild(st);
+    }
+    const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const h = new Date().getHours();
+    const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const rows = (briefing.parts || []).map((p, i) => {
+      // The greeting row loses its "Welcome back" - the heading already says it.
+      const txt = p.kind === 'hello' ? p.text.replace(/^Welcome back,[^.]*\.\s*/, '') : p.text;
+      if (!txt) return '';
+      const prev = briefing.parts[i - 1];
+      const label = prev && prev.label === p.label ? '' : p.label === 'Welcome back' ? 'Today' : p.label;
+      return `<div class="da-row"><div class="da-l">${esc(label)}</div><div>${esc(txt)}</div></div>`;
+    }).join('');
+    const el = document.createElement('div');
+    el.id = 'dailyAnnounce';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="da-top"><div class="da-orb"></div><div><div class="da-k">DAILY UPDATE · ${esc(new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase())}</div><div class="da-h">${greet}, ${esc(addressAs)}</div></div><button class="da-x" aria-label="Close">×</button></div>${rows}`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('in'));
+    const bye = () => { el.classList.remove('in'); setTimeout(() => el.remove(), 450); };
+    el.querySelector('.da-x').onclick = bye;
+    // Long enough to be read along with the voice, then out of the way.
+    setTimeout(bye, Math.min(90000, 20000 + briefing.text.length * 55));
+  } catch (e) { console.error('[ANNOUNCE]', e); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
