@@ -565,7 +565,10 @@ app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'te
 // changed without shipping a release and never sits in the public repo.
 app.get('/config/client', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  res.json({ sentryDsn: process.env.SENTRY_APP_DSN || null });
+  // Falls back to the server's own DSN, so the app still reports even when a
+  // separate app project has not been set up - both land in one Sentry project.
+  const dsn = (process.env.SENTRY_APP_DSN || process.env.SENTRY_DSN || '').trim();
+  res.json({ sentryDsn: dsn || null });
 });
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
