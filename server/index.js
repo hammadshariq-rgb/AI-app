@@ -847,7 +847,7 @@ app.post('/auth/login', authLimiter, async (req, res) => {
   // and how each one signs in. That is how a list of targets is built.
   const NOPE = { error: "That email and password don't match. Check them, or sign up if you're new." };
 
-  const user = await users.findByEmail(email);
+  let user = await users.findByEmail(email);
 
   // Locked from earlier wrong guesses. Said plainly — the real owner needs to
   // know why their correct password is not working — but with no hint whether
@@ -902,6 +902,7 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 
   // Check 7-day inactivity
   const inactive = Date.now() - (user.lastActiveAt || 0) > SEVEN_DAYS;
+  user = await reconfirmIfAway(user);
   await users.update(user.id, { lastActiveAt: Date.now() });
   res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user), wasInactive: inactive });
 });
@@ -909,6 +910,20 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 // A real bcrypt hash of a random string nobody knows, used only so a login for
 // an address with no account takes the same time as one for a real account.
 // Generated once at startup at the same cost factor as real passwords.
+// Away two weeks or more: the sign-in has to be confirmed again with a fresh
+// code sent to their email, through the same gate a new signup goes through.
+// Two-factor accounts are left alone - they already prove it every sign-in.
+const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
+async function reconfirmIfAway(user) {
+  if (!user || (user.twoFactor && user.twoFactor.enabled) || isAlwaysFree(user.email)) return user;
+  if (!user.lastActiveAt || Date.now() - user.lastActiveAt < TWO_WEEKS) return user;
+  await users.update(user.id, { emailVerified: false });
+  const fresh = (await users.findById(user.id)) || user;
+  try { await accountRoutesDeps.sendVerifyCode(fresh); } catch (_) {}
+  monitoring.securityEvent('reconfirm_after_away', { ip: '-' });
+  return fresh;
+}
+
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);
 
 // Google OAuth — server redirects to Google, then back to /auth/google/callback
@@ -1069,11 +1084,13 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
       // again must not post the same letter every time, and nor must the
       // second half of a double-click.
       if (madeIt) mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
-    } else if (!user.googleId || user.emailVerified === false) {
-      // Google has verified this address, which settles it for us too.
-      await users.update(user.id, { googleId: info.id, avatarUrl: info.picture, emailVerified: true });
+    } else if (!user.googleId) {
+      // Linking Google to the account. Not a way round the emailed code: an
+      // account waiting on one still has to enter it.
+      await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
       user = await users.findById(user.id);
     }
+    user = await reconfirmIfAway(user);
     await users.update(user.id, { lastActiveAt: Date.now() });
 
     // A Google sign-in is its own strong sign-in: Google has already checked

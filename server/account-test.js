@@ -388,6 +388,16 @@ function call(method, p, { body, token, ip = '198.51.100.1' } = {}) {
   const age = (await db.collection('users').findOne({ email: 'verify-me@hotmail.com' }));
   ok('the always-free / age fields are no longer dropped (create keeps extra fields)', 'emailVerified' in age);
 
+  /* ════ 8. Away two weeks: confirm again ═════════════════════════════════ */
+  await db.collection('users').updateOne({ email: 'old-timer@example.com' }, { $set: { lastActiveAt: Date.now() - 15 * 86400000 } });
+  const back = await call('POST', '/auth/login', { ip: '203.0.113.92', body: { email: 'old-timer@example.com', password: 'a-strong-password-1' } });
+  ok('signing in after two weeks away asks for a code', back.body && back.body.user && back.body.user.emailVerified === false, JSON.stringify(back.body).slice(0, 80));
+  for (let i = 0; i < 20 && !sentMail.some((m) => m.mailType === 'code' && m.email === 'old-timer@example.com'); i++) await new Promise((r) => setTimeout(r, 100));
+  ok('… and emails one', sentMail.some((m) => m.mailType === 'code' && m.email === 'old-timer@example.com'));
+  ok('… and the AI waits for it', (await call('POST', '/ai/chat', { token: back.body.token, ip: '203.0.113.93', body: { messages: [{ role: 'user', content: 'hi' }] } })).status === 403);
+  const soon = await call('POST', '/auth/login', { ip: '203.0.113.94', body: { email: 'verify-me@hotmail.com', password: 'a-strong-password-1' } });
+  ok('a sign-in after a short break does not', soon.body && soon.body.user && soon.body.user.emailVerified === true);
+
   /* ════ done ═════════════════════════════════════════════════════════════ */
   console.log = quiet;
   console.log('\n  ' + pass + '/' + (pass + fail) + ' passed');
