@@ -943,6 +943,20 @@ function toggleOverlay() {
 // signing in appear to do nothing.
 let _pendingDeepLink = null;
 
+// A jarvis:// link can be fired by ANY web page or message — clicking one is
+// all it takes. So a link that signs somebody in, or connects an account, is
+// only honoured if this app is actually waiting for one. Otherwise a stranger
+// could send "jarvis://auth?token=<theirs>" and silently log the person into
+// the stranger's account, where everything they then connect or tell
+// Callisto about their business is the stranger's to read.
+let _expectedGoogleState = null;                  // { state, at }
+const _expectedConnects = new Map();              // service -> started at
+const DEEP_LINK_WINDOW_MS = 10 * 60 * 1000;
+
+function expectConnect(service) {
+  _expectedConnects.set(String(service), Date.now());
+}
+
 function handleDeepLink(url) {
   if (!overlayWindow || overlayWindow.isDestroyed()) { _pendingDeepLink = url; return; }
   try {
@@ -951,6 +965,17 @@ function handleDeepLink(url) {
       const token = parsed.searchParams.get('token');
       const name = parsed.searchParams.get('name');
       const email = parsed.searchParams.get('email');
+      const state = parsed.searchParams.get('state') || '';
+
+      // Only the sign-in this app started, and only once.
+      const exp = _expectedGoogleState;
+      const fresh = exp && Date.now() - exp.at < DEEP_LINK_WINDOW_MS;
+      if (!fresh || !state || state !== exp.state) {
+        console.warn('[security] ignored a jarvis://auth link this app did not ask for');
+        return;
+      }
+      _expectedGoogleState = null;
+
       if (token && overlayWindow) {
         saveAuthToken(token);
         overlayWindow.webContents.send('auth:google-success', { token, name, email });
@@ -967,6 +992,17 @@ function handleDeepLink(url) {
       const accessToken = parsed.searchParams.get('access_token');
       const refreshToken = parsed.searchParams.get('refresh_token');
       const expiresIn = parsed.searchParams.get('expires_in');
+
+      // Only a connection this app just started. Otherwise a link could swap
+      // somebody's Instagram for an account the sender controls, and Callisto
+      // would post their content there.
+      const startedAt = _expectedConnects.get(String(service));
+      if (!startedAt || Date.now() - startedAt > DEEP_LINK_WINDOW_MS) {
+        console.warn('[security] ignored a jarvis://connect link for', service, '- not started here');
+        return;
+      }
+      _expectedConnects.delete(String(service));
+
       if (service && accessToken) {
         const tokens = { access_token: accessToken, refresh_token: refreshToken, expires_in: Number(expiresIn) };
         if (service === 'gmail') connectors.saveGmailTokens(tokens);
@@ -1588,10 +1624,18 @@ ipcMain.handle('auth:google', () => {
   // The browser may never hand the jarvis:// link back — Chrome asks the person
   // first, and a dismissed dialog leaves the token stranded there with the app
   // waiting forever. So we also go and fetch the result ourselves.
-  const state = require('crypto').randomBytes(16).toString('hex');
+  // The state goes through Google; the verifier never leaves this process.
+  // The server will only hand the result to a poll that can show the
+  // verifier, from the same address the browser signed in from — which is
+  // what stops a sign-in link sent by somebody else from logging THEM in as
+  // whoever clicked it.
+  const { state, verifier } = authService.newGoogleSignIn();
+  // Remembered so the jarvis://auth link that comes back can be checked
+  // against it — see handleDeepLink.
+  _expectedGoogleState = { state, at: Date.now() };
   commands.openInChrome(authService.getGoogleAuthUrl(server, state));
 
-  authService.pollGoogleAuth(server, state).then((result) => {
+  authService.pollGoogleAuth(server, state, { verifier }).then((result) => {
     if (!result || !result.token) return;
     // Always save the newest token and always tell the window, even if one was
     // already stored. Skipping the message when a token existed meant that once
@@ -5729,6 +5773,9 @@ ipcMain.handle('connector:connect', async (_e, service) => {
   // the tokens back to a poll that presents it.
   const state = require('crypto').randomBytes(24).toString('base64url');
   const url = `${process.env.LICENSE_SERVER_URL || 'http://localhost:4000'}/connect/${service}?state=${state}`;
+  // A jarvis://connect link for this service is now expected for a while;
+  // one that turns up unasked is ignored. See handleDeepLink.
+  expectConnect(service);
   commands.openInChrome(url);
   connectors.pollForToken(service, state).then(async ok => {
     if (!ok || !overlayWindow) return;

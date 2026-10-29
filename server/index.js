@@ -149,7 +149,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
 const path = require('path');
-const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const crypto = require('crypto');
@@ -161,7 +160,6 @@ const webstats = require('./webstats');
 const mail = require('./mail');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 // Validate required env vars on startup
 const REQUIRED_ENV = ['JWT_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'STRIPE_WEBHOOK_SECRET', 'MONGODB_URI'];
@@ -285,14 +283,51 @@ function secretMatches(given, expected) {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // PUBLIC_URL must be set in Railway env vars to the actual Railway URL.
 // If missing, we fall back to detecting it from the first incoming request.
-let PUBLIC_URL = process.env.PUBLIC_URL || '';
+// Fixed at startup and never changed afterwards. Nineteen places build a link
+// with ${PUBLIC_URL} directly — every connector's OAuth redirect among them —
+// so it must always hold a real address. It used to start empty and be filled
+// in from the first request's Host header, which is what made it poisonable;
+// left empty, every one of those redirect_uris would be relative and every
+// connection would fail. So: the configured address, or the production one.
+const PRODUCTION_URL = 'https://ai-app-production-9224.up.railway.app';
+let PUBLIC_URL = (process.env.PUBLIC_URL || PRODUCTION_URL).replace(/\/+$/, '');
+// The address this server is reached at, for every link it builds that comes
+// back to it: OAuth redirects, Stripe's return URLs, the image links handed to
+// the video generator.
+//
+// It used to be worked out from the FIRST request's Host header and then kept
+// for good. Host is whatever the caller says it is, so a single request with
+// "X-Forwarded-Host: evil.com" right after a deploy would have pointed every
+// one of those links at the attacker for the life of the process — sign-ins,
+// payments and all. Now: PUBLIC_URL if it is set, which it should be. If it is
+// not, a host is accepted only if it is one of ours, and an unknown one is
+// never remembered.
+const KNOWN_HOSTS = new Set(
+  [
+    'ai-app-production-9224.up.railway.app',
+    'callistoai.net', 'www.callistoai.net',
+    'localhost:4000', '127.0.0.1:4000',
+  ].concat((process.env.EXTRA_PUBLIC_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean))
+);
+
 function getPublicUrl(req) {
   if (PUBLIC_URL) return PUBLIC_URL;
-  // Auto-detect from request (works on Railway, not on localhost with custom domain)
-  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const host  = req.headers['x-forwarded-host']  || req.get('host') || 'localhost:4000';
-  PUBLIC_URL = `${proto}://${host}`;
-  return PUBLIC_URL;
+  const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim().toLowerCase();
+  if (KNOWN_HOSTS.has(host)) {
+    const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
+    return (local ? 'http' : 'https') + '://' + host;
+  }
+  // Not ours. Never echoed back and never cached; fall back to the production
+  // address so a forged header simply builds a correct link.
+  console.warn('[security] refused unknown Host for public URL:', host.slice(0, 80));
+  return 'https://ai-app-production-9224.up.railway.app';
+}
+
+// OAuth redirects specifically. These must match what is registered with
+// Google character for character, so they are built from the locked base and
+// nothing a request can influence.
+function oauthBase(req) {
+  return getPublicUrl(req).replace(/\/+$/, '');
 }
 const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -659,11 +694,22 @@ app.post('/auth/signup', signupLimiter, async (req, res) => {
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
   const isFreeUser = isAlwaysFree(email);
-  const user = await users.create({
-    email, passwordHash, name: name || '',
-    ...(ageNum !== null ? { age: ageNum } : {}),
-    ...(isFreeUser ? { freeAccess: true } : {}),
-  });
+  // Two signups for the same address at the same moment both pass the
+  // "already exists?" check above, because neither has been written yet. The
+  // unique index on email is what actually settles it — the second insert is
+  // refused by the database — and that refusal is answered as the duplicate it
+  // is, rather than escaping as a server error.
+  let user;
+  try {
+    user = await users.create({
+      email, passwordHash, name: name || '',
+      ...(ageNum !== null ? { age: ageNum } : {}),
+      ...(isFreeUser ? { freeAccess: true } : {}),
+    });
+  } catch (err) {
+    if (err && err.code === 11000) return res.status(409).json({ error: 'Account already exists. Please log in.' });
+    throw err;
+  }
   // Not awaited: a slow or misconfigured mailbox must not hold up the signup
   // that just succeeded.
   mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
@@ -678,16 +724,64 @@ app.post('/auth/login', authLimiter, async (req, res) => {
   if (typeof password !== 'string' || password.length > 200) {
     return res.status(401).json({ error: 'Wrong password. Please try again.' });
   }
+  // ONE answer for every kind of failure.
+  //
+  // This used to say "No account found", "Incorrect password", or "This
+  // account uses Google sign-in" depending on which was true — which told
+  // anyone typing addresses into the box exactly which ones are customers,
+  // and how each one signs in. That is how a list of targets is built.
+  const NOPE = { error: "That email and password don't match. Check them, or sign up if you're new." };
+
   const user = await users.findByEmail(email);
-  if (!user) return res.status(401).json({ error: 'No account found. Please sign up.' });
-  if (!user.passwordHash) return res.status(401).json({ error: 'This account uses Google sign-in.' });
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: 'Incorrect password.' });
+
+  // Locked from earlier wrong guesses. Said plainly — the real owner needs to
+  // know why their correct password is not working — but with no hint whether
+  // this attempt was right.
+  if (user && user.lockedUntil && user.lockedUntil > Date.now()) {
+    const mins = Math.ceil((user.lockedUntil - Date.now()) / 60000);
+    monitoring.securityEvent('login_while_locked', { ip: req.ip, email });
+    return res.status(423).json({
+      error: `Too many wrong passwords, so this account is locked for ${mins >= 60 ? Math.ceil(mins / 60) + ' hour' + (Math.ceil(mins / 60) === 1 ? '' : 's') : mins + ' minutes'}. `
+        + 'You can still sign in with Google if your account uses it.',
+      locked: true,
+    });
+  }
+
+  // bcrypt runs on every attempt, whether or not the account exists. Without
+  // this, a missing account answered instantly and a real one took a tenth of
+  // a second to hash — so the response TIME said which addresses were
+  // customers even once the words stopped saying it.
+  const hash = (user && user.passwordHash) || DUMMY_HASH;
+  const ok = await bcrypt.compare(password, hash);
+
+  if (!user || !user.passwordHash || !ok) {
+    if (user && user.passwordHash) {
+      const { count, lockedUntil } = await users.recordFailedLogin(user.id);
+      monitoring.securityEvent(lockedUntil ? 'account_locked' : 'login_failed', { ip: req.ip, email, strikes: count });
+      if (lockedUntil) {
+        return res.status(423).json({
+          error: 'Too many wrong passwords, so this account is locked for 3 hours. You can still sign in with Google if your account uses it.',
+          locked: true,
+        });
+      }
+    } else {
+      monitoring.securityEvent('login_failed_unknown', { ip: req.ip });
+    }
+    return res.status(401).json(NOPE);
+  }
+
+  // Right password: the slate is wiped.
+  if (user.failedLogins || user.lockedUntil) await users.clearFailedLogins(user.id);
   // Check 7-day inactivity
   const inactive = Date.now() - (user.lastActiveAt || 0) > SEVEN_DAYS;
   await users.update(user.id, { lastActiveAt: Date.now() });
   res.json({ token: makeToken(user), user: safeUser(user), wasInactive: inactive });
 });
+
+// A real bcrypt hash of a random string nobody knows, used only so a login for
+// an address with no account takes the same time as one for a real account.
+// Generated once at startup at the same cost factor as real passwords.
+const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);
 
 // Google OAuth — server redirects to Google, then back to /auth/google/callback
 // which redirects to jarvis:// deep link so Electron can capture the token
@@ -699,8 +793,36 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 // So the app also gets a way to come and collect it. It sends a one-time state
 // with the sign-in, and polls for the result. Whichever route arrives first
 // wins; this one needs nothing from the browser at all.
+// ── Signing in with Google ───────────────────────────────────────────────────
+//
+// THE BUG THIS REPLACES. The app picked a "state", opened the browser on
+// /auth/google?state=X, then asked /auth/google/poll?state=X for the result.
+// Nothing tied the person who POLLED to the person who SIGNED IN, so:
+//
+//   1. an attacker picks state=abc and sends you /auth/google?state=abc
+//   2. you click it and sign in with your own Google account
+//   3. the server files YOUR token under "abc"
+//   4. the attacker polls ?state=abc from anywhere and is now logged in as you
+//
+// Full account takeover from one link. Two things now close it:
+//
+//   - The token is only handed to a poll coming from the SAME ADDRESS as the
+//     browser that completed the sign-in. The real app polls from the same
+//     machine its browser is on; an attacker elsewhere gets nothing. This is
+//     the check that actually stops the attack.
+//
+//   - The state is the SHA-256 of a secret ("verifier") the app keeps to
+//     itself. The poll must present that secret. Someone on the same network
+//     who merely saw the state in a link or a log cannot collect with it.
+//
+// Old app versions send a plain state and no verifier. They still sign in via
+// the jarvis:// deep link, which lands on the machine that signed in and so
+// was never the hole; only their poll fallback is refused.
 const pendingGoogleAuth = new Map();
-const PENDING_AUTH_TTL = 10 * 60 * 1000;
+const PENDING_AUTH_TTL = 5 * 60 * 1000;      // a sign-in, not a session
+const STATE_RE = /^[a-f0-9]{64}$/;           // sha256 hex, nothing else
+
+const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 function rememberGoogleAuth(state, payload) {
   if (!state) return;
@@ -712,34 +834,61 @@ function rememberGoogleAuth(state, payload) {
 }
 
 app.get('/auth/google', connectLimiter, (req, res) => {
-  const base = getPublicUrl(req);
+  const base = oauthBase(req);
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
+    // Built from the locked base, never from anything in this request.
     redirect_uri: `${base}/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'select_account',
   });
-  // Passed through Google untouched and handed back to us in the callback.
-  if (req.query.state) params.set('state', String(req.query.state).slice(0, 64));
+  const state = String(req.query.state || '');
+  if (state) {
+    // Only a well-formed hash is passed on. Anything else is either an old
+    // client (deep link still works, poll will not) or someone probing.
+    if (!STATE_RE.test(state) && !/^[A-Za-z0-9_-]{8,64}$/.test(state)) {
+      monitoring.securityEvent('oauth_bad_state', { ip: req.ip });
+      return res.status(400).send('That sign-in link is not valid. Start again from the app.');
+    }
+    params.set('state', state);
+  }
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
-// The app asks here for the result of its own sign-in. A state is good once:
-// handing the same token out twice would let anyone who saw it replay it.
+// The app collects the result of its own sign-in here, when the deep link did
+// not land. A result is handed out once, to the right machine, to whoever
+// holds the verifier.
 app.get('/auth/google/poll', connectLimiter, (req, res) => {
   const state = String(req.query.state || '');
+  const verifier = String(req.query.verifier || '');
   if (!state) return res.status(400).json({ error: 'missing state' });
+
   const hit = pendingGoogleAuth.get(state);
   if (!hit) return res.json({ pending: true });
+
+  // The browser that signed in and the app collecting must be the same place.
+  if (!hit.completedIp || hit.completedIp !== req.ip) {
+    monitoring.securityEvent('oauth_poll_ip_mismatch', { ip: req.ip, signedInFrom: hit.completedIp, email: hit.email });
+    // Not deleted: the real app on the right machine may still be polling.
+    return res.json({ pending: true });
+  }
+
+  // New clients prove they started this sign-in. Old ones cannot, and are
+  // left to the deep link rather than handed a token on the address alone.
+  if (!STATE_RE.test(state) || !verifier || sha256hex(verifier) !== state) {
+    monitoring.securityEvent('oauth_poll_no_verifier', { ip: req.ip });
+    return res.json({ pending: true, upgrade: true });
+  }
+
   pendingGoogleAuth.delete(state);
   res.json({ token: hit.token, name: hit.name, email: hit.email });
 });
 
 app.get('/auth/google/callback', connectLimiter, async (req, res) => {
   const { code } = req.query;
-  const base = getPublicUrl(req);
+  const base = oauthBase(req);
   if (!code) return res.status(400).send('No code received from Google.');
   try {
     // Exchange code for tokens
@@ -763,14 +912,35 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
     });
     const info = await infoRes.json();
 
+    // A Google account can carry an email address Google has NOT verified —
+    // Workspace domains in particular let an admin put any address on an
+    // account. Matched against our users by email, that is a way into somebody
+    // else's account: make a Google account showing the victim's address, sign
+    // in, and be handed their row. Only a verified address may be matched.
+    if (!info || !info.id || !info.email || info.verified_email !== true) {
+      monitoring.securityEvent('oauth_unverified_email', { ip: req.ip, email: info && info.email });
+      return res.status(403).send('That Google account’s email address is not verified, so it cannot be used to sign in.');
+    }
+
     // Find or create user
     let user = await users.findByGoogleId(info.id) || await users.findByEmail(info.email);
     if (!user) {
       const isFreeUser = isAlwaysFree(info.email);
-      user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture, ...(isFreeUser ? { freeAccess: true } : {}) });
+      // Same race as signup: a double-click on "Continue with Google" can run
+      // this twice at once. The loser of the unique-email insert simply picks
+      // up the row the winner made.
+      let madeIt = true;
+      try {
+        user = await users.create({ email: info.email, googleId: info.id, name: info.name, avatarUrl: info.picture, ...(isFreeUser ? { freeAccess: true } : {}) });
+      } catch (e) {
+        if (!(e && e.code === 11000)) throw e;
+        user = await users.findByEmail(info.email);
+        madeIt = false;
+      }
       // Only on the sign-in that creates the account - signing in with Google
-      // again must not post the same letter every time.
-      mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
+      // again must not post the same letter every time, and nor must the
+      // second half of a double-click.
+      if (madeIt) mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
     } else if (!user.googleId) {
       await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
       user = await users.findById(user.id);
@@ -778,13 +948,21 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
     await users.update(user.id, { lastActiveAt: Date.now() });
 
     const token = makeToken(user);
-    // Leave it where the app can fetch it, in case the deep link never lands.
-    rememberGoogleAuth(req.query.state, { token, name: user.name, email: user.email });
+    // Leave it where the app can fetch it, in case the deep link never lands —
+    // along with WHERE this sign-in was completed, which the poll checks.
+    rememberGoogleAuth(req.query.state, { token, name: user.name, email: user.email, completedIp: req.ip });
     // Return an HTML page that opens the jarvis:// deep link reliably.
     // Technique: hidden <a> tag that is auto-clicked — Chrome allows protocol
     // links opened via click() without a security interstitial, unlike
     // window.location assignment which is blocked on cross-origin navigations.
-    const deepLink = `jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
+    // The state rides along so the app can check this is the sign-in IT
+    // started. Without it, anybody could hand someone a jarvis://auth link
+    // carrying their own token and quietly log that person into the
+    // attacker's account — after which every Instagram, Stripe and business
+    // detail the victim adds lands where the attacker can read it.
+    const st = String(req.query.state || '');
+    const deepLink = `jarvis://auth?token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`
+      + (st ? `&state=${encodeURIComponent(st)}` : '');
     res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Signing you in…</title>
       <style>
@@ -824,7 +1002,11 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
     </body></html>`);
   } catch (err) {
     console.error('Google OAuth error:', err);
-    res.send(`<script>window.close();</script><p>Auth failed: ${err.message}</p>`);
+    // err.message was written into the page as raw HTML. Part of it comes from
+    // Google's error_description, and part can come from anything upstream —
+    // a reflected script is one malformed response away. Fixed text instead;
+    // the detail is in the log.
+    res.status(400).send('<!DOCTYPE html><meta charset="utf-8"><p>Sign-in did not complete. Close this tab and try again from Callisto.</p>');
   }
 });
 
@@ -834,6 +1016,13 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
 app.post('/connect/google/exchange', connectLimiter, async (req, res) => {
   const { code, redirectUri, service } = req.body || {};
   if (!code || !redirectUri) return res.status(400).json({ error: 'code and redirectUri required' });
+  // This exists for one caller: the desktop app, which catches Google's
+  // redirect on a loopback port. Any other redirect address here is someone
+  // using our client secret to redeem a code for a flow we did not start.
+  if (!/^http:\/\/127\.0\.0\.1:(5312[3-5])$/.test(String(redirectUri))) {
+    monitoring.securityEvent('oauth_bad_redirect', { ip: req.ip, redirect: String(redirectUri).slice(0, 80) });
+    return res.status(400).json({ error: 'invalid redirect' });
+  }
   const scope = {
     calendar: 'https://www.googleapis.com/auth/calendar.events',
     youtube:  'https://www.googleapis.com/auth/youtube.readonly',
@@ -1488,25 +1677,58 @@ app.get('/checkout', authLimiter, async (req, res) => {
         </div>
       </body>`);
   }
+  // Already paying. A second checkout here is a second subscription — two
+  // charges every month for the same thing, which they would only notice on
+  // their statement. Nothing to sell them.
+  if (payer.subscriptionStatus === 'active') {
+    return res.status(200).send(`<!doctype html><meta charset="utf-8">
+      <body style="margin:0;background:#05070f;color:#c9d6ff;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;display:grid;place-items:center;height:100vh;text-align:center">
+        <div style="max-width:380px;padding:24px">
+          <h1 style="font-size:21px;margin:0 0 10px;color:#eef3ff">You already have Premium</h1>
+          <p style="font-size:14.5px;line-height:1.6;opacity:.8">Nothing more to pay. Open Callisto and carry on.</p>
+        </div>
+      </body>`);
+  }
+
+  const chosenPlan = plan === 'annual' ? 'annual' : 'monthly';
   const stripeCustomerId = payer.stripeCustomerId || undefined;
+
+  // Pressing Pay twice must not make two subscriptions.
+  //
+  // The key is the same for the same person asking for the same plan within
+  // the same ten minutes, and Stripe treats a repeated key as the SAME
+  // request: it hands back the session it already made rather than creating
+  // a second one. So a double click, a refresh, or a second tab all land on
+  // one checkout page that can only be paid once. A new key is a new request.
+  const bucket = Math.floor(Date.now() / (10 * 60 * 1000));
+  const idempotencyKey = 'checkout:' + crypto.createHash('sha256')
+    .update([payer.id, chosenPlan, priceId, stripeCustomerId || payer.email, bucket].join('|'))
+    .digest('hex');
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      // The price is ONLY ever one of ours, chosen above from the server's own
+      // environment. Nothing in this request can name a price or an amount,
+      // and Stripe renders the checkout page from its own copy of the Price —
+      // editing that page in a browser changes nothing that gets charged.
       line_items: [{ price: priceId, quantity: 1 }],
       customer: stripeCustomerId,
       customer_email: stripeCustomerId ? undefined : payer.email,
       // Both of these ride along to the webhook, which uses them to find the
       // account even if a different address is typed into Stripe.
       client_reference_id: String(payer.id),
-      metadata: { userId: String(payer.id), plan: plan === 'annual' ? 'annual' : 'monthly' },
+      metadata: { userId: String(payer.id), plan: chosenPlan },
       subscription_data: { metadata: { userId: String(payer.id) } },
-      success_url: `${PUBLIC_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${PUBLIC_URL}/account`,
-    });
+      success_url: `${getPublicUrl(req)}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${getPublicUrl(req)}/account`,
+    }, { idempotencyKey });
     res.redirect(303, session.url);
   } catch (err) {
     console.error('Stripe checkout error:', err.message);
-    res.status(500).send(`Could not start checkout: ${err.message}`);
+    // Stripe's message is not shown to the browser: it was written into the
+    // page as HTML, and it is nobody's business but ours.
+    res.status(500).send('<!doctype html><meta charset="utf-8"><p>Checkout could not start. Please try again in a moment.</p>');
   }
 });
 
@@ -1833,41 +2055,7 @@ app.get('/connect/tiktok/poll', connectLimiter, (req, res) => {
   res.json({ ok: false });
 });
 
-// ── Shopify connector — API key entry (no OAuth redirect needed for custom apps) ──
-// Client sends store URL + access token; server validates and echoes back
-app.post('/connect/shopify/verify', connectLimiter, async (req, res) => {
-  const { shop, access_token } = req.body;
-  if (!shop || !access_token) return res.status(400).json({ error: 'shop and access_token required' });
-  try {
-    const domain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const shopRes = await fetch(`https://${domain}/admin/api/2024-01/shop.json`, {
-      headers: { 'X-Shopify-Access-Token': access_token },
-    });
-    const data = await shopRes.json();
-    if (!data.shop) throw new Error('Invalid credentials');
-    res.json({ ok: true, shop_name: data.shop.name, domain });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
 
-// ── Squarespace connector — API key validation ─────────────────────────────────
-app.post('/connect/squarespace/verify', connectLimiter, async (req, res) => {
-  const { api_key } = req.body;
-  if (!api_key) return res.status(400).json({ error: 'api_key required' });
-  try {
-    const r = await fetch('https://api.squarespace.com/1.0/commerce/orders?modifiedAfter=2020-01-01T00:00:00Z&fulfillmentStatus=PENDING', {
-      headers: { Authorization: `Bearer ${api_key}`, 'User-Agent': 'JarvisApp/1.0' },
-    });
-    if (r.status === 401) return res.status(400).json({ error: 'Invalid API key — check your Squarespace API Keys settings.' });
-    if (r.status === 404) return res.json({ ok: true }); // no orders yet but key is valid
-    const data = await r.json();
-    if (data.type && data.type.includes('INVALID')) throw new Error(data.message || 'Invalid key');
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
 
 // ── Google Analytics (GA4) connector OAuth ────────────────────────────────────
 // Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — adds Analytics readonly scope
@@ -1931,24 +2119,7 @@ app.post('/connect/analytics/refresh', connectLimiter, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Stripe connector — secret key validation ──────────────────────────────────
-app.post('/connect/stripe/verify', connectLimiter, async (req, res) => {
-  const { secret_key } = req.body;
-  if (!secret_key) return res.status(400).json({ error: 'secret_key required' });
-  try {
-    const r = await fetch('https://api.stripe.com/v1/balance', {
-      headers: { Authorization: `Bearer ${secret_key}` },
-    });
-    const data = await r.json();
-    if (data.error) return res.status(400).json({ error: data.error.message || 'Invalid Stripe key' });
-    res.json({ ok: true, currency: data.available?.[0]?.currency || 'usd' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
 
-// Legacy license check (kept for backwards compat during transition)
-app.post('/license/check', connectLimiter, (req, res) => res.json({ active: false }));
 
 // ── AI proxy routes (keys never leave this server) ────────────────────────────
 // Keep this SHORT — a long prompt causes Whisper to hallucinate it verbatim when it hears silence/noise
@@ -2650,8 +2821,9 @@ app.post('/ai/tts', authMiddleware, aiLimiter, async (req, res) => {
 
 // Speech-to-text (audio sent as base64 in JSON)
 app.post('/ai/stt', authMiddleware, aiLimiter, async (req, res) => {
-  const keyUsed = (process.env.OPENAI_API_KEY || '').slice(-6);
-  console.log('[STT] key suffix:', keyUsed);
+  // This used to log the last six characters of the OpenAI key on every
+  // voice request. Part of a secret is still part of a secret, and logs are
+  // kept, copied and read by more people than the key ever should be.
   try {
     const { audio_b64 } = req.body;
     if (!audio_b64) return res.status(400).json({ error: 'audio_b64 required' });
@@ -3685,7 +3857,10 @@ app.get('/health/stats', adminLimiter, (req, res) => {
   if (!secretMatches(req.query.secret, process.env.ADMIN_SECRET)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  res.json(monitoring.snapshot());
+  // Alongside the request counts: the security events — wrong passwords,
+  // locked accounts, refused uploads, forged sign-in collections — so "is
+  // someone attacking us right now" has an answer in one place.
+  res.json({ ...monitoring.snapshot(), security: monitoring.securitySnapshot(), cache: require('./cache').stats() });
 });
 
 // LAST, after every route. Express picks the four-argument function as its
@@ -3702,4 +3877,6 @@ app.listen(PORT, () => {
   require('./indexes').ensureIndexes().catch((err) => {
     console.warn('[indexes] could not be applied:', err.message);
   });
+  // Job ownership records expire on their own; this sets that up.
+  require('./ownership').ensureIndex().catch(() => {});
 });

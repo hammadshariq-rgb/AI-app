@@ -12,7 +12,8 @@ const TYPES = {
   'video/mp4': 'mp4', 'video/quicktime': 'mov',
 };
 
-const files = new Map();   // token -> { buf, type, expires }
+const files = new Map();   // token -> { buf, type, owner, expires }
+const filecheck = require('./filecheck');
 
 function mountMediaHost(app, { authMiddleware, publicUrl }) {
   setInterval(() => {
@@ -25,14 +26,22 @@ function mountMediaHost(app, { authMiddleware, publicUrl }) {
     try {
       const raw = String(req.body?.data || '');
       const m = /^data:([^;,]+);base64,(.+)$/i.exec(raw);
-      const type = (m ? m[1] : String(req.body?.type || '')).toLowerCase();
-      if (!TYPES[type]) return res.status(400).json({ error: 'Unsupported file type.' });
+      const declared = (m ? m[1] : String(req.body?.type || '')).toLowerCase();
       const buf = Buffer.from(m ? m[2] : raw, 'base64');
-      if (!buf.length) return res.status(400).json({ error: 'Empty file.' });
-      if (buf.length > MAX_BYTES) return res.status(413).json({ error: 'File is too large (200 MB max).' });
+
+      // The bytes decide, not the label the client sent. See filecheck.js.
+      const verdict = filecheck.check(buf, { allowed: Object.keys(TYPES), declared, maxBytes: MAX_BYTES });
+      if (!verdict.ok) {
+        if (verdict.kind === 'script' || verdict.kind === 'executable' || verdict.kind === 'mismatch') {
+          try { require('./monitoring').securityEvent('upload_rejected_script', { ip: req.ip, userId: req.userId, kind: verdict.kind, route: '/media/temp' }); } catch (_) {}
+        }
+        return res.status(verdict.kind === 'too_big' ? 413 : 400).json({ error: verdict.reason });
+      }
+      const type = verdict.type;
 
       const token = crypto.randomBytes(24).toString('hex');
-      files.set(token, { buf, type, expires: Date.now() + TTL_MS });
+      // The owner is kept with it, so only they can take it down early.
+      files.set(token, { buf, type, owner: String(req.userId || ''), expires: Date.now() + TTL_MS });
       const base = typeof publicUrl === 'function' ? publicUrl(req) : publicUrl;
       res.json({ ok: true, url: `${base}/media/temp/${token}.${TYPES[type]}`, expiresIn: TTL_MS / 1000 });
     } catch (err) {
@@ -45,15 +54,22 @@ function mountMediaHost(app, { authMiddleware, publicUrl }) {
     const token = String(req.params.token).replace(/\.[a-z0-9]+$/i, '');
     const f = files.get(token);
     if (!f || f.expires < Date.now()) return res.status(404).end();
-    res.set('Content-Type', f.type);
+    // nosniff and a sandbox policy: even a hostile file that got past every
+    // check could not be run by a browser told this.
+    filecheck.safeServeHeaders(res, f.type);
     res.set('Content-Length', String(f.buf.length));
-    res.set('Cache-Control', 'no-store');
     res.send(f.buf);
   });
 
-  // Drop a file as soon as the platform has taken it.
+  // Drop a file as soon as the platform has taken it — but only your own.
+  // This deleted ANY token for anybody signed in.
   app.delete('/media/temp/:token', authMiddleware, (req, res) => {
-    files.delete(String(req.params.token).replace(/\.[a-z0-9]+$/i, ''));
+    const token = String(req.params.token).replace(/\.[a-z0-9]+$/i, '');
+    const f = files.get(token);
+    if (f && f.owner && f.owner !== String(req.userId)) {
+      return res.status(404).json({ error: 'Not found.' });
+    }
+    files.delete(token);
     res.json({ ok: true });
   });
 }

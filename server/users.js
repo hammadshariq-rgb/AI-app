@@ -138,6 +138,46 @@ async function countMessage(id, today) {
   return got ? got.msgCount : null;
 }
 
+// ── Locking an account after wrong passwords ─────────────────────────────────
+// Stored on the user row, not in memory: a lock that only one server instance
+// knows about is a lock the attacker walks around by hitting another one.
+// The count is an atomic $inc, so ten guesses fired at once are ten strikes,
+// not one strike read ten times.
+const MAX_FAILED = 3;
+const LOCK_MS = 3 * 60 * 60 * 1000;            // three hours
+
+async function recordFailedLogin(id) {
+  const d = await getDb();
+  const r = await d.collection('users').findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $inc: { failedLogins: 1 }, $set: { lastFailedLoginAt: Date.now() } },
+    { returnDocument: 'after' }
+  );
+  const doc = r && (r.value !== undefined ? r.value : r);
+  const count = doc ? (doc.failedLogins || 0) : 0;
+  let lockedUntil = null;
+  if (count >= MAX_FAILED) {
+    lockedUntil = Date.now() + LOCK_MS;
+    await d.collection('users').updateOne(
+      { _id: new ObjectId(id) },
+      // Reset the count as the lock starts, so when it lifts they get three
+      // fresh tries rather than being locked again on the very next mistake.
+      { $set: { lockedUntil, failedLogins: 0 } }
+    );
+  }
+  cache.dropUser(id);
+  return { count, lockedUntil };
+}
+
+async function clearFailedLogins(id) {
+  const d = await getDb();
+  await d.collection('users').updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { failedLogins: 0, lockedUntil: null } }
+  );
+  cache.dropUser(id);
+}
+
 async function update(id, fields) {
   const d = await getDb();
   try {
@@ -170,4 +210,5 @@ async function setSubscription(stripeCustomerId, subscriptionId, status) {
 module.exports = {
   findByEmail, findById, findByIdCached, findByGoogleId, findByStripeCustomer,
   create, update, countMessage, setSubscription, getDb,
+  recordFailedLogin, clearFailedLogins, MAX_FAILED, LOCK_MS,
 };

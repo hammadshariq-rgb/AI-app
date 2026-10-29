@@ -56,10 +56,56 @@ async function getJSON(url) {
   return res.json();
 }
 
+// A skill file is a page or two of Markdown. Anything far bigger is not a
+// skill, and reading it whole first — which res.text() does — would pull an
+// arbitrarily large file into memory before the size cap below ever ran.
+const MAX_FILE_BYTES = 256 * 1024;
+
 async function getText(url) {
   const res = await fetch(url, { headers: { 'User-Agent': 'Callisto' } });
   if (!res.ok) throw new Error(`Could not read that file (${res.status}).`);
-  return res.text();
+  const declared = Number(res.headers.get('content-length') || 0);
+  if (declared > MAX_FILE_BYTES) throw new Error('That skill file is too large to be a skill.');
+
+  // Read it a piece at a time and stop at the cap, so a lying or missing
+  // Content-Length cannot make us swallow the whole thing.
+  const reader = res.body && res.body.getReader ? res.body.getReader() : null;
+  if (!reader) {
+    const t = await res.text();
+    if (t.length > MAX_FILE_BYTES) throw new Error('That skill file is too large to be a skill.');
+    return t;
+  }
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_FILE_BYTES) {
+      try { await reader.cancel(); } catch (_) {}
+      throw new Error('That skill file is too large to be a skill.');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// What a skill must never contain. A skill is guidance written in prose; none
+// of these belong in one, and each is a way to turn "instructions for writing
+// a reel" into something that runs or reaches out. Refused outright rather
+// than cleaned, because a file carrying one was not written in good faith.
+const SKILL_DANGERS = [
+  [/[\x00-\x08\x0e-\x1f]/, 'it is a binary file, not text'],
+  [/<script[\s>]/i, 'it contains a script'],
+  [/<iframe[\s>]/i, 'it embeds another page'],
+  [/javascript:/i, 'it contains a javascript: link'],
+  [/<\?php|<%[@=!\s]|<jsp:/i, 'it contains server-side code'],
+  [/on(?:error|load|click|mouseover)\s*=/i, 'it contains an HTML event handler'],
+];
+
+function unsafeReason(text) {
+  for (const [re, why] of SKILL_DANGERS) if (re.test(text)) return why;
+  return null;
 }
 
 /* ── The SKILL.md itself ────────────────────────────────────────────────────
@@ -145,6 +191,10 @@ async function install(input) {
   const files = (tree.tree || []).filter((f) => f.type === 'blob');
 
   const wanted = files.filter((f) => {
+    // Markdown only, and nothing that a repository says is enormous. The
+    // tree listing carries each file's size, so an oversized one is skipped
+    // before it is ever downloaded.
+    if (typeof f.size === 'number' && f.size > MAX_FILE_BYTES) return false;
     if (!/(^|\/)SKILL\.md$/i.test(f.path)) return false;
     if (loc.dir && !f.path.toLowerCase().startsWith(loc.dir.toLowerCase())) return false;
     return true;
@@ -158,11 +208,15 @@ async function install(input) {
   if (!wanted.length) throw new Error('No SKILL.md in that repository, so there is nothing to install.');
 
   const installed = [];
+  const refused = [];
   const existing = list();
   for (const f of wanted.slice(0, MAX_SKILLS)) {
     let text;
     try { text = await getText(`${RAW}/${loc.owner}/${loc.repo}/${branch}/${f.path}`); }
-    catch (_) { continue; }
+    catch (err) { refused.push(`${f.path} (${err.message})`); continue; }
+
+    const bad = unsafeReason(text);
+    if (bad) { refused.push(`${f.path} (${bad})`); continue; }
 
     const folder = f.path.replace(/\/?SKILL\.md$/i, '').split('/').pop() || loc.repo;
     const parsed = parseSkillMd(text, folder);
@@ -179,14 +233,25 @@ async function install(input) {
       addedAt: Date.now(),
     });
   }
-  if (!installed.length) throw new Error('Found the files but could not read a skill out of them.');
+  if (!installed.length) {
+    throw new Error(refused.length
+      ? `Refused: ${refused[0]}.`
+      : 'Found the files but could not read a skill out of them.');
+  }
 
   // Re-installing a repo replaces its skills rather than doubling them up.
   const keep = existing.filter((s) => !installed.some((n) => n.id === s.id));
   const all = keep.concat(installed).slice(0, MAX_SKILLS);
   store.set('skills', all);
 
-  return { ok: true, count: installed.length, skills: installed.map((s) => ({ id: s.id, name: s.name, description: s.description })) };
+  return {
+    ok: true,
+    count: installed.length,
+    skills: installed.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+    // Said out loud rather than skipped silently: someone installing a pack
+    // should know if part of it was turned away and why.
+    refused,
+  };
 }
 
 function list() {

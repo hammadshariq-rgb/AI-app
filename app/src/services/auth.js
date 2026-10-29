@@ -81,6 +81,21 @@ async function pingActivity(token) {
   } catch (_) {}
 }
 
+// A sign-in is proven with a secret that never appears in any link.
+//
+// The state that goes through Google is the SHA-256 of `verifier`; the verifier
+// itself stays in this process and is only ever sent to the poll. Someone who
+// sees the sign-in link — in a browser history, a log, over a shoulder — has
+// the state but not the verifier, and the server will not hand the result to
+// a poll that cannot produce it.
+const crypto = require('crypto');
+
+function newGoogleSignIn() {
+  const verifier = crypto.randomBytes(32).toString('hex');
+  const state = crypto.createHash('sha256').update(verifier).digest('hex');
+  return { state, verifier };
+}
+
 function getGoogleAuthUrl(serverUrl, state) {
   return state
     ? `${serverUrl}/auth/google?state=${encodeURIComponent(state)}`
@@ -89,11 +104,12 @@ function getGoogleAuthUrl(serverUrl, state) {
 
 // Collect the result of a sign-in the browser may never hand back to us.
 // Returns the token once it exists, or null if the person gave up.
-async function pollGoogleAuth(serverUrl, state, { attempts = 90, everyMs = 2000 } = {}) {
+async function pollGoogleAuth(serverUrl, state, { attempts = 90, everyMs = 2000, verifier = '' } = {}) {
   for (let i = 0; i < attempts; i++) {
     await new Promise((r) => setTimeout(r, everyMs));
     try {
-      const res = await fetch(`${serverUrl}/auth/google/poll?state=${encodeURIComponent(state)}`);
+      const res = await fetch(`${serverUrl}/auth/google/poll?state=${encodeURIComponent(state)}`
+        + (verifier ? `&verifier=${encodeURIComponent(verifier)}` : ''));
       const data = await res.json();
       if (data && data.token) return data;
     } catch (_) {
@@ -103,4 +119,4 @@ async function pollGoogleAuth(serverUrl, state, { attempts = 90, everyMs = 2000 
   return null;
 }
 
-module.exports = { signup, login, verifyToken, pingActivity, getGoogleAuthUrl, pollGoogleAuth };
+module.exports = { signup, login, verifyToken, pingActivity, getGoogleAuthUrl, pollGoogleAuth, newGoogleSignIn };

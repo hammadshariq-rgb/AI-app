@@ -4173,7 +4173,12 @@
     // a wall of raw JSON underneath the picture of the same numbers.
     .replace(/```callisto-chart\s*\n[\s\S]*?```/gi,'')
     .replace(/\[\[REMEMBER:[^\]]*\]\]/gi,'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    // Quotes are escaped as well as < and >. Without that, a link whose
+    // address contained a " closed the href and opened a live attribute:
+    // [x](https://a.com"onmouseover="…) ran script. What the AI writes can be
+    // steered by a web page, a DM or a skill it has read, so it is treated as
+    // untrusted text like anything else.
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     // Links, which this did not render at all - a markdown link came out as
     // literal brackets, so "Download it" read as punctuation. Only http and
     // https: anything else here would be a way to put a javascript: link into

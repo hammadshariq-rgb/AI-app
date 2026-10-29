@@ -18,6 +18,7 @@ const envInt = (v, d) => (v === undefined || v === '' || isNaN(Number(v)) ? d : 
 const MESHY_USES_PER_DAY = envInt(process.env.MESHY_USES_PER_DAY, 5);
 const TRIAL_MESHY_USES_PER_DAY = envInt(process.env.TRIAL_MESHY_USES_PER_DAY, 1);
 const usage = require('./usage');
+const ownership = require('./ownership');
 const refineJobs = new Map();  // preview task id -> refine (texture) task id
 
 function limitMessage(a) {
@@ -90,6 +91,7 @@ function mountModeling(app, { authMiddleware }) {
         throw err;
       }
 
+      await ownership.record('model', job?.result || job?.id, req.userId);
       res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
@@ -135,6 +137,7 @@ function mountModeling(app, { authMiddleware }) {
         await usage.release('meshy', req.userId, allow.period);
         return res.status(502).json({ error: "The generator didn't accept that picture." });
       }
+      await ownership.record('model', jobId, req.userId);
       res.json({ ok: true, jobId, fromImage: true, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
@@ -143,7 +146,7 @@ function mountModeling(app, { authMiddleware }) {
 
   // Image-to-3D is a single pass, so it has its own poll rather than the
   // two-stage shape-then-colour one that text generation uses.
-  app.get('/models/from-image/:id', authMiddleware, async (req, res) => {
+  app.get('/models/from-image/:id', authMiddleware, ownership.requireOwner('model'), async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: 'Not configured.' });
       const task = await meshy(`/image-to-3d/${encodeURIComponent(req.params.id)}`, { base: MESHY_BASE_V1 });
@@ -171,7 +174,7 @@ function mountModeling(app, { authMiddleware }) {
   // The client only knows the preview (shape) id. When the shape finishes we start
   // the refine (colour/texture) pass on it and keep polling that behind the same id,
   // so progress reads 0-50% for shape and 50-100% for colour.
-  app.get('/models/job/:id', authMiddleware, async (req, res) => {
+  app.get('/models/job/:id', authMiddleware, ownership.requireOwner('model'), async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: 'Not configured.' });
       const previewId = req.params.id;
@@ -225,6 +228,11 @@ function mountModeling(app, { authMiddleware }) {
       const prompt = String(req.body?.prompt || '').trim();
       if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
       if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
+      // The model being repainted must be theirs. Otherwise anyone holding
+      // another person's model id could pull that model out under a new skin.
+      if (!(await ownership.mayAccess('model', taskId, req.userId))) {
+        return res.status(404).json({ error: 'That model can’t be found.' });
+      }
 
       const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
       const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
@@ -246,13 +254,14 @@ function mountModeling(app, { authMiddleware }) {
         await usage.release('meshy', req.userId, allow.period);
         throw err;
       }
+      await ownership.record('model', job?.result || job?.id, req.userId);
       res.json({ ok: true, jobId: job?.result || job?.id || null, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
   });
 
-  app.get('/models/retexture/:id', authMiddleware, async (req, res) => {
+  app.get('/models/retexture/:id', authMiddleware, ownership.requireOwner('model'), async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: 'Not configured.' });
       const id = req.params.id;

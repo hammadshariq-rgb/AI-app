@@ -9,6 +9,7 @@
 // Dormant until HF_API_KEY_ID and HF_API_KEY_SECRET are set (cloud.higgsfield.ai).
 
 const crypto = require('crypto');
+const ownership = require('./ownership');
 
 const HF_BASE = 'https://api.higgsfield.ai';
 const HF_KEY_ID = process.env.HF_API_KEY_ID || '';
@@ -178,7 +179,8 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
   app.get('/video/img/:token', (req, res) => {
     const img = images.get(req.params.token);
     if (!img || img.expires < Date.now()) return res.status(404).end();
-    res.set('Content-Type', img.type).send(img.buf);
+    require('./filecheck').safeServeHeaders(res, img.type);
+    res.send(img.buf);
   });
 
   app.post('/video/generate', authMiddleware, async (req, res) => {
@@ -223,13 +225,22 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
 
       const imageBase64 = req.body?.imageBase64;
       if (imageBase64) {
-        const match = /^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i.exec(imageBase64);
-        const type = match ? match[1] : (req.body?.mimeType || 'image/png');
+        const match = /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(imageBase64);
+        const declared = match ? match[1] : (req.body?.mimeType || '');
         const buf = Buffer.from(match ? match[2] : imageBase64, 'base64');
-        if (!buf.length || buf.length > 10 * 1024 * 1024) {
+        // The bytes, not the label. This image is served to Higgsfield from a
+        // public URL below, so whatever is accepted here is something we host.
+        const verdict = require('./filecheck').check(buf, {
+          allowed: ['image/png', 'image/jpeg', 'image/webp'], declared, maxBytes: 10 * 1024 * 1024,
+        });
+        if (!verdict.ok) {
           await refund();
-          return res.status(400).json({ error: 'That image is too large (10 MB max).' });
+          if (verdict.kind === 'script' || verdict.kind === 'executable' || verdict.kind === 'mismatch') {
+            try { require('./monitoring').securityEvent('upload_rejected_script', { ip: req.ip, userId: req.userId, kind: verdict.kind, route: '/video/generate' }); } catch (_) {}
+          }
+          return res.status(400).json({ error: verdict.reason });
         }
+        const type = verdict.type;
         const token = crypto.randomBytes(24).toString('hex');
         images.set(token, { buf, type, expires: Date.now() + IMAGE_TTL_MS });
         const base = typeof publicUrl === 'function' ? publicUrl(req) : publicUrl;
@@ -252,13 +263,16 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       }
       if (!requestId) { await refund(); throw new Error("Higgsfield didn't accept that request."); }
 
+      // Recorded against this account before the id is handed out, so the
+      // poll below can refuse anyone else who learns the id.
+      await ownership.record('video', requestId, req.userId);
       res.json({ ok: true, jobId: requestId, seconds, remaining: allow.limit - slot.used });
     } catch (err) {
       res.status(502).json({ error: err.message });
     }
   });
 
-  app.get('/video/job/:id', authMiddleware, async (req, res) => {
+  app.get('/video/job/:id', authMiddleware, ownership.requireOwner('video'), async (req, res) => {
     try {
       if (!configured) return res.status(503).json({ error: 'Not configured.' });
       const job = await hf(`/requests/${encodeURIComponent(req.params.id)}/status`);

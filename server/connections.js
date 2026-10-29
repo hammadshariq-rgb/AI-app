@@ -15,18 +15,26 @@
 // no endpoint which returns a user can ever return them by accident. That is
 // not a hypothetical: safeUser() strips a block-list, so a new field on the
 // user object would have been sent to the browser on every single login.
-const { MongoClient, ObjectId } = require('mongodb');
+// The same connection the rest of the server uses. This file used to open its
+// own MongoClient — a second pool of connections per instance, doubling what
+// each server holds open against the database's limit.
+const { getDb } = require('./users');
 
-const MONGO_URI = process.env.MONGODB_URI;
-let db = null;
+// Tokens are sealed before they are written and opened only when the server
+// itself is about to use one. See secretbox.js.
+const { seal, open } = require('./secretbox');
 
-async function getDb() {
-  if (db) return db;
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  db = client.db('jarvis');
-  await db.collection('connections').createIndex({ userId: 1, service: 1 }, { unique: true });
-  return db;
+function openTokens(doc) {
+  if (!doc) return doc;
+  try {
+    return { ...doc, access_token: open(doc.access_token), refresh_token: open(doc.refresh_token) };
+  } catch (err) {
+    // A token sealed under a key this server no longer has. Treated as not
+    // connected — the person reconnects — rather than as an error that breaks
+    // whatever was asking.
+    console.error('[connections] could not open a stored token:', err.message);
+    return { ...doc, access_token: null, refresh_token: null };
+  }
 }
 
 // What the browser is allowed to know: that it is connected, when, and a label
@@ -53,8 +61,8 @@ async function save(userId, service, tokens, label) {
       $set: {
         userId: String(userId),
         service,
-        access_token: tokens.access_token || null,
-        refresh_token: tokens.refresh_token || null,
+        access_token: tokens.access_token ? seal(tokens.access_token) : null,
+        refresh_token: tokens.refresh_token ? seal(tokens.refresh_token) : null,
         expiresAt,
         extra: tokens.extra || null,
         label: label || null,
@@ -70,7 +78,7 @@ async function save(userId, service, tokens, label) {
 // Nothing that reaches a response body should ever call this.
 async function getSecret(userId, service) {
   const d = await getDb();
-  return d.collection('connections').findOne({ userId: String(userId), service });
+  return openTokens(await d.collection('connections').findOne({ userId: String(userId), service }));
 }
 
 async function listPublic(userId) {
@@ -89,8 +97,11 @@ async function remove(userId, service) {
 async function updateTokens(userId, service, tokens) {
   const d = await getDb();
   const set = { updatedAt: Date.now() };
-  if (tokens.access_token) set.access_token = tokens.access_token;
-  if (tokens.refresh_token) set.refresh_token = tokens.refresh_token;
+  // Sealed here too. Refreshes happen far more often than first connections,
+  // so missing this path would have quietly put every token back in plain
+  // text within the hour.
+  if (tokens.access_token) set.access_token = seal(tokens.access_token);
+  if (tokens.refresh_token) set.refresh_token = seal(tokens.refresh_token);
   if (tokens.expires_in) set.expiresAt = Date.now() + (Number(tokens.expires_in) * 1000);
   await d.collection('connections').updateOne({ userId: String(userId), service }, { $set: set });
 }

@@ -62,11 +62,18 @@ async function clientChecks() {
 /* ── Server: the body each model is given ─────────────────────────────── */
 function serverChecks() {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'server', 'video.js'), 'utf8');
+  // Modules video.js pulls in that need a database are stubbed; anything else
+  // relative is resolved from server/, where video.js actually lives — not
+  // from this test file, which is what made a new require break the test.
+  const SERVER_DIR = path.join(__dirname, '..', '..', 'server');
+  const STUBS = {
+    './usage': { allowance: async () => ({}), reserve: async () => ({}), release: async () => {} },
+    './ownership': { record: async () => {}, mayAccess: async () => true, requireOwner: () => (q, s, n) => n() },
+    './monitoring': { securityEvent: () => {} },
+  };
   const ctx = {
     module: { exports: {} }, exports: {}, console,
-    require: (m) => (m === './usage'
-      ? { allowance: async () => ({}), reserve: async () => ({}), release: async () => {} }
-      : require(m)),
+    require: (m) => (STUBS[m] ? STUBS[m] : (m.startsWith('./') ? require(path.join(SERVER_DIR, m)) : require(m))),
     process, Buffer, setInterval, Math, Number, String, isFinite, fetch: async () => ({}),
   };
   vm.createContext(ctx);

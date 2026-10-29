@@ -120,6 +120,57 @@ function snapshot() {
   };
 }
 
+/* ── Security events ─────────────────────────────────────────────────────── */
+// Things that are not errors but are worth knowing about: a burst of wrong
+// passwords, a locked account, a sign-in collected from the wrong place, a
+// forged Host header, an upload refused for being a script. One line each in
+// the log with a fixed prefix so they can be searched for, a running count for
+// /health/stats, and — for the ones that mean somebody is actively trying —
+// a Sentry message, so it reaches you rather than waiting to be noticed.
+//
+// The address is recorded; passwords, tokens and email addresses are not. An
+// email is masked to its first letter and domain, which is enough to tell two
+// targets apart without putting a list of customers in a log file.
+const securityCounts = new Map();      // kind -> count
+const recentSecurity = [];             // last 50, newest first
+const LOUD = new Set(['account_locked', 'oauth_poll_ip_mismatch', 'oauth_bad_state', 'upload_rejected_script', 'checkout_tampering', 'admin_secret_wrong']);
+
+function maskEmail(e) {
+  const s = String(e || '');
+  const at = s.indexOf('@');
+  return at > 0 ? s[0] + '***' + s.slice(at) : (s ? s[0] + '***' : '');
+}
+
+function securityEvent(kind, details = {}) {
+  try {
+    const safe = {};
+    for (const [k, v] of Object.entries(details)) {
+      if (/password|token|secret|code|verifier/i.test(k)) continue;     // never logged
+      safe[k] = /email/i.test(k) ? maskEmail(v) : String(v).slice(0, 120);
+    }
+    securityCounts.set(kind, (securityCounts.get(kind) || 0) + 1);
+    recentSecurity.unshift({ at: new Date().toISOString(), kind, ...safe });
+    if (recentSecurity.length > 50) recentSecurity.length = 50;
+
+    console.warn('[security] ' + kind + ' ' + JSON.stringify(safe));
+    if (enabled && Sentry && LOUD.has(kind)) {
+      Sentry.withScope((scope) => {
+        scope.setLevel('warning');
+        scope.setTag('security', kind);
+        for (const [k, v] of Object.entries(safe)) scope.setExtra(k, v);
+        Sentry.captureMessage('security: ' + kind);
+      });
+    }
+  } catch (_) {}
+}
+
+function securitySnapshot() {
+  return {
+    counts: Object.fromEntries(securityCounts),
+    recent: recentSecurity.slice(0, 20),
+  };
+}
+
 /* ── The last line ───────────────────────────────────────────────────────── */
 // Express's default handler answers an unhandled error with an HTML page
 // containing the stack trace — file paths, line numbers, and whatever local
@@ -144,4 +195,7 @@ function catchEverything() {
   });
 }
 
-module.exports = { init, capture, requestTimer, snapshot, errorHandler, catchEverything };
+module.exports = {
+  init, capture, requestTimer, snapshot, errorHandler, catchEverything,
+  securityEvent, securitySnapshot, maskEmail,
+};

