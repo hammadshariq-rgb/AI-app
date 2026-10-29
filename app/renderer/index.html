@@ -2321,6 +2321,16 @@
                 </div>
               </div>
 
+              <!-- MEMORY -->
+              <div class="profile-section">
+                <div class="profile-label">MEMORY</div>
+                <button type="button" id="openMemoryOrb" onclick="window.CallistoMemoryOrb && window.CallistoMemoryOrb.open()"
+                  style="margin-top:8px;width:100%;display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:1px solid rgba(110,160,255,.22);background:linear-gradient(135deg,rgba(15,55,180,.28),rgba(5,10,30,.6));color:rgba(225,236,255,.95);font:inherit;font-size:13px;cursor:pointer;text-align:left">
+                  <span style="flex:none;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd8ff,#3aa9ff 40%,#0f37b4 75%,#040c3c);box-shadow:0 0 12px rgba(58,169,255,.55)"></span>
+                  <span style="flex:1">Open memory orb<br><span style="font-size:11px;color:rgba(160,185,230,.6)">See, add and remove what I remember about you</span></span>
+                </button>
+              </div>
+
               <!-- AI Status card — glass -->
               <div class="profile-section account-ai-status">
                 <div class="profile-label">⚡ AI STATUS</div>
@@ -3091,6 +3101,7 @@
   <script src="camera-look.js?v=1"></script>
   <script src="skills.js?v=1"></script>
   <script src="account-security.js?v=1"></script>
+  <script src="memory-orb.js?v=1"></script>
   <script>
     // Errors in this window, passed up for the crash reports. At most one per
     // distinct message per minute, so a loop that throws every frame cannot

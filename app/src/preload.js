@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   setProfile: (profile) => ipcRenderer.invoke('profile:set', profile),
   getMemories: () => ipcRenderer.invoke('memory:get'),
   clearMemories: () => ipcRenderer.invoke('memory:clear'),
+  addMemory: (fact) => ipcRenderer.invoke('memory:add', fact),
+  removeMemory: (fact) => ipcRenderer.invoke('memory:remove', fact),
   saveSession: (s) => ipcRenderer.invoke('session:save', s),
   listSessions: () => ipcRenderer.invoke('session:list'),
   deleteSession: (id) => ipcRenderer.invoke('session:delete', id),

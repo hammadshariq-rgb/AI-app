@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#050814;font-family:Segoe UI,sans-serif;height:100vh}</style></head><body>
+<script>
+let mem=["Their name is Hammad","Girlfriend is called Sara","Runs a business called Callisto AI","Callisto AI is an AI desktop assistant","Struggling with Instagram reach this month","Likes sushi and Nando's","Supports Arsenal","Favourite place is Dubai","Birthday is in March","Moved to a new flat in September","Drinks coffee black","Working on a website launch","Brother is called Ali","Goes to the gym 4 times a week","Watches F1 every weekend"];
+window.jarvis={getMemories:async()=>mem,addMemory:async f=>(mem=[...mem,f]),removeMemory:async f=>(mem=mem.filter(x=>x!==f))};
+</script>
+<script src="../renderer/memory-orb.js"></script>
+<script>CallistoMemoryOrb.open()</script>
+</body></html>

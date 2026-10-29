@@ -4578,6 +4578,23 @@ ipcMain.handle('session:delete', (_e, id) => {
 
 ipcMain.handle('memory:get', () => store.get('memories') || []);
 ipcMain.handle('memory:clear', () => { store.delete('memories'); return true; });
+// The memory orb: adding and removing one fact by hand.
+ipcMain.handle('memory:add', (_e, fact) => {
+  const f = String(fact || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!f) return store.get('memories') || [];
+  const list = (store.get('memories') || []).filter((x) => String(x).toLowerCase() !== f.toLowerCase());
+  list.push(f);
+  if (list.length > 120) list.splice(0, list.length - 120);
+  store.set('memories', list);
+  cloudPushPrefs({ memories: list }).catch(() => {});
+  return list;
+});
+ipcMain.handle('memory:remove', (_e, fact) => {
+  const list = (store.get('memories') || []).filter((x) => x !== fact);
+  store.set('memories', list);
+  cloudPushPrefs({ memories: list }).catch(() => {});
+  return list;
+});
 
 // Contacts
 ipcMain.handle('contacts:get', () => store.get('contacts') || []);
