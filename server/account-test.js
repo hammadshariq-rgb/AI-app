@@ -398,6 +398,14 @@ function call(method, p, { body, token, ip = '198.51.100.1' } = {}) {
   const soon = await call('POST', '/auth/login', { ip: '203.0.113.94', body: { email: 'verify-me@hotmail.com', password: 'a-strong-password-1' } });
   ok('a sign-in after a short break does not', soon.body && soon.body.user && soon.body.user.emailVerified === true);
 
+  // Two-factor accounts get the email code too, after their 2FA code.
+  await db.collection('users').updateOne({ email: 'twofactor@example.com' }, { $set: { lastActiveAt: Date.now() - 15 * 86400000, twoFactor: fu2.twoFactor } });
+  const tf = await call('POST', '/auth/login', { ip: '203.0.113.95', body: { email: 'twofactor@example.com', password: 'a-strong-password-1' } });
+  const tfv = await call('POST', '/auth/2fa/verify', { ip: '203.0.113.95', body: { challenge: tf.body.challenge, code: backups[7] } });
+  ok('a 2FA account away two weeks is asked for the email code as well', tfv.body && tfv.body.user && tfv.body.user.emailVerified === false, JSON.stringify(tfv.body).slice(0, 90));
+  for (let i = 0; i < 20 && !sentMail.some((m) => m.mailType === 'code' && m.email === 'twofactor@example.com'); i++) await new Promise((r) => setTimeout(r, 100));
+  ok('… and is emailed one', sentMail.some((m) => m.mailType === 'code' && m.email === 'twofactor@example.com'));
+
   /* ════ done ═════════════════════════════════════════════════════════════ */
   console.log = quiet;
   console.log('\n  ' + pass + '/' + (pass + fail) + ' passed');

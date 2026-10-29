@@ -912,10 +912,10 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 // Generated once at startup at the same cost factor as real passwords.
 // Away two weeks or more: the sign-in has to be confirmed again with a fresh
 // code sent to their email, through the same gate a new signup goes through.
-// Two-factor accounts are left alone - they already prove it every sign-in.
+// Two-factor accounts too: the email code comes after their 2FA code.
 const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
 async function reconfirmIfAway(user) {
-  if (!user || (user.twoFactor && user.twoFactor.enabled) || isAlwaysFree(user.email)) return user;
+  if (!user || isAlwaysFree(user.email)) return user;
   if (!user.lastActiveAt || Date.now() - user.lastActiveAt < TWO_WEEKS) return user;
   await users.update(user.id, { emailVerified: false });
   const fresh = (await users.findById(user.id)) || user;
@@ -923,6 +923,7 @@ async function reconfirmIfAway(user) {
   monitoring.securityEvent('reconfirm_after_away', { ip: '-' });
   return fresh;
 }
+accountRoutesDeps.reconfirmIfAway = reconfirmIfAway;
 
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);
 

@@ -188,6 +188,8 @@ function mountAccountRoutes(app, deps) {
     }
 
     if (user.failedLogins || user.lockedUntil) await users.clearFailedLogins(user.id);
+    // Away two weeks: the emailed code is asked for on top of the 2FA code.
+    if (deps.reconfirmIfAway) await deps.reconfirmIfAway(user);
     await users.update(user.id, { lastActiveAt: Date.now() });
     const fresh = await users.findById(user.id);
     const remaining = ((fresh && fresh.twoFactor && fresh.twoFactor.backupCodes) || []).length;
