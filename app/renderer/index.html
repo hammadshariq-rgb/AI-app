@@ -3091,6 +3091,29 @@
   <script src="camera-look.js?v=1"></script>
   <script src="skills.js?v=1"></script>
   <script src="account-security.js?v=1"></script>
+  <script>
+    // Errors in this window, passed up for the crash reports. At most one per
+    // distinct message per minute, so a loop that throws every frame cannot
+    // flood anything.
+    (function () {
+      var seen = {};
+      function send(message, stack, source) {
+        try {
+          var key = String(message).slice(0, 120);
+          if (seen[key] && Date.now() - seen[key] < 60000) return;
+          seen[key] = Date.now();
+          window.jarvis && window.jarvis.reportError && window.jarvis.reportError({ message: message, stack: stack, source: source });
+        } catch (_) {}
+      }
+      window.addEventListener('error', function (e) {
+        send(e.message, e.error && e.error.stack, e.filename + ':' + e.lineno);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason;
+        send('Unhandled rejection: ' + (r && r.message ? r.message : String(r)), r && r.stack, '');
+      });
+    })();
+  </script>
   <style>
     /* "Forgot password?" under the sign-in buttons: plainly a link, not a
        second primary action competing with LOG IN. */

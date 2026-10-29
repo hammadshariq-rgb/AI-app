@@ -64,6 +64,13 @@ for (const scheme of ['callisto', 'jarvis']) {
 
 const { createStore } = require('./safe-store');
 const store = createStore();
+
+// Crash reports, started as early as possible so a crash during start-up is
+// caught too. The address comes from the server (see refreshCrashConfig) and
+// is remembered here, so from the second launch on it is in place before
+// anything else runs. Off if they have turned crash reports off.
+const crash = require('./services/crash');
+crash.init(store.get('sentryDsn'), { release: app.getVersion(), enabled: store.get('crashReports') !== false });
 // The panel refreshes itself whenever something is created, and a finished
 // creation says so out loud — the user often closes the progress window and
 // waits for it in the background.
@@ -203,6 +210,30 @@ function saveAuthToken(token) {
     : token;
   store.set('authToken', enc);
 }
+
+async function refreshCrashConfig() {
+  try {
+    const server = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
+    const res = await fetch(server + '/config/client');
+    if (!res.ok) return;
+    const cfg = await res.json();
+    const dsn = typeof cfg.sentryDsn === 'string' && /^https:\/\/[^@\s]+@[^\s/]+\.sentry\.io\/\d+$/.test(cfg.sentryDsn)
+      ? cfg.sentryDsn : null;
+    if (dsn !== (store.get('sentryDsn') || null)) {
+      if (dsn) store.set('sentryDsn', dsn); else store.delete('sentryDsn');
+    }
+    if (dsn) crash.init(dsn, { release: app.getVersion(), enabled: store.get('crashReports') !== false });
+  } catch (_) {}
+}
+
+// An error caught in a window. Only text: the page gets no way to send
+// anything else through here.
+ipcMain.on('crash:report', (_e, info) => {
+  if (!info || typeof info !== 'object') return;
+  crash.report({ message: info.message, stack: info.stack, source: info.source });
+});
+ipcMain.handle('crash:setEnabled', (_e, on) => { store.set('crashReports', !!on); return { ok: true, restartNeeded: true }; });
+ipcMain.handle('crash:enabled', () => store.get('crashReports') !== false);
 
 // Same thing auth:logout does, for the places that now need it: deleting the
 // account, or signing out everywhere including this device.
@@ -1204,6 +1235,11 @@ app.whenReady().then(async () => {
   // be done by morning and then quietly stopping at the first reboot is worse
   // than not taking the job at all.
   setTimeout(() => { try { resumeLongTasks(); } catch (_) {} }, 12000);
+
+  // Pick up the crash-report address from the server and keep it for next
+  // launch. On the very first launch reporting starts here, a few seconds in;
+  // afterwards it is already running from the top of this file.
+  setTimeout(refreshCrashConfig, 8000);
 
   // ── Sleep / wake ──────────────────────────────────────────────────────────
   // Closing and reopening a laptop makes the audio device "pop", which the

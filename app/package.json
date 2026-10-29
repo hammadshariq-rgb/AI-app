@@ -144,6 +144,7 @@
     "afterPack": "build/adhoc-sign.js"
   },
   "dependencies": {
+    "@sentry/electron": "^7.20.2",
     "adm-zip": "^0.5.16",
     "castv2-client": "^1.2.0",
     "docx": "^8.5.0",

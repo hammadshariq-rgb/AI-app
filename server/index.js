@@ -560,6 +560,14 @@ app.post('/reviews/:id/hide', adminLimiter, async (req, res) => {
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 
+// Settings the desktop app picks up at run time rather than having written into
+// its code — the crash-report address (SENTRY_APP_DSN) among them, so it can be
+// changed without shipping a release and never sits in the public repo.
+app.get('/config/client', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ sentryDsn: process.env.SENTRY_APP_DSN || null });
+});
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 // Thirty days, not a year. A token is a key to the account, and the only thing
 // stopping a stolen one being used for ever is how long it lives.

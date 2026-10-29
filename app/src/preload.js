@@ -224,6 +224,15 @@ contextBridge.exposeInMainWorld('jarvis', {
   skillsRemove:    (id)   => ipcRenderer.invoke('skills:remove', id),
   onSkillsChanged: (cb)   => ipcRenderer.on('skills:changed', () => cb()),
   onAccountOpen:   (cb)   => ipcRenderer.on('account:open', () => cb()),
+  // Crash reports: errors in this window go to the main process, which
+  // decides whether to send them. The on/off switch for the person.
+  reportError:     (info) => ipcRenderer.send('crash:report', {
+    message: String((info && info.message) || '').slice(0, 500),
+    stack: String((info && info.stack) || '').slice(0, 4000),
+    source: String((info && info.source) || '').slice(0, 300),
+  }),
+  crashReportsEnabled: () => ipcRenderer.invoke('crash:enabled'),
+  setCrashReports: (on) => ipcRenderer.invoke('crash:setEnabled', !!on),
 
   // Long jobs that carry on after the conversation ends.
   longTaskStart:   (d)    => ipcRenderer.invoke('longtask:start', d),
