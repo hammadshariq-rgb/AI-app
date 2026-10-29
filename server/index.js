@@ -466,11 +466,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Two-factor, password reset, sessions, deleting an account, and ending a
 // subscription. See account-routes.js.
-const accountRoutes = require('./account-routes').mountAccountRoutes(app, {
+// Unverified accounts cannot spend: the AI, pictures, video, 3D, uploads and
+// checkout all wait for the emailed code. Speech in and out is left alone so
+// the app can still talk while they fetch it.
+const VERIFY_GATED = ['/ai/chat', '/ai/image', '/ai/vision', '/ai/screen', '/ai/magic-edit', '/ai/agent-step',
+  '/ai/places', '/ai/place-phone', '/ai/spotify-search', '/ai/stream-lookup', '/video/generate', '/models/', '/media/temp', '/checkout'];
+app.use(async (req, res, next) => {
+  if (!VERIFY_GATED.some((p) => req.path.startsWith(p))) return next();
+  const t = String(req.headers.authorization || '').replace('Bearer ', '') || String(req.query.token || '');
+  if (!t) return next();
+  const ok = await checkToken(t).catch(() => null);
+  if (!ok) return next();                         // the route's own auth answers
+  const u = await users.findByIdCached(ok.decoded.id).catch(() => null);
+  if (u && u.emailVerified === false) {
+    return res.status(403).json({ error: 'Confirm your email first - enter the code we sent you.', needsVerification: true });
+  }
+  next();
+});
+
+const accountRoutesDeps = {};
+const accountRoutes = require('./account-routes').mountAccountRoutes(app, Object.assign(accountRoutesDeps, {
   users, sessions, stripe, mail, monitoring, JWT_SECRET, PUBLIC_URL,
   authMiddleware, issueSession, makeToken, safeUser,
   authLimiter, signupLimiter, adminLimiter,
-});
+}));
 
 // Whether outgoing mail actually works, so a silent mailbox can be diagnosed
 // from outside instead of by reading deploy logs. Returns no address and no
@@ -671,6 +690,8 @@ function safeUser(user) {
   // live on the same object and are exactly why this is an allow-list.
   out.twoFactorEnabled = !!(user.twoFactor && user.twoFactor.enabled);
   out.hasPassword = !!user.passwordHash;
+  // Accounts from before verification existed carry no flag and count as verified.
+  out.emailVerified = user.emailVerified !== false;
   return out;
 }
 
@@ -795,6 +816,8 @@ app.post('/auth/signup', signupLimiter, async (req, res) => {
       email, passwordHash, name: name || '',
       ...(ageNum !== null ? { age: ageNum } : {}),
       ...(isFreeUser ? { freeAccess: true } : {}),
+      // Not usable until the emailed code is entered.
+      emailVerified: false,
     });
   } catch (err) {
     if (err && err.code === 11000) return res.status(409).json({ error: 'Account already exists. Please log in.' });
@@ -803,7 +826,9 @@ app.post('/auth/signup', signupLimiter, async (req, res) => {
   // Not awaited: a slow or misconfigured mailbox must not hold up the signup
   // that just succeeded.
   mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
-  res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user) });
+  // The code goes out now; the app asks for it next.
+  accountRoutesDeps.sendVerifyCode(user).catch(() => {});
+  res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user), needsVerification: true });
 });
 
 app.post('/auth/login', authLimiter, async (req, res) => {
@@ -1044,8 +1069,9 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
       // again must not post the same letter every time, and nor must the
       // second half of a double-click.
       if (madeIt) mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
-    } else if (!user.googleId) {
-      await users.update(user.id, { googleId: info.id, avatarUrl: info.picture });
+    } else if (!user.googleId || user.emailVerified === false) {
+      // Google has verified this address, which settles it for us too.
+      await users.update(user.id, { googleId: info.id, avatarUrl: info.picture, emailVerified: true });
       user = await users.findById(user.id);
     }
     await users.update(user.id, { lastActiveAt: Date.now() });

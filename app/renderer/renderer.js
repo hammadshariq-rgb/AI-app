@@ -3286,6 +3286,12 @@ window._checkQuickLaunch = async function(text) {
   // Adding or managing the skills they have installed from GitHub.
   if (window._checkSkillCommand && window._checkSkillCommand(t)) return true;
 
+  // Typing in the emailed code later on.
+  if (/(?:verify|confirm)[^.?!]{0,12}(?:my )?email|verification code|email code/i.test(t) && window.CallistoAccount) {
+    window.CallistoAccount.askEmailCode(profile && profile.email);
+    return true;
+  }
+
   // Account and security: two-factor, devices, the subscription, deleting the
   // account. Any of these opens the one screen that does all of it — none of
   // them is ever done straight from a sentence, because each needs the
@@ -7940,6 +7946,13 @@ async function checkSubscriptionAndEnter(name, email) {
     setupView.classList.remove('hidden');
     showAuthStep();
     return;
+  }
+  // Signed up with a password and not yet confirmed: the emailed code first.
+  // Every way in — signup, sign-in, app start — passes through here, so this
+  // is the one place it is asked. 'Later' carries on; the AI stays shut and
+  // they are asked again next time.
+  if (result.user && result.user.emailVerified === false && window.CallistoAccount) {
+    await window.CallistoAccount.askEmailCode(result.user.email || email);
   }
   if (result.active) {
     // Subscribed — go straight to the app

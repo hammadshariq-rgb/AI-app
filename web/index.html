@@ -4076,6 +4076,11 @@
   function reflectSignedIn(){
     try{
       if(!user) return;
+      // Not confirmed yet: ask for the emailed code, once per page load.
+      if(user.emailVerified===false && !window._askedEmailCode && window.CallistoAccount){
+        window._askedEmailCode=true;
+        setTimeout(()=>window.CallistoAccount.askEmailCode(user.email).then(ok=>{ if(ok) user.emailVerified=true; }),300);
+      }
       const init = (user.name || user.email || '?')[0].toUpperCase();
       const av = document.getElementById('cnAvatar'); if(av) av.textContent = init;
       const un = document.getElementById('cnUname');

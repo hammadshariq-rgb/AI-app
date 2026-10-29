@@ -195,6 +195,44 @@ function mountAccountRoutes(app, deps) {
     res.json({ token, user: safeUser(fresh || user), backupCodesLeft: remaining });
   });
 
+  /* ════════════════════════ EMAIL VERIFICATION ════════════════════════════ */
+  // A fresh 6-digit code, emailed. One a minute at most per account, so this
+  // cannot be used to flood someone's inbox.
+  async function sendCode(user) {
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    await users.setVerifyCode(user.id, code);
+    return mail.sendVerificationCode({ email: user.email, name: user.name, code });
+  }
+  deps.sendVerifyCode = sendCode;
+
+  app.post('/auth/email/send', authLimiter, authMiddleware, async (req, res) => {
+    const user = await users.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'Account not found.' });
+    if (user.emailVerified !== false) return res.json({ ok: true, alreadyVerified: true });
+    if (user.verifySentAt && Date.now() - user.verifySentAt < 60 * 1000) {
+      return res.status(429).json({ error: 'A code was just sent. Wait a minute before asking for another.' });
+    }
+    const sent = await sendCode(user);
+    res.json({ ok: true, sent: !!sent, to: user.email });
+  });
+
+  app.post('/auth/email/verify', authLimiter, authMiddleware, async (req, res) => {
+    const user = await users.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'Account not found.' });
+    if (user.emailVerified !== false) return res.json({ ok: true, alreadyVerified: true, user: safeUser(user) });
+    const code = String((req.body && req.body.code) || '').replace(/\s/g, '');
+    if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter the 6-digit code from the email.' });
+    const r = await users.checkVerifyCode(user.id, code);
+    if (r === 'ok') {
+      monitoring.securityEvent('email_verified', { userId: user.id });
+      return res.json({ ok: true, user: safeUser(await users.findById(user.id)) });
+    }
+    monitoring.securityEvent('email_verify_failed', { ip: req.ip, userId: user.id, why: r });
+    const msg = r === 'too_many' ? 'Too many wrong tries. Ask for a new code.'
+      : r === 'expired' ? 'That code has expired. Ask for a new one.' : 'That code is not right.';
+    res.status(400).json({ error: msg, newCodeNeeded: r !== 'wrong' });
+  });
+
   /* ════════════════════════ PASSWORD RESET ════════════════════════════════ */
 
   // Always the same answer, whether or not the address has an account — or
@@ -240,7 +278,8 @@ function mountAccountRoutes(app, deps) {
       return res.status(400).json({ error: 'That reset link has expired or has already been used. Ask for a new one.' });
     }
 
-    await users.update(user.id, { passwordHash: await bcrypt.hash(password, 10) });
+    // The reset email reached them, which proves the inbox is theirs.
+    await users.update(user.id, { passwordHash: await bcrypt.hash(password, 10), emailVerified: true });
     // The lock is the reason a lot of people will be here.
     await users.clearFailedLogins(user.id);
     // A new password means whoever might have had the old one is out.

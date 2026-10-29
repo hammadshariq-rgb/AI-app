@@ -192,7 +192,7 @@
     'POST /auth/2fa/backup-codes': 1, 'GET /auth/sessions': 1,
     'POST /auth/sessions/signout-everywhere': 1, 'GET /billing/status': 1,
     'POST /billing/cancel': 1, 'POST /billing/resume': 1, 'POST /auth/account/delete': 1,
-    'GET /auth/me': 1,
+    'GET /auth/me': 1, 'POST /auth/email/send': 1, 'POST /auth/email/verify': 1,
   };
   function accountCall(method, path, body) {
     var m = String(method || 'GET').toUpperCase();

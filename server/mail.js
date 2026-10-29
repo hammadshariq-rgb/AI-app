@@ -189,6 +189,20 @@ async function send(to, subject, heading, bodyHtml, bodyText) {
   }
 }
 
+// ── Signup verification code ─────────────────────────────────────────────────
+function sendVerificationCode({ email, name, code }) {
+  const who = firstName(name, email);
+  return send(
+    email,
+    code + ' is your Callisto AI code',
+    'Confirm your email, ' + esc(who),
+    'Enter this code in Callisto to finish creating your account:'
+      + '<br><br><div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#3d5cff">' + esc(code) + '</div>'
+      + '<br>It expires in 15 minutes. If you did not sign up for Callisto AI, ignore this email.',
+    'Your Callisto AI code is ' + code + '. It expires in 15 minutes. If you did not sign up, ignore this email.'
+  );
+}
+
 // ── Password reset ───────────────────────────────────────────────────────────
 // The link is the only copy of the reset token — the server keeps a hash — so
 // it is sent here and nowhere else, and expires in half an hour.
@@ -369,4 +383,4 @@ async function sendTest() {
   }
 }
 
-module.exports = { sendWelcome, sendPurchase, sendPasswordReset, sendSecurityNotice, status, sendTest, configured: () => !!ready() };
+module.exports = { sendWelcome, sendPurchase, sendPasswordReset, sendSecurityNotice, sendVerificationCode, status, sendTest, configured: () => !!ready() };

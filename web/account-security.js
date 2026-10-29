@@ -155,6 +155,55 @@
     });
   }
 
+  /* ══ Confirming the email address ═════════════════════════════════════════ */
+  // After signing up with a password, a 6-digit code goes to their inbox — any
+  // provider, Gmail or Hotmail or anything else — and the AI stays shut until
+  // it is typed here. Resolves true once verified, false if they leave it for
+  // later (it comes back on the next launch).
+  function askEmailCode(email) {
+    return new Promise((resolve) => {
+      const p = panel(`
+        <div class="ac-eyebrow">CALLISTO &middot; CONFIRM YOUR EMAIL</div>
+        <div class="ac-title">Check your inbox</div>
+        <p class="ac-sub">We sent a 6-digit code to <b>${esc(email || 'your email')}</b>. Type it here to finish
+          creating your account. It can take a minute — check spam if it is not there.</p>
+        <label class="ac-label" for="acVcode">Code</label>
+        <input class="ac-input code" id="acVcode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
+        <div class="ac-msg" id="acMsg" role="status" aria-live="polite"></div>
+        <div class="ac-row">
+          <button class="ac-btn" id="acGo">Confirm</button>
+          <button class="ac-btn ghost" id="acResend">Send a new code</button>
+          <button class="ac-btn ghost" id="acLater">Later</button>
+        </div>`, { small: true });
+      if (root) root.dataset.closable = 'no';
+      const code = p.querySelector('#acVcode');
+      const msg = p.querySelector('#acMsg');
+      const go = p.querySelector('#acGo');
+      code.focus();
+      const say = (t, cls) => { msg.className = 'ac-msg ' + (cls || ''); msg.textContent = t; };
+      const done = (v) => { if (root) root.dataset.closable = 'yes'; close(); resolve(v); };
+
+      const submit = async () => {
+        const v = code.value.trim();
+        if (!/^\d{6}$/.test(v)) return say('Type the 6 digits from the email.', 'bad');
+        go.disabled = true; say('Checking…');
+        const r = await call('POST', '/auth/email/verify', { code: v });
+        if (r && r.ok) { say('Email confirmed.', 'good'); return setTimeout(() => done(true), 600); }
+        go.disabled = false; say((r && r.error) || 'That did not work.', 'bad'); code.select();
+      };
+      go.addEventListener('click', submit);
+      code.addEventListener('input', () => { if (/^\d{6}$/.test(code.value.trim())) submit(); });
+      code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+      p.querySelector('#acResend').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const r = await call('POST', '/auth/email/send');
+        say(r && r.ok ? 'A new code is on its way.' : ((r && r.error) || 'Could not send.'), r && r.ok ? 'good' : 'bad');
+        setTimeout(() => { e.target.disabled = false; }, 60000);
+      });
+      p.querySelector('#acLater').addEventListener('click', () => done(false));
+    });
+  }
+
   /* ══ Forgotten password ═══════════════════════════════════════════════════ */
   function forgot(prefill) {
     const p = panel(`
@@ -450,7 +499,7 @@
     return s;
   }
 
-  window.CallistoAccount = { open, close, forgot, askTwoFactor };
+  window.CallistoAccount = { open, close, forgot, askTwoFactor, askEmailCode };
   // The tray's Account & security item.
   try { window.jarvis && window.jarvis.onAccountOpen && window.jarvis.onAccountOpen(open); } catch (_) {}
 })();

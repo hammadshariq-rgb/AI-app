@@ -75,7 +75,10 @@ async function findByStripeCustomer(stripeCustomerId) {
   return toUser(await d.collection('users').findOne({ stripeCustomerId }));
 }
 
-async function create({ email, passwordHash, googleId, name, avatarUrl }) {
+// age, freeAccess and emailVerified used to be passed in here by signup and
+// silently dropped, because only the fields below were copied - so no age was
+// ever saved. They are copied now.
+async function create({ email, passwordHash, googleId, name, avatarUrl, age, freeAccess, emailVerified }) {
   const d = await getDb();
   const doc = {
     email: email ? email.toLowerCase() : null,
@@ -89,6 +92,10 @@ async function create({ email, passwordHash, googleId, name, avatarUrl }) {
     lastActiveAt: Date.now(),
     createdAt: Date.now(),
   };
+  if (typeof age === 'number') doc.age = age;
+  if (freeAccess === true) doc.freeAccess = true;
+  // false only for a new password signup; absent (older accounts) counts as verified.
+  if (emailVerified === false) doc.emailVerified = false;
   const result = await d.collection('users').insertOne(doc);
   return toUser({ _id: result.insertedId, ...doc });
 }
@@ -136,6 +143,39 @@ async function countMessage(id, today) {
   );
   const got = retry && (retry.value !== undefined ? retry.value : retry);
   return got ? got.msgCount : null;
+}
+
+// ── Email verification codes ─────────────────────────────────────────────────
+// Six digits, emailed, good for 15 minutes and five tries. Stored only as an
+// HMAC, so the database never holds a usable code.
+const crypto = require('crypto');
+const codeHash = (code) => crypto.createHmac('sha256', process.env.JWT_SECRET || 'x').update(String(code)).digest('hex');
+
+async function setVerifyCode(id, code) {
+  const d = await getDb();
+  await d.collection('users').updateOne({ _id: new ObjectId(id) },
+    { $set: { verifyCodeHash: codeHash(code), verifyExpiresAt: Date.now() + 15 * 60 * 1000, verifyTries: 0, verifySentAt: Date.now() } });
+  cache.dropUser(id);
+}
+
+// 'ok' | 'wrong' | 'expired' | 'too_many'. The try is counted atomically
+// BEFORE the comparison, so parallel guesses cannot get past the limit.
+async function checkVerifyCode(id, code) {
+  const d = await getDb();
+  const r = await d.collection('users').findOneAndUpdate(
+    { _id: new ObjectId(id), verifyCodeHash: { $exists: true } },
+    { $inc: { verifyTries: 1 } }, { returnDocument: 'after' });
+  const u = r && (r.value !== undefined ? r.value : r);
+  cache.dropUser(id);
+  if (!u) return 'expired';
+  if (u.verifyTries > 5) return 'too_many';
+  if (!u.verifyExpiresAt || u.verifyExpiresAt < Date.now()) return 'expired';
+  const a = Buffer.from(u.verifyCodeHash), b = Buffer.from(codeHash(String(code || '').trim()));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return 'wrong';
+  await d.collection('users').updateOne({ _id: new ObjectId(id) },
+    { $set: { emailVerified: true }, $unset: { verifyCodeHash: '', verifyExpiresAt: '', verifyTries: '' } });
+  cache.dropUser(id);
+  return 'ok';
 }
 
 // ── Signing out everywhere ───────────────────────────────────────────────────
@@ -322,6 +362,6 @@ module.exports = {
   findByEmail, findById, findByIdCached, findByGoogleId, findByStripeCustomer,
   create, update, countMessage, setSubscription, getDb,
   recordFailedLogin, clearFailedLogins, MAX_FAILED, LOCK_MS,
-  bumpTokenVersion, setResetToken, consumeResetToken,
+  bumpTokenVersion, setResetToken, consumeResetToken, setVerifyCode, checkVerifyCode,
   setTwoFactor, clearTwoFactor, claimTotpStep, useBackupCode, deleteEverything,
 };

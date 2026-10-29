@@ -166,6 +166,8 @@ const ACCOUNT_PATHS = new Map([
   ['POST /billing/resume', true],
   ['POST /auth/account/delete', true],
   ['GET /auth/me', true],
+  ['POST /auth/email/send', true],
+  ['POST /auth/email/verify', true],
 ]);
 
 async function account(token, method, path, body) {

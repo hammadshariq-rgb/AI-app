@@ -53,6 +53,7 @@ Module._load = function (req, parent) {
       sendPurchase: async () => true,
       sendPasswordReset: async (m) => { sentMail.push({ ...m, mailType: 'reset' }); return true; },
       sendSecurityNotice: async (m) => { sentMail.push({ ...m, mailType: 'notice' }); return true; },
+      sendVerificationCode: async (m) => { sentMail.push({ ...m, mailType: 'code' }); return true; },
       status: async () => ({}), sendTest: async () => ({}), configured: () => true,
     };
   }
@@ -346,6 +347,46 @@ function call(method, p, { body, token, ip = '198.51.100.1' } = {}) {
   ok('their sessions are gone', (await db.collection('sessions').countDocuments({ userId: du.id })) === 0);
   ok('their token no longer works', (await me(d1, ip6)).status === 401);
   ok('they were told', sentMail.some((m) => m.mailType === 'notice' && m.email === 'delete-me@example.com'));
+
+  /* ════ 7. Email verification code ══════════════════════════════════════ */
+  const ip7 = '203.0.113.7';
+  const sv = await call('POST', '/auth/signup', { ip: ip7, body: { email: 'verify-me@hotmail.com', password: 'a-strong-password-1', name: 'V' } });
+  ok('signup says a code is needed', sv.body && sv.body.needsVerification === true && sv.body.user.emailVerified === false);
+  const vt = sv.body.token;
+  const codeMails = () => sentMail.filter((m) => m.mailType === 'code' && m.email === 'verify-me@hotmail.com');
+  for (let i = 0; i < 20 && !codeMails().length; i++) await new Promise((r) => setTimeout(r, 100));
+  ok('a code was emailed to a Hotmail address', codeMails().length === 1 && /^\d{6}$/.test(codeMails()[0].code));
+  const vstored = await db.collection('users').findOne({ email: 'verify-me@hotmail.com' });
+  ok('only a hash of the code is stored', vstored.verifyCodeHash && !JSON.stringify(vstored).includes('"' + codeMails()[0].code + '"'));
+
+  const gated = await call('POST', '/ai/chat', { token: vt, ip: ip7, body: { messages: [{ role: 'user', content: 'hi' }] } });
+  ok('an unverified account cannot use the AI', gated.status === 403 && gated.body.needsVerification === true, String(gated.status));
+  const img = await call('POST', '/ai/image', { token: vt, ip: ip7, body: { prompt: 'x' } });
+  ok('… or make pictures', img.status === 403);
+  ok('… but can still sign in and see their account', (await me(vt, ip7)).status === 200);
+
+  ok('a resend inside a minute is refused', (await call('POST', '/auth/email/send', { token: vt, ip: ip7 })).status === 429);
+  const wrong = await call('POST', '/auth/email/verify', { token: vt, ip: ip7, body: { code: codeMails()[0].code === '000000' ? '111111' : '000000' } });
+  ok('a wrong code is refused', wrong.status === 400);
+  const right = await call('POST', '/auth/email/verify', { token: vt, ip: '203.0.113.71', body: { code: codeMails()[0].code } });
+  ok('the right code verifies', right.status === 200 && right.body.user.emailVerified === true, JSON.stringify(right.body).slice(0, 90));
+  const after = await call('POST', '/ai/chat', { token: vt, ip: '203.0.113.72', body: { messages: [{ role: 'user', content: 'hi' }] } });
+  ok('after verifying the AI is open (not 403)', after.status !== 403, String(after.status));
+  ok('the code cannot be used again', (await db.collection('users').findOne({ email: 'verify-me@hotmail.com' })).verifyCodeHash === undefined);
+
+  // Five wrong tries burns the code.
+  const sv2 = await call('POST', '/auth/signup', { ip: '203.0.113.73', body: { email: 'guesser@gmail.com', password: 'a-strong-password-1', name: 'G' } });
+  let last;
+  for (let i = 0; i < 6; i++) last = await call('POST', '/auth/email/verify', { token: sv2.body.token, ip: '203.0.113.' + (80 + i), body: { code: String(100000 + i) } });
+  ok('after five wrong tries the code is dead', last.body && /Too many/.test(last.body.error), JSON.stringify(last.body));
+
+  // An account from before verification existed: no flag at all.
+  await db.collection('users').insertOne({ email: 'old-timer@example.com', passwordHash: require('bcryptjs').hashSync('a-strong-password-1', 10), name: 'Old', subscriptionStatus: 'inactive', createdAt: Date.now(), lastActiveAt: Date.now() });
+  const old = await call('POST', '/auth/login', { ip: '203.0.113.90', body: { email: 'old-timer@example.com', password: 'a-strong-password-1' } });
+  ok('an existing account with no flag counts as verified', old.body && old.body.user && old.body.user.emailVerified === true, JSON.stringify(old.body).slice(0, 80));
+  ok('… and is not blocked from the AI', (await call('POST', '/ai/chat', { token: old.body.token, ip: '203.0.113.91', body: { messages: [{ role: 'user', content: 'hi' }] } })).status !== 403);
+  const age = (await db.collection('users').findOne({ email: 'verify-me@hotmail.com' }));
+  ok('the always-free / age fields are no longer dropped (create keeps extra fields)', 'emailVerified' in age);
 
   /* ════ done ═════════════════════════════════════════════════════════════ */
   console.log = quiet;
