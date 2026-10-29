@@ -3286,6 +3286,26 @@ window._checkQuickLaunch = async function(text) {
   // Adding or managing the skills they have installed from GitHub.
   if (window._checkSkillCommand && window._checkSkillCommand(t)) return true;
 
+  // Account and security: two-factor, devices, the subscription, deleting the
+  // account. Any of these opens the one screen that does all of it — none of
+  // them is ever done straight from a sentence, because each needs the
+  // password or a confirmation that a voice command cannot give.
+  if (/\b(?:account (?:settings|security)|my account|security settings|two[- ]?factor|2fa|two[- ]?step|authenticator|backup codes?|sign(?:ed)? in devices|devices? signed in|sign out (?:everywhere|of (?:all|every))|log ?out (?:everywhere|of all)|(?:end|cancel|stop|manage) (?:my )?(?:subscription|premium|plan|membership)|delete (?:my )?account|close my account|remove my account|change (?:my )?password|reset (?:my )?password|forgot (?:my )?password)\b/i.test(t)
+      && window.CallistoAccount) {
+    if (/\b(?:forgot|reset) (?:my )?password\b/i.test(t)) {
+      window.CallistoAccount.forgot(profile && profile.email);
+      addMessage('assistant', 'I have opened password reset — I will email you a link.');
+    } else {
+      window.CallistoAccount.open();
+      addMessage('assistant', /delete|close my account|remove my account/i.test(t)
+        ? 'Account settings are open. Deleting is at the bottom — it asks for your password first, and cancels any subscription before anything is removed.'
+        : /subscription|premium|plan|membership/i.test(t)
+          ? 'Account settings are open — your subscription is in there. Ending it keeps premium until the period you paid for runs out.'
+          : 'Account settings are open.');
+    }
+    return true;
+  }
+
   // Before making a NEW picture: are they asking to change one that already
   // exists? "Blur the background" with a photo attached is an edit, not a
   // request for a fresh picture of a blurred background.
@@ -7639,6 +7659,11 @@ authSubmit.addEventListener('click', async () => {
     });
   } else {
     result = await window.jarvis.authLogin({ email, password });
+    // Two-factor on: the password was right, now the code. Returns the result
+    // of that step, or the original reply untouched if 2FA is off.
+    if (result && result.twoFactorRequired && window.CallistoAccount) {
+      result = await window.CallistoAccount.askTwoFactor(result);
+    }
   }
 
   authSubmit.disabled = false;
@@ -7723,7 +7748,10 @@ reloginSubmit.addEventListener('click', async () => {
   reloginSubmit.textContent = 'LOGGING IN...';
   reloginError.classList.add('hidden');
 
-  const result = await window.jarvis.authLogin({ email, password });
+  let result = await window.jarvis.authLogin({ email, password });
+  if (result && result.twoFactorRequired && window.CallistoAccount) {
+    result = await window.CallistoAccount.askTwoFactor(result);
+  }
   reloginSubmit.disabled = false;
   reloginSubmit.textContent = 'LOG IN';
 

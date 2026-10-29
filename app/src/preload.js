@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   hide: () => ipcRenderer.invoke('jarvis:hide'),
   authSignup: (d) => ipcRenderer.invoke('auth:signup', d),
   authLogin: (d) => ipcRenderer.invoke('auth:login', d),
+  // Two-factor, forgotten password, and the account settings screen.
+  authVerify2fa: (d) => ipcRenderer.invoke('auth:verify2fa', d),
+  authForgot: (email) => ipcRenderer.invoke('auth:forgot', email),
+  accountCall: (method, path, body) => ipcRenderer.invoke('account:call', { method, path, body }),
   authVerify: () => ipcRenderer.invoke('auth:verify'),
   authGoogle: () => ipcRenderer.invoke('auth:google'),
   authLogout: () => ipcRenderer.invoke('auth:logout'),
@@ -219,6 +223,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   skillsInstall:   (url)  => ipcRenderer.invoke('skills:install', url),
   skillsRemove:    (id)   => ipcRenderer.invoke('skills:remove', id),
   onSkillsChanged: (cb)   => ipcRenderer.on('skills:changed', () => cb()),
+  onAccountOpen:   (cb)   => ipcRenderer.on('account:open', () => cb()),
 
   // Long jobs that carry on after the conversation ends.
   longTaskStart:   (d)    => ipcRenderer.invoke('longtask:start', d),

@@ -157,6 +157,10 @@ async function sendViaHttp(to, subject, html, text) {
   return body;
 }
 
+// Addresses are masked in the log — logs are kept and read far more widely
+// than the database, and a customer list should not be assembled from them.
+const masked = (e) => { const s = String(e || ''); const at = s.indexOf('@'); return at > 0 ? s[0] + '***' + s.slice(at) : '***'; };
+
 async function send(to, subject, heading, bodyHtml, bodyText) {
   if (!to) return false;
   const html = wrap(heading, bodyHtml);
@@ -165,10 +169,10 @@ async function send(to, subject, heading, bodyHtml, bodyText) {
   if (RESEND_KEY) {
     try {
       await sendViaHttp(to, subject, html, bodyText);
-      console.log('[mail] sent over HTTPS:', subject, '->', to);
+      console.log('[mail] sent over HTTPS:', subject, '->', masked(to));
       return true;
     } catch (err) {
-      console.error('[mail] HTTPS send failed for', to, '-', err.message);
+      console.error('[mail] HTTPS send failed for', masked(to), '-', err.message);
       return false;
     }
   }
@@ -177,12 +181,57 @@ async function send(to, subject, heading, bodyHtml, bodyText) {
   if (!t) return false;
   try {
     await t.sendMail({ from: MAIL_FROM, to, subject, text: bodyText, html });
-    console.log('[mail] sent over SMTP:', subject, '->', to);
+    console.log('[mail] sent over SMTP:', subject, '->', masked(to));
     return true;
   } catch (err) {
-    console.error('[mail] SMTP send failed for', to, '-', err.message);
+    console.error('[mail] SMTP send failed for', masked(to), '-', err.message);
     return false;
   }
+}
+
+// ── Password reset ───────────────────────────────────────────────────────────
+// The link is the only copy of the reset token — the server keeps a hash — so
+// it is sent here and nowhere else, and expires in half an hour.
+function sendPasswordReset({ email, name, link }) {
+  const who = firstName(name, email);
+  return send(
+    email,
+    'Reset your Callisto AI password',
+    `Reset your password, ${esc(who)}`,
+    `Someone asked to reset the password on your Callisto AI account. If it was you, this link sets a new one.
+     It works once and expires in 30 minutes.
+     <br><br><a href="${esc(link)}" style="display:inline-block;background:#3d5cff;color:#fff;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Choose a new password</a>
+     <br><br>If you did not ask for this, ignore this email — your password has not changed, and nobody can change it without this link.`,
+    `Someone asked to reset the password on your Callisto AI account.\n\n`
+      + `If it was you, open this link to choose a new one. It works once and expires in 30 minutes:\n${link}\n\n`
+      + `If you did not ask for this, ignore this email - your password has not changed.`
+  );
+}
+
+// ── Something changed on the account ─────────────────────────────────────────
+// Two-factor switched on or off, the password changed, every device signed
+// out, the account deleted. If it was them, this is a receipt. If it was not,
+// it is the one way they find out in time to do something.
+const NOTICES = {
+  '2fa_on': ['Two-factor sign-in is on', 'Two-factor sign-in is now on for your account. You will be asked for a code from your authenticator app each time you sign in with your password.'],
+  '2fa_off': ['Two-factor sign-in was turned off', 'Two-factor sign-in has been turned off for your account. If you did not do this, reset your password straight away.'],
+  'password_changed': ['Your password was changed', 'The password on your Callisto AI account has just been changed, and every device was signed out. If you did not do this, reset it straight away.'],
+  'signed_out_everywhere': ['Signed out everywhere', 'Every device signed in to your Callisto AI account has been signed out.'],
+  'account_deleted': ['Your account has been deleted', 'Your Callisto AI account and everything in it has been deleted, and any subscription has been cancelled. There is nothing more you need to do.'],
+  'account_locked': ['Your account was locked', 'Someone entered the wrong password for your Callisto AI account three times, so password sign-in is locked for three hours. If it was you, wait or sign in with Google. If it was not, consider resetting your password.'],
+};
+
+function sendSecurityNotice({ email, name, kind }) {
+  const n = NOTICES[kind];
+  if (!n || !email) return Promise.resolve(false);
+  const who = firstName(name, email);
+  return send(
+    email,
+    n[0] + ' — Callisto AI',
+    `${esc(n[0])}`,
+    `Hi ${esc(who)}, ${esc(n[1])}<br><br><span style="opacity:.6;font-size:13px">Sent ${esc(new Date().toUTCString())}.</span>`,
+    `Hi ${who}, ${n[1]}\n\nSent ${new Date().toUTCString()}.`
+  );
 }
 
 // ── When an account is made ───────────────────────────────────────────────────
@@ -320,4 +369,4 @@ async function sendTest() {
   }
 }
 
-module.exports = { sendWelcome, sendPurchase, status, sendTest, configured: () => !!ready() };
+module.exports = { sendWelcome, sendPurchase, sendPasswordReset, sendSecurityNotice, status, sendTest, configured: () => !!ready() };

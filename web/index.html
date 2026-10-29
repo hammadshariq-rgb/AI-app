@@ -946,6 +946,14 @@
     .auth-submit { width: 100%; background: var(--accent); color: #fff; font-family: var(--body); font-size: 13.5px; font-weight: 700; border: none; border-radius: 9px; padding: 11px; cursor: pointer; margin-top: 3px; transition: opacity 0.18s; }
     .auth-submit:hover { opacity: 0.88; }
     .auth-err { color: #ef4444; font-size: 11.5px; text-align: center; margin-top: 5px; min-height: 15px; }
+    .auth-code { font-size: 20px; letter-spacing: 7px; text-align: center; font-variant-numeric: tabular-nums; }
+    .auth-note { font-size: 12px; line-height: 1.55; color: var(--text2, rgba(200,215,245,.75)); margin: 0 0 9px; text-align: center; }
+    /* A link, not a second button competing with Sign In. */
+    .auth-forgot { display: block; margin: 8px auto 0; background: none; border: none; cursor: pointer;
+      font: inherit; font-size: 11.5px; color: rgba(150,180,240,.8); text-decoration: underline;
+      text-underline-offset: 3px; padding: 6px 8px; min-height: 32px; }
+    .auth-forgot:hover { color: var(--text); }
+    .auth-forgot:focus-visible { outline: 2px solid #6f8cff; outline-offset: 2px; border-radius: 4px; }
     .auth-close { position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; line-height: 1; }
 
     /* ═══ CHAT APP ═══ */
@@ -2274,10 +2282,18 @@
       <button class="auth-tab" id="tabUp">Create Account</button>
     </div>
     <form id="loginForm">
-      <input type="email" id="lEmail" class="auth-input" placeholder="Email address" required autocomplete="email" />
-      <input type="password" id="lPass" class="auth-input" placeholder="Password" required autocomplete="current-password" />
-      <button type="submit" class="auth-submit">Sign In</button>
+      <div id="lCreds">
+        <input type="email" id="lEmail" class="auth-input" placeholder="Email address" required autocomplete="email" />
+        <input type="password" id="lPass" class="auth-input" placeholder="Password" required autocomplete="current-password" />
+      </div>
+      <!-- Two-factor: shown in place of the password once the password is right. -->
+      <div id="lTwoFactor" class="hidden">
+        <p class="auth-note">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+        <input type="text" id="lCode" class="auth-input auth-code" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" maxlength="11" />
+      </div>
+      <button type="submit" class="auth-submit" id="lSubmit">Sign In</button>
       <p class="auth-err" id="lErr"></p>
+      <button type="button" class="auth-forgot" id="lForgot">Forgot password?</button>
     </form>
     <form id="signupForm" class="hidden">
       <input type="text" id="sName" class="auth-input" placeholder="Your name" required autocomplete="name" />
@@ -2380,6 +2396,9 @@
         <div id="hnavEmail" style="font-size:11.5px;color:rgba(130,155,210,0.6)"></div>
         <div id="hnavPlan" style="padding:8px 12px;border-radius:9px;background:rgba(61,92,255,0.1);border:1px solid rgba(61,92,255,0.22);font-size:11.5px;font-weight:700;color:rgba(130,170,255,0.9)"></div>
         <button onclick="window._goStripe && window._goStripe('monthly')" style="padding:10px;border-radius:9px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer">⭐ Upgrade to Premium</button>
+        <!-- Two-factor, devices, ending a subscription, deleting the account —
+             the same screen as the app, so a website-only customer can cancel. -->
+        <button onclick="window.CallistoAccount && window.CallistoAccount.open()" style="padding:10px;border-radius:9px;border:1px solid rgba(120,160,255,0.25);background:rgba(61,92,255,0.08);color:#cfe0ff;cursor:pointer;font-size:12.5px;font-weight:600">Account &amp; security</button>
         <button onclick="if(confirm('Sign out?')){localStorage.removeItem('cal_tok');location.reload();}" style="padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,0.09);background:transparent;color:rgba(130,155,210,0.6);cursor:pointer;font-size:12px">Sign Out</button>
         <div style="text-align:center"><a href="#downloadSec" onclick="closeNavPanel()" style="font-size:11px;color:rgba(100,140,255,0.55);text-decoration:none">⬇ Download Desktop App</a></div>
       </div>
@@ -3924,10 +3943,63 @@
   document.getElementById('tabIn')?.addEventListener('click',()=>{document.getElementById('tabIn').classList.add('on');document.getElementById('tabUp').classList.remove('on');document.getElementById('loginForm').classList.remove('hidden');document.getElementById('signupForm').classList.add('hidden');});
   document.getElementById('tabUp')?.addEventListener('click',()=>{document.getElementById('tabUp').classList.add('on');document.getElementById('tabIn').classList.remove('on');document.getElementById('signupForm').classList.remove('hidden');document.getElementById('loginForm').classList.add('hidden');});
 
+  // Signing in, in one or two steps. With two-factor on, a right password
+  // comes back as a challenge rather than a token, and the same form turns
+  // into a code box; the code and the challenge together get the token.
+  let _twoFactorChallenge = null;
+  function _showCodeStep(on){
+    document.getElementById('lCreds').classList.toggle('hidden', on);
+    document.getElementById('lTwoFactor').classList.toggle('hidden', !on);
+    document.getElementById('lSubmit').textContent = on ? 'Verify' : 'Sign In';
+    // The hidden fields must not block submitting the visible one.
+    document.getElementById('lEmail').required = !on;
+    document.getElementById('lPass').required = !on;
+    if (on) setTimeout(()=>document.getElementById('lCode').focus(), 30);
+  }
+  function _signedIn(d){
+    token=d.token;localStorage.setItem('cal_tok',token);user=d.user;
+    _twoFactorChallenge=null;_showCodeStep(false);
+    reflectSignedIn();hideAuth();if(!resumeBuy())openChat();
+  }
   document.getElementById('loginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const err=document.getElementById('lErr'); err.textContent='';
-    try{const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});const d=await r.json();if(!r.ok){err.textContent=d.error||'Login failed';return;}token=d.token;localStorage.setItem('cal_tok',token);user=d.user;reflectSignedIn();hideAuth();if(!resumeBuy())openChat();}catch{err.textContent='Connection error.';}
+    try{
+      if (_twoFactorChallenge) {
+        const r=await fetch(`${SERVER}/auth/2fa/verify`,{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({challenge:_twoFactorChallenge,code:document.getElementById('lCode').value.trim()})});
+        const d=await r.json();
+        if(!r.ok){
+          err.textContent=d.error||'That code is not right.';
+          // Timed out or locked: back to the password.
+          if(d.restart||d.locked){_twoFactorChallenge=null;_showCodeStep(false);}
+          return;
+        }
+        return _signedIn(d);
+      }
+      const r=await fetch(`${SERVER}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('lEmail').value,password:document.getElementById('lPass').value})});
+      const d=await r.json();
+      if(!r.ok){err.textContent=d.error||'Login failed';return;}
+      if(d.twoFactorRequired){_twoFactorChallenge=d.challenge;document.getElementById('lCode').value='';_showCodeStep(true);return;}
+      _signedIn(d);
+    }catch{err.textContent='Connection error.';}
+  });
+  // Six digits typed: send it.
+  document.getElementById('lCode')?.addEventListener('input',e=>{
+    if(/^\d{6}$/.test(e.target.value.trim())) document.getElementById('loginForm').requestSubmit();
+  });
+  // Forgotten password. Always the same reply, whether or not the address has
+  // an account — the server makes sure of that.
+  document.getElementById('lForgot')?.addEventListener('click',async()=>{
+    const err=document.getElementById('lErr');
+    const email=(document.getElementById('lEmail').value||'').trim();
+    if(!email){err.textContent='Type your email above, then press Forgot password again.';document.getElementById('lEmail').focus();return;}
+    err.textContent='Sending…';
+    try{
+      const r=await fetch(`${SERVER}/auth/password/forgot`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+      const d=await r.json();
+      err.textContent=(d&&(d.message||d.error))||'If that address has an account, a reset link is on its way.';
+    }catch{err.textContent='Connection error.';}
   });
   document.getElementById('signupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
@@ -5123,6 +5195,7 @@
 </script>
 <script defer src="/market-chart.js?v=1"></script>
 <script defer src="/mic-wave.js?v=1"></script>
+<script defer src="/account-security.js?v=1"></script>
 <script defer src="/panels/bridge.js?v=1"></script>
 <script defer src="/wave-app.js?v=1"></script>
   <script defer src="/wave-lines.js?v=1"></script>

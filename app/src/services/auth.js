@@ -13,7 +13,10 @@ const TIMEOUT = 20000;
 function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT);
-  return fetch(url, { ...options, signal: controller.signal })
+  // Says which kind of client this is, so the signed-in devices list reads
+  // "Windows · Callisto app" rather than guessing from a user-agent.
+  const headers = { 'X-Callisto-Client': 'app', ...(options.headers || {}) };
+  return fetch(url, { ...options, headers, signal: controller.signal })
     .finally(() => clearTimeout(timer));
 }
 
@@ -119,4 +122,75 @@ async function pollGoogleAuth(serverUrl, state, { attempts = 90, everyMs = 2000,
   return null;
 }
 
-module.exports = { signup, login, verifyToken, pingActivity, getGoogleAuthUrl, pollGoogleAuth, newGoogleSignIn };
+// The second step of a password sign-in when two-factor is on: the challenge
+// the password step handed back, and the code from their authenticator app
+// (or a backup code).
+async function verify2fa(challenge, code) {
+  try {
+    const res = await fetchWithTimeout(`${SERVER}/auth/2fa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge, code }),
+    });
+    return safeJson(res);
+  } catch (e) {
+    return connectionError(e);
+  }
+}
+
+async function forgotPassword(email) {
+  try {
+    const res = await fetchWithTimeout(`${SERVER}/auth/password/forgot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return safeJson(res);
+  } catch (e) {
+    return connectionError(e);
+  }
+}
+
+// Account settings — two-factor, devices, billing, deletion — all signed in.
+// Only these paths: this is the one place the app sends the token on the
+// screen's behalf, so it must not become a way to call anything else.
+const ACCOUNT_PATHS = new Map([
+  ['POST /auth/2fa/setup', true],
+  ['POST /auth/2fa/enable', true],
+  ['POST /auth/2fa/disable', true],
+  ['POST /auth/2fa/backup-codes', true],
+  ['GET /auth/sessions', true],
+  ['POST /auth/sessions/signout-everywhere', true],
+  ['GET /billing/status', true],
+  ['POST /billing/cancel', true],
+  ['POST /billing/resume', true],
+  ['POST /auth/account/delete', true],
+  ['GET /auth/me', true],
+]);
+
+async function account(token, method, path, body) {
+  const m = String(method || 'GET').toUpperCase();
+  const p = String(path || '');
+  // Ending one session is the only route with an id in it; checked by shape.
+  const isEndSession = m === 'DELETE' && /^\/auth\/sessions\/[A-Za-z0-9_-]{10,40}$/.test(p);
+  if (!ACCOUNT_PATHS.has(m + ' ' + p) && !isEndSession) return { error: 'Not allowed.' };
+  if (!token) return { error: 'Please sign in first.', needsLogin: true };
+  try {
+    const res = await fetchWithTimeout(`${SERVER}${p}`, {
+      method: m,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body && m !== 'GET' ? JSON.stringify(body) : undefined,
+    });
+    const out = await safeJson(res);
+    if (res.status === 401 && out && !out.error) out.error = 'Please sign in again.';
+    if (res.status === 401) out.needsLogin = true;
+    return out;
+  } catch (e) {
+    return connectionError(e);
+  }
+}
+
+module.exports = {
+  signup, login, verifyToken, pingActivity, getGoogleAuthUrl, pollGoogleAuth, newGoogleSignIn,
+  verify2fa, forgotPassword, account,
+};

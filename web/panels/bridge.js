@@ -183,8 +183,58 @@
       .catch(function () { return null; });
   }
 
+  // ── Account & security, the same screen the app uses ──────────────────────
+  // Only these paths, mirroring the app's list: this is where the page sends
+  // the sign-in token on the screen's behalf, so it must not reach anything
+  // else.
+  var ACCOUNT_PATHS = {
+    'POST /auth/2fa/setup': 1, 'POST /auth/2fa/enable': 1, 'POST /auth/2fa/disable': 1,
+    'POST /auth/2fa/backup-codes': 1, 'GET /auth/sessions': 1,
+    'POST /auth/sessions/signout-everywhere': 1, 'GET /billing/status': 1,
+    'POST /billing/cancel': 1, 'POST /billing/resume': 1, 'POST /auth/account/delete': 1,
+    'GET /auth/me': 1,
+  };
+  function accountCall(method, path, body) {
+    var m = String(method || 'GET').toUpperCase();
+    var p = String(path || '');
+    var endSession = m === 'DELETE' && /^\/auth\/sessions\/[A-Za-z0-9_-]{10,40}$/.test(p);
+    if (!ACCOUNT_PATHS[m + ' ' + p] && !endSession) return Promise.resolve({ error: 'Not allowed.' });
+    var tok = '';
+    try { tok = localStorage.getItem('cal_tok') || ''; } catch (_) {}
+    if (!tok) return Promise.resolve({ error: 'Please sign in first.', needsLogin: true });
+    return fetch(SERVER + p, {
+      method: m,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+      body: body && m !== 'GET' ? JSON.stringify(body) : undefined,
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401) { j.needsLogin = true; if (!j.error) j.error = 'Please sign in again.'; }
+        // Signed out everywhere but kept this browser: the old token was
+        // retired with the rest, so swap in the new one.
+        if (j.token && p === '/auth/sessions/signout-everywhere') {
+          try { localStorage.setItem('cal_tok', j.token); } catch (_) {}
+        }
+        // Gone: the account was deleted, or this browser was signed out.
+        if (j.needsLogin || (p === '/auth/account/delete' && j.ok)
+            || (p === '/auth/sessions/signout-everywhere' && j.ok && !j.token)) {
+          try { localStorage.removeItem('cal_tok'); } catch (_) {}
+        }
+        return j;
+      });
+    }).catch(function () { return { error: 'Could not reach Callisto. Check your connection.' }; });
+  }
+  function authVerify2fa(d) {
+    return fetch(SERVER + '/auth/2fa/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d || {}) })
+      .then(function (r) { return r.json(); }).catch(function () { return { error: 'Connection error.' }; });
+  }
+  function authForgot(email) {
+    return fetch(SERVER + '/auth/password/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+      .then(function (r) { return r.json(); }).catch(function () { return { error: 'Connection error.' }; });
+  }
+
   window.jarvis = {
     isWeb: true,
+    accountCall: accountCall, authVerify2fa: authVerify2fa, authForgot: authForgot,
     gesturesList: gesturesList, gesturesSave: gesturesSave, gesturesDelete: gesturesDelete,
     reminderList: reminderList, reminderAdd: reminderAdd, reminderDelete: reminderDelete,
     onReminder: function (cb) { reminderListeners.push(cb); },

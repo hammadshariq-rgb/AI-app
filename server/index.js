@@ -153,6 +153,7 @@ const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 const crypto = require('crypto');
 const users = require('./users');
+const sessions = require('./sessions');
 const connections = require('./connections');
 const webstats = require('./webstats');
 // Welcome and purchase letters. Safe to require unconditionally: with no
@@ -387,7 +388,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object;
-      console.log('Checkout completed. customer:', session.customer, 'email:', session.customer_email);
+      console.log('Checkout completed. customer:', session.customer, 'email:', monitoring.maskEmail(session.customer_email));
       const sub = await stripe.subscriptions.retrieve(session.subscription);
       console.log('Subscription status:', sub.status);
 
@@ -402,7 +403,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
       if (!user) user = await users.findByStripeCustomer(session.customer);
       if (!user && session.customer_email) user = await users.findByEmail(session.customer_email);
       if (!user && session.customer_details?.email) user = await users.findByEmail(session.customer_details.email);
-      console.log('User found:', user ? user.email : 'NOT FOUND', refId ? `(ref ${refId})` : '(no ref)');
+      console.log('User found:', user ? monitoring.maskEmail(user.email) : 'NOT FOUND', refId ? `(ref ${refId})` : '(no ref)');
       if (user) {
         await users.update(user.id, {
           stripeCustomerId: session.customer,
@@ -431,7 +432,20 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
       const sub = event.data.object;
+      // An ended-at-period-end subscription stays "active" here until the paid
+      // period is over, then arrives as deleted — so premium lasts exactly as
+      // long as what was paid for, and stops by itself afterwards.
       await users.setSubscription(sub.customer, sub.id, sub.status === 'active' ? 'active' : 'inactive');
+      // When it ends, if it is ending, so the app can say so.
+      try {
+        const u = await users.findByStripeCustomer(sub.customer);
+        if (u) {
+          await users.update(u.id, {
+            cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+            currentPeriodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null,
+          });
+        }
+      } catch (_) {}
       break;
     }
   }
@@ -449,6 +463,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(globalLimiter);
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Two-factor, password reset, sessions, deleting an account, and ending a
+// subscription. See account-routes.js.
+const accountRoutes = require('./account-routes').mountAccountRoutes(app, {
+  users, sessions, stripe, mail, monitoring, JWT_SECRET, PUBLIC_URL,
+  authMiddleware, issueSession, makeToken, safeUser,
+  authLimiter, signupLimiter, adminLimiter,
+});
 
 // Whether outgoing mail actually works, so a silent mailbox can be diagnosed
 // from outside instead of by reading deploy logs. Returns no address and no
@@ -547,8 +569,72 @@ const TOKEN_TTL = '30d';
 // outside it, a token lifted months ago is dead.
 const REFRESH_GRACE_MS = 14 * 24 * 60 * 60 * 1000;
 
-function makeToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+// A token now names the session it belongs to (sid) and the account's token
+// version (tv). The session can be ended on its own; bumping the version ends
+// every token the account has ever been given, including ones issued before
+// sessions existed. Both are checked on every request — see checkToken.
+function makeToken(user, sid) {
+  const claims = { id: user.id, email: user.email, tv: user.tokenVersion || 0 };
+  if (sid) claims.sid = sid;
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: TOKEN_TTL });
+}
+
+// Every sign-in goes through here: a session row, then a token naming it.
+async function issueSession(user, req, method) {
+  const sid = await sessions.create(user.id, {
+    ua: req.headers['user-agent'],
+    ip: req.ip,
+    client: req.headers['x-callisto-client'] === 'app' ? 'app' : 'web',
+    method,
+  });
+  return makeToken(user, sid);
+}
+
+// Is this token still allowed in? Signature first, then the things a
+// signature cannot know about: that the account still exists, that it has not
+// been signed out everywhere since, and that this particular session has not
+// been ended. Returns { decoded, fresh } or null.
+async function checkToken(token) {
+  let decoded = null;
+  let expired = false;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    if (err.name !== 'TokenExpiredError') return null;
+    try { decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }); } catch (_) { return null; }
+    // A fortnight's grace past expiry, then it is worthless.
+    if (Date.now() - (decoded.exp || 0) * 1000 > REFRESH_GRACE_MS) return null;
+    expired = true;
+  }
+  if (!decoded || !decoded.id) return null;
+  // A special-purpose token — the "now enter your 2FA code" challenge — is not
+  // a sign-in. Without this, someone who had only the password could take the
+  // challenge and use it as a full token, skipping the second factor entirely.
+  // (Challenges are also signed with a different key; this is the second lock.)
+  if (decoded.purpose) return null;
+
+  // The account must still exist, and must not have been signed out
+  // everywhere since this token was made.
+  const user = await users.findByIdCached(decoded.id).catch(() => undefined);
+  if (user === null) return null;                       // deleted
+  if (user && (decoded.tv || 0) !== (user.tokenVersion || 0)) return null;
+
+  // Tokens made since sessions existed must still have theirs.
+  if (decoded.sid) {
+    const s = await sessions.check(decoded.sid);
+    if (!s) return null;
+    if (!s.degraded && s.userId !== String(decoded.id)) return null;
+  }
+
+  // Expired but inside the grace: swap it for a fresh one. A token from before
+  // sessions existed is given one now, so every active user moves onto
+  // revocable sessions within a month without having to sign in again.
+  let fresh = null;
+  if (expired && user) {
+    const sid = decoded.sid || await sessions.create(user.id, { method: 'refresh' }).catch(() => null);
+    fresh = makeToken(user, sid);
+  }
+  return { decoded, fresh };
 }
 
 // Named fields only, rather than "everything except the password".
@@ -561,7 +647,7 @@ function makeToken(user) {
 const SAFE_USER_FIELDS = [
   'id', 'email', 'name', 'createdAt',
   'subscriptionStatus', 'subscriptionPlan', 'plan', 'freeAccess',
-  'wasSubscribed', 'currentPeriodEnd', 'avatarUrl', 'googleId',
+  'wasSubscribed', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'avatarUrl', 'googleId',
   'msgCount', 'msgCountDate', 'lastActiveAt',
 ];
 function safeUser(user) {
@@ -570,49 +656,42 @@ function safeUser(user) {
   for (const k of SAFE_USER_FIELDS) {
     if (user[k] !== undefined) out[k] = user[k];
   }
+  // Whether two-factor is on — never the secret or the backup codes, which
+  // live on the same object and are exactly why this is an allow-list.
+  out.twoFactorEnabled = !!(user.twoFactor && user.twoFactor.enabled);
+  out.hasPassword = !!user.passwordHash;
   return out;
 }
 
-function authMiddleware(req, res, next) {
+// The expired-token swap used to be the only thing that ever looked past the
+// signature, and even it checked nothing else — so signing out changed
+// nothing and a deleted account's token still got in. checkToken now decides,
+// and any refresh it hands back carries the same session, so the swap cannot
+// be used to escape a revocation.
+async function authMiddleware(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    req.userId = req.user.id;
-    next();
-  } catch (err) {
-    // An expired token could be traded for a fresh year-long one no matter how
-    // old it was, so a token stolen once worked for ever and signing out
-    // changed nothing. It is still swapped silently, so nobody using Callisto
-    // regularly is asked to sign in again - but only for a fortnight past
-    // expiry. After that they log in, and a stale token is worthless.
-    if (err.name === 'TokenExpiredError') {
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
-        const expiredFor = Date.now() - (decoded.exp || 0) * 1000;
-        if (expiredFor <= REFRESH_GRACE_MS) {
-          req.user = decoded;
-          req.userId = decoded.id;
-          const freshToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-          res.setHeader('X-Refresh-Token', freshToken);
-          return next();
-        }
-      } catch {}
-    }
-    res.status(401).json({ error: 'Invalid or expired token' });
-  }
+  const ok = await checkToken(token).catch(() => null);
+  if (!ok) return res.status(401).json({ error: 'Invalid or expired token' });
+  req.user = ok.decoded;
+  req.userId = ok.decoded.id;
+  if (ok.fresh) res.setHeader('X-Refresh-Token', ok.fresh);
+  if (ok.decoded.sid) sessions.touch(ok.decoded.sid, req.ip).catch(() => {});
+  next();
 }
 
 // Optional auth — attaches user if valid token, allows guests through
-function optionalAuth(req, res, next) {
+async function optionalAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.replace('Bearer ', '');
   if (token) {
-    try {
-      req.user = jwt.verify(token, JWT_SECRET);
-      req.userId = req.user.id;
-    } catch {} // bad token → treat as guest
+    const ok = await checkToken(token).catch(() => null);
+    if (ok) {                                    // a dead token just means "guest"
+      req.user = ok.decoded;
+      req.userId = ok.decoded.id;
+      if (ok.fresh) res.setHeader('X-Refresh-Token', ok.fresh);
+    }
   }
   next();
 }
@@ -713,7 +792,7 @@ app.post('/auth/signup', signupLimiter, async (req, res) => {
   // Not awaited: a slow or misconfigured mailbox must not hold up the signup
   // that just succeeded.
   mail.sendWelcome({ email: user.email, name: user.name }).catch(() => {});
-  res.json({ token: makeToken(user), user: safeUser(user) });
+  res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user) });
 });
 
 app.post('/auth/login', authLimiter, async (req, res) => {
@@ -759,8 +838,12 @@ app.post('/auth/login', authLimiter, async (req, res) => {
       const { count, lockedUntil } = await users.recordFailedLogin(user.id);
       monitoring.securityEvent(lockedUntil ? 'account_locked' : 'login_failed', { ip: req.ip, email, strikes: count });
       if (lockedUntil) {
+        // Told by email: if it was not them, this is how they find out someone
+        // is trying, and the email points them at a reset.
+        mail.sendSecurityNotice({ email: user.email, name: user.name, kind: 'account_locked' }).catch(() => {});
         return res.status(423).json({
-          error: 'Too many wrong passwords, so this account is locked for 3 hours. You can still sign in with Google if your account uses it.',
+          error: 'Too many wrong passwords, so this account is locked for 3 hours. '
+            + 'You can reset your password to get in now, or sign in with Google if your account uses it.',
           locked: true,
         });
       }
@@ -772,10 +855,19 @@ app.post('/auth/login', authLimiter, async (req, res) => {
 
   // Right password: the slate is wiped.
   if (user.failedLogins || user.lockedUntil) await users.clearFailedLogins(user.id);
+
+  // Two-factor on: the password alone is not a sign-in. Hand back a short-
+  // lived challenge instead, which /auth/2fa/verify exchanges for a token
+  // once the code is right. The challenge cannot itself be used to sign in —
+  // see account-routes.js and the purpose check in checkToken.
+  if (user.twoFactor && user.twoFactor.enabled) {
+    return res.json({ twoFactorRequired: true, challenge: accountRoutes.makeChallenge(user) });
+  }
+
   // Check 7-day inactivity
   const inactive = Date.now() - (user.lastActiveAt || 0) > SEVEN_DAYS;
   await users.update(user.id, { lastActiveAt: Date.now() });
-  res.json({ token: makeToken(user), user: safeUser(user), wasInactive: inactive });
+  res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user), wasInactive: inactive });
 });
 
 // A real bcrypt hash of a random string nobody knows, used only so a login for
@@ -947,7 +1039,12 @@ app.get('/auth/google/callback', connectLimiter, async (req, res) => {
     }
     await users.update(user.id, { lastActiveAt: Date.now() });
 
-    const token = makeToken(user);
+    // A Google sign-in is its own strong sign-in: Google has already checked
+    // the password and, if they use it, Google's own 2-step verification. So
+    // Callisto's 2FA applies to PASSWORD sign-ins. Anyone wanting a second
+    // factor on Google sign-in turns on 2-Step Verification in their Google
+    // account, which then protects every app they sign in to with it.
+    const token = await issueSession(user, req, 'google');
     // Leave it where the app can fetch it, in case the deep link never lands —
     // along with WHERE this sign-in was completed, which the poll checks.
     rememberGoogleAuth(req.query.state, { token, name: user.name, email: user.email, completedIp: req.ip });
@@ -1553,7 +1650,7 @@ app.post('/connect/calendar/refresh', connectLimiter, async (req, res) => {
 app.get('/auth/me', authMiddleware, async (req, res) => {
   const user = await users.findByIdCached(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  console.log('[auth/me] user:', user.email, 'status:', user.subscriptionStatus, 'freeAccess:', user.freeAccess, 'lastActive:', user.lastActiveAt);
+  console.log('[auth/me] user:', monitoring.maskEmail(user.email), 'status:', user.subscriptionStatus, 'freeAccess:', user.freeAccess, 'lastActive:', user.lastActiveAt);
   const alwaysFree = isAlwaysFree(user.email);
   // An always-free account is never asked to sign in again for being away, and
   // never loses its features — that is the whole point of being on the list.
@@ -1658,10 +1755,11 @@ app.get('/checkout', authLimiter, async (req, res) => {
   // one failure here that costs someone money. So the account comes first.
   let payer = null;
   if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      payer = await users.findById(decoded.id);
-    } catch (_) {}
+    // The same check every other route makes — a token from a session that
+    // has been signed out, or an account that has been deleted, must not be
+    // able to start a payment for it.
+    const ok = await checkToken(String(token)).catch(() => null);
+    if (ok) payer = await users.findById(ok.decoded.id).catch(() => null);
   }
   if (!payer) {
     return res.status(401).send(`<!doctype html><meta charset="utf-8">
@@ -3879,4 +3977,6 @@ app.listen(PORT, () => {
   });
   // Job ownership records expire on their own; this sets that up.
   require('./ownership').ensureIndex().catch(() => {});
+  // Sessions end themselves when they expire.
+  sessions.ensureIndex().catch(() => {});
 });

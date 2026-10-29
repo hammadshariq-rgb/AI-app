@@ -138,6 +138,117 @@ async function countMessage(id, today) {
   return got ? got.msgCount : null;
 }
 
+// ── Signing out everywhere ───────────────────────────────────────────────────
+// Every token carries the account's version number. Bumping it makes every
+// token ever issued for the account worthless at once — including ones from
+// before sessions existed, which no session row could reach.
+async function bumpTokenVersion(id) {
+  const d = await getDb();
+  const r = await d.collection('users').findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $inc: { tokenVersion: 1 } },
+    { returnDocument: 'after' }
+  );
+  cache.dropUser(id);
+  const doc = r && (r.value !== undefined ? r.value : r);
+  return doc ? doc.tokenVersion : null;
+}
+
+// ── Password reset ───────────────────────────────────────────────────────────
+// Only a hash of the reset token is kept. The link in the email is the only
+// copy of the real thing, so a read of the database — a backup, a leak — does
+// not hand out working reset links.
+async function setResetToken(id, tokenHash, expiresAt) {
+  const d = await getDb();
+  await d.collection('users').updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { resetTokenHash: tokenHash, resetExpiresAt: expiresAt, resetRequestedAt: Date.now() } }
+  );
+  cache.dropUser(id);
+}
+
+// Atomic: find the account holding this token AND clear it in one step, so
+// the same link cannot be used twice even if it is clicked twice at once.
+async function consumeResetToken(tokenHash) {
+  const d = await getDb();
+  const r = await d.collection('users').findOneAndUpdate(
+    { resetTokenHash: tokenHash, resetExpiresAt: { $gt: Date.now() } },
+    { $unset: { resetTokenHash: '', resetExpiresAt: '' } },
+    { returnDocument: 'before' }
+  );
+  const doc = r && (r.value !== undefined ? r.value : r);
+  if (!doc) return null;
+  cache.dropUser(doc._id.toString());
+  return toUser(doc);
+}
+
+// ── Two-factor ───────────────────────────────────────────────────────────────
+// The secret is stored sealed (secretbox), never in the clear: it is the other
+// half of somebody's login.
+async function setTwoFactor(id, fields) {
+  const d = await getDb();
+  const set = {}, unset = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined) unset['twoFactor.' + k] = '';
+    else set['twoFactor.' + k] = v;
+  }
+  const upd = {};
+  if (Object.keys(set).length) upd.$set = set;
+  if (Object.keys(unset).length) upd.$unset = unset;
+  await d.collection('users').updateOne({ _id: new ObjectId(id) }, upd);
+  cache.dropUser(id);
+}
+
+async function clearTwoFactor(id) {
+  const d = await getDb();
+  await d.collection('users').updateOne({ _id: new ObjectId(id) }, { $unset: { twoFactor: '' } });
+  cache.dropUser(id);
+}
+
+// Records the time-step a code was used at, but only if it is NEWER than the
+// last one — so the same six digits cannot be used twice, even by two
+// requests racing each other with the same code.
+async function claimTotpStep(id, step) {
+  const d = await getDb();
+  const r = await d.collection('users').updateOne(
+    { _id: new ObjectId(id), $or: [{ 'twoFactor.lastUsedStep': { $exists: false } }, { 'twoFactor.lastUsedStep': { $lt: step } }] },
+    { $set: { 'twoFactor.lastUsedStep': step } }
+  );
+  cache.dropUser(id);
+  return r.modifiedCount === 1;
+}
+
+// A backup code is removed as it is used — atomically, so two requests with
+// the same code cannot both get in.
+async function useBackupCode(id, codeHash) {
+  const d = await getDb();
+  const r = await d.collection('users').updateOne(
+    { _id: new ObjectId(id), 'twoFactor.backupCodes': codeHash },
+    { $pull: { 'twoFactor.backupCodes': codeHash } }
+  );
+  cache.dropUser(id);
+  return r.modifiedCount === 1;
+}
+
+// ── Deleting an account ──────────────────────────────────────────────────────
+// Everything that is theirs, not just the user row. The old admin script
+// deleted only that row, which left their connected-account tokens sitting in
+// the database with nothing pointing at them.
+async function deleteEverything(id) {
+  const d = await getDb();
+  const uid = String(id);
+  const out = {};
+  out.connections = (await d.collection('connections').deleteMany({ userId: uid })).deletedCount;
+  out.sessions = (await d.collection('sessions').deleteMany({ userId: uid })).deletedCount;
+  out.usage = (await d.collection('usage').deleteMany({ userId: uid })).deletedCount;
+  out.jobs = (await d.collection('jobOwners').deleteMany({ userId: uid })).deletedCount;
+  out.reception = (await d.collection('reception').deleteMany({ userId: uid })).deletedCount;
+  out.calls = (await d.collection('receptionCalls').deleteMany({ userId: uid })).deletedCount;
+  out.user = (await d.collection('users').deleteOne({ _id: new ObjectId(uid) })).deletedCount;
+  cache.dropUser(uid);
+  return out;
+}
+
 // ── Locking an account after wrong passwords ─────────────────────────────────
 // Stored on the user row, not in memory: a lock that only one server instance
 // knows about is a lock the attacker walks around by hitting another one.
@@ -211,4 +322,6 @@ module.exports = {
   findByEmail, findById, findByIdCached, findByGoogleId, findByStripeCustomer,
   create, update, countMessage, setSubscription, getDb,
   recordFailedLogin, clearFailedLogins, MAX_FAILED, LOCK_MS,
+  bumpTokenVersion, setResetToken, consumeResetToken,
+  setTwoFactor, clearTwoFactor, claimTotpStep, useBackupCode, deleteEverything,
 };

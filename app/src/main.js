@@ -204,6 +204,12 @@ function saveAuthToken(token) {
   store.set('authToken', enc);
 }
 
+// Same thing auth:logout does, for the places that now need it: deleting the
+// account, or signing out everywhere including this device.
+function clearAuthToken() {
+  store.delete('authToken');
+}
+
 function loadAuthToken() {
   const raw = store.get('authToken');
   if (!raw) return null;
@@ -1065,7 +1071,14 @@ function createTray() {
     { label: `${getAssistantName()} ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: `Summon ${getAssistantName()} (${process.platform === 'darwin' ? '⌘⇧J' : 'Ctrl+Shift+J'})`, click: toggleOverlay },
-    { label: 'Sign in / Manage subscription', click: () => commands.openInChrome(process.env.LICENSE_SERVER_URL + '/account') },
+    // Opens the in-app account screen — two-factor, devices, subscription,
+    // delete — rather than a web page that could only offer "Subscribe".
+    { label: 'Account & security…', click: () => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        showOverlay();
+        overlayWindow.webContents.send('account:open');
+      }
+    } },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -1604,6 +1617,35 @@ ipcMain.handle('auth:login', async (_e, { email, password }) => {
     const existing = store.get('profile') || {};
     store.set('profile', { name: existing.name || result.user.name, email: result.user.email });
     cloudPullPrefs().catch(() => {});
+  }
+  return result;
+});
+
+// The code step of a password sign-in with two-factor on.
+ipcMain.handle('auth:verify2fa', async (_e, { challenge, code }) => {
+  const result = await authService.verify2fa(challenge, code);
+  if (result.token) saveAuthToken(result.token);
+  if (result.user) {
+    const existing = store.get('profile') || {};
+    store.set('profile', { name: existing.name || result.user.name, email: result.user.email });
+    cloudPullPrefs().catch(() => {});
+  }
+  return result;
+});
+
+ipcMain.handle('auth:forgot', (_e, email) => authService.forgotPassword(String(email || '')));
+
+// Account settings. The token is attached here and never handed to the page.
+ipcMain.handle('account:call', async (_e, { method, path: p, body }) => {
+  const result = await authService.account(loadAuthToken(), method, p, body);
+  // Signed out everywhere but kept this device: the server issued a new
+  // token, because the old one was retired with the rest.
+  if (result && result.token && p === '/auth/sessions/signout-everywhere') saveAuthToken(result.token);
+  // The account is gone, or this device was signed out: drop the token so
+  // the app goes back to the sign-in screen rather than failing quietly.
+  if (result && (result.needsLogin || (p === '/auth/account/delete' && result.ok)
+      || (p === '/auth/sessions/signout-everywhere' && result.ok && !result.token))) {
+    clearAuthToken();
   }
   return result;
 });
