@@ -1,0 +1,47 @@
+name: Nightly database backup
+
+# Every night at 03:17 UTC, and on demand from the Actions tab.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        working-directory: server
+        run: npm ci --omit=dev
+
+      # The file is encrypted before it leaves this job. This repository is
+      # public, and anyone signed in to GitHub can download a public repo's
+      # artifacts — so an unencrypted backup here would publish every account.
+      - name: Dump and encrypt
+        working-directory: server
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$MONGODB_URI" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Set MONGODB_URI and BACKUP_PASSPHRASE in the repository's Actions secrets"
+            exit 1
+          fi
+          node backup.js dump "callisto-db-$(date -u +%Y-%m-%d).bak"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: callisto-db-backup
+          path: server/callisto-db-*.bak
+          retention-days: 30
+          if-no-files-found: error

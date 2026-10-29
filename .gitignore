@@ -24,3 +24,4 @@ server/*.pem
 Thumbs.db
 Thumbs.db:encryptable
 app/build/smoke-output.txt
+*.bak
