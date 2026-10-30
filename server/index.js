@@ -469,7 +469,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Unverified accounts cannot spend: the AI, pictures, video, 3D, uploads and
 // checkout all wait for the emailed code. Speech in and out is left alone so
 // the app can still talk while they fetch it.
-const VERIFY_GATED = ['/ai/chat', '/ai/image', '/ai/vision', '/ai/screen', '/ai/magic-edit', '/ai/agent-step',
+const VERIFY_GATED = ['/ai/chat', '/ai/learn', '/ai/image', '/ai/vision', '/ai/screen', '/ai/magic-edit', '/ai/agent-step',
   '/ai/places', '/ai/place-phone', '/ai/spotify-search', '/ai/stream-lookup', '/video/generate', '/models/', '/media/temp', '/checkout'];
 app.use(async (req, res, next) => {
   if (!VERIFY_GATED.some((p) => req.path.startsWith(p))) return next();
@@ -2655,6 +2655,21 @@ function webSystemPrompt() {
     '- Reply in the language the person is actually using. If they write English,',
     '  answer in English. Never answer in a language they have not used.',
     '',
+    "MARKETS, GEOPOLITICS & INVESTING (answer like a senior macro strategist and equity analyst):",
+    "- Connect events to markets: wars, sanctions, elections, trade deals, tariffs, OPEC decisions, central-bank moves and supply shocks -> which sectors, currencies, commodities and countries win or lose, through which channel (rates, energy prices, supply chains, risk sentiment), and over what time frame.",
+    "- For a stock, sector, crypto asset or market: give the thesis, the bull case and the bear case, the key numbers (revenue growth, margins, valuation multiples such as P/E and EV/EBITDA versus peers, debt, cash flow), the catalysts and the risks, and what would change the view.",
+    "- For \"should I invest in X\": lay out the case both ways, the risk level, how it fits a diversified portfolio, sensible position sizing (only money they can afford to lose in anything speculative), time horizon, and the alternatives (index funds, bonds, cash). Be concrete and useful, not evasive.",
+    "- Use live prices, news and portfolio data when they are provided in the context, and say when your information may be out of date. Never invent a price, a figure or a news event.",
+    "- Close investing answers with one short line: this is analysis, not personal financial advice. One line, not a lecture.",
+    "",
+    "BUSINESS ANALYSIS FOR ENTREPRENEURS (answer like a sharp CFO and growth advisor to a small founder):",
+    "- Unit economics: price, cost of goods, gross margin, contribution margin, net margin, break-even volume, customer acquisition cost (CAC), lifetime value (LTV), LTV:CAC, payback period, churn, average order value. Show the working with their numbers in a small table.",
+    "- Pricing: cost-plus versus value-based, anchoring, tiers, what a price change does to margin and volume. Profit margin questions are calculated exactly, never estimated loosely.",
+    "- Reading their analytics: turn followers, views, reach, visitors, orders and takings into what is working, what is not, and the next three actions, in order of impact.",
+    "- Planning: simple forecasts (best, expected, worst case), cash runway, which costs to cut first, when to hire, how to fund growth.",
+    "- Markets for a business idea: size (TAM/SAM/SOM with the assumptions stated), competitors and their weak spots, where the gap is, and how to test demand cheaply before spending.",
+    "- Be direct: if the numbers say an idea loses money, say so and show why, then say what would make it work.",
+    '',
     'WHO THIS IS FOR, AND WHAT THAT MEANS:',
     '- The people using Callisto are young entrepreneurs and content creators -',
     '  mostly running the whole thing themselves, on their own money, with no team',
@@ -2943,6 +2958,30 @@ app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Picking lasting facts out of something the person said, for their memory.
+// The prompt is fixed here, not sent by the app, so this can only ever do this
+// one small job - which is why it doesn't count against the daily messages.
+const LEARN_PROMPT = 'You pick out facts worth remembering long-term about the user of a personal assistant. Reply with up to 2 lines, each a short third-person fact starting "User", or the single word NONE. Only lasting, important things: people in their life and their names, their business or job and its details, goals and plans, major life events, places they live or love, strong likes and dislikes, how they want to be addressed. Never: passing moods, one-off requests, questions they asked, health conditions, passwords or financial account details. Skip anything already known.';
+app.post('/ai/learn', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const text = String((req.body && req.body.text) || '').slice(0, 1500);
+    const known = Array.isArray(req.body && req.body.known) ? req.body.known.slice(-60).map((k) => String(k).slice(0, 300)) : [];
+    if (text.length < 15) return res.json({ facts: '' });
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      max_tokens: 120,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: LEARN_PROMPT + '\nAlready known:\n' + (known.join('\n') || '(nothing)') },
+        { role: 'user', content: text },
+      ],
+    });
+    res.json({ facts: (r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '' });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not read that just now.' });
   }
 });
 

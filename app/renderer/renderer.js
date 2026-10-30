@@ -11901,28 +11901,51 @@ function renderPublishCard(card) {
       </div>`;
   }
 
+  // Two halves, like a well-made form: what is happening on the left - where it
+  // goes, what goes, who sees it - and the fields to fill on the right. The
+  // ids are unchanged, so wirePublishCard below works as before.
+  const isYT = card.platform === 'youtube';
+  const plus = '<svg class="pub2-plus" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
   return `
-    <div class="card-publish" style="--pub:${meta.colour}">
-      <div class="pub-head"><span class="pub-badge">${meta.emoji}</span><div>
-        <div class="pub-title">Post to ${esc(card.platformName)}</div>
-        <div class="pub-sub">Nothing is posted until you press Publish.</div>
-      </div></div>
-      <dl class="pub-rows">
-        <div class="pub-row"><dt>What</dt><dd id="pubWhat">${esc(what)}</dd></div>
-        ${card.platform !== 'instagram' ? `<div class="pub-row"><dt>Title</dt><dd><input id="pubTitle" class="pub-input" value="${esc(card.title || '')}" placeholder="Untitled"/></dd></div>` : ''}
-        <div class="pub-row"><dt>${card.platform === 'youtube' ? 'Description' : 'Caption'}</dt><dd><textarea id="pubDesc" class="pub-input" rows="2" placeholder="Optional">${esc(card.description || '')}</textarea></dd></div>
-        <div class="pub-row"><dt>Visibility</dt><dd>
-          <select id="pubPrivacy" class="pub-input">
-            <option value="private"${!['public', 'unlisted'].includes(card.privacy) ? ' selected' : ''}>${esc(privacyLabel)}</option>
-            ${card.platform === 'youtube' ? `<option value="unlisted"${card.privacy === 'unlisted' ? ' selected' : ''}>Unlisted (anyone with the link)</option>` : ''}
-            <option value="public"${card.privacy === 'public' ? ' selected' : ''}>Public</option>
-          </select>
-        </dd></div>
-      </dl>
-      <div class="pub-status" id="pubStatus"></div>
-      <div class="pub-actions">
-        <button class="pub-btn pub-btn-ghost" id="pubFileBtn">${src.pick ? 'Choose file' : 'Use another file'}</button>
-        <button class="pub-btn pub-btn-go" id="pubGoBtn"${src.pick ? ' disabled' : ''}>Publish</button>
+    <div class="pub2" style="--pub:${meta.colour}">
+      ${plus.replace('pub2-plus', 'pub2-plus tl')}${plus.replace('pub2-plus', 'pub2-plus tr')}${plus.replace('pub2-plus', 'pub2-plus bl')}${plus.replace('pub2-plus', 'pub2-plus br')}
+      <div class="pub2-info">
+        <div class="pub2-eyebrow"><span class="pub2-dot"></span>${esc(card.platformName)}</div>
+        <div class="pub2-title">Post to ${esc(card.platformName)}</div>
+        <p class="pub2-sub">Check the details and press Publish. Nothing goes up until you do.</p>
+        <div class="pub2-facts">
+          <div class="pub2-fact">
+            <span class="pub2-ico">${src.kind === 'image'
+              ? '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-8 8"/></svg>'
+              : '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>'}</span>
+            <span><b>${src.kind === 'image' ? 'Image' : 'Video'}</b><i id="pubWhat">${esc(what)}</i></span>
+          </div>
+          <div class="pub2-fact">
+            <span class="pub2-ico"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span><b>Who can see it</b><i id="pubWho">${esc(privacyLabel)}</i></span>
+          </div>
+          <div class="pub2-fact">
+            <span class="pub2-ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span>
+            <span><b>Your account</b><i>${esc(card.account || 'Connected')}</i></span>
+          </div>
+        </div>
+      </div>
+      <div class="pub2-form">
+        ${card.platform !== 'instagram' ? `<label class="pub2-label" for="pubTitle">Title</label>
+        <input id="pubTitle" class="pub2-input" value="${esc(card.title || '')}" placeholder="${isYT ? 'Give your video a title' : 'Untitled'}" maxlength="100"/>` : ''}
+        <label class="pub2-label" for="pubDesc">${isYT ? 'Description' : 'Caption'}</label>
+        <textarea id="pubDesc" class="pub2-input" rows="4" placeholder="Optional">${esc(card.description || '')}</textarea>
+        <label class="pub2-label" for="pubPrivacy">Visibility</label>
+        <select id="pubPrivacy" class="pub2-input">
+          <option value="private"${!['public', 'unlisted'].includes(card.privacy) ? ' selected' : ''}>${esc(isYT ? 'Private (only you)' : 'Private')}</option>
+          ${isYT ? `<option value="unlisted"${card.privacy === 'unlisted' ? ' selected' : ''}>Unlisted (anyone with the link)</option>` : ''}
+          <option value="public"${card.privacy === 'public' ? ' selected' : ''}>Public</option>
+        </select>
+        <div class="pub-status" id="pubStatus"></div>
+        <div class="pub2-actions">
+          <button class="pub2-btn ghost" id="pubFileBtn">${src.pick ? 'Choose file' : 'Use another file'}</button>
+          <button class="pub2-btn go" id="pubGoBtn"${src.pick ? ' disabled' : ''}>Publish</button>
+        </div>
       </div>
     </div>`;
 }
@@ -11939,6 +11962,8 @@ function wirePublishCard(card) {
   const goBtn = document.getElementById('pubGoBtn');
   const fileBtn = document.getElementById('pubFileBtn');
   const whatEl = document.getElementById('pubWhat');
+  const privSel = document.getElementById('pubPrivacy'), whoEl = document.getElementById('pubWho');
+  if (privSel && whoEl) privSel.onchange = () => { whoEl.textContent = privSel.options[privSel.selectedIndex].text; };
   const say = (kind, text) => { statusEl.className = 'pub-status' + (kind ? ' pub-' + kind : ''); statusEl.textContent = text || ''; };
 
   fileBtn.onclick = async () => {

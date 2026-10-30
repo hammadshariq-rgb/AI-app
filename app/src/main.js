@@ -122,6 +122,49 @@ tasks.init(store);
 // ── Cloud prefs sync — saves user settings to MongoDB so they follow across devices ──
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
+// ── Remembering what matters from ordinary conversation ─────────────────────
+// Only messages that sound like they are about the person go to the model at
+// all ("my", "I'm", "we", names, plans) - a cheap filter in front of a cheap
+// model. It returns at most two facts, or nothing, and the bar is high: names
+// of people in their life, their business and its numbers, goals, big events,
+// strong preferences. Moods, one-off requests and anything sensitive (health,
+// money details beyond the business, passwords) are left out.
+const _LEARN_HINT = /\b(?:i(?:'|’)?m|i am|i(?:'|’)?ve|i have|i had|i was|i work|i run|i own|i live|i love|i hate|i like|i prefer|i want|i(?:'|’)?ll be|we(?:'|’)?re|we are|our|my|me and)\b/i;
+async function _learnFromMessage(message) {
+  const text = String(message || '').trim();
+  if (text.length < 15 || text.split(/\s+/).length < 4 || !_LEARN_HINT.test(text)) return;
+  const known = (store.get('memories') || []).slice(-60);
+  const res = await fetch(`${_serverBase()}/ai/learn`, {
+    method: 'POST',
+    headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 1500), known }),
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  const out = String((data && data.facts) || '').trim();
+  if (!out || /^none\b/i.test(out)) return;
+  const list = store.get('memories') || [];
+  let added = 0;
+  for (const line of out.split(/\n+/).slice(0, 2)) {
+    const fact = line.replace(/^[-*\d.\s]+/, '').trim().slice(0, 300);
+    if (!/^user\b/i.test(fact) || fact.length < 8) continue;
+    const f = fact.toLowerCase();
+    const dup = list.some((m) => {
+      const e = String(m).toLowerCase();
+      const short = e.length < f.length ? e : f, long = e.length < f.length ? f : e;
+      return e === f || (short.length > 10 && long.includes(short));
+    });
+    if (dup) continue;
+    list.push(fact);
+    added++;
+  }
+  if (!added) return;
+  if (list.length > 120) list.splice(0, list.length - 120);
+  store.set('memories', list);
+  cloudPushPrefs({ memories: list }).catch(() => {});
+  console.log('[MEMORY] learned', added, 'fact(s)');
+}
+
 function _serverBase() { return process.env.LICENSE_SERVER_URL || 'http://localhost:4000'; }
 function _authHeader() {
   const raw = store.get('authToken');
@@ -3480,6 +3523,12 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       cloudPushPrefs({ memories }).catch(() => {});
     }
   }
+
+  // Learning in the background. The reply's own [[REMEMBER]] tag catches one
+  // fact at most, and the quick action path never adds one at all - so a lot
+  // of what people said in passing was simply lost. This looks at what they
+  // said, after the reply, and keeps only what is lasting and important.
+  _learnFromMessage(message).catch(() => {});
 
   let finalText = (result.text && result.text.trim() && !result.text.includes('undefined'))
     ? result.text.trim()

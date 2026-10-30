@@ -76,6 +76,11 @@
         line-height:1.7}`;
     document.head.appendChild(s);
   }
+  // At load, not on first use. The + menu (built in renderer.js) is styled
+  // here too, and until the skills dialog had been opened once the menu had no
+  // styles at all: it rendered full-width below the bottom of the window, so
+  // pressing + looked like it did nothing.
+  styles();
 
   let root;
   function panel(html) {

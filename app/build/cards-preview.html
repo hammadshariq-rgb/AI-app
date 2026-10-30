@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../renderer/style.css">
+<style>body{margin:0;background:#05070f;min-height:100vh;font-family:'Plus Jakarta Sans',Segoe UI,sans-serif}#pub{max-width:760px;margin:30px auto}</style></head><body>
+<div id="pub"></div>
+<script>
+// Sample data only, for a design check.
+window.jarvis = { analyticsGet: async (k) => k === 'instagram' ? {
+  username: 'callistoai', followers: 7, views30: null, reach30: 412, engagementRate: '6.3', posts: 5,
+  recentPosts: [
+    { caption: 'Try the Safer alternative ! #callistoai #ai #jarvis', likes: 2, views: 184, date: '2026-10-26' },
+    { caption: 'Opening Callisto after a long day #callistoai', likes: 6, views: 512, date: '2026-10-25' },
+    { caption: 'Callisto AI: All Your Apps. One Intelligent Workspace.', likes: 1, views: 96, date: '2026-10-22' },
+    { caption: 'Callisto AI: Hand Control - Part 1', likes: 4, views: 341, date: '2026-10-20' },
+    { caption: 'Welcome to Callisto AI #callistoai', likes: 6, views: 620, date: '2026-10-16' }] } : null };
+</script>
+<script src="../renderer/analytics-overlay.js"></script>
+<script>
+CallistoAnalyticsOverlay.show('instagram');
+</script>
+</body></html>

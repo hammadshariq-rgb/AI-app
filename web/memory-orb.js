@@ -20,7 +20,7 @@
   #memOrb{position:fixed;inset:0;z-index:2147483000;display:flex;background:rgba(2,4,10,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .28s ease;font-family:inherit;color:#dce6fa}
   #memOrb.open{opacity:1}
   #memOrb .mo-stage{position:relative;flex:1;min-width:0;overflow:hidden}
-  #memOrb canvas{position:absolute;inset:0;width:100%;height:100%}#memOrb .mo-fx{opacity:.9}
+  #memOrb canvas{position:absolute;inset:0;width:100%;height:100%}#memOrb .mo-fx{opacity:.75}
   #memOrb .mo-ring{position:absolute;border:1px solid rgba(110,160,255,.14);border-radius:50%;pointer-events:none}
   #memOrb .mo-chip{position:absolute;left:0;top:0;max-width:190px;padding:7px 12px;border-radius:999px;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(8,14,32,.86);border:1px solid var(--k);box-shadow:0 0 14px color-mix(in srgb,var(--k) 35%,transparent);cursor:pointer;transition:max-width .2s ease,background .2s ease;will-change:transform}
   #memOrb .mo-chip:hover,#memOrb .mo-chip.hot{max-width:340px;white-space:normal;background:rgba(14,24,52,.97);z-index:5}
@@ -120,14 +120,16 @@ void main(){
   q*=rot(rb*.2+atan(q.y,q.x)*3.);
   float rz=mist(q*.9-tm*.7,5)*12.*abs(sin(bp.x*.5-tm*4.-2.));
   vec3 col=sqrt(abs(vec3(.098,.098,.44)/(1.-rz)));
-  col*=.55;
+  col*=.28;
   /* lightning beam, blue, down the middle */
   vec2 l=p;l+=2.*bolt(l*2.+.8*t*1.6)-1.;
   float d=abs(l.x);
   vec3 bc=vec3(.24,.42,.8);
-  col+=bc*(mix(0.,.07,h1(floor(t*1.6*12.)))/max(d,.002))*.6;
+  col+=bc*(mix(0.,.07,h1(floor(t*1.6*12.)))/max(d,.004))*.2;
   /* fade the edges so the panel side stays calm */
   col*=smoothstep(1.6,.2,length(bp*vec2(.8,1.)));
+  /* quieter still where the memories sit, so text stays readable */
+  col*=mix(.45,1.,smoothstep(.25,.9,length(bp)));
   gl_FragColor=vec4(min(col,vec3(1.)),1.);
 }`;
     const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; };

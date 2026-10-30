@@ -107,7 +107,7 @@
       metrics: function (d) {
         return [
           { label: 'Followers', value: num(d.followers) },
-          { label: 'Likes', value: num(d.likes) },
+          { label: 'Likes', value: num(d.totalLikes != null ? d.totalLikes : d.likes) },
           { label: 'Videos', value: num(d.videoCount) },
           { label: 'Views', value: d.views != null ? num(d.views) : '—' }
         ];
@@ -236,9 +236,117 @@
       arrow + '</svg>' + Math.abs(delta) + '%</span>';
   }
 
+  /* ── Instagram and TikTok: a grid of tiles ──────────────────────────────────
+     Followers as the headline, total views and the next figure beside it, then
+     two wide tiles: a chart (day by day where the platform gives that,
+     otherwise views per post, oldest to newest) and the recent posts with
+     their views and likes. Views are added up from the posts when the
+     platform doesn't hand over an account total. */
+  function postsOf(key, d) {
+    var raw = key === 'instagram' ? (d.recentPosts || []) : (d.recentVideos || []);
+    return raw.map(function (v) {
+      return {
+        title: (key === 'instagram' ? v.caption : v.title) || (key === 'instagram' ? 'Post' : 'Video'),
+        views: v.views != null ? Number(v.views) : null,
+        likes: v.likes != null ? Number(v.likes) : null,
+        date: v.date || v.created || v.createTime || null,
+        kind: v.kind || ''
+      };
+    });
+  }
+
+  function barsSvg(items, accent) {
+    var W = 660, H = 190, PAD_T = 18, PAD_B = 26, PAD_X = 8;
+    var vals = items.map(function (i) { return i.y; });
+    var max = Math.max.apply(null, vals.concat([1]));
+    var n = items.length, gap = 10;
+    var bw = Math.max(6, (W - PAD_X * 2 - gap * (n - 1)) / n);
+    var ih = H - PAD_T - PAD_B, id = 'aobG' + Math.random().toString(36).slice(2, 7);
+    var bars = items.map(function (it, i) {
+      var h = Math.max(2, (it.y / max) * ih), x = PAD_X + i * (bw + gap), y = PAD_T + ih - h;
+      return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="4" fill="url(#' + id + ')">' +
+        '<title>' + esc(it.label) + ': ' + num(it.y) + '</title></rect>' +
+        (n <= 12 ? '<text class="ao-axis" text-anchor="middle" x="' + (x + bw / 2) + '" y="' + (y - 5) + '">' + esc(compact(it.y)) + '</text>' : '');
+    }).join('');
+    var grid = '';
+    for (var g = 0; g <= 3; g++) {
+      var gy = PAD_T + (ih / 3) * g;
+      grid += '<line x1="' + PAD_X + '" y1="' + gy + '" x2="' + (W - PAD_X) + '" y2="' + gy + '" class="ao-grid"/>';
+    }
+    return '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Views per post">' +
+      '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + accent + '" stop-opacity="0.95"/>' +
+      '<stop offset="100%" stop-color="#0f37b4" stop-opacity="0.35"/></linearGradient></defs>' +
+      grid + bars +
+      '<text class="ao-axis" x="' + PAD_X + '" y="' + (H - 8) + '">Oldest</text>' +
+      '<text class="ao-axis ao-axis-end" x="' + (W - PAD_X) + '" y="' + (H - 8) + '">Newest</text></svg>';
+  }
+
+  function compact(v) {
+    var n = Number(v) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K';
+    return String(n);
+  }
+
+  function renderSocial(key, d) {
+    var p = PLATFORMS[key];
+    var posts = postsOf(key, d);
+    var withViews = posts.filter(function (x) { return x.views != null; });
+    var sumViews = withViews.reduce(function (s, x) { return s + x.views; }, 0);
+    var totalViews = key === 'instagram'
+      ? (d.views30 != null ? d.views30 : (withViews.length ? sumViews : null))
+      : (d.views != null ? d.views : (withViews.length ? sumViews : null));
+    var viewsLabel = key === 'instagram' && d.views30 != null ? 'Views · 30 days' : 'Views · recent posts';
+    var third = key === 'instagram'
+      ? { label: 'Reach · 30 days', value: d.reach30 != null ? num(d.reach30) : '—',
+          sub: d.engagementRate != null ? d.engagementRate + '% engagement' : (d.posts != null ? num(d.posts) + ' posts' : '') }
+      : { label: 'Likes', value: num(d.totalLikes != null ? d.totalLikes : d.likes), sub: d.videoCount != null ? num(d.videoCount) + ' videos' : '' };
+
+    var series = seriesOf(d);
+    var chartTile;
+    if (series.length) {
+      chartTile = '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>Views · last ' + series.length + ' days</div>' +
+        chartSvg(series, p.accent);
+    } else if (withViews.length) {
+      var ordered = withViews.slice(0, 12).reverse().map(function (x) { return { y: x.views, label: x.title.slice(0, 40) }; });
+      chartTile = '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>Views per ' + (key === 'instagram' ? 'post' : 'video') + ' · latest ' + ordered.length + '</div>' +
+        barsSvg(ordered, p.accent);
+    } else {
+      chartTile = '<div class="aob-empty">' + esc(p.name) + ' hasn’t shared view counts for these posts yet. New posts usually show views within a day.</div>';
+    }
+
+    var rows = posts.slice(0, 6).map(function (x) {
+      return '<div class="aob-row"><span class="aob-row-t">' + esc(x.title.slice(0, 64)) + '</span>' +
+        '<span class="aob-row-s">' +
+          (x.views != null ? '<b>' + esc(compact(x.views)) + '</b> views' : '') +
+          (x.likes != null ? '<i>' + esc(compact(x.likes)) + ' likes</i>' : '') +
+        '</span></div>';
+    }).join('') || '<div class="aob-empty">No posts yet.</div>';
+
+    var ring = '<svg class="aob-ring" viewBox="0 0 254 104" aria-hidden="true"><ellipse cx="127" cy="52" rx="122" ry="46"/><ellipse cx="127" cy="52" rx="108" ry="38"/></svg>';
+
+    root.querySelector('#aoBody').innerHTML =
+      '<div class="ao-head"><div class="ao-title"><span class="ao-dot" style="background:' + p.accent + '"></span>' +
+        '<span>' + esc(p.name) + '</span>' + (d.username ? '<span class="ao-sub">@' + esc(d.username) + '</span>' : '') + '</div>' +
+        '<button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>' +
+      '<div class="aob" style="--acc:' + p.accent + '">' +
+        '<div class="aob-tile aob-hero">' + ring + '<div class="aob-big">' + esc(compact(d.followers)) + '</div><div class="aob-cap">Followers</div></div>' +
+        '<div class="aob-tile"><div class="aob-ico"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div>' +
+          '<div class="aob-num">' + (totalViews != null ? esc(num(totalViews)) : '—') + '</div><div class="aob-cap">' + esc(viewsLabel) + '</div></div>' +
+        '<div class="aob-tile"><div class="aob-ico"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></div>' +
+          '<div class="aob-num">' + esc(third.value) + '</div><div class="aob-cap">' + esc(third.label) + '</div>' +
+          (third.sub ? '<div class="aob-subcap">' + esc(third.sub) + '</div>' : '') + '</div>' +
+        '<div class="aob-tile aob-wide">' + chartTile + '</div>' +
+        '<div class="aob-tile aob-wide"><div class="aob-legend">Recent ' + (key === 'instagram' ? 'posts' : 'videos') + '</div>' + rows + '</div>' +
+      '</div>';
+    root.querySelector('#aoClose').addEventListener('click', close);
+  }
+
   function render(key, data) {
     var p = PLATFORMS[key];
     if (!p) return;
+    if (key === 'instagram' || key === 'tiktok') return renderSocial(key, data);
     var chart = p.chart ? p.chart(data) : null;
     var metrics = p.metrics ? p.metrics(data) : [];
     var list = p.list ? p.list(data) : null;

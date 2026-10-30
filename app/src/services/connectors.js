@@ -699,6 +699,15 @@ async function getInstagramStats() {
       try {
         const r = await graph(`${igId}/insights?metric=${name}&period=day&since=${since}&until=${until}`);
         if (r && r.error) {
+          // Some metrics - views among them, in current Graph versions - are
+          // only given as a total for the period, never day by day. Asking for
+          // the series is refused, which is why Views showed a dash. Ask again
+          // for the total and present it as a single value to add up.
+          const t = await graph(`${igId}/insights?metric=${name}&metric_type=total_value&period=day&since=${since}&until=${until}`);
+          const tv = t && !t.error && (t.data || []).find((d) => d.name === name);
+          if (tv && tv.total_value && tv.total_value.value != null) {
+            return { data: [{ name, values: [{ value: tv.total_value.value }] }] };
+          }
           console.warn(`[instagram] ${name}: ${r.error.message || 'refused'}`);
           return null;
         }
@@ -720,7 +729,23 @@ async function getInstagramStats() {
       if (withIns && withIns.error) {
         console.warn('[instagram] media insights refused:', withIns.error.message || '');
       }
-      return graph(`${igId}/media?fields=${mediaFields}&limit=25`);
+      // One kind of post refusing a metric loses the insights for all of
+      // them, so they are fetched post by post instead - views first, then
+      // reach - for the newest dozen. A post that refuses just shows likes.
+      const plain = await graph(`${igId}/media?fields=${mediaFields}&limit=25`);
+      if (plain && Array.isArray(plain.data)) {
+        await Promise.all(plain.data.slice(0, 12).map(async (p) => {
+          const rows = [];
+          for (const m of ['views', 'reach']) {
+            try {
+              const r = await graph(`${p.id}/insights?metric=${m}`);
+              if (r && !r.error && Array.isArray(r.data)) rows.push(...r.data);
+            } catch (_) {}
+          }
+          if (rows.length) p.insights = { data: rows };
+        }));
+      }
+      return plain;
     };
 
     const [igData, mediaData, viewsDay, reachDay, profileDay, totals] = await Promise.all([
@@ -747,7 +772,7 @@ async function getInstagramStats() {
     };
     const metricOf = (post, name) => {
       const row = (post.insights?.data || []).find((d) => d.name === name);
-      return row ? (row.values?.[0]?.value ?? null) : null;
+      return row ? (row.values?.[0]?.value ?? row.total_value?.value ?? null) : null;
     };
 
     const followers = igData.followers_count || 0;
@@ -844,7 +869,8 @@ async function getTikTokStats() {
     const videoData = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,create_time', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ max_count: 5 }),
+      // A dozen, so the chart of views per video has something to show.
+      body: JSON.stringify({ max_count: 12 }),
     }).then((r) => r.json()).catch(() => ({}));
 
     return {
@@ -858,6 +884,7 @@ async function getTikTokStats() {
         views: v.view_count || 0,
         likes: v.like_count || 0,
         comments: v.comment_count || 0,
+        date: v.create_time ? new Date(v.create_time * 1000).toISOString() : null,
       })),
     };
   } catch (err) {
