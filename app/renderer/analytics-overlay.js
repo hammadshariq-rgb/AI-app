@@ -397,7 +397,6 @@
         '<span class="aob-row-s">' + (r.main ? '<b>' + esc(r.main) + '</b>' : '') + (r.sub ? '<i>' + esc(r.sub) + '</i>' : '') + '</span></div>';
     }).join('') || '<div class="aob-empty">' + esc(t.list.empty) + '</div>';
 
-    var ring = '<svg class="aob-ring" viewBox="0 0 254 104" aria-hidden="true"><ellipse cx="127" cy="52" rx="122" ry="46"/><ellipse cx="127" cy="52" rx="108" ry="38"/></svg>';
     var longHero = String(t.hero.value).length > 8;
 
     root.querySelector('#aoBody').innerHTML =
@@ -405,7 +404,7 @@
         '<span>' + esc(p.name) + '</span>' + (t.handle || p.sub ? '<span class="ao-sub">' + esc(t.handle || p.sub) + '</span>' : '') + '</div>' +
         '<button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>' +
       '<div class="aob" style="--acc:' + p.accent + '">' +
-        '<div class="aob-tile aob-hero">' + ring + '<div class="aob-big' + (longHero ? ' aob-big-long' : '') + '">' + esc(t.hero.value) + '</div><div class="aob-cap">' + esc(t.hero.label) + '</div></div>' +
+        '<div class="aob-tile aob-hero"><div class="aob-big' + (longHero ? ' aob-big-long' : '') + '">' + esc(t.hero.value) + '</div><div class="aob-cap">' + esc(t.hero.label) + '</div></div>' +
         small(t.a) + small(t.b) +
         '<div class="aob-tile aob-wide">' + chartTile + '</div>' +
         '<div class="aob-tile aob-wide"><div class="aob-legend">' + esc(t.list.title) + '</div>' + rows + '</div>' +

@@ -2831,12 +2831,12 @@ window._checkQuickLaunch = async function(text) {
   // the office tomorrow at five" is a sentence that happens to start the same
   // way and is almost certainly a reminder. Without the end anchor the second
   // one got a weather report instead.
-  const IM_BACK = /^(?:ok(?:ay)?[,\s]+)?(?:i(?:'|’)?m|i am|im)\s+(?:back|awake|here|up|home)\s*[.!]*$|^(?:good\s+)?(?:morning|afternoon|evening)\s*[.!]*$|^(?:hey|hi|hello)\s*[.!]*$|^\s*(?:catch me up|brief me|what did i miss)\s*[?.!]*$/i;
+  const IM_BACK = /^(?:ok(?:ay)?[,\s]+)?(?:i(?:'|’)?m|i am|im)\s+(?:back|awake|home)\s*[.!]*$|^\s*(?:catch me up|brief me|what did i miss)\s*[?.!]*$/i;
   // The same thing said any other way: "Daddy's home", "wake up Callisto, I'm
   // back", "guess who's back", "I've returned". Short only - a long sentence
   // that happens to contain "I'm home" is about something else.
   const _words = t.split(/\s+/).filter(Boolean).length;
-  const BACK_LOOSE = /\b(?:i(?:'|’)?m|i am|im|i(?:'|’)?ve|daddy(?:'|’)?s|daddy is|mummy(?:'|’)?s|mommy(?:'|’)?s|mama(?:'|’)?s|guess who(?:'|’)?s|we(?:'|’)?re|boss(?:'|’)?s|the boss is)\s+(?:back|awake|up|home|here|returned|in the building)\b|\bwake up,?\s*(?:callisto|jarvis)?\b|\b(?:catch me up|brief me|what did i miss|daily (?:update|brief(?:ing)?))\b/i;
+  const BACK_LOOSE = /\b(?:i(?:'|’)?m|i am|im|i(?:'|’)?ve|daddy(?:'|’)?s|daddy is|mummy(?:'|’)?s|mommy(?:'|’)?s|mama(?:'|’)?s|guess who(?:'|’)?s|we(?:'|’)?re|boss(?:'|’)?s|the boss is)\s+(?:back|awake|home|returned)\b|\bwake up,?\s*(?:callisto|jarvis)?\b|\b(?:catch me up|brief me|what did i miss|daily (?:update|brief(?:ing)?))\b/i;
   if ((IM_BACK.test(t) || (_words <= 9 && BACK_LOOSE.test(t))) && typeof composeDailyBriefing === 'function') {
     (async () => {
       setState('thinking');
@@ -2856,10 +2856,8 @@ window._checkQuickLaunch = async function(text) {
           ? `Welcome back, ${who}. ${done.spoken} ${b.text}`
           : b.text;
 
-        // A bubble for each part - weather, news, each account, the calendar,
-        // the list - so it reads like a briefing rather than one paragraph.
-        if (done && done.spoken) addMessage('assistant', done.spoken);
-        for (const part of b.parts) addMessage('assistant', part.text);
+        // One bubble, with a paragraph for each part.
+        addMessage('assistant', [done && done.spoken, ...b.parts.map((part) => part.text)].filter(Boolean).join('\n\n'));
         // The work itself goes in the chat underneath, where it can be read
         // and copied — not read aloud, which would take all morning.
         for (const job of (done && done.jobs) || []) {
@@ -2899,9 +2897,8 @@ window._checkQuickLaunch = async function(text) {
         setState('idle');
         return;
       }
-      // In the chat as well as out loud: one bubble per platform.
-      addMessage('assistant', 'Here are your numbers.');
-      for (const line of _splitStatLines(text)) addMessage('assistant', line);
+      // In the chat as well as out loud, all in one bubble.
+      addMessage('assistant', ['Here are your numbers.', ..._splitStatLines(text)].join('\n\n'));
       const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
       if (audio) playAudioChunks([audio]);
       setState('idle');
