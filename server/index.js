@@ -469,7 +469,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Unverified accounts cannot spend: the AI, pictures, video, 3D, uploads and
 // checkout all wait for the emailed code. Speech in and out is left alone so
 // the app can still talk while they fetch it.
-const VERIFY_GATED = ['/ai/chat', '/ai/learn', '/ai/image', '/ai/vision', '/ai/screen', '/ai/magic-edit', '/ai/agent-step',
+const VERIFY_GATED = ['/ai/chat', '/ai/learn', '/ai/marketing-note', '/ai/image', '/ai/vision', '/ai/screen', '/ai/magic-edit', '/ai/agent-step',
   '/ai/places', '/ai/place-phone', '/ai/spotify-search', '/ai/stream-lookup', '/video/generate', '/models/', '/media/temp', '/checkout'];
 app.use(async (req, res, next) => {
   if (!VERIFY_GATED.some((p) => req.path.startsWith(p))) return next();
@@ -2655,6 +2655,14 @@ function webSystemPrompt() {
     '- Reply in the language the person is actually using. If they write English,',
     '  answer in English. Never answer in a language they have not used.',
     '',
+    "MARKETING (answer like a senior growth marketer who has run campaigns with small budgets):",
+    "- Positioning first: who exactly it is for, the one problem it solves, why this over the alternatives. Rewrite vague messaging into something specific.",
+    "- Short-form content: hooks that stop the scroll in the first three seconds, retention, posting cadence, repurposing one idea across Instagram, TikTok and YouTube Shorts.",
+    "- Paid and owned channels: when ads are worth it and when they are not, starting budgets, creative testing, landing page fixes, email and SMS, SEO, partnerships and creator collaborations.",
+    "- Funnels: awareness to click to signup to paid. Find the weakest step using their real numbers and fix that first, using benchmarks where they help and saying they are rough.",
+    "- Critique honestly when shown a post, ad, page or caption: what fails, why, and a rewritten version they can use now.",
+    "- Always finish with specific next actions, ordered by impact and cost. Never promise virality or guaranteed results, and never suggest fake reviews, bought followers or misleading claims.",
+    "",
     "MARKETS, GEOPOLITICS & INVESTING (answer like a senior macro strategist and equity analyst):",
     "- Connect events to markets: wars, sanctions, elections, trade deals, tariffs, OPEC decisions, central-bank moves and supply shocks -> which sectors, currencies, commodities and countries win or lose, through which channel (rates, energy prices, supply chains, risk sentiment), and over what time frame.",
     "- For a stock, sector, crypto asset or market: give the thesis, the bull case and the bear case, the key numbers (revenue growth, margins, valuation multiples such as P/E and EV/EBITDA versus peers, debt, cash flow), the catalysts and the risks, and what would change the view.",
@@ -2982,6 +2990,30 @@ app.post('/ai/learn', authMiddleware, aiLimiter, async (req, res) => {
     res.json({ facts: (r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '' });
   } catch (err) {
     res.status(500).json({ error: 'Could not read that just now.' });
+  }
+});
+
+// The day's marketing note for the daily update: one observation from their own
+// numbers and one thing to do today. Fixed prompt, one small job, so like
+// /ai/learn it doesn't count against the daily messages.
+const MARKETING_NOTE_PROMPT = 'You are a senior growth marketer giving a founder or creator their daily marketing feedback. Using only the numbers and facts provided, write two or three short spoken sentences: one specific observation about what is or is not working, then one concrete action they can finish today. No greeting, no lists, no markdown, no invented figures, no promises of results. If you were given neither numbers nor anything about a business or audience, reply with the single word NONE.';
+app.post('/ai/marketing-note', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const numbers = String((req.body && req.body.numbers) || '').slice(0, 2000);
+    const known = Array.isArray(req.body && req.body.known) ? req.body.known.slice(-40).map((k) => String(k).slice(0, 300)) : [];
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      max_tokens: 130,
+      temperature: 0.5,
+      messages: [
+        { role: 'system', content: MARKETING_NOTE_PROMPT },
+        { role: 'user', content: 'Their numbers:\n' + (numbers || '(none)') + '\n\nWhat is known about them:\n' + (known.join('\n') || '(nothing)') },
+      ],
+    });
+    const note = String((r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
+    res.json({ note: /^none\b/i.test(note) ? '' : note });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not write that just now.' });
   }
 });
 

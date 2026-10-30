@@ -148,6 +148,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   taskSetDone: (id, done) => ipcRenderer.invoke('task:setDone', { id, done }),
   taskDelete: (id) => ipcRenderer.invoke('task:delete', id),
   taskBriefing: () => ipcRenderer.invoke('task:briefing'),
+  marketingNote: (numbers) => ipcRenderer.invoke('marketing:note', numbers),
   weatherGreeting: () => ipcRenderer.invoke('weather:greeting'),
   onTasksChanged: (cb) => ipcRenderer.on('jarvis:tasks-changed', () => cb()),
   onCalendarAddLocal: (cb) => ipcRenderer.on('calendar:add-local', (_e, d) => cb(d)),

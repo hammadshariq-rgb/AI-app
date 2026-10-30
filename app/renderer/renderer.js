@@ -8432,6 +8432,10 @@ async function composeDailyBriefing(addressAs) {
   if (news) parts.push({ kind: 'news', label: 'The world', text: String(news).trim() });
   for (const line of _splitStatLines(stats)) parts.push({ kind: 'numbers', label: 'Your accounts', text: line });
 
+  // The day's marketing feedback, read from those same numbers.
+  const note = await settle(window.jarvis.marketingNote?.(stats), 7000);
+  if (note) parts.push({ kind: 'marketing', label: 'Marketing', text: 'Your marketing note for today: ' + String(note).trim() });
+
   // Today's calendar - only today, and only when Google Calendar is connected.
   const todays = Array.isArray(cal) ? cal.filter((e) => e && e.start && new Date(e.start).toDateString() === new Date().toDateString()) : [];
   if (todays.length) {

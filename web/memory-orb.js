@@ -14,7 +14,11 @@
     { id: 'life', label: 'Life', colour: '#a78bfa', re: /\b(birthday|anniversary|wedding|moved|moving|baby|pregnant|graduat|exam|uni|school|health|hospital|holiday|trip|engaged)\b/i },
   ];
   const OTHER = { id: 'other', label: 'Other', colour: '#9fb4d8' };
-  const kindOf = (fact) => KINDS.find((k) => k.re.test(fact)) || OTHER;
+  // Skills added from GitHub sit alongside the memories, labelled so they read
+  // as what they are. They live in the skills store, not in the memory list.
+  const SKILL = { id: 'skills', label: 'Skills', colour: '#22d3ee' };
+  const SKILL_PREFIX = 'Skill: ';
+  const kindOf = (fact) => (String(fact).startsWith(SKILL_PREFIX) ? SKILL : (KINDS.find((k) => k.re.test(fact)) || OTHER));
 
   const STYLE = `
   #memOrb{position:fixed;inset:0;z-index:2147483000;display:flex;background:rgba(2,4,10,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .28s ease;font-family:inherit;color:#dce6fa}
@@ -49,6 +53,7 @@
   #memOrb .mo-row span{flex:1;word-break:break-word}
   #memOrb .mo-del{flex:none;border:0;background:none;color:rgba(200,215,245,.4);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px}
   #memOrb .mo-del:hover{color:#ff7a8a}
+  #memOrb .mo-skill-d{display:block;font-size:11px;line-height:1.4;margin-top:2px;color:rgba(165,190,235,.65)}
   #memOrb .mo-foot{font-size:11px;color:rgba(150,175,225,.5)}
   @media (max-width:820px){#memOrb{flex-direction:column}#memOrb .mo-panel{width:auto;height:46%;border-left:0;border-top:1px solid rgba(110,160,255,.14)}}
   @media (prefers-reduced-motion:reduce){#memOrb{transition:none}}
@@ -57,6 +62,16 @@
   // The app has window.jarvis; the website hands in its own adapter that talks
   // to the server. Same three calls either way.
   const api = () => window.CallistoMemoryApi || window.jarvis;
+
+  let skills = [];   // { id, label, description } - app only; the website has none
+  const skillLabels = () => skills.map((s) => s.label);
+  const skillFor = (label) => skills.find((s) => s.label === label);
+  async function loadSkills() {
+    try {
+      const out = api().skillsList ? await api().skillsList() : null;
+      skills = ((out && out.items) || []).map((s) => ({ id: s.id, label: SKILL_PREFIX + s.name, description: s.description || '' }));
+    } catch (_) { skills = []; }
+  }
 
   let root = null, raf = 0, facts = [], filter = 'all', search = '', hot = null;
 
@@ -160,7 +175,7 @@ void main(){
   // ── Rings of memories ──────────────────────────────────────────────────
   function shown() {
     const q = search.toLowerCase();
-    return facts.filter((f) => (filter === 'all' || kindOf(f).id === filter) && (!q || f.toLowerCase().includes(q)));
+    return facts.concat(skillLabels()).filter((f) => (filter === 'all' || kindOf(f).id === filter) && (!q || f.toLowerCase().includes(q)));
   }
 
   function buildOrbit() {
@@ -208,15 +223,16 @@ void main(){
   // ── The side panel ─────────────────────────────────────────────────────
   function renderPanel() {
     const counts = { all: facts.length };
-    facts.forEach((f) => { const k = kindOf(f).id; counts[k] = (counts[k] || 0) + 1; });
-    root.querySelector('.mo-kinds').innerHTML = [{ id: 'all', label: 'All', colour: '#3aa9ff' }, ...KINDS, OTHER]
+    counts.all += skills.length;
+    facts.concat(skillLabels()).forEach((f) => { const k = kindOf(f).id; counts[k] = (counts[k] || 0) + 1; });
+    root.querySelector('.mo-kinds').innerHTML = [{ id: 'all', label: 'All', colour: '#3aa9ff' }, ...KINDS, OTHER, SKILL]
       .filter((k) => k.id === 'all' || counts[k.id])
       .map((k) => `<button class="mo-kind${filter === k.id ? ' on' : ''}" data-k="${k.id}" style="--k:${k.colour}">${k.label} ${counts[k.id] || 0}</button>`).join('');
     const list = shown().slice().reverse();
     root.querySelector('.mo-list').innerHTML = list.length
-      ? list.map((f) => `<div class="mo-row" data-f="${esc(f)}" style="--k:${kindOf(f).colour}"><i></i><span>${esc(f)}</span><button class="mo-del" title="Forget this" aria-label="Forget this">×</button></div>`).join('')
+      ? list.map((f) => `<div class="mo-row" data-f="${esc(f)}" style="--k:${kindOf(f).colour}"><i></i><span>${esc(f)}${skillFor(f) && skillFor(f).description ? `<small class="mo-skill-d">${esc(skillFor(f).description)}</small>` : ''}</span><button class="mo-del" title="Forget this" aria-label="Forget this">×</button></div>`).join('')
       : `<div class="mo-foot">${facts.length ? 'Nothing matches.' : 'Nothing remembered yet.'}</div>`;
-    root.querySelector('.mo-foot-count').textContent = facts.length + ' of 120 memories · used in every reply';
+    root.querySelector('.mo-foot-count').textContent = facts.length + ' of 120 memories' + (skills.length ? ' · ' + skills.length + ' skill' + (skills.length === 1 ? '' : 's') : '') + ' · used in every reply';
   }
 
   let chips = [], paused = false, fx = null;
@@ -270,7 +286,11 @@ void main(){
     root.querySelector('.mo-list').onclick = async (e) => {
       const row = e.target.closest('.mo-row'); if (!row) return;
       if (e.target.closest('.mo-del')) {
-        try { facts = await api().removeMemory(row.dataset.f); } catch (_) {}
+        const sk = skillFor(row.dataset.f);
+        try {
+          if (sk) { await api().skillsRemove(sk.id); await loadSkills(); }
+          else facts = await api().removeMemory(row.dataset.f);
+        } catch (_) {}
         refresh();
       } else mark(hot === row.dataset.f ? null : row.dataset.f);
     };
@@ -297,7 +317,7 @@ void main(){
       raf = requestAnimationFrame(loop);
     };
 
-    api().getMemories().then((m) => { facts = Array.isArray(m) ? m : []; refresh(); loop(); })
+    Promise.all([api().getMemories(), loadSkills()]).then(([m]) => { facts = Array.isArray(m) ? m : []; refresh(); loop(); })
       .catch(() => { facts = []; refresh(); loop(); });
     setTimeout(() => newIn.focus(), 300);
   }

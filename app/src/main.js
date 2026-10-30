@@ -4664,6 +4664,24 @@ ipcMain.handle('memory:get', async () => {
   } catch (_) {}
   return local;
 });
+// The day's marketing note. Written once a day and kept, so "I'm back" later on
+// repeats nothing to the server and doesn't wait for it.
+ipcMain.handle('marketing:note', async (_e, numbers) => {
+  const today = new Date().toDateString();
+  const kept = store.get('marketingNote');
+  if (kept && kept.day === today && kept.text) return kept.text;
+  try {
+    const res = await fetch(`${_serverBase()}/ai/marketing-note`, {
+      method: 'POST',
+      headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ numbers: String(numbers || ''), known: (store.get('memories') || []).slice(-40) }),
+    });
+    if (!res.ok) return null;
+    const { note } = await res.json();
+    if (note) store.set('marketingNote', { day: today, text: note });
+    return note || null;
+  } catch (_) { return null; }
+});
 ipcMain.handle('memory:clear', () => { store.delete('memories'); return true; });
 // The memory orb: adding and removing one fact by hand.
 ipcMain.handle('memory:add', (_e, fact) => {
