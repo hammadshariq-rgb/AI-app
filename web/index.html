@@ -4258,6 +4258,8 @@
   // better than a pop-up over the top of it, and far better than a promise
   // that quietly does not happen.
   const WEB_CANNOT = [
+    [/\b(?:video|clip|reel)\b[^.?!]{0,50}\b(?:caption|subtitle|font|transition|brighter|lighting|trim|edit)|\b(?:caption|subtitle|font|transition|brighter|lighting|trim|edit)\w*\b[^.?!]{0,50}\b(?:video|clip|reel)\b/i,
+      'Editing videos'],
     [/\b3d\b[^.?!]{0,20}\bmodel\b|\bmodel\b[^.?!]{0,10}\bin 3d\b|\bblender\b|\bmesh\b/i,
       'Making 3D models'],
     [/\b(?:make|create|generate|turn [^.?!]{0,20}into)\b[^.?!]{0,24}\b(?:video|animation|clip|reel)\b|\banimate\b/i,

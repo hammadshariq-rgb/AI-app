@@ -3892,6 +3892,27 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return { text: spoken, audio: null, hasAction: true };
   }
 
+  if (finalAction?.type === 'edit_video') {
+    const latest = store.get('latest.video') || null;
+    const out = await require('./services/videoedit').edit({
+      input: latest && latest.filePath,
+      outputDir: path.join(app.getPath('videos'), 'Callisto'),
+      plan: finalAction.payload,
+    });
+    if (out.error) {
+      const msg = latest && latest.filePath ? out.error : 'Attach the video with the + button and tell me what to change. I edit videos that are on your computer.';
+      _sendTTS(_e.sender, msg);
+      return { text: msg, audio: null, card: null, hasAction: false };
+    }
+    const item = { filePath: out.output, title: path.basename(out.output, '.mp4').slice(0, 60) };
+    store.set('latest.video', { ...item, at: Date.now() });
+    _e.sender.send('media:videoEdited', item);
+    shell.openPath(out.output).catch(() => {});
+    const spoken = "Done. I've opened your edited video. You can ask for more changes, or tell me to post it.";
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken + ' It is saved in your Videos folder, under Callisto.', audio: null, card: null, hasAction: false };
+  }
+
   if (finalAction?.type === 'upload_media') {
     const p = finalAction.payload || {};
     const status = await connectors.getConnectorStatus();

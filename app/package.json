@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.9.12",
+  "version": "1.9.13",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -72,7 +72,10 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": ["Muhammad Hammad Shariq", "Hammad Shariq"]
+      "publisherName": [
+        "Muhammad Hammad Shariq",
+        "Hammad Shariq"
+      ]
     },
     "mac": {
       "artifactName": "Callisto-AI-${version}-${arch}.${ext}",
@@ -141,7 +144,10 @@
         }
       ]
     },
-    "afterPack": "build/adhoc-sign.js"
+    "afterPack": "build/adhoc-sign.js",
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ]
   },
   "dependencies": {
     "@sentry/electron": "^7.20.2",
@@ -152,6 +158,7 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
+    "ffmpeg-static": "^5.2.0",
     "multicast-dns": "^7.2.5",
     "node-fetch": "^2.7.0",
     "pdf-lib": "^1.17.1",

@@ -386,6 +386,39 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_video',
+      description: 'Edit a video the user ALREADY HAS (attached or the last one made): add captions or text in a chosen font, change lighting and colour, cut it, reorder parts, change its pace, add transitions and fades. Use for "add captions to this video", "make it brighter", "put big text saying SALE at the start", "cut the first 3 seconds", "add transitions", "make it warmer", "speed it up". Not for making a new video from nothing. Include only what they asked for, and write captions exactly as they said. Times are in seconds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          segments: { type: 'array', description: 'Parts of the original to keep, in the order to play them. Leave out to keep the whole video. To reorder or change the flow, list parts in the new order.', items: { type: 'object', properties: { start: { type: 'number' }, end: { type: 'number' } }, required: ['start', 'end'] } },
+          transition: { type: 'string', enum: ['none', 'fade', 'dissolve', 'wipe', 'slide', 'zoom', 'blur'], description: 'Between segments. Needs two or more segments; to add transitions to a whole video, split it into evenly spaced segments.' },
+          transition_seconds: { type: 'number' },
+          speed: { type: 'number', description: '0.5 to 2. 1 is normal.' },
+          brightness: { type: 'number', description: '-0.4 to 0.4. 0 is unchanged; 0.08 is a noticeable lift.' },
+          contrast: { type: 'number', description: '0.5 to 1.8. 1 is unchanged.' },
+          saturation: { type: 'number', description: '0 (black and white) to 2.5. 1 is unchanged.' },
+          warmth: { type: 'number', description: '-1 cool to 1 warm. 0 is unchanged.' },
+          vignette: { type: 'boolean', description: 'Darkened edges, a cinematic look.' },
+          fade_in: { type: 'number', description: 'Seconds, from black.' },
+          fade_out: { type: 'number', description: 'Seconds, to black.' },
+          captions: { type: 'array', items: { type: 'object', properties: {
+            text: { type: 'string' },
+            start: { type: 'number', description: 'Seconds in the finished video. Leave out to show from the start.' },
+            end: { type: 'number', description: 'Leave out to show until the end.' },
+            position: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+            font: { type: 'string', enum: ['sans', 'bold', 'impact', 'serif', 'script', 'mono'] },
+            size: { type: 'number', description: 'Pixels. Leave out for a size that suits the video.' },
+            colour: { type: 'string', description: 'A colour name or #rrggbb.' },
+            box: { type: 'boolean', description: 'Dark box behind the text.' },
+          }, required: ['text'] } },
+        },
+      },
+    },
+  },
   // search_drive is gone while Drive is off. Offering a tool that can only
   // answer "not connected", for something nobody can connect, wastes a turn
   // and reads as a fault. Restore it with the scope after the assessment.
@@ -1554,7 +1587,9 @@ const FAST_PATH_TOOLS = new Set([
 // of that song" skip the router - so the most ordinary commands in the app got
 // SLOWER, which is the exact opposite of the point. Every pattern below needs
 // the creative act to be present, not just a word that can appear near one.
+const VIDEO_EDIT = /\b(?:video|clip|reel|footage)\b[^.?!]{0,50}\b(?:caption|subtitle|text|font|title|transition|brighter|darker|lighting|colou?r|warmer|cooler|contrast|cut|trim|speed|slow|fade|vignette|flow|edit)|\b(?:caption|subtitle|text|font|title|transition|brighter|darker|lighting|colou?r|warmer|cooler|contrast|cut|trim|speed|slow|fade|vignette|flow|edit)\w*\b[^.?!]{0,50}\b(?:video|clip|reel|footage)\b/i;
 const HEAVY_INTENT = new RegExp([
+  VIDEO_EDIT.source,
   // The act itself is unmistakable.
   '\\b(?:draw|sketch|paint|doodle|animate|retouch|upscale|outpaint|sculpt)\\b',
   '\\bdrawing|painting\\b',
@@ -1779,6 +1814,7 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'play_music')    return { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
       else if (fnName === 'notify')        return { type: 'notify',        arg: args.message };
       else if (fnName === 'generate_image') return { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
+      else if (fnName === 'edit_video') return { type: 'edit_video', payload: args };
       else if (fnName === 'make_poster') return { type: 'generate_image', arg: posterPrompt(args), size: ({ square: '1024x1024', landscape: '1792x1024' })[args.shape] || '1024x1792' };
             else if (fnName === 'generate_3d_model') return { type: 'generate_3d_model', payload: { prompt: args.prompt || '', style: args.style || 'sculpture' } };
             else if (fnName === 'upload_media') return { type: 'upload_media', payload: { platform: args.platform, source: args.source || '', title: args.title || '', description: args.description || '', privacy: args.privacy || 'private' } };
@@ -1866,7 +1902,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
   const isDocWork = DOC_INTENT.test(message);
   const intent = afterSecondThoughts(message);
-  const needsTools = isDocWork || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
+  const needsTools = isDocWork || VIDEO_EDIT.test(intent) || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
 
   // Fast path: action queries with no context get a minimal prompt and trimmed
   // history for speed. Creative and file work skips it - see HEAVY_INTENT: for
@@ -1993,7 +2029,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
 
   // If images attached — must use non-streaming respond() since vision needs gpt-4o + full analysis
   const intent2 = afterSecondThoughts(message);
-  const needsTools = !skipToolFallback && (DOC_INTENT.test(intent2) || asksAboutOwnData(intent2) || ((ACTION_KEYWORDS.test(intent2) || LIVE_KEYWORDS.test(intent2)) && !isKnowledgeQuestion(intent2)));
+  const needsTools = !skipToolFallback && (VIDEO_EDIT.test(intent2) || DOC_INTENT.test(intent2) || asksAboutOwnData(intent2) || ((ACTION_KEYWORDS.test(intent2) || LIVE_KEYWORDS.test(intent2)) && !isKnowledgeQuestion(intent2)));
   if (needsTools || hasImages) {
     return respond({ message, history, assistantName, memories, realtimeContext, language, attachments });
   }

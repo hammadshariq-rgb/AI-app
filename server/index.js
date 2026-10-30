@@ -484,6 +484,10 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// No sexual content in pictures, posters, video or 3D. Before any allowance is
+// used or any provider is paid.
+app.use(require('./contentguard').middleware(() => openai, (req) => monitoring.securityEvent('content_blocked', { ip: req.ip, path: req.path })));
+
 const accountRoutesDeps = {};
 const accountRoutes = require('./account-routes').mountAccountRoutes(app, Object.assign(accountRoutesDeps, {
   users, sessions, stripe, mail, monitoring, JWT_SECRET, PUBLIC_URL,

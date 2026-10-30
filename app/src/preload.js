@@ -255,6 +255,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   publishPickFile:(kind) => ipcRenderer.invoke('publish:pickFile', kind),
   filePath:       (file) => filePathOf(file),
   setLatestMedia: (kind, item) => ipcRenderer.invoke('media:setLatest', { kind, item }),
+  onVideoEdited: (cb) => ipcRenderer.on('media:videoEdited', (_e, d) => cb(d)),
   getLatestMedia: ()           => ipcRenderer.invoke('media:getLatest'),
   // Shopping — real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),

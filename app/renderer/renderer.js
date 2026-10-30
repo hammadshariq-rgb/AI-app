@@ -12005,6 +12005,9 @@ function wirePublishCard(card) {
   };
 }
 
+// An edited video becomes "that video" for whatever is asked next.
+window.jarvis.onVideoEdited?.((item) => { window._lastVideo = item; });
+
 // Bring back the newest attached/generated video and image after a restart, so
 // "post that video on YouTube" still works in a later session.
 (async () => {
