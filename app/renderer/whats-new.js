@@ -12,7 +12,7 @@
   'use strict';
 
   var NOTES = {
-    '1.9.13': [
+    '1.9.14': [
       { icon: '🎬', title: 'AI video editing', text: 'Attach a video and say what to change: captions and fonts, lighting and colour, cuts, pace and transitions. It stays on your computer.' },
       { icon: '📣', title: 'A marketing expert, every day', text: 'Ask about hooks, funnels or ads. Say "I\'m back" for your daily update, now with a marketing note written from your own numbers.' },
       { icon: '🌍', title: 'Markets and business analysis', text: 'Geopolitics, investing cases, profit margins and unit economics, worked through with your figures.' },

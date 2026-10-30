@@ -1587,9 +1587,10 @@ const FAST_PATH_TOOLS = new Set([
 // of that song" skip the router - so the most ordinary commands in the app got
 // SLOWER, which is the exact opposite of the point. Every pattern below needs
 // the creative act to be present, not just a word that can appear near one.
-const VIDEO_EDIT = /\b(?:video|clip|reel|footage)\b[^.?!]{0,50}\b(?:caption|subtitle|text|font|title|transition|brighter|darker|lighting|colou?r|warmer|cooler|contrast|cut|trim|speed|slow|fade|vignette|flow|edit)|\b(?:caption|subtitle|text|font|title|transition|brighter|darker|lighting|colou?r|warmer|cooler|contrast|cut|trim|speed|slow|fade|vignette|flow|edit)\w*\b[^.?!]{0,50}\b(?:video|clip|reel|footage)\b/i;
+// A change to a video they already have: not a question about editing, not a
+// request for a new video. It needs a word for the change and "this/my/the video".
+const VIDEO_EDIT = /^(?!\s*(?:how|what|why|when|where|which|who|does|do|is|are|show|play|find|search|watch)\b)(?=.*\b(?:this|that|my|the|our)\s+(?:\w+\s+)?(?:video|clip|reel|footage)\b)(?=.*\b(?:captions?|subtitles?|text|fonts?|titles?|transitions?|brighter|darker|brighten|darken|lighting|colou?rs?|warmer|cooler|contrast|cut|trim|speed|slow|faster|fade|vignette|flow|edit)\b)/i;
 const HEAVY_INTENT = new RegExp([
-  VIDEO_EDIT.source,
   // The act itself is unmistakable.
   '\\b(?:draw|sketch|paint|doodle|animate|retouch|upscale|outpaint|sculpt)\\b',
   '\\bdrawing|painting\\b',
@@ -1908,7 +1909,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   // history for speed. Creative and file work skips it - see HEAVY_INTENT: for
   // those the quick call could only be thrown away, and paying for a round trip
   // before the real one started was pure added wait.
-  if (fast && needsTools && !realtimeContext && !isDocWork && !HEAVY_INTENT.test(message)) {
+  if (fast && needsTools && !realtimeContext && !isDocWork && !HEAVY_INTENT.test(message) && !VIDEO_EDIT.test(message)) {
     const fastMessages = [
       { role: 'system', content: FAST_SYSTEM_PROMPT(assistantName) },
       ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
