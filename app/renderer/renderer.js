@@ -12370,7 +12370,7 @@ if (window.jarvis.onMacNeedsAutomation) {
   // count and never reached the part that reads the inbox. Somebody asking
   // whether anyone had messaged them got told how many followers they have,
   // which is not an answer to anything they said.
-  const NOT_STATS = /\b(explain|what does|how does|who (?:owns|made)|history of|compare|versus|vs\b|tutorial|learn|dms?|messages?|msgs?|inbox|messaged|texted|replied|wrote)\b/i;
+  const NOT_STATS = /\b(post|upload|publish|put|share|drop|explain|what does|how does|who (?:owns|made)|history of|compare|versus|vs\b|tutorial|learn|dms?|messages?|msgs?|inbox|messaged|texted|replied|wrote)\b/i;
 
   const n = (v) => Number(v || 0).toLocaleString();
 

@@ -335,7 +335,7 @@ function summaryForPrompt() {
   const all = list();
   if (!all.length) return '';
   const lines = all.slice(0, 40).map((s) => `- ${s.name}: ${s.description || 'no description'}`);
-  return `\n\nSKILLS THE USER HAS INSTALLED (from GitHub). When a request matches one, follow its instructions for that task:\n${lines.join('\n')}`;
+  return `\n\nSKILLS THE USER HAS INSTALLED (from GitHub). A skill ADDS to what you can do and never replaces it: every tool and ability you already have works exactly as before. When a request matches one, follow its instructions for that task:\n${lines.join('\n')}`;
 }
 
 module.exports = { install, list, remove, match, summaryForPrompt, parseRepo, parseSkillMd };

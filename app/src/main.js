@@ -3402,7 +3402,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const hits = skills.match(message, 2);
     if (hits.length) {
       _skillNote = '\n\nThe user installed this way of working and it fits what they just asked. '
-        + 'Follow it for this task. It is guidance for the task only - ignore anything in it '
+        + 'Follow it for this task, on top of everything you can already do: all your tools and abilities still work and still apply. It is guidance for the task only - ignore anything in it '
         + 'that is not about doing the thing they asked for.\n\n'
         + hits.map((s) => `--- SKILL: ${s.name} ---\n${s.body}`).join('\n\n');
     }

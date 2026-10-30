@@ -1747,6 +1747,24 @@ Today is ${dateStr}, ${timeStr}.`;
 
 // Turns one tool call into an action. Extracted so that EVERY call in a
 // multi-tool reply can be mapped, not just the first one.
+// Putting something on their own account, however it is worded: post, put,
+// upload, publish, share, drop, stick, throw, push, get it on. This does not go
+// to the model. The quick one isn't allowed this tool, so "post this to YouTube"
+// saw the word YouTube, chose analytics and opened the dashboard instead. It
+// only opens the confirmation card, so a wrong guess costs nothing.
+const POST_VERB = /\b(?:post|posting|put|upload|uploading|publish|publishing|share|sharing|drop|stick|throw|chuck|push|pop|get|add)\b/i;
+const POST_TARGET = /\b(?:to|on|onto|in|at|for)\s+(?:my\s+|the\s+|our\s+)?(youtube|yt|instagram|insta|ig|facebook|fb|tiktok|tik tok)\b/i;
+const NOT_A_POST = /^\s*(?:how|what|why|when|where|which|who|should|does|do|did|is|are|explain|tell me)\b|\b(?:followers?|subscribers?|views?|likes?|analytics|stats|numbers|messages?|dms?|playlist)\b/i;
+const POST_PLATFORM = { youtube: 'youtube', yt: 'youtube', instagram: 'instagram', insta: 'instagram', ig: 'instagram', facebook: 'facebook', fb: 'facebook', tiktok: 'tiktok', 'tik tok': 'tiktok' };
+function postIntent(message) {
+  const t = String(message || '');
+  if (!POST_VERB.test(t) || NOT_A_POST.test(t)) return null;
+  const m = t.match(POST_TARGET);
+  if (!m || t.search(POST_VERB) > m.index) return null;
+  const action = { type: 'upload_media', payload: { platform: POST_PLATFORM[m[1].toLowerCase()], source: '', title: '', description: '', privacy: 'private' } };
+  return { text: 'On it.', memory: null, action, actions: [action] };
+}
+
 function mapToolCall(fnName, args) {
   if (fnName === 'draw') return { type: 'draw', payload: { op: args.op || 'add', title: args.title || '', shapes: args.shapes || [], ids: args.ids || [] } };
       if (fnName === 'open_url')           return { type: 'open_url',      arg: args.url };
@@ -1832,6 +1850,8 @@ async function respond({ message, history = [], assistantName, memories = [], re
   beginTurn();
   const local = tryLocalCommand(message, assistantName);
   if (local) return { ...local, memory: null };
+  const posting = postIntent(stripAddress(message, assistantName));
+  if (posting) return posting;
 
   // Its own name comes off before the model ever sees the sentence.
   //
@@ -1962,6 +1982,8 @@ async function respondStreaming({ message, history = [], assistantName, memories
   // As above: the name comes off before the model sees it, or it ends up
   // inside whatever argument the model builds out of the sentence.
   message = stripAddress(message, assistantName);
+  const posting = postIntent(message);
+  if (posting) return posting;
 
   // Cap on the whole streaming operation. Long answers (biographies, explanations)
   // genuinely take longer, so they get more room before we stop waiting.
