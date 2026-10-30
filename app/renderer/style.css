@@ -10495,5 +10495,6 @@ body.light-mode .sheet-idea { color: #1e2b24; background: rgba(0, 0, 0, 0.03); b
 .aob-row-s { flex: none; display: flex; gap: 10px; color: rgba(165, 190, 235, .7); font-size: 12px; font-variant-numeric: tabular-nums; }
 .aob-row-s b { color: #fff; font-weight: 650; }
 .aob-row-s i { font-style: normal; }
+.aob-big-long { font-size: 28px; }
 .aob-empty { font-size: 13px; color: rgba(170, 192, 235, .65); line-height: 1.5; padding: 10px 0; }
 @media (max-width: 720px) { .aob-tile, .aob-wide { grid-column: span 6; } }

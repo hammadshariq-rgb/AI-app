@@ -2877,13 +2877,18 @@ window._checkQuickLaunch = async function(text) {
     return true;
   }
 
-  const STATS_RE = /\b(?:show|tell|give|read|what(?:'?s| are| is)?|how(?:'?s| are| is)?)\b[^.?!]{0,20}\b(?:my|the)\b[^.?!]{0,16}\b(?:stats|statistics|analytics|numbers|figures|metrics|socials)\b|^(?:my )?(?:stats|analytics|numbers)$/i;
+  const STATS_RE = /\b(?:open|show|pull up|bring up|see|check|tell|give|read|what(?:'?s| are| is)?|how(?:'?s| are| is)?)\b[^.?!]{0,20}\b(?:my|the)\b[^.?!]{0,16}\b(?:stats|statistics|analytics|numbers|figures|metrics|socials|dashboard)\b|^(?:my )?(?:stats|analytics|numbers|dashboard)$/i;
   // "How's my website doing", "how is the business doing", "how's Callisto's
   // Instagram doing", "give me an update", "update me". Anything about how a
   // site, shop, channel or the business is doing - not "how's my mum doing".
   const STATS_LOOSE = /\bhow(?:'|’)?s?\b(?:\s+is|\s+are)?\s+[^.?!]{0,30}\b(?:website|site|business|company|brand|shop|store|channel|page|account|instagram|insta|tiktok|youtube|stripe|shopify|squarespace|sales|revenue|traffic|socials?)\b[^.?!]{0,20}\b(?:doing|going|looking|performing)\b|^(?:please\s+)?(?:give me (?:an |my )?update|update me|any updates?)\b[^.?!]{0,20}$/i;
+  // Naming one app gets that app's own panel; asking in general gets it all.
+  if ((STATS_RE.test(t) || STATS_LOOSE.test(t)) && window._checkAnalyticsRequest?.(t)) return true;
   if ((STATS_RE.test(t) || STATS_LOOSE.test(t)) && window.jarvis.connectorStatsBriefing) {
     (async () => {
+      // The dashboard straight away; the words catch up as they arrive.
+      const _ap = document.getElementById('analyticsPanel');
+      if (_ap) { _ap.classList.remove('hidden'); _ap.scrollTop = 0; try { loadAnalyticsDashboard(); } catch (_) {} }
       setState('thinking');
       let text = null;
       try { text = await window.jarvis.connectorStatsBriefing(); } catch (_) {}
@@ -2899,8 +2904,6 @@ window._checkQuickLaunch = async function(text) {
       for (const line of _splitStatLines(text)) addMessage('assistant', line);
       const audio = await window.jarvis.speak(`Here are your numbers. ${text}`);
       if (audio) playAudioChunks([audio]);
-      const ap = document.getElementById('analyticsPanel');
-      if (ap) { ap.classList.remove('hidden'); ap.scrollTop = 0; try { loadAnalyticsDashboard(); } catch (_) {} }
       setState('idle');
     })();
     return true;
@@ -3302,7 +3305,7 @@ window._checkQuickLaunch = async function(text) {
   if (window._checkSkillCommand && window._checkSkillCommand(t)) return true;
 
   // Typing in the emailed code later on.
-  if (/(?:verify|confirm)[^.?!]{0,12}(?:my )?email|verification code|email code/i.test(t) && window.CallistoAccount) {
+  if (/\b(?:verify|confirm)\b[^.?!]{0,12}\b(?:my )?email\b|\bverification code\b|\bemail code\b/i.test(t) && window.CallistoAccount) {
     window.CallistoAccount.askEmailCode(profile && profile.email);
     return true;
   }
@@ -12350,6 +12353,10 @@ if (window.jarvis.onMacNeedsAutomation) {
     { key: 'instagram', name: 'Instagram', re: /\b(instagram|insta|\big\b)\b/i },
     { key: 'facebook',  name: 'Facebook',  re: /\bfacebook\b/i },
     { key: 'tiktok',    name: 'TikTok',    re: /\b(tiktok|tik tok)\b/i },
+    { key: 'youtube',   name: 'YouTube',   re: /\b(youtube|yt)\b/i },
+    { key: 'shopify',   name: 'Shopify',   re: /\bshopify\b/i },
+    { key: 'squarespace', name: 'Squarespace', re: /\bsquarespace\b/i },
+    { key: 'googleAnalytics', name: 'Your website', re: /\b(website|web site|site|google analytics|traffic|visitors)\b/i },
   ];
 
   // It has to be about *their* numbers. "How does Stripe work" is a question.
@@ -12411,12 +12418,20 @@ if (window.jarvis.onMacNeedsAutomation) {
       s += latestLine(latestOf(d.recentVideos), 'video');
       return s;
     }
+    if (key === 'googleAnalytics') {
+      const m = d.last30Days || {};
+      return `Your website had ${plural(m.users, 'visitor')} and ${plural(m.pageViews, 'page view')} over the last thirty days.`;
+    }
+    if (key === 'shopify' || key === 'squarespace') {
+      const m = d.last30Days || {};
+      return `${key === 'shopify' ? 'Shopify' : 'Squarespace'}: ${plural(m.orders, 'order')} worth ${n(m.revenue)} over the last thirty days.`;
+    }
     if (key === 'facebook') {
       return `Your Facebook Page has ${plural(d.followers, 'follower')}` +
         (d.reach != null ? `, reaching ${plural(d.reach, 'person').replace('persons', 'people')}.` : '.');
     }
     if (key === 'tiktok') {
-      return `TikTok has ${plural(d.followers, 'follower')} and ${plural(d.likes, 'like')}.`
+      return `TikTok has ${plural(d.followers, 'follower')} and ${plural(d.totalLikes != null ? d.totalLikes : d.likes, 'like')}.`
         + latestLine(latestOf(d.recentVideos), 'video');
     }
     return null;
@@ -12434,7 +12449,7 @@ if (window.jarvis.onMacNeedsAutomation) {
 
     (async () => {
       try {
-        const all = await window.jarvis.analyticsGet('all');
+        const all = await window.jarvis.analyticsGet(hit.key);
         const d = all && all[hit.key];
 
         if (!d) {
@@ -12444,14 +12459,15 @@ if (window.jarvis.onMacNeedsAutomation) {
           return;
         }
 
+        // The detail lives in the panel, so open it rather than reading a list
+        // out - and first, so nobody waits on a voice to see it.
+        window.CallistoAnalyticsOverlay?.show(hit.key);
         const line = headline(hit.key, d);
         if (line) {
           addMessage('assistant', line);
           const audio = await window.jarvis.speak(line);
           if (audio) playAudioChunks([audio]);
         }
-        // The detail lives in the panel, so open it rather than reading a list out.
-        window.CallistoAnalyticsOverlay?.show(hit.key);
       } catch (err) {
         console.error('[analytics voice]', err);
         addMessage('assistant', 'I could not reach those numbers just now.');

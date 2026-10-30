@@ -1417,11 +1417,12 @@ app.whenReady().then(async () => {
     };
 
     checkUpdatesNow('startup');
-    setInterval(() => checkUpdatesNow('timer'), 90 * 60 * 1000);
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.on('focus', () => checkUpdatesNow('window focused'));
-      overlayWindow.on('show', () => checkUpdatesNow('window shown'));
-    }
+    setInterval(() => checkUpdatesNow('timer'), 20 * 60 * 1000);
+    // Any window, whenever it arrives. This used to listen on the main window,
+    // but this code runs before that window exists, so the listeners were never
+    // attached. 'activate' below only fires on a Mac, which left Windows with
+    // nothing but the timer - a new version could sit unnoticed for 90 minutes.
+    app.on('browser-window-focus', () => checkUpdatesNow('window focused'));
     app.on('activate', () => checkUpdatesNow('app activated'));
     startDmWatcher();   // tells you when someone messages, whatever you are doing
   }

@@ -1755,6 +1755,7 @@
     .web-action-link { color: #22c3f0; font-weight: 600; text-decoration: underline; margin-left: 4px; }
   </style>
   <link rel="stylesheet" href="/panels/panels.css?v=2" />
+  <link rel="stylesheet" href="/analytics-overlay.css?v=1" />
 </head>
 <body>
   <h1 class="sr-only">Callisto AI — the desktop AI assistant for Windows and Mac</h1>
@@ -3136,8 +3137,29 @@
 
   // Returns true when it handled the request, so the caller does not also send
   // it to the model.
+  // The website's numbers, in the shape the shared panel reads.
+  window.CallistoAnalyticsApi = {
+    analyticsGet: async function(key){
+      const d=await fetchWebStats(false), s=(d&&d.stats)||{}, out={};
+      if(key==='youtube'&&s.youtube) out.youtube={channelName:s.youtube.channel,subscribers:s.youtube.subscribers,totalViews:s.youtube.views,videoCount:s.youtube.videos,recentVideos:s.youtube.recentVideos||[]};
+      if(key==='instagram'&&s.instagram) out.instagram=s.instagram;
+      if(key==='tiktok'&&s.tiktok) out.tiktok={username:s.tiktok.username,followers:s.tiktok.followers,totalLikes:s.tiktok.likes,videoCount:s.tiktok.videos,recentVideos:s.tiktok.recentVideos||[]};
+      if(key==='googleAnalytics'&&s.analytics) out.googleAnalytics={siteName:s.analytics.site,last30Days:{users:s.analytics.visitors,pageViews:s.analytics.pageViews,sessions:s.analytics.sessions},topPages:[]};
+      if(key==='stripe'&&s.stripe) out.stripe={currency:s.stripe.currency,today:{revenue:s.stripe.today},last7Days:{revenue:s.stripe.week},last30Days:{revenue:s.stripe.week}};
+      return out;
+    }
+  };
+  // One app named: that app's panel. In general: the whole dashboard.
+  const NAMED_APP=[['stripe',/\b(stripe|revenue|takings|sales)\b/i],['instagram',/\b(instagram|insta)\b/i],['tiktok',/\b(tiktok|tik tok)\b/i],['youtube',/\b(youtube|yt)\b/i],['shopify',/\bshopify\b/i],['squarespace',/\bsquarespace\b/i],['googleAnalytics',/\b(website|site|google analytics|traffic|visitors)\b/i]];
+  const ASKS_ABOUT=/\b(?:show|open|bring up|pull up|give|see|check|how(?:'?s| is| are)?)\b/i, ABOUT_MINE=/\b(?:my|our)\b/i;
   window._webNumbersIntent = function(text){
-    if(!WANTS_NUMBERS.test(String(text||''))) return false;
+    const t=String(text||'');
+    const named=NAMED_APP.find(function(x){return x[1].test(t);});
+    if(named && ASKS_ABOUT.test(t) && ABOUT_MINE.test(t) && window.CallistoAnalyticsOverlay){
+      window.CallistoAnalyticsOverlay.show(named[0]);
+      return true;
+    }
+    if(!WANTS_NUMBERS.test(t)) return false;
     showNums(false);
     return true;
   };
@@ -5203,6 +5225,7 @@
 <script defer src="/mic-wave.js?v=1"></script>
 <script defer src="/account-security.js?v=1"></script>
 <script defer src="/memory-orb.js?v=1"></script>
+<script defer src="/analytics-overlay.js?v=1"></script>
 <script>
   // The memory orb talks to the server here instead of the app's store.
   (function(){

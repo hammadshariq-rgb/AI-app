@@ -101,6 +101,10 @@
       }
     },
 
+    googleAnalytics: { name: 'Website', sub: 'Google Analytics', accent: '#f5b84b' },
+    shopify: { name: 'Shopify', sub: 'Store', accent: '#95bf47' },
+    squarespace: { name: 'Squarespace', sub: 'Store', accent: '#c9d4ea' },
+
     tiktok: {
       name: 'TikTok', sub: '', accent: '#25f4ee',
       chart: function (d) { return { label: 'Views', points: seriesOf(d) }; },
@@ -236,29 +240,114 @@
       arrow + '</svg>' + Math.abs(delta) + '%</span>';
   }
 
-  /* ── Instagram and TikTok: a grid of tiles ──────────────────────────────────
-     Followers as the headline, total views and the next figure beside it, then
-     two wide tiles: a chart (day by day where the platform gives that,
-     otherwise views per post, oldest to newest) and the recent posts with
-     their views and likes. Views are added up from the posts when the
-     platform doesn't hand over an account total. */
-  function postsOf(key, d) {
-    var raw = key === 'instagram' ? (d.recentPosts || []) : (d.recentVideos || []);
-    return raw.map(function (v) {
+  /* ── Every platform: the same grid of tiles ─────────────────────────────────
+     A headline figure, two supporting figures, then two wide tiles: a chart and
+     a list. Each platform only says what goes where. Views are added up from
+     the posts when a platform doesn't give an account total. */
+  var ICON = {
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
+    money: '<circle cx="12" cy="12" r="9"/><path d="M15 9c-.6-1.2-1.7-1.8-3-1.8-1.8 0-3 1-3 2.3 0 3.2 6 1.6 6 4.9 0 1.3-1.3 2.4-3 2.4-1.4 0-2.6-.7-3.1-1.9M12 5.5v13"/>',
+    bag: '<path d="M6 8h12l1 12H5zM9 8V6a3 3 0 0 1 6 0v2"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5a3.5 3.5 0 0 1 0 6.5M18 14.5c2 .8 3 2.8 3 5.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  };
+  function rowsFrom(list, map) { return (list || []).slice(0, 6).map(map); }
+  function barsFrom(list, valueOf, labelOf) {
+    return (list || []).filter(function (x) { return valueOf(x) != null; }).slice(0, 12).reverse()
+      .map(function (x) { return { y: Number(valueOf(x)) || 0, label: String(labelOf(x) || '').slice(0, 40) }; });
+  }
+  function sumOf(list, f) {
+    var have = (list || []).filter(function (x) { return f(x) != null; });
+    return have.length ? have.reduce(function (s, x) { return s + Number(f(x)); }, 0) : null;
+  }
+  function dur(sec) { var s = Number(sec) || 0; return Math.floor(s / 60) + 'm ' + (s % 60) + 's'; }
+  function moneyTile(cur, v) { return (cur ? cur + ' ' : '') + money(Number(v) || 0); }
+  function viewsOf(x) { return x.views; }
+
+  var TILES = {
+    stripe: function (d) {
+      var cur = d.currency || (d.last30Days && d.last30Days.currency) || '';
+      var today = Number(d.today && d.today.revenue) || 0, yest = Number(d.yesterday && d.yesterday.revenue) || 0;
+      var delta = pct(today, yest);
       return {
-        title: (key === 'instagram' ? v.caption : v.title) || (key === 'instagram' ? 'Post' : 'Video'),
-        views: v.views != null ? Number(v.views) : null,
-        likes: v.likes != null ? Number(v.likes) : null,
-        date: v.date || v.created || v.createTime || null,
-        kind: v.kind || ''
+        hero: { value: moneyTile(cur, d.last30Days && d.last30Days.revenue), label: 'Last 30 days' },
+        a: { icon: 'money', value: moneyTile(cur, today), label: 'Today', sub: delta != null ? (delta >= 0 ? '+' : '') + delta + '% on yesterday' : '' },
+        b: { icon: 'users', value: num(d.totalCustomers || 0), label: 'Customers', sub: moneyTile(cur, d.last7Days && d.last7Days.revenue) + ' this week' },
+        chart: { label: 'Daily takings', series: (d.series || []).map(function (p) { return { x: p.date, y: p.value }; }), money: cur },
+        list: { title: 'Recent payments', empty: 'No payments yet.', rows: rowsFrom(d.recentPayments, function (p) { return { t: p.description || 'Payment', main: p.amount, sub: '' }; }) }
       };
-    });
+    },
+    youtube: function (d) {
+      return {
+        handle: d.channelName,
+        hero: { value: compact(d.subscribers), label: 'Subscribers' },
+        a: { icon: 'eye', value: num(d.views28 != null ? d.views28 : d.totalViews), label: d.views28 != null ? 'Views · 28 days' : 'Total views' },
+        b: { icon: 'clock', value: d.watchTime != null ? num(d.watchTime) + ' hrs' : num(d.videoCount), label: d.watchTime != null ? 'Watch time' : 'Videos' },
+        chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentVideos, viewsOf, function (v) { return v.title; }), barLabel: 'Views per video' },
+        list: { title: 'Recent videos', empty: 'No videos yet.', rows: rowsFrom(d.recentVideos, function (v) { return { t: v.title || 'Video', main: v.views != null ? compact(v.views) + ' views' : '', sub: v.likes != null ? compact(v.likes) + ' likes' : '' }; }) }
+      };
+    },
+    instagram: function (d) {
+      var total = d.views30 != null ? d.views30 : sumOf(d.recentPosts, viewsOf);
+      return {
+        handle: d.username ? '@' + d.username : '',
+        hero: { value: compact(d.followers), label: 'Followers' },
+        a: { icon: 'eye', value: total != null ? num(total) : '—', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
+        b: { icon: 'heart', value: d.reach30 != null ? num(d.reach30) : num(sumOf(d.recentPosts, function (p) { return p.likes; }) || 0), label: d.reach30 != null ? 'Reach · 30 days' : 'Likes · recent posts', sub: d.engagementRate != null ? d.engagementRate + '% engagement' : '' },
+        chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Views per post' },
+        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) }
+      };
+    },
+    tiktok: function (d) {
+      var total = d.views != null ? d.views : sumOf(d.recentVideos, viewsOf);
+      return {
+        handle: d.username,
+        hero: { value: compact(d.followers), label: 'Followers' },
+        a: { icon: 'eye', value: total != null ? num(total) : '—', label: 'Views · recent videos' },
+        b: { icon: 'heart', value: num(d.totalLikes != null ? d.totalLikes : d.likes), label: 'Likes', sub: d.videoCount != null ? num(d.videoCount) + ' videos' : '' },
+        chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentVideos, viewsOf, function (v) { return v.title; }), barLabel: 'Views per video' },
+        list: { title: 'Recent videos', empty: 'No videos yet.', rows: rowsFrom(d.recentVideos, function (v) { return { t: v.title || 'Video', main: v.views != null ? compact(v.views) + ' views' : '', sub: v.likes != null ? compact(v.likes) + ' likes' : '' }; }) }
+      };
+    },
+    facebook: function (d) {
+      return {
+        hero: { value: compact(d.followers), label: 'Followers' },
+        a: { icon: 'eye', value: d.reach != null ? num(d.reach) : '—', label: 'Reach' },
+        b: { icon: 'heart', value: d.engagementRate != null ? d.engagementRate + '%' : '—', label: 'Engagement', sub: d.posts != null ? num(d.posts) + ' posts' : '' },
+        chart: { label: 'Reach', series: seriesOf(d) },
+        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.message || 'Post', main: p.likes != null ? compact(p.likes) + ' likes' : '', sub: '' }; }) }
+      };
+    },
+    googleAnalytics: function (d) {
+      var m = d.last30Days || {}, w = d.last7Days || {};
+      return {
+        handle: d.siteName,
+        hero: { value: compact(m.users), label: 'Visitors · 30 days' },
+        a: { icon: 'eye', value: num(m.pageViews), label: 'Page views · 30 days', sub: num(m.sessions) + ' sessions' },
+        b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : '—', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
+        chart: { label: 'Visitors', series: seriesOf(d), bars: barsFrom(d.topPages, viewsOf, function (p) { return p.path; }), barLabel: 'Views per page' },
+        list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) }
+      };
+    },
+    shopify: function (d) { return shopTiles(d, d.shopName); },
+    squarespace: function (d) { return shopTiles(d, d.siteName || d.shopName); }
+  };
+  function shopTiles(d, handle) {
+    var m = d.last30Days || {}, cur = m.currency || d.currency || '';
+    return {
+      handle: handle,
+      hero: { value: moneyTile(cur, m.revenue), label: 'Sales · 30 days' },
+      a: { icon: 'bag', value: num(m.orders || 0), label: 'Orders · 30 days', sub: m.paidOrders != null ? num(m.paidOrders) + ' paid' : '' },
+      b: { icon: 'users', value: d.totalCustomers != null ? num(d.totalCustomers) : '—', label: 'Customers' },
+      chart: { label: 'Daily sales', series: (d.series || []).map(function (p) { return { x: p.date, y: p.value }; }), money: cur },
+      list: { title: 'Recent orders', empty: 'No orders to show yet.', rows: rowsFrom(d.recentOrders, function (o) { return { t: 'Order ' + (o.orderNumber || ''), main: o.total || '', sub: o.status ? String(o.status).toLowerCase() : '' }; }) }
+    };
   }
 
   function barsSvg(items, accent) {
     var W = 660, H = 190, PAD_T = 18, PAD_B = 26, PAD_X = 8;
-    var vals = items.map(function (i) { return i.y; });
-    var max = Math.max.apply(null, vals.concat([1]));
+    var max = Math.max.apply(null, items.map(function (i) { return i.y; }).concat([1]));
     var n = items.length, gap = 10;
     var bw = Math.max(6, (W - PAD_X * 2 - gap * (n - 1)) / n);
     var ih = H - PAD_T - PAD_B, id = 'aobG' + Math.random().toString(36).slice(2, 7);
@@ -273,13 +362,11 @@
       var gy = PAD_T + (ih / 3) * g;
       grid += '<line x1="' + PAD_X + '" y1="' + gy + '" x2="' + (W - PAD_X) + '" y2="' + gy + '" class="ao-grid"/>';
     }
-    return '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Views per post">' +
+    return '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Bar chart">' +
       '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="' + accent + '" stop-opacity="0.95"/>' +
       '<stop offset="100%" stop-color="#0f37b4" stop-opacity="0.35"/></linearGradient></defs>' +
-      grid + bars +
-      '<text class="ao-axis" x="' + PAD_X + '" y="' + (H - 8) + '">Oldest</text>' +
-      '<text class="ao-axis ao-axis-end" x="' + (W - PAD_X) + '" y="' + (H - 8) + '">Newest</text></svg>';
+      grid + bars + '</svg>';
   }
 
   function compact(v) {
@@ -289,100 +376,40 @@
     return String(n);
   }
 
-  function renderSocial(key, d) {
+  function small(tile) {
+    return '<div class="aob-tile"><div class="aob-ico"><svg viewBox="0 0 24 24">' + ICON[tile.icon] + '</svg></div>' +
+      '<div class="aob-num">' + esc(tile.value) + '</div><div class="aob-cap">' + esc(tile.label) + '</div>' +
+      (tile.sub ? '<div class="aob-subcap">' + esc(tile.sub) + '</div>' : '') + '</div>';
+  }
+
+  function render(key, d) {
     var p = PLATFORMS[key];
-    var posts = postsOf(key, d);
-    var withViews = posts.filter(function (x) { return x.views != null; });
-    var sumViews = withViews.reduce(function (s, x) { return s + x.views; }, 0);
-    var totalViews = key === 'instagram'
-      ? (d.views30 != null ? d.views30 : (withViews.length ? sumViews : null))
-      : (d.views != null ? d.views : (withViews.length ? sumViews : null));
-    var viewsLabel = key === 'instagram' && d.views30 != null ? 'Views · 30 days' : 'Views · recent posts';
-    var third = key === 'instagram'
-      ? { label: 'Reach · 30 days', value: d.reach30 != null ? num(d.reach30) : '—',
-          sub: d.engagementRate != null ? d.engagementRate + '% engagement' : (d.posts != null ? num(d.posts) + ' posts' : '') }
-      : { label: 'Likes', value: num(d.totalLikes != null ? d.totalLikes : d.likes), sub: d.videoCount != null ? num(d.videoCount) + ' videos' : '' };
+    var t = TILES[key] && TILES[key](d);
+    if (!p || !t) return;
+    var c = t.chart || {}, series = c.series || [], bars = c.bars || [], chartTile;
+    var legend = function (text) { return '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>' + esc(text) + '</div>'; };
+    if (series.length) chartTile = legend(c.label + ' · last ' + series.length + ' days') + chartSvg(series, p.accent, c.money);
+    else if (bars.length) chartTile = legend(c.barLabel + ' · latest ' + bars.length) + barsSvg(bars, p.accent);
+    else chartTile = legend(c.label || 'Trend') + '<div class="aob-empty">Nothing to chart yet. It fills in as ' + esc(p.name) + ' reports new figures.</div>';
 
-    var series = seriesOf(d);
-    var chartTile;
-    if (series.length) {
-      chartTile = '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>Views · last ' + series.length + ' days</div>' +
-        chartSvg(series, p.accent);
-    } else if (withViews.length) {
-      var ordered = withViews.slice(0, 12).reverse().map(function (x) { return { y: x.views, label: x.title.slice(0, 40) }; });
-      chartTile = '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>Views per ' + (key === 'instagram' ? 'post' : 'video') + ' · latest ' + ordered.length + '</div>' +
-        barsSvg(ordered, p.accent);
-    } else {
-      chartTile = '<div class="aob-empty">' + esc(p.name) + ' hasn’t shared view counts for these posts yet. New posts usually show views within a day.</div>';
-    }
-
-    var rows = posts.slice(0, 6).map(function (x) {
-      return '<div class="aob-row"><span class="aob-row-t">' + esc(x.title.slice(0, 64)) + '</span>' +
-        '<span class="aob-row-s">' +
-          (x.views != null ? '<b>' + esc(compact(x.views)) + '</b> views' : '') +
-          (x.likes != null ? '<i>' + esc(compact(x.likes)) + ' likes</i>' : '') +
-        '</span></div>';
-    }).join('') || '<div class="aob-empty">No posts yet.</div>';
+    var rows = (t.list.rows || []).map(function (r) {
+      return '<div class="aob-row"><span class="aob-row-t">' + esc(String(r.t || '').slice(0, 64)) + '</span>' +
+        '<span class="aob-row-s">' + (r.main ? '<b>' + esc(r.main) + '</b>' : '') + (r.sub ? '<i>' + esc(r.sub) + '</i>' : '') + '</span></div>';
+    }).join('') || '<div class="aob-empty">' + esc(t.list.empty) + '</div>';
 
     var ring = '<svg class="aob-ring" viewBox="0 0 254 104" aria-hidden="true"><ellipse cx="127" cy="52" rx="122" ry="46"/><ellipse cx="127" cy="52" rx="108" ry="38"/></svg>';
+    var longHero = String(t.hero.value).length > 8;
 
     root.querySelector('#aoBody').innerHTML =
       '<div class="ao-head"><div class="ao-title"><span class="ao-dot" style="background:' + p.accent + '"></span>' +
-        '<span>' + esc(p.name) + '</span>' + (d.username ? '<span class="ao-sub">@' + esc(d.username) + '</span>' : '') + '</div>' +
+        '<span>' + esc(p.name) + '</span>' + (t.handle || p.sub ? '<span class="ao-sub">' + esc(t.handle || p.sub) + '</span>' : '') + '</div>' +
         '<button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>' +
       '<div class="aob" style="--acc:' + p.accent + '">' +
-        '<div class="aob-tile aob-hero">' + ring + '<div class="aob-big">' + esc(compact(d.followers)) + '</div><div class="aob-cap">Followers</div></div>' +
-        '<div class="aob-tile"><div class="aob-ico"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div>' +
-          '<div class="aob-num">' + (totalViews != null ? esc(num(totalViews)) : '—') + '</div><div class="aob-cap">' + esc(viewsLabel) + '</div></div>' +
-        '<div class="aob-tile"><div class="aob-ico"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></div>' +
-          '<div class="aob-num">' + esc(third.value) + '</div><div class="aob-cap">' + esc(third.label) + '</div>' +
-          (third.sub ? '<div class="aob-subcap">' + esc(third.sub) + '</div>' : '') + '</div>' +
+        '<div class="aob-tile aob-hero">' + ring + '<div class="aob-big' + (longHero ? ' aob-big-long' : '') + '">' + esc(t.hero.value) + '</div><div class="aob-cap">' + esc(t.hero.label) + '</div></div>' +
+        small(t.a) + small(t.b) +
         '<div class="aob-tile aob-wide">' + chartTile + '</div>' +
-        '<div class="aob-tile aob-wide"><div class="aob-legend">Recent ' + (key === 'instagram' ? 'posts' : 'videos') + '</div>' + rows + '</div>' +
+        '<div class="aob-tile aob-wide"><div class="aob-legend">' + esc(t.list.title) + '</div>' + rows + '</div>' +
       '</div>';
-    root.querySelector('#aoClose').addEventListener('click', close);
-  }
-
-  function render(key, data) {
-    var p = PLATFORMS[key];
-    if (!p) return;
-    if (key === 'instagram' || key === 'tiktok') return renderSocial(key, data);
-    var chart = p.chart ? p.chart(data) : null;
-    var metrics = p.metrics ? p.metrics(data) : [];
-    var list = p.list ? p.list(data) : null;
-
-    var head = '<div class="ao-head">' +
-      '<div class="ao-title"><span class="ao-dot" style="background:' + p.accent + '"></span>' +
-        '<span>' + esc(p.name) + '</span>' +
-        (p.sub ? '<span class="ao-sub">' + esc(p.sub) + '</span>' : '') + '</div>' +
-      '<button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>';
-
-    var chartBlock = chart && chart.points.length
-      ? '<div class="ao-chart-wrap">' +
-          '<div class="ao-legend"><span class="ao-key" style="background:' + p.accent + '"></span>' +
-            esc(chart.label) + ' · last ' + chart.points.length + ' days</div>' +
-          chartSvg(chart.points, p.accent, chart.money) +
-        '</div>'
-      : '<div class="ao-nochart">Day-by-day figures aren’t available for ' + esc(p.name) + ' yet.</div>';
-
-    var metricBlock = '<div class="ao-metrics">' + metrics.map(function (m) {
-      return '<div class="ao-metric">' +
-        '<div class="ao-m-label">' + esc(m.label) + '</div>' +
-        '<div class="ao-m-value">' + esc(m.value) + trend(m.delta) + '</div>' +
-        (m.sub || m.hint ? '<div class="ao-m-sub">' + esc(m.sub || m.hint) + '</div>' : '') +
-      '</div>';
-    }).join('') + '</div>';
-
-    var listBlock = list && list.rows.length
-      ? '<div class="ao-list"><div class="ao-list-title">' + esc(list.title) + '</div>' +
-        list.rows.map(function (r) {
-          return '<div class="ao-row"><span class="ao-row-l">' + esc(r.left) + '</span>' +
-            (r.note ? '<span class="ao-row-n">' + esc(r.note) + '</span>' : '') +
-            '<span class="ao-row-r">' + esc(r.right) + '</span></div>';
-        }).join('') + '</div>'
-      : '';
-
-    root.querySelector('#aoBody').innerHTML = head + chartBlock + metricBlock + listBlock;
     root.querySelector('#aoClose').addEventListener('click', close);
   }
 
@@ -401,7 +428,7 @@
     requestAnimationFrame(function () { root.classList.add('ao-in'); });
 
     var data = null;
-    try { data = await window.jarvis.analyticsGet(key); } catch (_) {}
+    try { data = await (window.CallistoAnalyticsApi || window.jarvis).analyticsGet(key); } catch (_) {}
     // analyticsGet may answer with everything, or with just this platform.
     if (data && data[key]) data = data[key];
     if (!open || current !== key) return;

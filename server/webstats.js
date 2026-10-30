@@ -68,13 +68,19 @@ async function instagram(userId) {
 
   const me = await get(`https://graph.facebook.com/v23.0/${igId}?fields=username,followers_count,media_count&access_token=${t}`);
   if (!me) return null;
-  const media = await get(`https://graph.facebook.com/v23.0/${igId}/media?fields=like_count,comments_count,media_type,timestamp&limit=5&access_token=${t}`);
+  const media = await get(`https://graph.facebook.com/v23.0/${igId}/media?fields=id,caption,like_count,comments_count,media_type,timestamp&limit=12&access_token=${t}`);
   const latest = media && media.data && media.data[0];
   return {
     username: me.username || null,
     followers: me.followers_count || 0,
     posts: me.media_count || 0,
     latest: latest ? { likes: latest.like_count || 0, comments: latest.comments_count || 0, at: latest.timestamp || null } : null,
+    recentPosts: await Promise.all(((media && media.data) || []).map(async (p) => {
+      const ins = await get(`https://graph.facebook.com/v23.0/${p.id}/insights?metric=views&access_token=${t}`);
+      const row = ins && ins.data && ins.data[0];
+      const views = row ? ((row.values && row.values[0] && row.values[0].value) ?? (row.total_value && row.total_value.value) ?? null) : null;
+      return { caption: String(p.caption || '').slice(0, 120), likes: p.like_count || 0, comments: p.comments_count || 0, views, date: p.timestamp };
+    })),
   };
 }
 
@@ -88,12 +94,18 @@ async function youtube(userId) {
   const s = ch.statistics || {};
   // The newest upload, which is the figure anybody actually wants.
   let latest = null;
-  const uploads = await get(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ch.id}&order=date&type=video&maxResults=1`, auth);
+  const uploads = await get(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ch.id}&order=date&type=video&maxResults=8`, auth);
   const vid = uploads && uploads.items && uploads.items[0];
   if (vid && vid.id && vid.id.videoId) {
     const st = await get(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${vid.id.videoId}`, auth);
     const v = st && st.items && st.items[0];
     if (v) latest = { title: v.snippet && v.snippet.title, views: Number((v.statistics || {}).viewCount || 0) };
+  }
+  let recentVideos = [];
+  const ids = ((uploads && uploads.items) || []).map((i) => i.id && i.id.videoId).filter(Boolean).join(',');
+  if (ids) {
+    const many = await get(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${ids}`, auth);
+    recentVideos = ((many && many.items) || []).map((x) => ({ title: x.snippet && x.snippet.title, views: Number((x.statistics || {}).viewCount || 0), likes: Number((x.statistics || {}).likeCount || 0) }));
   }
   return {
     channel: (ch.snippet && ch.snippet.title) || null,
@@ -101,6 +113,7 @@ async function youtube(userId) {
     views: Number(s.viewCount || 0),
     videos: Number(s.videoCount || 0),
     latest,
+    recentVideos,
   };
 }
 
@@ -111,15 +124,16 @@ async function tiktok(userId) {
   const me = await get('https://open.tiktokapis.com/v2/user/info/?fields=display_name,follower_count,likes_count,video_count', auth);
   const u = me && me.data && me.data.user;
   if (!u) return null;
-  let latest = null;
+  let latest = null, recentVideos = [];
   try {
-    const vids = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,create_time', {
+    const vids = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,create_time', {
       method: 'POST',
       headers: { Authorization: `Bearer ${row.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ max_count: 1 }),
+      body: JSON.stringify({ max_count: 12 }),
     }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     const v = vids && vids.data && vids.data.videos && vids.data.videos[0];
     if (v) latest = { title: v.title || null, views: Number(v.view_count || 0) };
+    recentVideos = ((vids && vids.data && vids.data.videos) || []).map((x) => ({ title: x.title || 'Video', views: Number(x.view_count || 0), likes: Number(x.like_count || 0) }));
   } catch (_) { /* the list scope may not be granted; the counts still are */ }
   return {
     username: u.display_name || null,
@@ -127,6 +141,7 @@ async function tiktok(userId) {
     likes: Number(u.likes_count || 0),
     videos: Number(u.video_count || 0),
     latest,
+    recentVideos,
   };
 }
 
@@ -161,10 +176,12 @@ async function analytics(userId) {
   }
 }
 
-// Stripe is this business's own account, so it is read with the server's key
-// rather than anything the person connected.
-async function stripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
+// Only the account this person connected. It must never fall back to the
+// server's own key: that is the business's account, and it would show the
+// business's takings to every customer who asked for their numbers.
+async function stripe(userId) {
+  const row = await connections.getSecret(userId, 'stripe');
+  const key = row && row.access_token;
   if (!key) return null;
   const since = Math.floor((Date.now() - 7 * 86400000) / 1000);
   const d = await get(`https://api.stripe.com/v1/charges?limit=100&created[gte]=${since}`, {
@@ -192,7 +209,7 @@ async function allFor(userId) {
     tiktok: tiktok(userId),
     youtube: youtube(userId),
     analytics: analytics(userId),
-    stripe: stripe(),
+    stripe: stripe(userId),
   };
   const names = Object.keys(jobs);
   const settled = await Promise.all(names.map((n) => Promise.race([

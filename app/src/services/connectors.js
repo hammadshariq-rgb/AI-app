@@ -1149,9 +1149,24 @@ async function getGoogleAnalyticsStats() {
       views: parseInt(r.metricValues?.[0]?.value || 0),
     }));
 
+    // Visitors day by day, for the chart. Optional: the rest stands without it.
+    let series = [];
+    try {
+      const daily = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }], metrics: [{ name: 'totalUsers' }], dimensions: [{ name: 'date' }], orderBys: [{ dimension: { dimensionName: 'date' } }] }),
+      }).then((x) => x.json());
+      series = (daily.rows || []).map((x) => {
+        const v = x.dimensionValues[0].value;
+        return { date: `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`, value: parseInt(x.metricValues[0].value, 10) || 0 };
+      });
+    } catch (_) {}
+
     return {
       siteName,
       propertyId,
+      series,
       last30Days: {
         sessions:       parseInt(totals30[0]?.value   || 0),
         users:          parseInt(totals30[1]?.value   || 0),
