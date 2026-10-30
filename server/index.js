@@ -2590,14 +2590,30 @@ app.post('/web/voice', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (re
     const sys = `You are Callisto, a friendly personal AI assistant. Be concise — 1 to 3 sentences max. Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. If asked about recent events or people in current roles, share what you know and note if it may have changed recently.`;
 
     // Run AI + TTS in parallel for speed
-    const [completion, ] = await Promise.all([
-      openai.chat.completions.create({
-        model: 'gpt-4.1-mini',
-        messages: [{ role: 'system', content: sys }, ...[stockContextMessage(await stockFromQuestion(transcript))].filter(Boolean), { role: 'user', content: transcript }],
-        max_tokens: 180,
-      }),
-    ]);
-    const reply = completion.choices[0]?.message?.content?.trim() || 'Sorry, I could not respond.';
+    // The same knowledge, memory and figures as the typed box. Voice used to
+    // get a one-line prompt on a smaller model and no idea who it was talking
+    // to, so the same question got a worse answer when it was spoken.
+    let voiceUser = null, voiceNumbers = null;
+    if (req.userId) {
+      voiceUser = await users.findByIdCached(req.userId).catch(() => null);
+      if (/\b(update|numbers|figures|stats|statistics|analytics|followers|subscribers|views|likes|visitors|revenue|sales|payments|doing)\b/i.test(transcript)) {
+        voiceNumbers = await webStatsFor(req.userId, false).then((s) => webstats.describe(s)).catch(() => null);
+      }
+      learnFrom(req.userId, transcript).catch(() => {});
+    }
+    const voiceKnown = memoriesOf(voiceUser).slice(-40);
+    const voiceSystem = [
+      webSystemPrompt(),
+      sys + ' This reply is spoken aloud: plain sentences, no lists, no markdown, no charts.',
+      voiceKnown.length ? 'WHAT YOU KNOW ABOUT THEM (use it without announcing it):\n' + voiceKnown.map((m) => '- ' + m).join('\n') : '',
+      voiceNumbers ? 'THEIR OWN ACCOUNTS, READ JUST NOW:\n' + voiceNumbers : '',
+    ].filter(Boolean).join('\n\n');
+    const completion = await createChat({
+      model: 'gpt-5.4-mini',
+      messages: [{ role: 'system', content: voiceSystem }, ...[stockContextMessage(await stockFromQuestion(transcript))].filter(Boolean), { role: 'user', content: transcript }],
+      ...tokenCap('gpt-5.4-mini', 220),
+    }, req.userId);
+    const reply = String(completion.choices[0]?.message?.content || '').replace(/\[\[REMEMBER:[^\]]*\]\]/gi, '').trim() || 'Sorry, I could not respond.';
 
     // Fast path for the website: stream results as they're ready — the reply text
     // first, then audio sentence by sentence (generated in parallel), so visitors
@@ -2639,6 +2655,47 @@ app.post('/web/voice', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (re
 // answered "I was made by OpenAI" - and anything the desktop app learned later
 // never reached it. Setting it server-side means the two agree, and that a page
 // cannot weaken it.
+// One memory for the whole account. The app keeps facts in prefs.memories and
+// this site used to keep its own separate list in user.memories, so neither
+// knew what the other had learned. Old entries are still read.
+function memoriesOf(user) {
+  const a = (user && user.prefs && Array.isArray(user.prefs.memories)) ? user.prefs.memories : [];
+  const b = (user && Array.isArray(user.memories)) ? user.memories.map((m) => m && m.text).filter(Boolean) : [];
+  const seen = new Set();
+  return b.concat(a).filter((m) => { const k = String(m).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+async function saveMemories(userId, facts) {
+  const user = await users.findById(userId);
+  if (!user) return;
+  const list = (user.prefs && Array.isArray(user.prefs.memories)) ? user.prefs.memories.slice() : [];
+  const have = memoriesOf(user).map((m) => String(m).toLowerCase());
+  let added = 0;
+  for (const f of facts) {
+    const low = String(f).toLowerCase();
+    if (have.some((e) => e === low || (Math.min(e.length, low.length) > 10 && (e.includes(low) || low.includes(e))))) continue;
+    list.push(f); have.push(low); added++;
+  }
+  if (added) await users.update(userId, { 'prefs.memories': list.slice(-120) });
+}
+// The same background learning as the app: lasting, important facts only.
+const LEARN_HINT = /\b(?:i(?:'|’)?m|i am|i(?:'|’)?ve|i have|i had|i was|i work|i run|i own|i live|i love|i hate|i like|i prefer|i want|i(?:'|’)?ll be|we(?:'|’)?re|we are|our|my|me and)\b/i;
+async function learnFrom(userId, text) {
+  const t = String(text || '').trim().slice(0, 1500);
+  if (!userId || t.length < 15 || t.split(/\s+/).length < 4 || !LEARN_HINT.test(t)) return;
+  const user = await users.findByIdCached(userId);
+  const r = await openai.chat.completions.create({
+    model: 'gpt-4.1-mini', max_tokens: 120, temperature: 0,
+    messages: [
+      { role: 'system', content: LEARN_PROMPT + '\nAlready known:\n' + (memoriesOf(user).slice(-60).join('\n') || '(nothing)') },
+      { role: 'user', content: t },
+    ],
+  });
+  const out = String((r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
+  if (!out || /^none\b/i.test(out)) return;
+  const facts = out.split(/\n+/).slice(0, 2).map((l) => l.replace(/^[-*\d.\s]+/, '').trim().slice(0, 300)).filter((l) => /^user\b/i.test(l) && l.length >= 8);
+  if (facts.length) await saveMemories(userId, facts);
+}
+
 function webSystemPrompt() {
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   return [
@@ -2817,10 +2874,14 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     // What it already knows about them. Signed-in only, because there is
     // nowhere to keep it for a visitor who is not - and the app and the
     // website share the account, so what they tell one, the other knows.
-    const known = Array.isArray(user?.memories) ? user.memories.slice(-40) : [];
+    const known = memoriesOf(user).slice(-40);
+    if (req.userId) {
+      const said = [...fromPage].reverse().find((m) => m.role === 'user');
+      learnFrom(req.userId, said && said.content).catch(() => {});
+    }
     const memoryMsg = known.length
       ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations — use it without announcing it):\n'
-          + known.map((m) => '- ' + m.text).join('\n') }
+          + known.map((m) => '- ' + m).join('\n') }
       : null;
 
     const base = [{ role: 'system', content: webSystemPrompt() }, ...fromPage];
@@ -2876,18 +2937,11 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
       const facts = [];
       for (const m of fullText.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi)) {
         const text = String(m[1]).trim().slice(0, 300);
-        if (text) facts.push({ text, at: Date.now() });
+        if (text) facts.push(text);
       }
       if (facts.length) {
         try {
-          const existing = Array.isArray(user?.memories) ? user.memories : [];
-          // Don't store the same thing twice, and keep the file from growing
-          // without limit.
-          const seen = new Set(existing.map((f) => f.text.toLowerCase()));
-          const fresh = facts.filter((f) => !seen.has(f.text.toLowerCase()));
-          if (fresh.length) {
-            await users.update(req.userId, { memories: existing.concat(fresh).slice(-80) });
-          }
+          await saveMemories(req.userId, facts);
         } catch (err) {
           console.warn('[web] could not save what it learned:', err.message);
         }
@@ -3014,6 +3068,19 @@ app.post('/ai/marketing-note', authMiddleware, aiLimiter, async (req, res) => {
     res.json({ note: /^none\b/i.test(note) ? '' : note });
   } catch (err) {
     res.status(500).json({ error: 'Could not write that just now.' });
+  }
+});
+
+// Reading something out on the website when Callisto wrote it itself, like the
+// daily update. Same voice as every other reply.
+app.post('/web/speak', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const input = String((req.body && req.body.text) || '').slice(0, 3000);
+    if (!input) return res.status(400).json({ error: 'Nothing to say.' });
+    const r = await openai.audio.speech.create({ model: 'tts-1', voice: 'fable', speed: 0.92, input, response_format: 'mp3' });
+    res.json({ audio: Buffer.from(await r.arrayBuffer()).toString('base64') });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not read that out just now.' });
   }
 });
 
