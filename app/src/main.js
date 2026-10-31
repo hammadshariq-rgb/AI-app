@@ -165,6 +165,11 @@ async function _learnFromMessage(message) {
   console.log('[MEMORY] learned', added, 'fact(s)');
 }
 
+// Every download of an address that came from outside goes through this: public
+// addresses only, including after redirects. Callisto's own server is the one exception.
+const _netguard = require('./services/netguard');
+const _guardedFetch = (url, opts) => _netguard.safeFetch(fetch, url, opts, (u) => { try { return new URL(u).origin === new URL(process.env.LICENSE_SERVER_URL || 'http://localhost:4000').origin; } catch (_) { return false; } });
+
 function _serverBase() { return process.env.LICENSE_SERVER_URL || 'http://localhost:4000'; }
 function _authHeader() {
   const raw = store.get('authToken');
@@ -4707,6 +4712,59 @@ ipcMain.handle('marketing:note', async (_e, numbers) => {
     return note || null;
   } catch (_) { return null; }
 });
+// Several files in one go, and bringing earlier work back.
+{
+  const _run = commands.run.bind(commands);
+  commands.run = async (name, arg, ...rest) => {
+    const out = await _run(name, arg, ...rest);
+    if (name === 'open_file' && out && out.ok && out.path) {
+      const list = (store.get('workFiles') || []).filter((f) => f.path !== out.path);
+      list.unshift({ path: out.path, at: Date.now() });
+      store.set('workFiles', list.slice(0, 12));
+    }
+    return out;
+  };
+}
+ipcMain.handle('files:openMany', async (_e, names) => {
+  const opened = [], missing = [];
+  for (const n of (Array.isArray(names) ? names : []).slice(0, 5)) {
+    const res = await commands.run('open_file', String(n)).catch(() => null);
+    if (res && res.ok) opened.push(path.basename(res.path)); else missing.push(String(n));
+  }
+  return { opened, missing };
+});
+ipcMain.handle('url:openMany', async (_e, urls) => {
+  let opened = 0;
+  for (const u of (Array.isArray(urls) ? urls : []).slice(0, 8)) {
+    const res = await commands.run('open_url', String(u)).catch(() => null);
+    if (!res || res.ok !== false) opened++;
+  }
+  return { opened };
+});
+ipcMain.handle('work:restore', async () => {
+  const out = { files: [], tabsOpened: 0, browser: null, tabsStillOpen: false };
+  const fs_ = require('fs');
+  const newest = (store.get('workFiles') || [])[0];
+  // Files from the same sitting as the last one opened, within the last 3 days.
+  const recent = newest && Date.now() - newest.at < 3 * 86400000
+    ? (store.get('workFiles') || []).filter((f) => newest.at - f.at < 6 * 3600000).slice(0, 3) : [];
+  for (const f of recent) {
+    if (fs_.existsSync(f.path) && !(await shell.openPath(f.path))) out.files.push(path.basename(f.path));
+  }
+  try {
+    const s = await require('./services/browser-tabs').lastSession();
+    if (s) {
+      out.browser = s.browser;
+      if (s.stillOpen) out.tabsStillOpen = true;
+      else for (const u of s.urls.slice(0, 12)) {
+        const res = await commands.run('open_url', u).catch(() => null);
+        if (!res || res.ok !== false) out.tabsOpened++;
+        await new Promise((ok) => setTimeout(ok, 200));
+      }
+    }
+  } catch (_) {}
+  return out;
+});
 ipcMain.handle('memory:clear', () => { store.delete('memories'); return true; });
 // The memory orb: adding and removing one fact by hand.
 ipcMain.handle('memory:add', (_e, fact) => {
@@ -4813,7 +4871,7 @@ ipcMain.handle('model:fetchFile', async (_e, url) => {
       return local ? new Uint8Array(local) : null;
     }
     if (!/^https:\/\//i.test(String(url))) return null;
-    const res = await fetch(url);
+    const res = await _guardedFetch(url);
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > 150 * 1024 * 1024) return null;
@@ -4996,7 +5054,7 @@ ipcMain.handle('media:saveVideo', async (_e, { url, suggestedName }) => {
     let bytes;
     if (/^file:\/\//i.test(String(url))) bytes = artifacts.readLocal(url);
     else if (/^https:\/\//i.test(String(url))) {
-      const res = await fetch(url);
+      const res = await _guardedFetch(url);
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
       bytes = Buffer.from(await res.arrayBuffer());
     }
@@ -5025,7 +5083,7 @@ ipcMain.handle('media:saveImage', async (_e, { url, suggestedName }) => {
     });
     if (canceled || !filePath) return { ok: false, cancelled: true };
 
-    const res = await nodeFetch(url);
+    const res = await _guardedFetch(url);
     if (!res.ok) throw new Error(`Download failed (${res.status})`);
     fs.writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
     return { ok: true, path: filePath };
@@ -6555,7 +6613,7 @@ async function describeInstagramMedia(url) {
   try {
     const token = loadAuthToken();
     if (!token) return null;
-    const imgRes = await fetch(url);
+    const imgRes = await _guardedFetch(url);
     if (!imgRes.ok) return null;
     const buf = Buffer.from(await imgRes.arrayBuffer());
     if (buf.length > 6 * 1024 * 1024) return null;       // too big to be worth it

@@ -107,7 +107,7 @@ function mountModeling(app, { authMiddleware }) {
         return res.status(503).json({ error: '3D generation is not configured on this server.' });
       }
       const imageUrl = String(req.body?.imageUrl || '').trim();
-      if (!/^https?:\/\//i.test(imageUrl)) {
+      if (!(await require('./netguard').resolvesPublic(imageUrl))) {
         return res.status(400).json({ error: 'That needs a picture to work from.' });
       }
 

@@ -221,7 +221,10 @@ function mountVideo(app, { authMiddleware, publicUrl }) {
       // handed straight to the generator as the video's opening frame without
       // being downloaded and re-uploaded.
       const givenUrl = String(req.body?.imageUrl || '').trim();
-      if (givenUrl && /^https:\/\//i.test(givenUrl)) imageUrl = givenUrl;
+      if (givenUrl) {
+        if (!(await require('./netguard').resolvesPublic(givenUrl, { httpsOnly: true }))) return res.status(400).json({ error: 'That picture address is not allowed.' });
+        imageUrl = givenUrl;
+      }
 
       const imageBase64 = req.body?.imageBase64;
       if (imageBase64) {

@@ -896,6 +896,8 @@ async function run(action, arg) {
   switch (action) {
 
     case 'open_url': {
+      // Nothing an AI reply or a page suggested may send the browser to this
+      // computer or the home network, such as a router's settings page.
       let url = String(arg).trim();
       // If it looks like a search query (no dots, or explicitly a search), use Google
       if (!url.startsWith('http') && !url.includes('.')) {
@@ -903,6 +905,9 @@ async function run(action, arg) {
       } else if (!url.startsWith('http')) {
         url = 'https://' + url;
       }
+      // Nothing an AI reply or a page suggested may send the browser to this
+      // computer or the home network, such as a router's settings page.
+      if (!require('./netguard').publicUrl(url)) return { ok: false, error: 'That address is not one I can open.' };
       await openInChrome(url);
       return { ok: true };
     }

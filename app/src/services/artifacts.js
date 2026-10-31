@@ -62,7 +62,7 @@ function createStore(store, onChange) {
 
   async function download(url, file) {
     if (/^data:/.test(url)) return writeDataUrl(url, file);
-    const res = await fetch(url);
+    const res = await require('./netguard').safeFetch(fetch, url, {}, (u) => { try { return new URL(u).origin === new URL(process.env.LICENSE_SERVER_URL || 'http://localhost:4000').origin; } catch (_) { return false; } });
     if (!res.ok) throw new Error(`Download failed (${res.status})`);
     fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
     return true;

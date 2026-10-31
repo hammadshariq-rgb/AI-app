@@ -4476,6 +4476,13 @@
     const t = String(text||'').trim().replace(/["“”]/g,'').replace(/[\s.!?,;:]+$/,'');
     const enc = encodeURIComponent;
     let m;
+    // A pasted link: public web addresses only.
+    if((m = t.match(/^(?:(?:please\s+)?(?:open|go to|visit|load|play|watch)\s+(?:this\s+|that\s+)?(?:link\s*:?\s*)?)?(https?:\/\/\S+|(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|ai|app|dev|me|tv|edu|gov|pk|uk|ca|de|in|au)(?:[\/?#]\S*)?)$/i))){
+      try{
+        const u = new URL(/^https?:/i.test(m[1]) ? m[1] : 'https://'+m[1]);
+        if(!/^(?:localhost|.*\.local|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|\[)/i.test(u.hostname)) return { url:u.href, say:'Opening '+u.hostname.replace(/^www\./,'')+'.' };
+      }catch(_){}
+    }
     if((m = t.match(/^(?:play|put on|listen to)\s+(.+?)\s+on\s+spotify$/i))) return { url:'https://open.spotify.com/search/'+enc(m[1]), say:`Playing ${m[1]} on Spotify.` };
     if((m = t.match(/^(?:play|watch|put on)\s+(.+?)\s+on\s+youtube(?:\s+music)?$/i))) return { url:'https://www.youtube.com/results?search_query='+enc(m[1]), say:`Opening ${m[1]} on YouTube.` };
     if((m = t.match(/^(?:search|look up|find)\s+(?:on\s+)?youtube\s+(?:for\s+)?(.+)$/i)) || (m = t.match(/^(?:search|look up|find)\s+(.+?)\s+on\s+youtube$/i))) return { url:'https://www.youtube.com/results?search_query='+enc(m[1]), say:`Searching YouTube for ${m[1]}.` };

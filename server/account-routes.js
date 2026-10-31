@@ -33,7 +33,7 @@ function mountAccountRoutes(app, deps) {
 
   function readChallenge(c) {
     try {
-      const d = jwt.verify(String(c || ''), CHALLENGE_KEY);
+      const d = jwt.verify(String(c || ''), CHALLENGE_KEY, { algorithms: ['HS256'] });
       return d && d.purpose === '2fa' && d.id ? d : null;
     } catch (_) { return null; }
   }

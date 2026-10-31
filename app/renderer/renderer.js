@@ -5601,6 +5601,51 @@ window.jarvis.onActivated(() => setTimeout(async () => {
   } catch (_) {}
 }, 900));
 
+// Links, several files at once and "pick up where I left off" need no AI turn.
+async function _handledAsOpening(text) {
+  const reply = async (say) => {
+    addMessage('assistant', say);
+    const a = await window.jarvis.speak(say).catch(() => null);
+    if (a) playAudioChunks([a]);
+  };
+  const urls = window._urlsToOpen?.(text);
+  if (urls) {
+    history.push({ role: 'user', content: text });
+    const r = await window.jarvis.urlOpenMany(urls);
+    await reply(r.opened ? (r.opened === 1 ? 'Opening that link.' : `Opening those ${r.opened} links.`) : "That address isn't one I can open. I only open public websites.");
+    return true;
+  }
+  const files = window._filesToOpen?.(text);
+  if (files) {
+    history.push({ role: 'user', content: text });
+    const r = await window.jarvis.filesOpenMany(files);
+    let say = r.opened.length ? `Opening ${r.opened.join(', ')}.` : "I couldn't find those files.";
+    if (r.opened.length && r.missing.length) say += ` I couldn't find ${r.missing.join(', ')}.`;
+    await reply(say);
+    return true;
+  }
+  if (window._isResumeRequest?.(text)) {
+    const already = history.some((m) => m.role === 'user');
+    const restoreChat = async () => {
+      if (already) return true;
+      const list = (await window.jarvis.listSessions()) || [];
+      const s = list.find((x) => x.messages && x.messages.some((m) => m.role === 'user'));
+      if (!s) return false;
+      const row = chat.lastElementChild;   // their request stays at the bottom
+      s.messages.forEach((m) => addMessage(m.role, m.content));
+      if (row) chat.appendChild(row);
+      history = s.messages.map((m) => ({ role: m.role, content: m.content }));
+      try { localStorage.setItem(OPEN_CHAT, String(s.id)); } catch (_) {}
+      return true;
+    };
+    const say = await window._resumeWork(restoreChat);
+    history.push({ role: 'user', content: text });
+    await reply(say);
+    return true;
+  }
+  return false;
+}
+
 async function saveCurrentSession() {
   if (!history.length) return;
   const preview = history[0]?.content?.slice(0, 60) || 'Conversation';
@@ -6284,6 +6329,7 @@ async function sendToJarvis(rawText) {
   renderAttachPreview();
 
   addMessageWithAttachments('user', text, attachments);
+  if (!attachments.length && await _handledAsOpening(text)) return;
   _beginReplyGate();   // hold background cards until the reply appears
   history.push({ role: 'user', content: text });
   // While a 3D model is open, "make it black and silver" etc. edits the model

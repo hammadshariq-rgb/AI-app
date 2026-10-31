@@ -16,7 +16,7 @@ function collect(body) {
   const b = body || {};
   const text = [b.prompt, b.instruction, b.texture_prompt, b.title, b.description].filter((x) => typeof x === 'string').join('\n').slice(0, 4000);
   const images = [];
-  for (const v of [b.imageUrl, b.image_url]) if (typeof v === 'string' && /^https?:\/\//i.test(v)) images.push(v);
+  for (const v of [b.imageUrl, b.image_url]) if (typeof v === 'string' && require('./netguard').publicUrl(v)) images.push(v);
   if (typeof b.imageBase64 === 'string' && b.imageBase64) {
     images.push(b.imageBase64.startsWith('data:') ? b.imageBase64 : 'data:image/png;base64,' + b.imageBase64);
   }

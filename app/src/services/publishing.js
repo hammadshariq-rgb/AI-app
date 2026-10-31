@@ -40,7 +40,7 @@ async function loadMedia({ filePath, url }) {
     return { buf: fs.readFileSync(p), type: mimeFor(p), name: path.basename(p) };
   }
   if (url) {
-    const res = await fetch(url);
+    const res = await require('./netguard').safeFetch(fetch, url, {}, (u) => { try { return new URL(u).origin === new URL(process.env.LICENSE_SERVER_URL || 'http://localhost:4000').origin; } catch (_) { return false; } });
     if (!res.ok) throw new Error(`Couldn't download the file (${res.status})`);
     const buf = Buffer.from(await res.arrayBuffer());
     const type = res.headers.get('content-type') || (/\.mp4/i.test(url) ? 'video/mp4' : 'image/jpeg');

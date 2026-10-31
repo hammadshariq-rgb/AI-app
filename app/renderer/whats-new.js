@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.17': [
+      { icon: '⏮️', title: 'Pick up where you left off', text: 'Say "where was I" or "restore my work" to bring back your last chat, what you had open, recent files and your Chrome or Edge tabs.' },
+      { icon: '📂', title: 'Open several files at once', text: '"Open budget.pdf and notes.docx" opens them all.' },
+      { icon: '🔗', title: 'Paste a link', text: 'Paste any website or YouTube link and Callisto opens it.' },
+      { icon: '💛', title: 'Reads the room', text: 'Warmer when you are having a hard time, and straight to the point when you just need something done.' },
+      { icon: '🛡️', title: 'Safer links', text: 'Links can no longer be used to reach your computer or home network.' }
+    ],
     '1.9.16': [
       { icon: '📈', title: 'Website analytics fixed', text: 'Visitors and page views now read correctly, and a connected site no longer shows as not connected.' }
     ],
