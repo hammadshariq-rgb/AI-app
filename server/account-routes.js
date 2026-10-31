@@ -354,6 +354,21 @@ function mountAccountRoutes(app, deps) {
     return null;
   }
 
+  // What the next charge will be, for the reminder before it happens. A coupon
+  // changes the figure, so the amount is left out rather than stated wrongly.
+  function nextRenewal(sub) {
+    if (!sub || sub.status !== 'active' || sub.cancel_at_period_end || !sub.current_period_end) return null;
+    const item = sub.items && sub.items.data && sub.items.data[0];
+    const price = item && item.price;
+    const discounted = !!(sub.discount || (sub.discounts && sub.discounts.length));
+    return {
+      at: sub.current_period_end * 1000,
+      interval: (price && price.recurring && price.recurring.interval) || 'month',
+      amount: price && price.unit_amount != null && !discounted ? price.unit_amount * (item.quantity || 1) : null,
+      currency: (price && price.currency) || null,
+    };
+  }
+
   function billingShape(user, sub) {
     return {
       ok: true,
@@ -363,6 +378,7 @@ function mountAccountRoutes(app, deps) {
       // When access actually ends, if cancelled.
       currentPeriodEnd: sub && sub.current_period_end ? sub.current_period_end * 1000 : null,
       freeAccess: !!user.freeAccess,
+      renewal: user.freeAccess ? null : nextRenewal(sub),
     };
   }
 

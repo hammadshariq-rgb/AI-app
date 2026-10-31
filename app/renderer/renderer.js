@@ -8438,13 +8438,23 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       try { return localStorage.getItem('callisto_daily_brief') === _briefKey; }
       catch (_) { return false; }
     })();
+    // A new date alone is not a new day: closing at 23:50 and reopening at 00:10
+    // is the same evening. They must also have been away for a proper stretch.
+    const _AWAY_MS = 6 * 60 * 60 * 1000;
+    const _lastActive = (() => {
+      try { return Number(localStorage.getItem('callisto_last_active')) || 0; }
+      catch (_) { return 0; }
+    })();
+    const _stampActive = () => { try { localStorage.setItem('callisto_last_active', String(Date.now())); } catch (_) {} };
+    _stampActive();
+    setInterval(_stampActive, 60000);
 
     // Reaching this branch at all means the welcome screen is behind them, so
     // they ARE a returning user. The extra returningUser flag comes from the
     // main process store, while the branch above is decided by localStorage -
     // two different places that can disagree, and when they did the app opened
     // completely silent: no greeting, no weather, no numbers, nothing.
-    if (!_alreadyBriefed) {
+    if (!_alreadyBriefed && Date.now() - _lastActive >= _AWAY_MS) {
       try { localStorage.setItem('callisto_daily_brief', _briefKey); } catch (_) {}
       try {
         // profile can be null here when the stored profile and the browser's
@@ -8561,9 +8571,9 @@ function _showDailyAnnouncement(addressAs, briefing) {
       const st = document.createElement('style');
       st.id = 'dailyAnnounceCss';
       st.textContent = `
-      #dailyAnnounce{position:fixed;left:50%;top:22px;z-index:2147482000;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 60px);overflow:auto;transform:translate(-50%,-24px);opacity:0;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .35s ease;
+      #dailyAnnounce{position:fixed;left:50%;top:50%;z-index:2147482000;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 60px);overflow:auto;transform:translate(-50%,calc(-50% - 24px));opacity:0;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .35s ease;
         background:linear-gradient(160deg,rgba(14,22,48,.96),rgba(5,8,22,.97));border:1px solid rgba(110,160,255,.25);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 40px rgba(58,169,255,.12);color:#e3ecff;padding:20px 22px 16px}
-      #dailyAnnounce.in{transform:translate(-50%,0);opacity:1}
+      #dailyAnnounce.in{transform:translate(-50%,-50%);opacity:1}
       #dailyAnnounce .da-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
       #dailyAnnounce .da-orb{flex:none;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd8ff,#3aa9ff 40%,#0f37b4 75%,#040c3c);box-shadow:0 0 18px rgba(58,169,255,.6)}
       #dailyAnnounce .da-k{font-size:10.5px;letter-spacing:.22em;color:rgba(150,185,240,.7)}
@@ -8588,10 +8598,14 @@ function _showDailyAnnouncement(addressAs, briefing) {
     const el = document.createElement('div');
     el.id = 'dailyAnnounce';
     el.setAttribute('role', 'status');
-    el.innerHTML = `<div class="da-top"><div class="da-orb"></div><div><div class="da-k">DAILY UPDATE · ${esc(new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase())}</div><div class="da-h">${greet}, ${esc(addressAs)}</div></div><button class="da-x" aria-label="Close">×</button></div>${rows}`;
+    el.innerHTML = `<div class="da-top"><div class="da-orb"></div><div><div class="da-k">DAILY UPDATE · ${esc(new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase())} · <span class="da-time"></span></div><div class="da-h">${greet}, ${esc(addressAs)}</div></div><button class="da-x" aria-label="Close">×</button></div>${rows}`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('in'));
-    const bye = () => { el.classList.remove('in'); setTimeout(() => el.remove(), 450); };
+    // The computer's own time, kept current while the card is up.
+    const clock = () => { el.querySelector('.da-time').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toUpperCase(); };
+    clock();
+    const ticking = setInterval(clock, 1000);
+    const bye = () => { clearInterval(ticking); el.classList.remove('in'); setTimeout(() => el.remove(), 450); };
     el.querySelector('.da-x').onclick = bye;
     // Long enough to be read along with the voice, then out of the way.
     setTimeout(bye, Math.min(90000, 20000 + briefing.text.length * 55));

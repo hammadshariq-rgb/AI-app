@@ -70,6 +70,11 @@
       .ac-dev-main{flex:1;min-width:0}
       .ac-dev-name{font-size:13px;font-weight:600;color:#e9f1ff}
       .ac-dev-meta{font-size:11.5px;color:rgba(165,190,232,.7);margin-top:2px}
+      #acRenew{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9700;width:min(520px,calc(100% - 32px));
+        box-sizing:border-box;padding:14px 16px;border-radius:14px;background:#0e1424;border:1px solid rgba(255,176,80,.4);
+        box-shadow:0 18px 50px rgba(0,0,0,.55);color:#eef3ff}
+      #acRenew b{display:block;font-size:13.5px;margin-bottom:3px}
+      #acRenew p{margin:0;font-size:12.5px;line-height:1.55;color:rgba(195,214,250,.88)}
       .ac-danger{border:1px solid rgba(255,120,120,.22);border-radius:12px;padding:14px;margin-top:6px}
       @media (prefers-reduced-motion: no-preference){ .ac-panel{animation:acIn .18s ease-out} }
       @keyframes acIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`;
@@ -498,6 +503,64 @@
     });
     return s;
   }
+
+  /* ── Reminder before a subscription renews ─────────────────────────────── */
+  // Three days before a monthly charge, a week before a yearly one. Closing it
+  // is remembered for that renewal alone, so the next one reminds them again.
+  const DAY = 86400000;
+  const RENEW_SEEN = 'callisto_renew_seen';
+  let renewShowing = false;
+
+  function renewalDue(r, now) {
+    if (!r || !r.at || r.at <= now) return false;
+    return r.at - now <= (r.interval === 'year' ? 7 : 3) * DAY;
+  }
+
+  function renewalMoney(r) {
+    if (r.amount == null || !r.currency) return '';
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: r.currency.toUpperCase() }).format(r.amount / 100);
+    } catch (_) { return ''; }
+  }
+
+  function showRenewal(r) {
+    styles();
+    renewShowing = true;
+    const days = Math.max(1, Math.ceil((r.at - Date.now()) / DAY));
+    const money = renewalMoney(r);
+    const el = document.createElement('div');
+    el.id = 'acRenew';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<b>Your Premium renews in ${days} day${days === 1 ? '' : 's'}</b>
+      <p>You will be charged${money ? ' ' + esc(money) : ''} on ${esc(fmtDate(r.at))}. To stop it, end your subscription before then.</p>
+      <div class="ac-row"><button class="ac-btn" data-renew="manage">Manage subscription</button>
+      <button class="ac-btn ghost" data-renew="ok">Got it</button></div>`;
+    el.addEventListener('click', (e) => {
+      const act = e.target.dataset && e.target.dataset.renew;
+      if (!act) return;
+      try { localStorage.setItem(RENEW_SEEN, String(r.at)); } catch (_) {}
+      el.remove();
+      renewShowing = false;
+      if (act === 'manage') open();
+    });
+    document.body.appendChild(el);
+  }
+
+  async function checkRenewal() {
+    if (renewShowing || !window.jarvis || !window.jarvis.accountCall) return;
+    try {
+      const b = await call('GET', '/billing/status');
+      const r = b && b.renewal;
+      if (!renewalDue(r, Date.now())) return;
+      let seen = '';
+      try { seen = localStorage.getItem(RENEW_SEEN) || ''; } catch (_) {}
+      if (seen !== String(r.at)) showRenewal(r);
+    } catch (_) {}
+  }
+  // Hourly as well as on opening: the app can stay open for days, and someone
+  // may sign in after the page has loaded.
+  setTimeout(checkRenewal, 8000);
+  setInterval(checkRenewal, 60 * 60 * 1000);
 
   window.CallistoAccount = { open, close, forgot, askTwoFactor, askEmailCode };
   // The tray's Account & security item.

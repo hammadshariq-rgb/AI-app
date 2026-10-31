@@ -1417,6 +1417,11 @@ function formatAnalyticsForBriefing(a) {
       parts.push(line + '.');
     } else if (a.stripe.last7Days && Number(a.stripe.last7Days.revenue) > 0) {
       parts.push(`Nothing through Stripe yet today, ${cur} ${n(Math.round(Number(a.stripe.last7Days.revenue)))} over the last week.`);
+    } else if (a.stripe.last30Days && Number(a.stripe.last30Days.revenue) > 0) {
+      parts.push(`Nothing through Stripe this week, ${cur} ${n(Math.round(Number(a.stripe.last30Days.revenue)))} over the last thirty days.`);
+    } else {
+      // Connected and quiet is still an answer. Silence looked like a broken connector.
+      parts.push('Stripe shows no payments in the last thirty days.');
     }
   }
 

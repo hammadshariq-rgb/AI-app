@@ -309,10 +309,18 @@ function call(method, p, { body, token, ip = '198.51.100.1' } = {}) {
 
   const st = await call('GET', '/billing/status', { token: s1, ip: ip5 });
   ok('billing status reads the subscription', st.body && st.body.active === true && st.body.cancelAtPeriodEnd === false);
+  ok('it says when the next renewal is', st.body.renewal && st.body.renewal.at === SUBS.get('sub_1').current_period_end * 1000);
+  SUBS.get('sub_1').items = { data: [{ quantity: 1, price: { unit_amount: 2000, currency: 'usd', recurring: { interval: 'month' } } }] };
+  const priced = await call('GET', '/billing/status', { token: s1, ip: ip5 });
+  ok('… and what it will charge', priced.body.renewal.amount === 2000 && priced.body.renewal.currency === 'usd' && priced.body.renewal.interval === 'month');
+  SUBS.get('sub_1').discount = { id: 'di_1' };
+  ok('… but not a figure a coupon has changed', (await call('GET', '/billing/status', { token: s1, ip: ip5 })).body.renewal.amount === null);
+  delete SUBS.get('sub_1').discount;
   const cancel = await call('POST', '/billing/cancel', { token: s1, ip: ip5 });
   ok('ending it succeeds', cancel.status === 200 && cancel.body.cancelAtPeriodEnd === true);
   ok('… at the end of the paid period, not immediately', stripeCalls.some((c) => c[0] === 'update' && c[2].cancel_at_period_end === true) && SUBS.get('sub_1').status === 'active');
   ok('… and says when access ends', cancel.body.currentPeriodEnd > Date.now());
+  ok('no renewal reminder once it is ending', cancel.body.renewal === null);
   const resume = await call('POST', '/billing/resume', { token: s1, ip: ip5 });
   ok('changing their mind resumes it', resume.status === 200 && resume.body.cancelAtPeriodEnd === false);
 

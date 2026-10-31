@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.18': [
+      { icon: '🔔', title: 'Renewal reminders', text: 'Callisto now reminds you before your Premium renews: 3 days before a monthly charge and 7 days before a yearly one.' },
+      { icon: '🌅', title: 'A better daily update', text: 'It now appears in the middle of the screen with the current time and your Stripe figures, and only on your first open of the day after at least 6 hours away.' }
+    ],
     '1.9.17': [
       { icon: '⏮️', title: 'Pick up where you left off', text: 'Say "where was I" or "restore my work" to bring back your last chat, what you had open, recent files and your Chrome or Edge tabs.' },
       { icon: '📂', title: 'Open several files at once', text: '"Open budget.pdf and notes.docx" opens them all.' },
