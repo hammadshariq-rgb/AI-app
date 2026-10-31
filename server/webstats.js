@@ -183,7 +183,8 @@ async function stripe(userId) {
   const row = await connections.getSecret(userId, 'stripe');
   const key = row && row.access_token;
   if (!key) return null;
-  const since = Math.floor((Date.now() - 7 * 86400000) / 1000);
+  const since = Math.floor((Date.now() - 30 * 86400000) / 1000);
+  const weekAgo = Math.floor((Date.now() - 7 * 86400000) / 1000);
   const d = await get(`https://api.stripe.com/v1/charges?limit=100&created[gte]=${since}`, {
     headers: { Authorization: `Bearer ${key}` },
   });
@@ -193,12 +194,25 @@ async function stripe(userId) {
   const todaySec = Math.floor(midnight.getTime() / 1000);
   const sum = (rows) => rows.reduce((n, c) => n + (c.amount || 0), 0) / 100;
   const today = paid.filter((c) => c.created >= todaySec);
+  const week = paid.filter((c) => c.created >= weekAgo);
+  // Day by day, with quiet days as zero, so the chart shows the whole month.
+  const byDay = new Map();
+  for (let i = 29; i >= 0; i--) byDay.set(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10), 0);
+  for (const c of paid) {
+    const day = new Date(c.created * 1000).toISOString().slice(0, 10);
+    if (byDay.has(day)) byDay.set(day, byDay.get(day) + (c.amount || 0) / 100);
+  }
   return {
     currency: (paid[0] && paid[0].currency ? paid[0].currency : 'usd').toUpperCase(),
     today: Math.round(sum(today)),
     todayCount: today.length,
-    week: Math.round(sum(paid)),
-    weekCount: paid.length,
+    week: Math.round(sum(week)),
+    weekCount: week.length,
+    month: Math.round(sum(paid)),
+    monthCount: paid.length,
+    // Stripe hands back 100 charges at most here, so a busier month reads low.
+    monthCapped: d.data.length >= 100,
+    series: [...byDay.entries()].map(([date, value]) => ({ date, value: Number(value.toFixed(2)) })),
   };
 }
 

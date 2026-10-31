@@ -3185,7 +3185,7 @@
       if(key==='instagram'&&s.instagram) out.instagram=s.instagram;
       if(key==='tiktok'&&s.tiktok) out.tiktok={username:s.tiktok.username,followers:s.tiktok.followers,totalLikes:s.tiktok.likes,videoCount:s.tiktok.videos,recentVideos:s.tiktok.recentVideos||[]};
       if(key==='googleAnalytics'&&s.analytics) out.googleAnalytics={siteName:s.analytics.site,last30Days:{users:s.analytics.visitors,pageViews:s.analytics.pageViews,sessions:s.analytics.sessions},topPages:[]};
-      if(key==='stripe'&&s.stripe) out.stripe={currency:s.stripe.currency,today:{revenue:s.stripe.today},last7Days:{revenue:s.stripe.week},last30Days:{revenue:s.stripe.week}};
+      if(key==='stripe'&&s.stripe) out.stripe={currency:s.stripe.currency,today:{revenue:s.stripe.today},last7Days:{revenue:s.stripe.week},last30Days:{revenue:s.stripe.month},series:s.stripe.series||[]};
       return out;
     }
   };
