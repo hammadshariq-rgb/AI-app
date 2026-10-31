@@ -15,7 +15,7 @@
   // (in hand-widths). Loose enough to survive a shaky hand, tight enough that
   // a fist and an open palm are never confused.
   const MATCH_THRESHOLD = 0.22;
-  const HOLD_MS = 450;      // pose must be steady this long before it fires
+  const HOLD_MS = 280;      // pose must be steady this long before it fires
   const COOLDOWN_MS = 1400; // ...and can't fire again for this long
   const RECORD_MS = 3000;   // how long the user holds a pose while recording
 

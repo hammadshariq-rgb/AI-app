@@ -4653,9 +4653,13 @@ ipcMain.handle('jarvis:chat', async (_e, args) => {
 // Chat history sessions
 ipcMain.handle('session:save', (_e, session) => {
   const sessions = store.get('chatSessions') || [];
-  sessions.unshift({ id: Date.now(), date: new Date().toISOString(), preview: session.preview, messages: session.messages });
+  // The open chat updates its own entry rather than adding a new one each save.
+  const _at = session.id ? sessions.findIndex((s) => Number(s.id) === Number(session.id)) : -1;
+  if (_at >= 0) sessions.splice(_at, 1);
+  sessions.unshift({ id: session.id || Date.now(), date: new Date().toISOString(), preview: session.preview, messages: session.messages });
   store.set('chatSessions', sessions.slice(0, 50)); // keep last 50
-  cloudPushPrefs({ chatSessions: sessions.slice(0, 30) }).catch(() => {});
+  clearTimeout(global._chatCloudTimer);   // saved often now; synced at a calmer pace
+  global._chatCloudTimer = setTimeout(() => cloudPushPrefs({ chatSessions: (store.get('chatSessions') || []).slice(0, 30) }).catch(() => {}), 30000);
   return true;
 });
 ipcMain.handle('session:list', () => store.get('chatSessions') || []);
@@ -6452,7 +6456,8 @@ async function _statFor(platform, fresh) {
   // share one call rather than make three.
   if (_statFlight.has(platform)) return _statFlight.get(platform);
   const p = fn().catch(() => null).then((value) => {
-    _statCache.set(platform, { at: Date.now(), value });
+    // A failed read isn't remembered, or it answers "nothing there" for minutes.
+    if (value) _statCache.set(platform, { at: Date.now(), value }); else _statCache.delete(platform);
     _statFlight.delete(platform);
     return value;
   });

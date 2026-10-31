@@ -2609,7 +2609,7 @@ app.post('/web/voice', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (re
     const voiceSystem = [
       webSystemPrompt(),
       sys + ' This reply is spoken aloud: plain sentences, no lists, no markdown, no charts.',
-      voiceKnown.length ? 'WHAT YOU KNOW ABOUT THEM (use it without announcing it):\n' + voiceKnown.map((m) => '- ' + m).join('\n') : '',
+      voiceKnown.length ? 'WHAT YOU KNOW ABOUT THEM (without announcing it). Use a memory ONLY when it is directly relevant to what they just asked. Never bring a hobby, interest or personal fact into a request it has nothing to do with: a marketing brief for their website uses what you know about their business and nothing about their interests. Most replies should use no memories at all.\n' + voiceKnown.map((m) => '- ' + m).join('\n') : '',
       voiceNumbers ? 'THEIR OWN ACCOUNTS, READ JUST NOW:\n' + voiceNumbers : '',
     ].filter(Boolean).join('\n\n');
     const completion = await createChat({
@@ -2884,7 +2884,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
       learnFrom(req.userId, said && said.content).catch(() => {});
     }
     const memoryMsg = known.length
-      ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations — use it without announcing it):\n'
+      ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations, without announcing it). Use a memory ONLY when it is directly relevant to what they just asked. Never bring a hobby, interest or personal fact into a request it has nothing to do with: a marketing brief for their website uses what you know about their business and nothing about their interests. Most replies should use no memories at all.\n'
           + known.map((m) => '- ' + m).join('\n') }
       : null;
 
@@ -3030,7 +3030,7 @@ app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res
 // Picking lasting facts out of something the person said, for their memory.
 // The prompt is fixed here, not sent by the app, so this can only ever do this
 // one small job - which is why it doesn't count against the daily messages.
-const LEARN_PROMPT = 'You pick out facts worth remembering long-term about the user of a personal assistant. Reply with up to 2 lines, each a short third-person fact starting "User", or the single word NONE. Only lasting, important things: people in their life and their names, their business or job and its details, goals and plans, major life events, places they live or love, strong likes and dislikes, how they want to be addressed. Never: passing moods, one-off requests, questions they asked, health conditions, passwords or financial account details. Skip anything already known.';
+const LEARN_PROMPT = 'You pick out facts worth remembering long-term about the user of a personal assistant. Reply with up to 2 lines, each a short third-person fact starting "User", or the single word NONE. Only lasting, important things: people in their life and their names, their business or job and its details, goals and plans, major life events, places they live or love, strong likes and dislikes, how they want to be addressed. Asking about a topic does not make it an interest: only record an interest they state themselves. Never: passing moods, one-off requests, questions they asked, health conditions, passwords or financial account details. Skip anything already known.';
 app.post('/ai/learn', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const text = String((req.body && req.body.text) || '').slice(0, 1500);

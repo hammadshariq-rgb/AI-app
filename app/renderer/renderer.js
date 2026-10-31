@@ -1017,6 +1017,14 @@ function _renderChatMarkdown(src) {
 }
 
 function addMessage(role, text) {
+  // Everything Callisto says goes in the conversation, however it got said. Its
+  // own shortcuts (the TV, numbers, weather) showed a bubble but never told the
+  // history, so the next question arrived with no idea what came before.
+  if (role === 'assistant' && typeof text === 'string' && text.trim()) {
+    const _last = history[history.length - 1];
+    if (!(_last && _last.role === 'assistant' && _last.content === text)) history.push({ role: 'assistant', content: text });
+  }
+  if (typeof _scheduleChatSave === 'function') _scheduleChatSave();
   // Row wrapper (flex row, aligns avatar + bubble)
   const row = document.createElement('div');
   row.className = `msg-row ${role}`;
@@ -5545,6 +5553,8 @@ async function loadHistory() {
       history = [];
       session.messages.forEach(m => addMessage(m.role, m.content));
       history = session.messages.map(m => ({ role: m.role, content: m.content }));
+      // Carrying on in an old chat keeps adding to that chat.
+      try { localStorage.setItem(OPEN_CHAT, String(session.id)); } catch (_) {}
       historySidebar.classList.add('hidden');
     });
   });
@@ -5558,10 +5568,44 @@ async function loadHistory() {
   });
 }
 
+// The open chat is saved as it goes. It was only ever saved on pressing Clear,
+// so closing the app or a crash lost the whole conversation.
+const OPEN_CHAT = 'callisto_open_session';
+let _chatSaveTimer = null;
+function _openChatId() {
+  try {
+    let id = Number(localStorage.getItem(OPEN_CHAT));
+    if (!id) { id = Date.now(); localStorage.setItem(OPEN_CHAT, String(id)); }
+    return id;
+  } catch (_) { return null; }
+}
+function _scheduleChatSave() {
+  clearTimeout(_chatSaveTimer);
+  _chatSaveTimer = setTimeout(() => {
+    if (!history.some((m) => m.role === 'user')) return;
+    const first = history.find((m) => m.role === 'user');
+    window.jarvis.saveSession({ id: _openChatId(), preview: String(first.content).slice(0, 60), messages: history.map((m) => ({ role: m.role, content: m.content })) }).catch(() => {});
+  }, 1500);
+}
+// Open again where they left off.
+window.jarvis.onActivated(() => setTimeout(async () => {
+  try {
+    const id = Number(localStorage.getItem(OPEN_CHAT));
+    if (!id || history.some((m) => m.role === 'user')) return;
+    const s = ((await window.jarvis.listSessions()) || []).find((x) => Number(x.id) === id);
+    if (!s || !s.messages || !s.messages.length) return;
+    const was = history.slice();
+    chat.innerHTML = '';
+    s.messages.forEach((m) => addMessage(m.role, m.content));
+    history = s.messages.map((m) => ({ role: m.role, content: m.content })).concat(was.filter((m) => m.role === 'assistant'));
+  } catch (_) {}
+}, 900));
+
 async function saveCurrentSession() {
   if (!history.length) return;
   const preview = history[0]?.content?.slice(0, 60) || 'Conversation';
-  await window.jarvis.saveSession({ preview, messages: history.map(m => ({ role: m.role, content: m.content })) });
+  clearTimeout(_chatSaveTimer);
+  await window.jarvis.saveSession({ id: _openChatId(), preview, messages: history.map(m => ({ role: m.role, content: m.content })) });
 }
 
 // ===================== CONTROLS =====================
@@ -5584,6 +5628,7 @@ closeBtn.addEventListener('click', () => {
 
 clearBtn.addEventListener('click', async () => { debugFlash('CLEARING...');
   await saveCurrentSession();
+  try { localStorage.removeItem(OPEN_CHAT); } catch (_) {}
   chat.innerHTML = '';
   history = [];
   _sessionMsgCount = 0;
@@ -6395,7 +6440,8 @@ async function sendToJarvis(rawText) {
   // Remove the temporary thinking row now that real response is here
   document.getElementById('_thinkingRow')?.remove();
 
-  history.push({ role: 'assistant', content: res.text });
+  { const _l = history[history.length - 1];
+    if (!(_l && _l.role === 'assistant' && _l.content === res.text)) history.push({ role: 'assistant', content: res.text }); }
   // Don't render a blank bubble — if there's a card it'll display the data visually.
   // If the reply was already streaming into a bubble, finalise that one instead.
   const msgEl = _finishReplyGate(res.text);
@@ -12453,8 +12499,24 @@ if (window.jarvis.onMacNeedsAutomation) {
 
     (async () => {
       try {
-        const all = await window.jarvis.analyticsGet(hit.key);
-        const d = all && all[hit.key];
+        let all = await window.jarvis.analyticsGet(hit.key);
+        let d = all && all[hit.key];
+        // No figures is not the same as not connected. A failed read (an expired
+        // token, Google having a moment) used to be reported as "isn't connected"
+        // straight after connecting it. Ask again, then say what actually happened.
+        const _st = await window.jarvis.connectorStatus().catch(() => ({}));
+        const _linked = !!(_st && _st[hit.key === 'googleAnalytics' ? 'analytics' : hit.key]);
+        if (!d && _linked) {
+          all = await window.jarvis.analyticsGet(hit.key, { fresh: true });
+          d = all && all[hit.key];
+          if (!d) {
+            const msg = `${hit.key === 'stripe' ? 'Stripe' : hit.name} is connected, but I couldn't read the numbers just now. Try again in a moment, and if it keeps happening, reconnect it in Connectors.`;
+            addMessage('assistant', msg);
+            const a = await window.jarvis.speak(msg).catch(() => null);
+            if (a) playAudioChunks([a]);
+            return;
+          }
+        }
 
         if (!d) {
           const label = hit.key === 'stripe' ? 'Stripe' : hit.name;

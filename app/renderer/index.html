@@ -3372,7 +3372,7 @@
       // landmark arrives, which is what the stepping was: smooth maths running
       // out of anything new to aim at. Time constants plus a short velocity
       // lead keep it moving across those gaps.
-      const TAU_FAST = 20;         // ms: stage-1 follows the data
+      const TAU_FAST = 12;         // ms: stage-1 follows the data
       const TAU_DISP = 45;         // ms: stage-2 display smoothing
       const TAU_VEL  = 90;         // ms: velocity estimate
       const LEAD_MS  = 34;         // how far ahead the velocity is projected
@@ -3421,13 +3421,13 @@
       }
       // 1.1Hz when still is heavy smoothing; beta lets it open right up when
       // the hand actually travels.
-      const euroX = OneEuro(1.1, 0.012, 1.0);
-      const euroY = OneEuro(1.1, 0.012, 1.0);
+      const euroX = OneEuro(1.4, 0.03, 1.0);
+      const euroY = OneEuro(1.4, 0.03, 1.0);
 
       // Hover throttle
       let _hoverEl = null;
       let _cursorFrame = 0;
-      const HOVER_EVERY = 3;       // ~20fps hover updates (was 4 = 15fps)
+      const HOVER_EVERY = 2;       // ~20fps hover updates (was 4 = 15fps)
 
       // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
       function cursorTick() {
@@ -4444,7 +4444,7 @@
           // Try ideal constraints first; fall back to any camera if those fail (Mac compatibility)
           try {
             stream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { max: 20 } },
+              video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30, max: 30 } },
               audio: false
             });
           } catch (camErr) {
@@ -4509,10 +4509,10 @@
           // cursor glides between landmarks now rather than waiting on them,
           // but more landmarks is still less to guess at - and the back-off
           // below means a slow machine is not asked for more than it can give.
-          const MIN_INTERVAL = 40;    // never exceed ~25fps
+          const MIN_INTERVAL = 33;    // never exceed ~30fps
           const MAX_INTERVAL = 140;   // never drop below ~7fps
           let _inferMs = 45;          // rolling estimate
-          let sendInterval = 50;
+          let sendInterval = 40;
 
           function loop() {
             if (!gestureEnabled) return;

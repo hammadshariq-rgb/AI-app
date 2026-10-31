@@ -172,7 +172,10 @@
     }
 
     // ── set it to work ─────────────────────────────────────────────────────
-    if (TASK_START.test(t) || (CODE_START.test(t) && !NOT_CODE.test(t))) {
+    // "How do I add debugging?" is a question, not a request to start work in a
+    // project folder.
+    const _asking = /^(?:how|what|why|where|when|which|who|is|are|does|do|did|should|can i|could i)\b/i.test(t) || /\?\s*$/.test(t) && !/^(?:can|could|would|will)\s+you\b/i.test(t);
+    if (!_asking && (TASK_START.test(t) || (CODE_START.test(t) && !NOT_CODE.test(t)))) {
       // Work needs somewhere to happen. Telling someone "say which folder" and
       // giving them no way to say it is how this used to dead-end in a home
       // directory - so it offers the picker, and remembers what they wanted.

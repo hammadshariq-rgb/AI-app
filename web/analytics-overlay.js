@@ -436,7 +436,7 @@
       root.querySelector('#aoBody').innerHTML =
         '<div class="ao-head"><div class="ao-title"><span class="ao-dot" style="background:' + p.accent + '"></span>' +
         esc(p.name) + '</div><button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>' +
-        '<div class="ao-loading">' + esc(p.name) + ' isn’t connected yet. Open Connectors to link it.</div>';
+        '<div class="ao-loading">' + esc(p.name) + ' couldn’t be read just now. If it isn’t connected yet, link it in Connectors; otherwise try again in a moment.</div>';
       root.querySelector('#aoClose').addEventListener('click', close);
       return;
     }

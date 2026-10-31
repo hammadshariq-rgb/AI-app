@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.15': [
+      { icon: '⚡', title: 'A much faster app', text: 'Replies, the connectors list and the hand cursor no longer get held up reading your settings.' },
+      { icon: '💬', title: 'Your chat stays', text: 'Conversations save as you go and reopen where you left off, and follow-up questions keep their context.' },
+      { icon: '🧠', title: 'Smarter use of memory', text: 'Callisto only brings up what you\'ve told it when it actually relates to what you asked.' },
+      { icon: '🔌', title: 'More reliable connectors', text: 'A connected account no longer gets reported as not connected when a read fails.' },
+      { icon: '🖐️', title: 'Quicker hand control', text: 'The cursor follows your hand more closely, and gestures register sooner.' }
+    ],
     '1.9.14': [
       { icon: '🎬', title: 'AI video editing', text: 'Attach a video and say what to change: captions and fonts, lighting and colour, cuts, pace and transitions. It stays on your computer.' },
       { icon: '📣', title: 'A marketing expert, every day', text: 'Ask about hooks, funnels or ads. Say "I\'m back" for your daily update, now with a marketing note written from your own numbers.' },

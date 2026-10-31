@@ -19,7 +19,43 @@
 //      moved, never deleted, so it can still be looked at afterwards.
 const fs = require('fs');
 const path = require('path');
-const Store = require('electron-store');
+const BaseStore = require('electron-store');
+
+// electron-store re-reads and re-parses its whole file on EVERY get. With chats
+// in it that file reaches megabytes, the app makes hundreds of reads, and each
+// one blocks the main process - which is what slow replies, a blank connectors
+// list and a stuttering cursor had in common. So: parse once, and only again
+// when the file has changed on disk. Several modules open the same file, so the
+// parsed copy is shared by path. Values are copied on the way out, because
+// callers push into what they get, as they always could with a fresh parse.
+const _parsed = new Map();   // path -> { mtimeMs, size, data }
+class Store extends BaseStore {
+  _parsedStore() {
+    let st = null;
+    try { st = fs.statSync(this.path); } catch (_) { return super.store; }
+    const hit = _parsed.get(this.path);
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.data;
+    const data = super.store;
+    _parsed.set(this.path, { mtimeMs: st.mtimeMs, size: st.size, data });
+    return data;
+  }
+  get store() { return super.store; }
+  set store(value) { _parsed.delete(this.path); super.store = value; }
+  get(key, dflt) {
+    const data = this._parsedStore();
+    let v;
+    if (Object.prototype.hasOwnProperty.call(data, key)) v = data[key];
+    else {
+      v = data;
+      for (const part of String(key).split('.')) {
+        if (v === null || typeof v !== 'object' || !Object.prototype.hasOwnProperty.call(v, part)) { v = undefined; break; }
+        v = v[part];
+      }
+    }
+    if (v === undefined) return dflt;
+    return v !== null && typeof v === 'object' ? structuredClone(v) : v;
+  }
+}
 
 let _repaired = null;     // what happened, for whoever wants to tell the user
 
