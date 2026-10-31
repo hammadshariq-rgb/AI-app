@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.19': [
+      { icon: '📺', title: 'YouTube on your TV', text: 'Ask for a video and it now plays over Cast, without turning on debugging.' }
+    ],
     '1.9.18': [
       { icon: '🔔', title: 'Renewal reminders', text: 'Callisto now reminds you before your Premium renews: 3 days before a monthly charge and 7 days before a yearly one.' },
       { icon: '🌅', title: 'A better daily update', text: 'It now appears in the middle of the screen with the current time and your Stripe figures, and only on your first open of the day after at least 6 hours away.' }

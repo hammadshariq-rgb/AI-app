@@ -13,6 +13,7 @@ const { Client, DefaultMediaReceiver } = require('castv2-client');
 const mdns   = require('multicast-dns');
 const fetch  = require('node-fetch');
 const adb    = require('./adb-direct');
+const youtubeOverCast = require('./tv-youtube-cast');
 
 // ── App identifiers ────────────────────────────────────────────────────────────
 const APP_IDS = {                         // castv2 app IDs
@@ -613,13 +614,7 @@ async function launchApp(appKey) {
   // plainly that this needs debugging access beats a blank television and a
   // cheerful "done".
   if (appKey === 'youtube' && !connectedDev.hasAdb) {
-    const err = new Error(
-      'I can wake your TV and change the volume over Cast, but opening YouTube '
-      + 'properly needs debugging access — without it all Cast can show is an '
-      + 'empty YouTube screen. Turn on Developer options, then USB or network '
-      + 'debugging, on the TV and ask me again.');
-    err.needsAdb = true;
-    throw err;
+    throw new Error('Over Cast I can play a YouTube video on your TV, but I cannot show the YouTube home screen. Tell me what you want to watch.');
   }
 
   if (appId) {
@@ -663,18 +658,23 @@ async function castYouTube(query, startAt = 0) {
       : 'Accept "Allow USB debugging?" on your Fire TV first, then ask again.');
   }
 
-  // 2. DIAL with video ID
+  // 2. Cast itself, which needs no debugging access.
+  let castError = '';
+  try {
+    await youtubeOverCast.playVideo(connectedDev.host, connectedDev.port, videoId, at);
+    return { ok: true, title, videoId, startedAt: at };
+  } catch (e) {
+    castError = e.message;
+    console.warn('[TV] YouTube over Cast failed:', e.message);
+  }
+
+  // 3. DIAL with video ID
   const dialOk = await dialLaunch('YouTube', `v=${videoId}` + (at > 0 ? `&t=${at}` : ''));
   if (dialOk) return { ok: true, title, videoId, startedAt: at };
 
-  // 3. All that is left is the cast receiver, which shows an empty YouTube
-  // screen and nothing else - no video, no search, no way in. Reporting that
-  // as "opened" is how this came back as a grey screen twice.
-  const err = new Error(
-    `I found "${title}" but cannot start it on this TV. Over Cast alone, YouTube `
-    + 'only ever shows an empty screen. Turn on Developer options and then USB or '
-    + 'network debugging on the TV, and I can play it directly.');
-  err.needsAdb = true;
+  // All that is left is the cast receiver, which shows an empty YouTube screen.
+  // Reporting that as "opened" is how this came back as a grey screen twice.
+  const err = new Error(`I found "${title}" but YouTube would not start it on your TV. ${castError} Try again in a moment.`);
   err.videoId = videoId;
   err.title = title;
   throw err;
@@ -752,7 +752,7 @@ async function openUrl(url, appName = 'App') {
 
   // A YouTube link, with whatever start time is written into it. Opening the
   // app and leaving them to find the video again is not what "play this" meant.
-  const yt = link.match(/(?:youtube\.com\/watch\?[^\s]*[?&]v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/);
+  const yt = link.match(/(?:youtube\.com\/watch\?(?:[^\s]*&)?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/);
   if (yt) {
     const videoId = yt[1];
     const tm = link.match(/[?&](?:t|start)=(\d+h)?(\d+m)?(\d+s?)?/i);
@@ -770,10 +770,15 @@ async function openUrl(url, appName = 'App') {
       const ok = await adbShell(`am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=${videoId}${at > 0 ? '&t=' + at + 's' : ''}" ${pkg}`);
       if (ok) return { ok: true, message: at > 0 ? `Playing it from ${fmtTime(at)}.` : 'Playing it on YouTube.' };
     }
+    let castError = '';
+    try {
+      await youtubeOverCast.playVideo(connectedDev.host, connectedDev.port, videoId, at);
+      return { ok: true, message: at > 0 ? `Playing it from ${fmtTime(at)}.` : 'Playing it on YouTube.' };
+    } catch (e) { castError = e.message; }
     if (await dialLaunch('YouTube', `v=${videoId}` + (at > 0 ? `&t=${at}` : ''))) {
       return { ok: true, message: 'Playing it on YouTube.' };
     }
-    throw Object.assign(new Error('Playing a YouTube link needs debugging access on the TV. Turn on Developer options, then USB or network debugging, and ask again.'), { needsAdb: true });
+    throw new Error(`YouTube would not start that on your TV. ${castError} Try again in a moment.`);
   }
 
   // A file rather than a page: cast it straight to the TV's own player.
