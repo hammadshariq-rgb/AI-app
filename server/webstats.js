@@ -149,10 +149,12 @@ async function analytics(userId) {
   const token = await googleToken(userId, 'analytics');
   if (!token) return null;
   const auth = { headers: { Authorization: `Bearer ${token}` } };
-  const props = await get('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=5', auth);
-  const prop = props && props.properties && props.properties[0];
+  // The plain properties list needs an account filter and comes back empty
+  // without one; account summaries lists every site this login can see.
+  const sums = await get('https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=50', auth);
+  const prop = sums && (sums.accountSummaries || []).flatMap((a) => a.propertySummaries || [])[0];
   if (!prop) return null;
-  const id = String(prop.name || '').replace('properties/', '');
+  const id = String(prop.property || '').replace('properties/', '');
   try {
     const r = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${id}:runReport`, {
       method: 'POST',

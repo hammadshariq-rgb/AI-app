@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.16': [
+      { icon: '📈', title: 'Website analytics fixed', text: 'Visitors and page views now read correctly, and a connected site no longer shows as not connected.' }
+    ],
     '1.9.15': [
       { icon: '⚡', title: 'A much faster app', text: 'Replies, the connectors list and the hand cursor no longer get held up reading your settings.' },
       { icon: '💬', title: 'Your chat stays', text: 'Conversations save as you go and reopen where you left off, and follow-up questions keep their context.' },

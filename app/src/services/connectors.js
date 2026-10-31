@@ -1087,13 +1087,12 @@ async function getGoogleAnalyticsStats() {
     let propertyId = loadAnalyticsPropertyId();
     let siteName   = 'Your Website';
     if (!propertyId) {
-      const propsRes  = await fetch('https://analyticsadmin.googleapis.com/v1beta/properties?pageSize=5', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const propsData = await propsRes.json();
-      const property  = propsData.properties?.[0];
-      if (!property) return null;
-      propertyId = property.name.replace('properties/', '');
+      // The plain properties list refuses a request with no account filter, so
+      // this always came back empty and a working connection read as "not
+      // connected". The same list the picker uses gets it right.
+      const property = (await listAnalyticsProperties())[0];
+      if (!property) { console.warn('[analytics] no properties on this Google account'); return null; }
+      propertyId = property.id;
       siteName   = property.displayName || 'Your Website';
     } else {
       // Fetch display name for saved property
@@ -1124,10 +1123,14 @@ async function getGoogleAnalyticsStats() {
           { name: 'purchaseRevenue' },
           { name: 'transactions' },
         ],
-        limit: 1,
+        // Totals only come back when asked for. Without this every figure read
+        // as zero, however many people had visited.
+        metricAggregations: ['TOTAL'],
       }),
     });
     const reportData = await reportRes.json();
+    // A refusal isn't zero visitors. Say nothing rather than report an empty site.
+    if (reportData.error) { console.warn('[analytics] report refused:', reportData.error.message); return null; }
     const totals30   = reportData.totals?.[0]?.metricValues || [];
     const totals7    = reportData.totals?.[1]?.metricValues || [];
 
