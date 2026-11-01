@@ -6296,9 +6296,10 @@ function stripAssistantName(s) {
     const mine = String((typeof profile === 'object' && profile && profile.name) || '').toLowerCase().trim();
     if (mine && !names.includes(mine)) names.push(mine);
   } catch (_) { /* not set yet */ }
-  const alt = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  // Transcription spells the name several ways.
+  const alt = [...names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '[ck]al+[iey]st[oa]h?'].join('|');
   const out = String(s || '')
-    .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
+    .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,.!-]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
     .replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '')
     .trim();
   // Never strip a sentence away to nothing.

@@ -12,6 +12,15 @@
   'use strict';
 
   var NOTES = {
+    '1.9.21': [
+      { icon: '⚡', title: 'Faster first reply', text: 'Callisto connects to its server as it starts, so your first request is quicker.' },
+      { icon: '✋', title: 'Draw with your hands', text: 'The drawing studio now has a Hands button. Turn it on, then pinch to draw with the Callisto cursor.' },
+      { icon: '🎵', title: 'Song requests fixed', text: '"Hey Callisto, play..." now searches for the song, not your wake phrase.' }
+    ],
+    '1.9.20': [
+      { icon: '✋', title: 'Draw with your hands', text: 'The drawing studio now has a Hands button. Turn it on, then pinch to draw with the Callisto cursor.' },
+      { icon: '🎵', title: 'Song requests fixed', text: '"Hey Callisto, play..." now searches for the song, not your wake phrase.' }
+    ],
     '1.9.19': [
       { icon: '📺', title: 'YouTube on your TV', text: 'Ask for a video and it now plays over Cast, without turning on debugging.' }
     ],

@@ -454,6 +454,13 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
   res.json({ received: true });
 });
 
+// Replies over 1 KB travel compressed. A streamed answer is left alone: holding
+// it back to compress would delay the very words this exists to speed up.
+app.use(require('compression')({
+  threshold: 1024,
+  filter: (req, res) => !/event-stream/.test(String(res.getHeader('Content-Type') || '')) && require('compression').filter(req, res),
+}));
+
 app.use(express.json({ limit: '50mb' }));
 
 // The floor, under everything below. Specific routes add their own tighter
@@ -1815,9 +1822,16 @@ app.patch('/user/prefs', authMiddleware, async (req, res) => {
 });
 
 // Update last active (called on each chat message)
-app.post('/auth/activity', authMiddleware, async (req, res) => {
-  await users.update(req.user.id, { lastActiveAt: Date.now() });
+// One database write every five minutes per person is plenty for "last active",
+// and nobody should wait for it.
+const lastActivityWrite = new Map();
+app.post('/auth/activity', authMiddleware, (req, res) => {
   res.json({ ok: true });
+  const now = Date.now();
+  if (now - (lastActivityWrite.get(req.user.id) || 0) < 5 * 60 * 1000) return;
+  if (lastActivityWrite.size > 50000) lastActivityWrite.clear();
+  lastActivityWrite.set(req.user.id, now);
+  users.update(req.user.id, { lastActiveAt: now }).catch(() => {});
 });
 
 // ── Stripe checkout (email-based, not license key) ────────────────────────────
@@ -3102,8 +3116,11 @@ app.post('/web/speak', authMiddleware, aiLimiter, async (req, res) => {
 });
 
 // Chat streaming (SSE)
-app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
+// Measures where the time goes before the first word: logs numbers only, never content.
+const chatStart = (req, _res, next) => { req._chatStart = Date.now(); next(); };
+app.post('/ai/chat/stream', chatStart, authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
   try {
+    const checksMs = Date.now() - req._chatStart;
     const { messages, model, max_tokens, temperature } = req.body;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -3122,10 +3139,13 @@ app.post('/ai/chat/stream', authMiddleware, appMessageLimit, aiLimiter, async (r
       top_p: 0.9,
       stream: true,
     }, req.userId || (req.user && req.user.id));
+    let firstWordMs = 0;
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta && !firstWordMs) firstWordMs = Date.now() - req._chatStart;
       if (delta) res.write(`data: ${JSON.stringify({ delta })}\n\n`);
     }
+    console.log(`[timing] checks ${checksMs}ms, first word ${firstWordMs}ms, total ${Date.now() - req._chatStart}ms`);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {

@@ -1255,6 +1255,8 @@ ipcMain.handle('mac:openPrivacySettings', (_e, pane) => {
 });
 
 app.whenReady().then(async () => {
+  // Opens the connection early, so the first question skips the encrypted handshake.
+  fetch(_serverBase() + '/config/client').then((r) => r.text()).catch(() => {});
   if (!IS_PRIMARY_INSTANCE) return;   // this copy is on its way out; it hands over above
   // DO NOT CHANGE THIS NAME. It looks cosmetic and is not.
   //
@@ -2842,7 +2844,24 @@ function classifyAIError(err) {
   return { error: 'unknown', userMsg: "Something went wrong on my end. Please try again." };
 }
 
+// The name said at the start of a request is not part of it. Transcription
+// spells it several ways ("Calisto", "Kallisto"), and an exact match let those
+// through into the song search.
+function stripSpokenName(q) {
+  const names = ['[ck]al+[iey]st[oa]h?', 'jarvis'];
+  const mine = String(getAssistantName() || '').toLowerCase().trim();
+  if (mine && !/^callisto$|^jarvis$/.test(mine)) names.push(mine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const alt = names.join('|');
+  const out = String(q || '')
+    .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo|um|uh)[\\s,.!-]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
+    .replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '')
+    .trim();
+  // Never reduce a request to nothing: "play Callisto" means the song.
+  return out || String(q || '').trim();
+}
+
 async function _chatHandler(_e, { message, history, attachments = [], turn = null }) {
+  message = stripSpokenName(message);
   console.log('[CHAT] received:', message?.slice(0, 60));
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);
@@ -3591,18 +3610,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     // "hey callisto", "callisto," or a bare leading name - taken off a search
     // term, never out of the middle of one, so a song actually called
     // "Callisto" is still findable.
-    function _stripAssistantName(q) {
-      const names = ['callisto', 'jarvis'];
-      const mine = String(getAssistantName() || '').toLowerCase().trim();
-      if (mine && !names.includes(mine)) names.push(mine);
-      const alt = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      const out = String(q || '')
-        .replace(new RegExp('^\\s*(?:hey|hi|hello|ok|okay|yo)[\\s,]+(?:' + alt + ')\\b[\\s,.!-]*', 'i'), '')
-        .replace(new RegExp('^\\s*(?:' + alt + ')\\b[\\s,.!-]+(?=\\S)', 'i'), '')
-        .trim();
-      // Never reduce a search to nothing: "play Callisto" means the song.
-      return out || String(q || '').trim();
-    }
+    const _stripAssistantName = stripSpokenName;
     const parts = finalAction.arg.split('|');
     const aiService = (parts[0] || '').trim();
     // Belt and braces on the name. It is stripped before the model sees the

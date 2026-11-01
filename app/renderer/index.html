@@ -4096,9 +4096,9 @@
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
       const TIPS = [4, 8, 12, 16, 20];
       function drawHand(ctx, lm, W, H, isLeft) {
-        // Green everywhere, red inside the 3D studio — the two modes have
+        // Green everywhere, red inside the 3D and drawing studios — the two modes have
         // different controls, so the skeleton says which one you are in.
-        const studio = !!window.CallistoModelViewer?.isOpen?.();
+        const studio = !!window.CallistoModelViewer?.isOpen?.() || !!window.CallistoDraw?.isOpen?.();
         const col = studio
           ? (isLeft ? 'rgba(255,90,90,0.9)' : 'rgba(255,140,60,0.9)')
           : (isLeft ? 'rgba(61,255,180,0.85)' : 'rgba(0,210,255,0.85)');
@@ -4595,6 +4595,7 @@
         // The 3D studio has its own Hands button; keep it in step with this.
         window._gestureActive = gestureEnabled;
         try { window.CallistoModelViewer?.setHandsActive?.(gestureEnabled); } catch (_) {}
+        try { window.CallistoDraw?.setHandsActive?.(gestureEnabled); } catch (_) {}
         if (gestureEnabled) {
           toggleBtn.classList.add('active');
           panel.classList.remove('hidden');

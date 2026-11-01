@@ -74,6 +74,16 @@
         <div class="ds-brand">CALLISTO · DRAWING</div>
         <div class="ds-title" id="dsTitle"></div>
         <div class="ds-top-actions">
+          <button class="ds-btn ds-hand-btn" id="dsHandBtn" type="button"
+                  title="Draw with the Callisto cursor: pinch to draw (Ctrl Shift G)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10.5V4a1.5 1.5 0 0 1 3 0v7"/>
+              <path d="M14 11V6a1.5 1.5 0 0 1 3 0v7"/>
+              <path d="M8 12v-1a1.5 1.5 0 0 0-3 0v4a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"/>
+            </svg>
+            <span id="dsHandBtnLabel">Hands</span>
+          </button>
           <button class="ds-btn" id="dsUndo" title="Undo">↶ Undo</button>
           <button class="ds-btn" id="dsClear" title="Start again">Clear</button>
           <button class="ds-btn ds-btn-go" id="dsDownload">⬇ Download</button>
@@ -916,6 +926,9 @@
 
   // ── Wiring ─────────────────────────────────────────────────────────────────
   function wire() {
+    root.querySelector('#dsHandBtn').addEventListener('click', () => {
+      if (typeof window._gestureToggle === 'function') window._gestureToggle();
+    });
     root.querySelector('#dsClose').addEventListener('click', hide);
     root.querySelector('#dsUndo').addEventListener('click', undo);
     root.querySelector('#dsClear').addEventListener('click', () => {
@@ -1438,21 +1451,35 @@
     handOffHandler({ kind, title, description: describe(), png });
   }
 
+  // The same toggle as Ctrl+Shift+G. Turning it on picks up the pen unless a tool
+  // is already in hand, because a pinch on the canvas only draws with one.
+  function setHandsActive(on) {
+    if (!root) return;
+    const btn = root.querySelector('#dsHandBtn');
+    btn.setAttribute('aria-pressed', String(!!on));
+    btn.classList.toggle('ds-hand-btn-on', !!on);
+    root.querySelector('#dsHandBtnLabel').textContent = on ? 'Hands on' : 'Hands';
+    if (on && open && !root.querySelector('#dsPen.on, #dsLine.on, #dsEraser.on')) root.querySelector('#dsPen').click();
+  }
+
   function show() {
     build();
     root.classList.remove('hidden');
     open = true;
+    document.body.classList.add('ds-open');
     root.querySelector('#dsTitle').textContent = title;
+    setHandsActive(!!window._gestureActive);
   }
   function hide() {
     if (root) root.classList.add('hidden');
     open = false;
+    document.body.classList.remove('ds-open');
     // Say so, so whoever is listening can keep the drawing.
     try { hideHandler && hideHandler(); } catch (_) {}
   }
 
   window.CallistoDraw = {
-    show, hide, apply, undo, download,
+    show, hide, apply, undo, download, setHandsActive,
     // Bringing a picture in from outside the studio - a generated image, or
     // anything else that already has a File to hand.
     addImageFile,
