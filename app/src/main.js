@@ -467,7 +467,7 @@ function createOverlayWindow() {
   // screen tells you nothing from the outside; its console usually says exactly
   // which line stopped.
   if (process.env.CALLISTO_DEBUG) {
-    overlayWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    overlayWindow.webContents.on('console-message', ({ level, message, lineNumber: line, sourceId }) => {
       console.log(`[renderer:${level}] ${message}  (${String(sourceId).split('/').pop()}:${line})`);
     });
     overlayWindow.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', JSON.stringify(d)));

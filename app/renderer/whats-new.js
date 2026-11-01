@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.23': [
+      { icon: '🛡️', title: 'Newer engine', text: 'Callisto now runs on a much newer, supported version of its engine, with the latest security fixes.' }
+    ],
     '1.9.22': [
       { icon: '✋', title: 'Hand control fixed', text: 'Callisto reads your hands again, everywhere in the app.' },
       { icon: '📄', title: 'Open files your way', text: 'Say "open budget", "open budget file" or "open pitch powerpoint presentation".' },

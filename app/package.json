@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.9.22",
+  "version": "1.9.23",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -165,12 +165,12 @@
     "pptxgenjs": "^3.12.0"
   },
   "devDependencies": {
-    "electron": "^33.4.11",
+    "electron": "43.8.6",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^3.0.2"
   },
   "allowScripts": {
-    "electron@33.4.11": true,
+    "electron@43.8.6": true,
     "protobufjs@6.11.6": true
   }
 }
