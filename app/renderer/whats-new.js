@@ -12,6 +12,11 @@
   'use strict';
 
   var NOTES = {
+    '1.9.22': [
+      { icon: '✋', title: 'Hand control fixed', text: 'Callisto reads your hands again, everywhere in the app.' },
+      { icon: '📄', title: 'Open files your way', text: 'Say "open budget", "open budget file" or "open pitch powerpoint presentation".' },
+      { icon: '🍎', title: 'Sign-in on Mac', text: 'Callisto now moves out of the way while you sign in, so browser buttons can be pressed.' }
+    ],
     '1.9.21': [
       { icon: '⚡', title: 'Faster first reply', text: 'Callisto connects to its server as it starts, so your first request is quicker.' },
       { icon: '✋', title: 'Draw with your hands', text: 'The drawing studio now has a Hands button. Turn it on, then pinch to draw with the Callisto cursor.' },

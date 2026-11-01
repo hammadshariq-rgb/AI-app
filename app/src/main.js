@@ -1767,6 +1767,7 @@ ipcMain.handle('auth:verify', async () => {
 });
 
 ipcMain.handle('auth:google', () => {
+  stepAsideForSignIn();
   const server = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
   // The browser may never hand the jarvis:// link back — Chrome asks the person
   // first, and a dismissed dialog leaves the token stranded there with the app
@@ -2961,7 +2962,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   }
   // "open my budget file", "open the essay document", "open resume.pdf" — a file,
   // found and opened (Finder/File Explorer's own search), not an app called "budget file".
-  if (_openM && /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(_openM[1].trim())) {
+  if (_openM && /.\s+(?:file|document|doc|docx|word(?:\s+doc(?:ument)?)?|pdf|spreadsheet|sheet|xlsx|excel(?:\s+(?:file|sheet))?|presentation|slides|deck|ppt|pptx|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(_openM[1].trim())) {
     const res = await commands.run('open_file', _openM[1].trim()).catch((e) => ({ ok: false, error: e.message }));
     const t = res?.ok ? `Opening ${path.basename(res.path)}.` : (res?.error || "I couldn't find that file.");
     // A document that was just opened is the one thing the person is looking
@@ -2997,6 +2998,17 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
       return { text: 'Right away.', audio: null, card: null, hasAction: true };
     }
     if (FAST_MUSIC.test(target) || (!target.includes('.com') && !target.includes('http'))) {
+      // "open budget" with a file named exactly that means the file. Launching
+      // cannot tell us, because it reports success for names that are not apps.
+      const exact = FAST_MUSIC.test(target) ? null : await commands.run('find_exact_file', target).catch(() => null);
+      if (exact && exact.ok) {
+        const file = await commands.run('open_file', exact.path).catch(() => null);
+        if (file && file.ok) {
+          const said = `Opening ${path.basename(file.path)}.`;
+          _sendTTS(_e.sender, said);
+          return { text: said, audio: null, card: null, hasAction: true };
+        }
+      }
       commands.run('open_app', target).catch(() => {});
       _sendTTS(_e.sender, 'Right away.');
       return { text: 'Right away.', audio: null, card: null, hasAction: true };
@@ -6043,7 +6055,26 @@ async function startMicrosoftOAuthFlow() {
 
 // ── Connectors IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('connector:status', () => connectors.getConnectorStatus());
+// A Mac gives clicks to whichever window sits on top, and this one covers the
+// screen, so "Continue" in a browser sign-in could land on Callisto. It gets out
+// of the way until the sign-in finishes, or until they click its Dock icon.
+function stepAsideForSignIn() {
+  if (process.platform !== 'darwin' || !overlayWindow || overlayWindow.isDestroyed()) return;
+  overlayWindow.setAlwaysOnTop(false);
+  overlayWindow.minimize();
+  const wc = overlayWindow.webContents;
+  const original = wc.send.bind(wc);
+  wc.send = (channel, ...args) => {
+    if (channel === 'connector:connected' || channel === 'auth:google-success' || channel === 'analytics:showPropertyPicker') {
+      wc.send = original;
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.restore();
+    }
+    return original(channel, ...args);
+  };
+}
+
 ipcMain.handle('connector:connect', async (_e, service) => {
+  stepAsideForSignIn();
   // Google services: use direct Electron OAuth (no server needed)
   const googleServices = ['gmail', 'calendar', 'drive', 'youtube', 'analytics', 'googleAccount'];
   if (googleServices.includes(service)) {

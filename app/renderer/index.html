@@ -4189,7 +4189,7 @@
         }
 
         // Show "hand detected" so user knows detection is working
-        if (gpAction.textContent === 'Show your hand') gpAction.textContent = 'Hand detected — hold a gesture';
+        if (gpAction.textContent.startsWith('Show your hand')) gpAction.textContent = 'Hand detected — hold a gesture';
 
         // Draw skeletons — left hand = green/cyan palette, right hand = blue/cyan palette.
         // Skipped entirely when the preview panel is closed: gestures still work, but
@@ -4359,7 +4359,7 @@
           // ── 5a. SWIPE — one sweep sideways → the next window along ──────
           // Checked before the wave, because a swipe is the clearer gesture
           // and should not be swallowed by a looser one.
-          const swipeDir = checkSwipe(lm, i, now);
+          const swipeDir = checkSwipe(lm, i, performance.now());
           if (swipeDir && canFire('wave')) {
             showGesture(swipeDir === 'left' ? '👈' : '👉',
               swipeDir === 'left' ? 'Previous app' : 'Next app');
@@ -4417,7 +4417,11 @@
             minDetectionConfidence: 0.55, // slightly lower = finds hand faster
             minTrackingConfidence: 0.5,
           });
-          m.onResults((r) => { if (!_handsWarming) onHandResults(r); });
+          // One bad frame must never take hand control down with it.
+          m.onResults((r) => {
+            if (_handsWarming) return;
+            try { onHandResults(r); } catch (e) { console.error('[Gesture]', e); }
+          });
           // One blank frame through it now, so the first real frame is not the
           // one paying for initialisation.
           try {

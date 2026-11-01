@@ -1241,13 +1241,25 @@ function readCookie(req, name) {
   return '';
 }
 
+const CONNECT_WINDOW_MS = (Number(process.env.CONNECT_WINDOW_SECONDS) || 30) * 1000;
+const connectLinksSeen = new Map();
+
 // Starting a connection: require a well-formed secret and pin it to this browser.
 app.get(/^\/connect\/([a-z]+)$/, (req, res, next) => {
   const state = String(req.query.state || '');
   if (!OAUTH_STATE_RE.test(state)) {
     return res.status(400).send('This connection link has expired. Please start the connection again from the Callisto app.');
   }
-  res.setHeader('Set-Cookie', `oauth_state_${req.params[0]}=${state}; Path=/connect; Max-Age=900; HttpOnly; Secure; SameSite=Lax`);
+  // A connect link works for a short window from its first opening, and an old
+  // link cannot be reopened to restart that window.
+  const now = Date.now();
+  const first = connectLinksSeen.get(state) || now;
+  if (now - first > CONNECT_WINDOW_MS) {
+    return res.status(410).send('<p>This connection link has expired. Please start again from Callisto.</p><script>setTimeout(function(){window.close()},1500)</script>');
+  }
+  connectLinksSeen.set(state, first);
+  if (connectLinksSeen.size > 20000) connectLinksSeen.clear();
+  res.setHeader('Set-Cookie', `oauth_state_${req.params[0]}=${state}; Path=/connect; Max-Age=${Math.ceil(CONNECT_WINDOW_MS / 1000)}; HttpOnly; Secure; SameSite=Lax`);
   next();
 });
 

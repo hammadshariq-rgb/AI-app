@@ -670,8 +670,8 @@ const _PICS = ['jpg', 'jpeg', 'png', 'heic', 'gif', 'webp', 'bmp'];
 const _VIDS = ['mp4', 'mov', 'mkv', 'avi', 'm4v', 'webm'];
 const FILE_TYPE_EXTS = {
   spreadsheet: _SHEETS, sheet: _SHEETS, excel: _SHEETS,
-  document: _DOCS, doc: _DOCS, word: ['docx', 'doc'], pdf: ['pdf'],
-  presentation: _DECKS, slides: _DECKS, deck: _DECKS, powerpoint: _DECKS,
+  document: _DOCS, doc: _DOCS, docx: ['docx'], word: ['docx', 'doc'], pdf: ['pdf'], xlsx: ['xlsx'],
+  presentation: _DECKS, slides: _DECKS, deck: _DECKS, powerpoint: _DECKS, ppt: _DECKS, pptx: _DECKS,
   photo: _PICS, picture: _PICS, image: _PICS, video: _VIDS,
 };
 const _USEFUL_EXTS = new Set([..._SHEETS, ..._DOCS, ..._DECKS, ..._PICS, ..._VIDS, 'zip', 'json']);
@@ -681,9 +681,15 @@ function parseFileQuery(raw) {
   let name = String(raw || '').replace(/["“”]/g, '').replace(/[\s!?,;:]+$/, '').replace(/\.$/, '').trim()
     .replace(/^(?:up\s+)?(?:my|the|a|an|that|this)\s+/i, '');
   let exts = null;
-  const typeM = name.match(/\s+(file|files|document|doc|word(?:\s+doc(?:ument)?)?|pdf|spreadsheet|sheet|excel(?:\s+(?:file|sheet))?|presentation|slides|deck|powerpoint|photo|picture|image|video)$/i);
-  if (typeM) {
-    exts = FILE_TYPE_EXTS[typeM[1].toLowerCase().split(/\s+/)[0]] || null;
+  // Speech writes "budget dot pdf".
+  name = name.replace(/\s+dot\s+([a-z0-9]{2,5})$/i, '.$1');
+  // Every type word comes off, not just the last: "budget pdf file" and
+  // "pitch powerpoint presentation" are the file "budget" and the file "pitch".
+  for (;;) {
+    const typeM = name.match(/\s+(file|files|document|doc|docx|word(?:\s+doc(?:ument)?)?|pdf|spreadsheet|sheet|xlsx|excel(?:\s+(?:file|sheet))?|presentation|slides|deck|ppt|pptx|powerpoint|photo|picture|image|video)$/i);
+    if (!typeM) break;
+    const kind = FILE_TYPE_EXTS[typeM[1].toLowerCase().split(/\s+/)[0]];
+    if (kind && !exts) exts = kind;
     name = name.slice(0, typeM.index).trim();
   }
   const withExt = /\.[a-z0-9]{1,5}$/i.test(name);
@@ -910,6 +916,15 @@ async function run(action, arg) {
       if (!require('./netguard').publicUrl(url)) return { ok: false, error: 'That address is not one I can open.' };
       await openInChrome(url);
       return { ok: true };
+    }
+
+    // Only a file named exactly what was said, and quickly: this runs before an
+    // app is launched, so it must never make opening apps feel slow.
+    case 'find_exact_file': {
+      const want = parseFileQuery(String(arg));
+      const full = await Promise.race([findFile(String(arg)), new Promise((ok) => setTimeout(() => ok(null), 1500))]);
+      const stem = full ? _norm(path.basename(full, path.extname(full))) : '';
+      return { ok: !!full && stem === _norm(want.name), path: full };
     }
 
     case 'open_app': {
