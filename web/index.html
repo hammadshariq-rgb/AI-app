@@ -245,9 +245,10 @@
     }
 
     /* The app pins this to the viewport at z-index 0, under everything. */
+    /* Kept inside the hero. Fixed, it showed through every section below. */
     #shaderBg {
-      position: fixed; top: 0; left: 0;
-      width: 100vw; height: 100vh;
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
       z-index: 0; display: block; pointer-events: none;
     }
 
@@ -491,6 +492,9 @@
     #shiftBtn:hover { color: rgba(150,190,255,0.8); border-color: rgba(100,140,255,0.3); }
 
     /* ═══ SECTION WRAPPER ═══ */
+    #beamsBg { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; filter: blur(15px); }
+    body.light #beamsBg { opacity: .55; }
+    footer { position: relative; z-index: 1; }
     .section { position: relative; z-index: 1; padding: 80px 24px; max-width: 1080px; margin: 0 auto; }
     .sec-eyebrow { font-family: var(--brand); font-size: 10px; letter-spacing: 5px; font-weight: 700; color: rgba(80,140,255,0.6); text-align: center; margin-bottom: 12px; }
     .sec-title { font-family: var(--brand); font-size: clamp(30px,4vw,44px); font-weight: 700; letter-spacing: 1px; color: #fff; text-align: center; line-height: 1.15; margin-bottom: 12px; }
@@ -5339,6 +5343,7 @@
 <!-- news-web.js built a second headline bar at the foot of the page, on top of the ticker already in the hero. One is enough. -->
 <script defer src="/documents-web.js?v=1"></script>
 <script defer src="/gestures.js?v=1"></script>
+<script defer src="/beams-bg.js?v=1"></script>
 <script defer src="/feature-belt.js?v=4"></script>
 <script defer src="/gestures-web.js?v=1"></script>
 <script defer src="/gestures-ui.js?v=1"></script>
