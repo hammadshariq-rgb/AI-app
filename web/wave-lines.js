@@ -51,10 +51,12 @@
 
     void main() {
       vec2 uv = gl_FragCoord.xy / iResolution.xy;
-      vec2 space = (gl_FragCoord.xy - iResolution.xy / 2.0) / iResolution.x * 2.0 * scale;
+      // Centred below the orb and its name, in the space above the mic, so the
+      // lines fill that gap instead of running through the orb.
+      vec2 space = (gl_FragCoord.xy - iResolution.xy * vec2(0.5, 0.33)) / iResolution.x * 2.0 * scale;
 
       float hFade = 1.0 - (cos(uv.x * 6.28) * 0.5 + 0.5);
-      float vFade = 1.0 - (cos(uv.y * 6.28) * 0.5 + 0.5);
+      float vFade = 1.0 - (cos((uv.y + 0.2) * 6.28) * 0.5 + 0.5);
 
       space.y += random(space.x * warpFrequency + iTime * warpSpeed) * warpAmplitude * (0.5 + hFade);
       space.x += random(space.y * warpFrequency + iTime * warpSpeed + 2.0) * warpAmplitude * hFade;
@@ -78,7 +80,7 @@
       }
 
       // Restrict waves to vertical center band so they don't reach text areas
-      float centerFade = smoothstep(0.0, 0.18, uv.y) * smoothstep(1.0, 0.82, uv.y);
+      float centerFade = smoothstep(0.0, 0.1, uv.y) * smoothstep(0.62, 0.48, uv.y);
 
       vec4 col = mix(vec4(0.0, 0.02, 0.07, 1.0), vec4(0.0, 0.04, 0.13, 1.0), uv.x);
       col *= vFade;

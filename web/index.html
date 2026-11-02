@@ -477,7 +477,7 @@
     /* The app leaves a good stretch of wave between the orb and these; on the
        site they sat straight under it with nothing between, so the orb had no
        room to breathe. */
-    #orbActions { display: flex; align-items: center; gap: 18px; margin-top: 170px; }
+    #orbActions { display: flex; align-items: center; gap: 18px; margin-top: 120px; }
     .orb-btn {
       width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--border2);
       background: rgba(10,15,40,0.8); backdrop-filter: blur(12px);
@@ -4292,6 +4292,12 @@
       'Making 3D models'],
     [/\b(?:make|create|generate|turn [^.?!]{0,20}into)\b[^.?!]{0,24}\b(?:video|animation|clip|reel)\b|\banimate\b/i,
       'Making videos'],
+    [/\b(?:take|grab)\b[^.?!]{0,12}\bscreenshot\b|\b(?:control|use|move)\b[^.?!]{0,12}\b(?:my )?(?:computer|laptop|pc|mac|mouse|keyboard)\b/i,
+      'Controlling your computer'],
+    [/\bconversation mode\b|\bkeep listening\b/i,
+      'Conversation mode'],
+    [/\b(?:turn (?:up|down)|set|mute)\b[^.?!]{0,12}\b(?:the |my )?volume\b|\b(?:shut ?down|restart|lock)\b[^.?!]{0,10}\b(?:my )?(?:computer|laptop|pc|mac)\b/i,
+      'Controlling your computer'],
     [/\b(?:circle|magic cursor)\b|\bwhat(?:\x27s| is) on my screen\b|\bscreen assist\b|\blook at my screen\b/i,
       'Reading your screen'],
     [/\bmagic edit(?:or)?\b|\bedit (?:my |this )?(?:highlighted|selected)\b/i,
@@ -4326,8 +4332,8 @@
     for(const [re, what] of WEB_CANNOT){
       if(re.test(text)){
         addMsg('ai',
-          `**${what}** is only in the downloaded app — this page cannot do it.\n\n`
-          + `Callisto on your computer can, along with everything else here. `
+          `**${what}** is only available in the downloaded app version of Callisto, not on the website.\n\n`
+          + `The app is free. `
           + `[Download it](https://github.com/hammadshariq-rgb/AI-app/releases/latest) — it is free.`);
         return true;
       }
@@ -5313,7 +5319,7 @@
 </script>
 <script defer src="/market-chart.js?v=1"></script>
 <script defer src="/mic-wave.js?v=1"></script>
-<script defer src="/account-security.js?v=2"></script>
+<script defer src="/account-security.js?v=3"></script>
 <script defer src="/memory-orb.js?v=1"></script>
 <script defer src="/analytics-overlay.js?v=1"></script>
 <script>
@@ -5348,7 +5354,7 @@
 </script>
 <script defer src="/panels/bridge.js?v=1"></script>
 <script defer src="/wave-app.js?v=1"></script>
-  <script defer src="/wave-lines.js?v=1"></script>
+  <script defer src="/wave-lines.js?v=2"></script>
   <script defer src="/panels/panels.js?v=1"></script>
 <script defer src="/panels/portfolio.js?v=1"></script>
 <script defer src="/gates.js?v=1"></script>

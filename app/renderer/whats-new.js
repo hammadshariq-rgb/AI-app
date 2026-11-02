@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.25': [
+      { icon: '🔐', title: 'Account & security', text: 'Now in Account settings, with a new design: two-factor, devices, subscription and deleting your account.' }
+    ],
     '1.9.24': [
       { icon: '🖐️', title: 'Faster hand cursor', text: 'The cursor follows your hand more closely, drawing stays quick on a full canvas, and pinches land where you aim.' },
       { icon: '👏', title: 'No more accidental quits', text: 'A clap no longer closes Callisto or clears your chat.' },

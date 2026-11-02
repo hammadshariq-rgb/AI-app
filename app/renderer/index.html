@@ -2359,6 +2359,15 @@
               </div>
 
               <div class="profile-section">
+                <div class="profile-label">ACCOUNT &amp; SECURITY</div>
+                <button type="button" id="openAccountSecurity" onclick="window.CallistoAccount && window.CallistoAccount.open()"
+                  style="margin-top:8px;width:100%;display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:1px solid rgba(110,160,255,.22);background:linear-gradient(135deg,rgba(15,55,180,.28),rgba(5,10,30,.6));color:rgba(225,236,255,.95);font:inherit;font-size:13px;cursor:pointer;text-align:left">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/></svg>
+                  <span style="flex:1">Manage account and security<br><span style="font-size:11px;color:rgba(160,185,230,.6)">Two-factor, devices, subscription, delete account</span></span>
+                </button>
+              </div>
+
+              <div class="profile-section">
                 <div class="profile-label">VOICE SETTINGS</div>
                 <div class="profile-voice-toggle-row">
                   <span class="profile-slider-label">VOICE</span>
@@ -3100,7 +3109,7 @@
   <script src="file-picker.js?v=1"></script>
   <script src="camera-look.js?v=1"></script>
   <script src="skills.js?v=1"></script>
-  <script src="account-security.js?v=2"></script>
+  <script src="account-security.js?v=3"></script>
   <script src="memory-orb.js?v=1"></script>
   <script>
     // Errors in this window, passed up for the crash reports. At most one per

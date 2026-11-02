@@ -25,15 +25,32 @@
       #acWrap{position:fixed;inset:0;z-index:9800;display:flex;align-items:center;justify-content:center;
         background:rgba(4,6,14,.76);backdrop-filter:blur(10px);padding:16px}
       #acWrap.hidden{display:none}
-      .ac-panel{width:min(600px,100%);max-height:88vh;overflow:auto;border-radius:18px;padding:24px;
+      .ac-panel{width:min(600px,100%);max-height:88vh;overflow:auto;border-radius:20px;padding:20px;
         background:linear-gradient(180deg,#0e1424,#070b14);border:1px solid rgba(120,160,255,.18);
         box-shadow:0 40px 120px rgba(0,0,0,.7);color:#dce8ff}
       .ac-panel.small{width:min(400px,100%)}
       .ac-eyebrow{font-size:9px;letter-spacing:3px;font-weight:700;color:rgba(110,140,205,.6)}
       .ac-title{font-size:19px;font-weight:700;color:#eef3ff;margin:3px 0 6px}
       .ac-sub{font-size:13px;line-height:1.6;color:rgba(185,208,250,.8);margin:0 0 14px}
-      .ac-sec{border-top:1px solid rgba(255,255,255,.07);padding:18px 0 4px}
-      .ac-sec:first-of-type{border-top:none;padding-top:6px}
+      .ac-sec{border:1px solid rgba(120,160,255,.14);border-radius:16px;padding:16px 18px;margin-top:12px;background:rgba(255,255,255,.025)}
+      .ac-card{border-radius:16px;overflow:hidden;background:#0a1020;border:1px solid rgba(120,160,255,.2);box-shadow:0 14px 40px rgba(0,0,0,.45);transition:transform .25s ease}
+      .ac-card:hover{transform:scale(1.012)}
+      .ac-card-top{position:relative;height:104px;background:radial-gradient(circle at 78% 130%,#8aacff 0,#3060ff 22%,#0a1fcc 38%,rgba(5,16,138,.5) 52%,transparent 66%),linear-gradient(120deg,#061030,#0b1b55)}
+      .ac-card-top span{position:absolute;left:18px;bottom:14px}
+      .ac-card-body{padding:16px 20px 18px}
+      .ac-route{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .ac-route>div:last-child{text-align:right}
+      .ac-small{font-size:11.5px;color:rgba(170,195,235,.72)}
+      .ac-big{font-size:34px;line-height:1.15;font-weight:700;color:#f2f6ff;letter-spacing:.5px}
+      .ac-mid{text-align:center;flex:none}
+      .ac-line{display:flex;align-items:center;gap:7px;margin:4px 0}
+      .ac-line i{display:block;height:1px;width:30px;background:rgba(140,170,240,.32)}
+      .ac-line svg{width:18px;height:18px;stroke:#8fb4ff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+      .ac-dash{border-top:1px dashed rgba(140,170,240,.28);margin:15px 0}
+      .ac-facts{display:flex;justify-content:space-between;text-align:center;gap:8px}
+      .ac-facts>div{flex:1;min-width:0}
+      .ac-facts b{display:block;font-size:13.5px;font-weight:650;color:#eef3ff;margin-top:2px}
+      @media (max-width:440px){.ac-big{font-size:26px}.ac-line i{width:14px}}
       .ac-sec h3{font-size:14px;font-weight:650;margin:0 0 4px;color:#eef3ff;display:flex;align-items:center;gap:8px}
       .ac-pill{font-size:9.5px;letter-spacing:1.2px;font-weight:700;padding:3px 8px;border-radius:999px}
       .ac-pill.on{background:rgba(73,214,160,.14);color:#6fe0ad;border:1px solid rgba(73,214,160,.3)}
@@ -76,7 +93,13 @@
       #acRenew b{display:block;font-size:13.5px;margin-bottom:3px}
       #acRenew p{margin:0;font-size:12.5px;line-height:1.55;color:rgba(195,214,250,.88)}
       .ac-danger{border:1px solid rgba(255,120,120,.22);border-radius:12px;padding:14px;margin-top:6px}
-      @media (prefers-reduced-motion: no-preference){ .ac-panel{animation:acIn .18s ease-out} }
+      @media (prefers-reduced-motion: no-preference){
+        .ac-panel{animation:acIn .18s ease-out}
+        #acBody>*{animation:acIn .32s ease-out backwards}
+        #acBody>*:nth-child(2){animation-delay:.05s}#acBody>*:nth-child(3){animation-delay:.1s}
+        #acBody>*:nth-child(4){animation-delay:.15s}#acBody>*:nth-child(5){animation-delay:.2s}
+      }
+      @media (prefers-reduced-motion: reduce){ .ac-card{transition:none} .ac-card:hover{transform:none} }
       @keyframes acIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`;
     document.head.appendChild(s);
   }
@@ -247,7 +270,7 @@
     const p = panel(`
       <div class="ac-eyebrow">CALLISTO &middot; ACCOUNT</div>
       <div class="ac-title">Account &amp; security</div>
-      <p class="ac-sub" id="acWho">Loading…</p>
+      <p class="ac-sub" id="acWho" style="margin-bottom:10px">Loading…</p>
       <div id="acBody"></div>
       <div class="ac-row" style="margin-top:18px"><button class="ac-btn ghost" id="acDone">Done</button></div>`);
     p.querySelector('#acDone').addEventListener('click', close);
@@ -263,10 +286,40 @@
     p.querySelector('#acWho').textContent = me.email ? 'Signed in as ' + me.email : '';
     const body = p.querySelector('#acBody');
     body.innerHTML = '';
+    body.appendChild(summaryCard(me, sesR, billR));
     body.appendChild(twoFactorSection(me));
     body.appendChild(devicesSection(sesR));
     body.appendChild(billingSection(billR, me));
     body.appendChild(deleteSection(me));
+  }
+
+  // Everything that matters at a glance, before the sections that change it.
+  function summaryCard(me, ses, bill) {
+    const name = String(me.name || me.email || '').trim();
+    const words = name.split(/[\s@.]+/).filter(Boolean);
+    const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2)).toUpperCase();
+    const premium = !!(me.freeAccess || (bill && bill.active));
+    const count = ((ses && ses.sessions) || []).length;
+    const d = document.createElement('div');
+    d.className = 'ac-card';
+    d.innerHTML = `
+      <div class="ac-card-top"><span class="ac-pill ${me.twoFactorEnabled ? 'on' : 'warn'}">${me.twoFactorEnabled ? 'WELL PROTECTED' : 'ADD TWO-FACTOR'}</span></div>
+      <div class="ac-card-body">
+        <div class="ac-route">
+          <div><div class="ac-small">Account</div><div class="ac-big">${esc(initials)}</div></div>
+          <div class="ac-mid"><div class="ac-small">${count} device${count === 1 ? '' : 's'}</div>
+            <div class="ac-line"><i></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/></svg><i></i></div>
+            <div class="ac-small">signed in</div></div>
+          <div><div class="ac-small">Plan</div><div class="ac-big">${premium ? 'PRO' : 'FREE'}</div></div>
+        </div>
+        <div class="ac-dash"></div>
+        <div class="ac-facts">
+          <div><span class="ac-small">Two-factor</span><b>${me.twoFactorEnabled ? 'On' : 'Off'}</b></div>
+          <div><span class="ac-small">Sign-in</span><b>${me.hasPassword === false ? 'Google' : 'Password'}</b></div>
+          <div><span class="ac-small">Subscription</span><b>${bill && bill.cancelAtPeriodEnd ? 'Ending' : (premium ? 'Active' : 'None')}</b></div>
+        </div>
+      </div>`;
+    return d;
   }
 
   function section(html) {
