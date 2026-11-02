@@ -1216,6 +1216,7 @@
       try { svg.setPointerCapture(e.pointerId); } catch (_) {}
     }, true);
 
+    let livePen = null, liveHit = null;
     svg.addEventListener('pointermove', (e) => {
       if (!penStroke) return;
       const at = toCanvas(e);
@@ -1230,11 +1231,24 @@
       // produces thousands of points sitting on top of each other.
       if (Math.hypot(at.x - last[0], at.y - last[1]) < 4) return;
       penStroke.points.push([at.x, at.y]);
+      // Only this stroke changed. Rebuilding every shape for every new point made
+      // drawing slower with each line already on the canvas.
+      if (livePen && livePen.isConnected) {
+        const pts = penStroke.points.map((p) => p.join(',')).join(' ');
+        livePen.setAttribute('points', pts);
+        if (liveHit) liveHit.setAttribute('points', pts);
+        return;
+      }
       render();
+      const drawn = layer.querySelectorAll('polyline');
+      livePen = drawn[drawn.length - 1] || null;
+      liveHit = drawn[drawn.length - 2] || null;
+      if (livePen && livePen.getAttribute('points') == null) { livePen = null; liveHit = null; }
     }, true);
 
     const endStroke = () => {
       if (!penStroke) return;
+      livePen = null; liveHit = null;
       // A tap with no travel leaves a stray dot behind.
       if (penStroke.points.length < 2) shapes = shapes.filter((x) => x !== penStroke);
       penStroke = null;

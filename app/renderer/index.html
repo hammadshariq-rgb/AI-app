@@ -3356,7 +3356,7 @@
 
       // ── Callisto Hand Cursor state ───────────────────────────────────────────
       let lastClickTime = 0;
-      const CLICK_COOLDOWN = 450;  // ms between distinct clicks
+      const CLICK_COOLDOWN = 280;  // ms between distinct clicks
       // Press state: one finger arms the cursor, a second finger fires it
       // counts as a press, so a resting closed hand never clicks anything.
       let triggerArmed = false;
@@ -3422,8 +3422,20 @@
       }
       // 1.1Hz when still is heavy smoothing; beta lets it open right up when
       // the hand actually travels.
-      const euroX = OneEuro(1.4, 0.03, 1.0);
-      const euroY = OneEuro(1.4, 0.03, 1.0);
+      const euroX = OneEuro(2.4, 0.06, 1.0);
+      const euroY = OneEuro(2.4, 0.06, 1.0);
+
+      // The hand can't reach the very edge of the camera's view and stay
+      // tracked, so the middle of the view covers the whole screen. It also
+      // means less arm travel for the same distance on screen.
+      const REACH_MARGIN = 0.1;
+      const reach = (v) => Math.max(0, Math.min(1, (v - REACH_MARGIN) / (1 - 2 * REACH_MARGIN)));
+
+      // A pinch pulls the fingertips the cursor follows off the thing being
+      // aimed at, so a press lands where the cursor was just before it began.
+      const AIM_BACK_MS = 130;
+      const _aimTrail = [];
+      let _pinchLm = null, _pinchTh = { close: 0.51, open: 0.67 }, _pinchGap = 1;
 
       // Hover throttle
       let _hoverEl = null;
@@ -3449,8 +3461,8 @@
 
         const lm = lastLeftLm;
         // Use midpoint of index tip (8) + middle tip (12) for a more stable centroid
-        const rawX = ((lm[8].x + lm[12].x) * 0.5) * window.innerWidth;
-        const rawY = ((lm[8].y + lm[12].y) * 0.5) * window.innerHeight;
+        const rawX = reach((lm[8].x + lm[12].x) * 0.5) * window.innerWidth;
+        const rawY = reach((lm[8].y + lm[12].y) * 0.5) * window.innerHeight;
 
         const nowMs = performance.now();
         const dt = _lastTickAt ? Math.min(100, nowMs - _lastTickAt) : 16;
@@ -3477,6 +3489,11 @@
             velX += a * ((rawX - _lastRawX) / gap - velX);
             velY += a * ((rawY - _lastRawY) / gap - velY);
             _lastRawX = rawX; _lastRawY = rawY; _lastLmAt = nowMs;
+          } else if (nowMs - _lastLmAt > 80) {
+            // The hand stopped. Without this the last speed kept pushing the
+            // cursor past where the hand actually is.
+            const fade = Math.exp(-dt / 50);
+            velX *= fade; velY *= fade;
           }
 
           // Stage 1 aims slightly ahead of the last known position, so the
@@ -3498,6 +3515,8 @@
 
         // ONE transform per frame — compositor-only, no layout hit
         magicCursor.style.transform = `translate(${smoothX - HALF_CURSOR}px, ${smoothY - HALF_CURSOR}px)`;
+        _aimTrail.push({ t: nowMs, x: smoothX, y: smoothY });
+        while (_aimTrail.length > 1 && nowMs - _aimTrail[0].t > AIM_BACK_MS) _aimTrail.shift();
 
         // ── Hover injection — throttled ──────────────────────────────────────
         _cursorFrame++;
@@ -3533,14 +3552,20 @@
         // and never defined anywhere - so every frame threw a ReferenceError
         // here and the press was never reached. That is why the cursor moved
         // but nothing could be clicked, on Windows and on Mac alike.
-        const handScale = Math.max(0.04, lmDist(lm[0], lm[9]));
-        const pinchGap = lmDist(lm[4], lm[8]) / handScale;
+        // Worked out once per landmark. This loop runs three or four times for
+        // each one, which made the range below drift that much faster.
+        if (lm !== _pinchLm) {
+          _pinchLm = lm;
+          _pinchGap = lmDist(lm[4], lm[8]) / Math.max(0.04, lmDist(lm[0], lm[9]));
+          _pinchTh = pinchThresholds(_pinchGap);
+        }
+        const pinchGap = _pinchGap;
         // Where "closed" and "open" are for THIS hand, rather than two numbers
         // measured once on somebody else's. A hand whose pinch never quite
         // reached 0.34 could never press at all, and one that never opened
         // past 0.52 pressed once and then never re-armed - which is exactly
         // what "it stops detecting the click" looks like from the outside.
-        const th = pinchThresholds(pinchGap);
+        const th = _pinchTh;
         const apart   = pinchGap > th.open;    // open — ready to press again
         const pinched = pinchGap < th.close;   // closed — fires
 
@@ -3580,7 +3605,7 @@
             magicCursor.classList.remove('armed');
             magicCursor.classList.add('pinch');
             setTimeout(() => magicCursor.classList.remove('pinch'), 200);
-            pressAt(smoothX, smoothY);
+            pressAt(_aimTrail[0].x, _aimTrail[0].y);
           }
         } else if (!pinched) {
           pressHeldSince = 0;
@@ -3636,7 +3661,7 @@
       // the cursor could be moved around the canvas and never make a mark.
       // While the studio is open a pinch becomes a pen instead of a click:
       // hold to draw, let go to finish the stroke.
-      let _penEl = null;
+      let _penEl = null, _penX = 0, _penY = 0;
       let _penId = 9000;
 
       function _penEvent(type, x, y, id, down) {
@@ -3668,7 +3693,10 @@
           // To the element the stroke started on, not whatever is under the
           // cursor now - a synthetic pointer cannot be captured, and following
           // the cursor would break the line the moment it crossed a shape.
-          _penEl.dispatchEvent(_penEvent('pointermove', smoothX, smoothY, _penId, true));
+          if (Math.hypot(smoothX - _penX, smoothY - _penY) >= 1) {
+            _penX = smoothX; _penY = smoothY;
+            _penEl.dispatchEvent(_penEvent('pointermove', smoothX, smoothY, _penId, true));
+          }
         } else if (!pinched && _penEl) {
           const el = _penEl;
           _penEl = null;
@@ -3689,7 +3717,7 @@
       // How long a pinch must be held before it counts as a press. Short enough
       // to feel immediate, long enough that fingers passing each other on the
       // way somewhere else do not fire it.
-      const PRESS_HOLD_MS = 70;
+      const PRESS_HOLD_MS = 40;
       let pressHeldSince = 0;
 
       // ── Where "pinched" is, for the hand actually in front of the camera ──
@@ -3710,8 +3738,8 @@
         // step, so an extreme reading washes out in a second or two instead of
         // sitting there for the rest of the session.
         const span0 = gapHi - gapLo;
-        gapLo += span0 * 0.004;
-        gapHi -= span0 * 0.004;
+        gapLo += span0 * 0.001;
+        gapHi -= span0 * 0.001;
         const MIN_SPAN = 0.28;
         if (gapHi - gapLo < MIN_SPAN) {
           const mid = (gapHi + gapLo) / 2;
@@ -3721,7 +3749,9 @@
         const span = gapHi - gapLo;
         // A third of the way up counts as closed, two thirds as open again.
         // The gap between them is the hysteresis that stops it chattering.
-        return { close: gapLo + span * 0.35, open: gapLo + span * 0.62 };
+        // Capped, so a hand held wide open for a while can't lift "closed" up to
+        // where a relaxed hand sits and start clicking on its own.
+        return { close: Math.min(0.6, gapLo + span * 0.35), open: Math.min(0.85, gapLo + span * 0.62) };
       }
       window._pinchThresholds = pinchThresholds;
 
@@ -4068,7 +4098,12 @@
           const dt = Math.max((last.t - peak.t) / 1000, 0.001);
           const speed = drop / dt;
 
-          if (peak.d > CLAP_FAR_START && drop > CLAP_MIN_DROP && speed > CLAP_MIN_SPEED) {
+          // Real hands close over several frames. One jump in the distance is the
+          // tracker changing its mind about still hands, and that was quitting the app.
+          const closing = clapSamples.slice(clapSamples.indexOf(peak));
+          const steady = closing.length >= 4 && closing.every((c, i) => !i || c.d <= closing[i - 1].d + 0.15);
+
+          if (steady && peak.d > CLAP_FAR_START && drop > CLAP_MIN_DROP && speed > CLAP_MIN_SPEED) {
             if (last.d < CLAP_NEAR) { clapSamples = []; clapArmedAt = 0; return true; }
             // A real close is under way. Arm it — the contact frames may not survive tracking.
             clapArmedAt = now;
@@ -4138,18 +4173,18 @@
         if (typeModeToggle && getComputedStyle(typeModeToggle).display !== 'none') typeModeToggle.click();
         else if (typeVoiceBtn) typeVoiceBtn.click();
       }
-      async function doClapAction() {
-        showGesture('👏', 'Clap — clearing & quitting…');
-        if (typeof clearChat === 'function') clearChat();
-        else document.getElementById('clearBtn')?.click();
-        setTimeout(async () => {
-          if (window.jarvis && window.jarvis.quitApp) await window.jarvis.quitApp();
-        }, 900);
+      // A clap no longer closes the app or clears the chat. The tracker reads still
+      // hands as a clap often enough that neither was safe to hang on it, even
+      // when it took two.
+      function doClapAction() {
+        showGesture('👏', 'Clap');
       }
 
       // ── Cached overlay context — set once, never reset dimensions ───────────
       let overlayCtx = null;
       let _canvasSized = false;
+      const LOST_HAND_GRACE_MS = 220;
+      let _handSeenAt = 0;
       function ensureCanvas() {
         if (_canvasSized) return;
         if (!video.videoWidth) return;
@@ -4175,9 +4210,14 @@
         const clapLanded = checkClap(lms, performance.now());
 
         const studioOpen = !!(window.CallistoModelViewer && window.CallistoModelViewer.isOpen());
+        if (lms.length) _handSeenAt = performance.now();
         if (!lms.length) {
           if (studioOpen) window.CallistoModelViewer.rightHand(null, performance.now());
           if (clapLanded && canFire('clap') && !studioOpen) { doClapAction(); return; }
+          // The model loses a moving hand for a frame or two all the time. That
+          // is not the hand leaving: the cursor and any stroke carry on.
+          if (performance.now() - _handSeenAt < LOST_HAND_GRACE_MS) return;
+          if (_penEl) handPenTick(false, false);
           waveHist[0] = []; waveHist[1] = [];
           if (magicCursor) magicCursor.style.transform = 'translate(-9999px,-9999px)';
           triggerArmed = false; triggerFired = false; lastLeftLm = null;
@@ -4543,7 +4583,7 @@
               _mpBusy = false;
               // Smooth the estimate so one slow frame doesn't swing the cadence
               _inferMs = _inferMs * 0.8 + (performance.now() - t0) * 0.2;
-              sendInterval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, Math.round(_inferMs * 1.5)));
+              sendInterval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, Math.round(_inferMs * 1.25)));
             });
           }
           rafId = requestAnimationFrame(loop);

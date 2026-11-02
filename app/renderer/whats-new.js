@@ -12,6 +12,11 @@
   'use strict';
 
   var NOTES = {
+    '1.9.24': [
+      { icon: '🖐️', title: 'Faster hand cursor', text: 'The cursor follows your hand more closely, drawing stays quick on a full canvas, and pinches land where you aim.' },
+      { icon: '👏', title: 'No more accidental quits', text: 'A clap no longer closes Callisto or clears your chat.' },
+      { icon: '🛡️', title: 'Content rules', text: 'Callisto now declines nudity, adult links and hateful content.' }
+    ],
     '1.9.23': [
       { icon: '🛡️', title: 'Newer engine', text: 'Callisto now runs on a much newer, supported version of its engine, with the latest security fixes.' }
     ],

@@ -161,6 +161,10 @@ const webstats = require('./webstats');
 const mail = require('./mail');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { createGuard, REFUSAL } = require('./content-guard');
+// Its own client on the runtime's fetch: a failed check here refuses pictures,
+// so it can't depend on the older fetch the main client ships with.
+const contentGuard = createGuard(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
 
 // Validate required env vars on startup
 const REQUIRED_ENV = ['JWT_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'STRIPE_WEBHOOK_SECRET', 'MONGODB_URI'];
@@ -2891,7 +2895,7 @@ function webSystemPrompt() {
   ].join('\n');
 }
 
-app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req, res) => {
+app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, contentGuard.guardMessages, async (req, res) => {
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
@@ -2920,7 +2924,8 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     const known = memoriesOf(user).slice(-40);
     if (req.userId) {
       const said = [...fromPage].reverse().find((m) => m.role === 'user');
-      learnFrom(req.userId, said && said.content).catch(() => {});
+      // Nothing refused is ever kept as something to remember about them.
+      req.contentVerdict.then((refused) => { if (!refused) return learnFrom(req.userId, said && said.content); }).catch(() => {});
     }
     const memoryMsg = known.length
       ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations, without announcing it). Use a memory ONLY when it is directly relevant to what they just asked. Never bring a hobby, interest or personal fact into a request it has nothing to do with: a marketing brief for their website uses what you know about their business and nothing about their interests. Most replies should use no memories at all.\n'
@@ -2933,7 +2938,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
       ? [...base.slice(0, -1), ...extras, base[base.length - 1]]
       : base;
 
-    const stream = await openai.chat.completions.create({
+    let stream = await openai.chat.completions.create({
       model: 'gpt-5.4',
       // The website was still on gpt-4.1-mini while the desktop app moved to
       // gpt-5.4, so the same question got a worse, staler answer on the site
@@ -2949,6 +2954,11 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (req
     // characters at a time, so the tail of the stream is held back until it is
     // clear it is not the beginning of one - otherwise "[[REM" flashes up on
     // screen and is then taken away again.
+    if (await req.contentVerdict) {
+      stream.controller.abort();
+      stream = [];
+      res.write(`data: ${JSON.stringify({ delta: REFUSAL })}\n\n`);
+    }
     let fullText = '';
     let pending = '';
     const MARKER_START = /\[\[?R?E?M?E?M?B?E?R?:?[^\]]*$/;
@@ -3048,8 +3058,12 @@ function tokenCap(model, n) {
   return /^gpt-[34]/.test(String(model || '')) ? { max_tokens: n } : { max_completion_tokens: n };
 }
 
-app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
+app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, contentGuard.guardMessages, async (req, res) => {
   try {
+    // Waited for here: this route can run tools, and a refused request must not.
+    if (await req.contentVerdict) {
+      return res.json({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: REFUSAL } }] });
+    }
     const { messages, tools, tool_choice, model, max_tokens, temperature } = req.body;
     // The answering model, settable on the server rather than fixed in a
     // shipped app. A newer one can be tried - and taken back - by changing one
@@ -3130,7 +3144,7 @@ app.post('/web/speak', authMiddleware, aiLimiter, async (req, res) => {
 // Chat streaming (SSE)
 // Measures where the time goes before the first word: logs numbers only, never content.
 const chatStart = (req, _res, next) => { req._chatStart = Date.now(); next(); };
-app.post('/ai/chat/stream', chatStart, authMiddleware, appMessageLimit, aiLimiter, async (req, res) => {
+app.post('/ai/chat/stream', chatStart, authMiddleware, appMessageLimit, aiLimiter, contentGuard.guardMessages, async (req, res) => {
   try {
     const checksMs = Date.now() - req._chatStart;
     const { messages, model, max_tokens, temperature } = req.body;
@@ -3143,7 +3157,7 @@ app.post('/ai/chat/stream', chatStart, authMiddleware, appMessageLimit, aiLimite
     // whether it is better. Without CHAT_MODEL the app's own choice stands and
     // nothing changes.
     const chosen = process.env.CHAT_MODEL || model || 'gpt-4.1-mini';
-    const stream = await createChat({
+    let stream = await createChat({
       model: chosen,
       messages,
       ...tokenCap(chosen, max_tokens || 1024),
@@ -3151,6 +3165,11 @@ app.post('/ai/chat/stream', chatStart, authMiddleware, appMessageLimit, aiLimite
       top_p: 0.9,
       stream: true,
     }, req.userId || (req.user && req.user.id));
+    if (await req.contentVerdict) {
+      stream.controller.abort();
+      stream = [];
+      res.write(`data: ${JSON.stringify({ delta: REFUSAL })}\n\n`);
+    }
     let firstWordMs = 0;
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
@@ -3251,6 +3270,7 @@ app.post('/ai/image-edit', authMiddleware, expensiveLimiter, async (req, res) =>
     const { imageBase64, prompt, size } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
+    if (await contentGuard.reviewImage(imageBase64, prompt, req.userId)) return res.status(400).json({ error: REFUSAL });
 
     const imgAllow = await usage.allowance(req.userId, {
       paidPerDay: IMAGE_USES_PER_DAY, trialPerDay: TRIAL_IMAGE_USES_PER_DAY,
@@ -3725,6 +3745,9 @@ app.post('/ai/vision', authMiddleware, appMessageLimit, expensiveLimiter, async 
   try {
     const { imageBase64, instruction } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+    if (await contentGuard.reviewImage(imageBase64, instruction, req.userId)) {
+      return res.json({ text: REFUSAL, answer: REFUSAL, subject: '', files: [], card: null });
+    }
 
     // When the user said something while circling ("summarise these", "get
     // these under 1MB"), answer that instead of describing the picture. Files
