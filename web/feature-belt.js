@@ -7,31 +7,32 @@
   const root = document.getElementById('featureBelt');
   if (!root) return;
 
+  // One family of marks: thin strokes on a 48 grid, geometric rather than pictorial.
   const ICON = {
-    video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/>',
-    cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
-    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L5 20"/>',
-    hand: '<path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11m0-1V4a1.5 1.5 0 0 1 3 0v7m0-5.5a1.5 1.5 0 0 1 3 0V13a7 7 0 0 1-7 7c-3 0-4.5-1.5-6-4l-1.6-2.8a1.5 1.5 0 0 1 2.6-1.5L8 14"/>',
-    tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
-    pen: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/>',
+    video: '<circle cx="24" cy="24" r="17"/><path d="M20 17.5v13L31 24z"/><path d="M24 2.5v3M24 42.5v3M2.5 24h3M42.5 24h3"/>',
+    cube: '<path d="M24 5l16.5 9.5v19L24 43 7.5 33.5v-19z"/><path d="M7.5 14.5L24 24l16.5-9.5M24 24v19"/><path d="M15.8 9.8L32.2 19.2" opacity=".45"/>',
+    image: '<path d="M6 12V6h6M36 6h6v6M42 36v6h-6M12 42H6v-6"/><path d="M24 12l2.8 9.2L36 24l-9.2 2.8L24 36l-2.8-9.2L12 24l9.2-2.8z"/>',
+    hand: '<circle cx="24" cy="24" r="4"/><circle cx="24" cy="24" r="12" stroke-dasharray="3 4"/><path d="M24 4v8M24 36v8M4 24h8M36 24h8"/><path d="M33 33l7 7" opacity=".45"/>',
+    tv: '<rect x="5" y="9" width="38" height="25" rx="1.5"/><path d="M17 41h14"/><path d="M12 28a4 4 0 0 1 4 4M12 22a10 10 0 0 1 10 10M12 16a16 16 0 0 1 16 16"/>',
+    pen: '<path d="M6 36c7-1 8-13 15-13s5 11 11 11 7-12 10-20"/><circle cx="6" cy="36" r="2.5"/><circle cx="42" cy="14" r="2.5"/><path d="M42 14h-8M42 14v8" opacity=".45"/>',
   };
   const ITEMS = [
-    { id: 'video', name: 'AI Video', where: 'App only', colour: '#ff5d73',
+    { id: 'video', name: 'AI Video', where: 'App only', colour: '#bcd4ff',
       text: 'Turn a sentence or a photo into a short video, then download it or post it to your socials.',
       facts: ['From text', 'From a photo', 'Video Studio'] },
-    { id: 'cube', name: '3D Studio', where: 'App only', colour: '#8a7dff',
+    { id: 'cube', name: '3D Studio', where: 'App only', colour: '#bcd4ff',
       text: 'Describe anything and get a coloured 3D model you can spin, zoom and change by voice or by hand.',
       facts: ['Voice edits', 'Hand control', 'Download'] },
-    { id: 'image', name: 'Image Generation', where: 'Web + app', colour: '#39d0ff',
+    { id: 'image', name: 'Image Generation', where: 'Web + app', colour: '#bcd4ff',
       text: 'Say what you want to see and Callisto draws it, ready to change, download or use in a video.',
       facts: ['From text', 'Edit by asking'] },
-    { id: 'hand', name: 'Hand Control', where: 'App only', colour: '#3dffb4',
+    { id: 'hand', name: 'Hand Control', where: 'App only', colour: '#bcd4ff',
       text: 'Move the Callisto cursor with one hand and pinch to click, with gestures on the other. No keyboard or mouse.',
       facts: ['Pinch to click', 'Gestures', 'Your own poses'] },
-    { id: 'tv', name: 'Cast to TV', where: 'App only', colour: '#ffb648',
+    { id: 'tv', name: 'Cast to TV', where: 'App only', colour: '#bcd4ff',
       text: 'Say "play this on the TV" and Callisto finds your television and puts it on, with no remote.',
       facts: ['Chromecast', 'Voice'] },
-    { id: 'pen', name: 'Sketching', where: 'Web + app', colour: '#ff7bd5',
+    { id: 'pen', name: 'Sketching', where: 'Web + app', colour: '#bcd4ff',
       text: 'Draw on an open canvas with the pen, by voice, or with your hand, then turn the sketch into 3D or video.',
       facts: ['Pen and shapes', 'Say what to add'] },
   ];
@@ -39,20 +40,21 @@
   const SPACING = 1.35, CURVE = 0.95, BAND = 1.22, TILT = 0.8, KB = 0.68, SPEED = 26;
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-  const svgIcon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+  const svgIcon = (k) => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">${ICON[k]}</svg>`;
 
   const css = document.createElement('style');
   css.textContent = `
-    #featureBelt{--fb-belt:#141d33;--fb-side:#090e1c;--fb-rail:#51658f;--fb-island:#0d1426;--fb-text:#eef3ff;--fb-sub:rgba(185,205,245,.78);--fb-card:#0c1324;--fb-line:rgba(130,165,255,.2)}
-    body.light #featureBelt{--fb-belt:#3a445c;--fb-side:#1f2638;--fb-rail:#aab6cf;--fb-island:#e6ebf5;--fb-text:#0d1630;--fb-sub:#4a5675;--fb-card:#fff;--fb-line:rgba(30,50,110,.16)}
+    #featureBelt,.fb-dialog{--fb-belt:#141d33;--fb-side:#090e1c;--fb-rail:#51658f;--fb-island:#0d1426;--fb-text:#eef3ff;--fb-sub:rgba(185,205,245,.78);--fb-card:#0c1324;--fb-line:rgba(130,165,255,.2)}
+    body.light #featureBelt,body.light .fb-dialog{--fb-belt:#3a445c;--fb-side:#1f2638;--fb-rail:#aab6cf;--fb-island:#e6ebf5;--fb-text:#0d1630;--fb-sub:#4a5675;--fb-card:#fff;--fb-line:rgba(30,50,110,.16)}
     .fb-stage{position:relative;width:100%;max-width:1040px;margin:18px auto 0;touch-action:pan-y;user-select:none;overflow-x:clip}
     .fb-stage svg.fb-track{position:absolute;inset:0;overflow:visible;pointer-events:none}
     .fb-plate{position:absolute;left:0;top:0;padding:0;border:0;background:none;border-radius:50%;cursor:pointer;color:#fff;transform-origin:50% 50%;will-change:transform}
     .fb-plate:focus-visible{outline:2px solid #8fb4ff;outline-offset:4px}
-    .fb-disc{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid var(--c);
-      background:radial-gradient(circle at 38% 30%,#2c3f78,#111a36 62%,#070b18);box-shadow:0 12px 20px -6px rgba(0,0,0,.7),inset 0 0 22px color-mix(in srgb,var(--c) 28%,transparent);transition:transform .25s cubic-bezier(.2,.9,.3,1.2)}
-    .fb-disc svg{width:42%;height:52%;color:var(--c)}
-    .fb-plate.on .fb-disc{transform:translateY(-7%) scale(1.09)}
+    .fb-disc{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid rgba(188,212,255,.28);
+      background:linear-gradient(160deg,#1a2238 0%,#0b101d 55%,#05070e 100%);box-shadow:0 14px 22px -8px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 4px rgba(255,255,255,.015);transition:transform .25s cubic-bezier(.2,.9,.3,1.2)}
+    .fb-disc svg{width:40%;height:50%;color:var(--c)}
+    body.light .fb-disc svg{color:#dbe7ff}
+    .fb-plate.on .fb-disc{transform:translateY(-7%) scale(1.09);border-color:rgba(188,212,255,.7)}
     .fb-chip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translate(-50%,4px);white-space:nowrap;padding:5px 10px;border-radius:99px;background:var(--fb-card);border:1px solid var(--fb-line);color:var(--fb-text);font-size:11px;font-weight:600;line-height:1;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
     .fb-plate.on .fb-chip{opacity:1;transform:translate(-50%,0)}
     .fb-caption{min-height:46px;max-width:520px;margin:10px auto 0;text-align:center;font-size:14px;line-height:1.5;color:var(--fb-sub)}
@@ -60,18 +62,23 @@
     .fb-controls{display:flex;justify-content:center;gap:8px;margin-top:8px}
     .fb-controls button{width:36px;height:36px;border-radius:50%;border:1px solid var(--fb-line);background:var(--fb-card);color:var(--fb-text);cursor:pointer;font-size:14px}
     .fb-controls button:focus-visible,.fb-dialog button:focus-visible,.fb-dialog a:focus-visible{outline:2px solid #8fb4ff;outline-offset:2px}
-    .fb-dialog{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,6,14,.72);backdrop-filter:blur(10px)}
-    .fb-box{position:relative;width:min(720px,100%);max-height:90vh;overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:28px;align-items:center;padding:30px;border-radius:26px;background:var(--fb-card);border:1px solid var(--fb-line);color:var(--fb-text);animation:fbIn .28s ease-out}
-    .fb-figure{position:relative;aspect-ratio:1;max-width:230px;width:100%;margin:auto}
-    .fb-box h3{font-size:28px;font-weight:600;margin:6px 0 8px;color:var(--fb-text)}
-    .fb-where{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--fb-sub)}
-    .fb-box p{font-size:14px;line-height:1.6;color:var(--fb-sub);margin:0 0 12px}
-    .fb-facts{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0 0 16px;padding:0}
-    .fb-facts li{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--fb-line);color:var(--fb-sub)}
-    .fb-cta{display:inline-block;padding:10px 20px;border-radius:99px;background:#2f6bff;color:#fff!important;text-decoration:none;font-size:14px;font-weight:600}
-    .fb-close{position:absolute;top:12px;right:14px;background:none;border:0;color:var(--fb-sub);font:inherit;font-size:13px;cursor:pointer;padding:6px}
+    .fb-dialog{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,6,14,.72);backdrop-filter:blur(10px)}
+    .fb-box{position:relative;width:min(1080px,100%);min-height:min(600px,86vh);max-height:92vh;overflow:auto;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);border-radius:6px;background:var(--fb-card);border:1px solid var(--fb-line);color:var(--fb-text);box-shadow:0 50px 140px rgba(0,0,0,.65);animation:fbIn .28s ease-out}
+    .fb-figure{position:relative;display:flex;align-items:center;justify-content:center;min-height:280px;padding:40px;background:#05070e;border-right:1px solid var(--fb-line);overflow:hidden;
+      background-image:linear-gradient(rgba(188,212,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(188,212,255,.05) 1px,transparent 1px);background-size:48px 48px}
+    .fb-figure svg{width:min(62%,280px);height:auto;color:#dbe7ff;stroke-width:.7}
+    .fb-count{position:absolute;left:24px;bottom:20px;font:12px/1 'Share Tech Mono',ui-monospace,monospace;letter-spacing:.14em;color:rgba(188,212,255,.6)}
+    .fb-copy{display:flex;flex-direction:column;justify-content:center;padding:64px 56px 48px}
+    .fb-where{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--fb-sub)}
+    .fb-box h3{font-size:clamp(36px,4.6vw,60px);line-height:1.04;font-weight:600;letter-spacing:-.02em;margin:14px 0 20px;color:var(--fb-text)}
+    .fb-box p{font-size:18px;line-height:1.6;color:var(--fb-sub);margin:0 0 28px;max-width:44ch}
+    .fb-facts{list-style:none;margin:0 0 34px;padding:0;border-top:1px solid var(--fb-line)}
+    .fb-facts li{font-size:15px;padding:13px 0;border-bottom:1px solid var(--fb-line);color:var(--fb-text)}
+    .fb-cta{align-self:flex-start;padding:15px 28px;border-radius:4px;background:#eef3ff;color:#070b16!important;text-decoration:none;font-size:15px;font-weight:600}
+    body.light .fb-cta{background:#0d1630;color:#fff!important}
+    .fb-close{position:absolute;top:18px;right:20px;background:none;border:0;color:var(--fb-sub);font:inherit;font-size:14px;cursor:pointer;padding:8px}
     @keyframes fbIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    @media (max-width:560px){.fb-box{grid-template-columns:1fr;padding:24px 20px;text-align:center}.fb-figure{max-width:150px}.fb-facts{justify-content:center}}
+    @media (max-width:760px){.fb-box{grid-template-columns:1fr;min-height:0}.fb-figure{min-height:200px;border-right:0;border-bottom:1px solid var(--fb-line)}.fb-figure svg{width:120px}.fb-copy{padding:32px 22px 26px}.fb-box p{font-size:16px}}
     @media (prefers-reduced-motion:reduce){.fb-disc,.fb-chip{transition:none}.fb-box{animation:none}}`;
   document.head.appendChild(css);
 
@@ -238,13 +245,13 @@
     const appOnly = it.where === 'App only';
     el.innerHTML = `<div class="fb-box" id="featureBeltDialog">
       <button type="button" class="fb-close">Close &#10005;</button>
-      <div class="fb-figure"><span class="fb-disc">${svgIcon(it.id)}</span></div>
-      <div><div class="fb-where">${esc(it.where)}</div><h3>${esc(it.name)}</h3><p>${esc(it.text)}</p>
+      <div class="fb-figure">${svgIcon(it.id)}<span class="fb-count">0${i + 1} / 0${ITEMS.length}</span></div>
+      <div class="fb-copy"><div class="fb-where">${esc(it.where)}</div><h3>${esc(it.name)}</h3><p>${esc(it.text)}</p>
         <ul class="fb-facts">${it.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
         <a class="fb-cta" href="/#downloadSec">${appOnly ? 'Download Callisto' : 'Get the app'}</a></div></div>`;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    root.appendChild(el);
+    document.body.appendChild(el);
     dialog = el;
     const close = () => {
       document.removeEventListener('keydown', onKey, true);
