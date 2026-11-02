@@ -555,8 +555,7 @@ app.post('/reviews', writeLimiter, async (req, res) => {
     // posting six reviews in a minute, and that works just as well on a hash -
     // so a database dump contains no addresses.
     const { name: posterName, text: posted } = req.body || {};
-    if (await contentGuard.review({ text: String(posterName || '') + '
-' + String(posted || '') }, null)) {
+    if (await contentGuard.review({ text: String(posterName || '') + ' ' + String(posted || '') }, null)) {
       return res.status(400).json({ ok: false, error: REFUSAL });
     }
     const r = await reviews.add({ ...(req.body || {}), ip: visitorKey(req) });
