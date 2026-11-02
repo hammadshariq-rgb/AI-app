@@ -634,7 +634,7 @@
     .rv-marquee { display: flex; gap: 14px; overflow: hidden; padding: 6px 0; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
     .rv-track { display: flex; gap: 14px; flex-shrink: 0; animation: rvScroll 48s linear infinite; }
     .rv-marquee:hover .rv-track { animation-play-state: paused; }
-    @keyframes rvScroll { from { transform: translateX(0); } to { transform: translateX(calc(-100% - 14px)); } }
+    @keyframes rvScroll { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 7px)); } }
     @media (prefers-reduced-motion: reduce) { .rv-track { animation: none; } .rv-marquee { overflow-x: auto; } }
     .rv-card {
       width: 290px; flex: none; padding: 18px 20px; border-radius: 18px;
@@ -2259,7 +2259,6 @@
       </div>
       <textarea id="rvText" name="text" placeholder="What has Callisto done for you?" maxlength="400" required></textarea>
       <button class="rv-send" type="submit" id="rvSend">Post review</button>
-      <p class="rv-note" style="margin:0">Reviews are read before they go up.</p>
       <div class="rv-note" id="rvNote"></div>
     </form>
   </div>
@@ -5433,9 +5432,13 @@
       } catch (_) {}
       if (!list.length) { document.getElementById('rvMarquee').style.display = 'none'; return; }
       document.getElementById('rvMarquee').style.display = '';
-      // Twice through, so the loop has something to scroll into.
-      const html = list.map(card).join('');
+      // Repeated until one pass is wider than any screen, then doubled, so a
+      // handful of reviews still flows with no gap. Newest first in every pass.
+      let html = list.map(card).join('');
+      for (let n = list.length; n < 8; n += list.length) html += list.map(card).join('');
       track.innerHTML = html + html;
+      // The same reading speed however many there are.
+      track.style.animationDuration = Math.max(30, track.scrollWidth / 2 / 45) + 's';
     }
 
     document.getElementById('rvStars').addEventListener('click', (e) => {
@@ -5464,7 +5467,7 @@
         });
         const data = await res.json();
         if (data && data.ok) {
-          note.textContent = 'Thank you - it will appear once it has been read.';
+          note.textContent = 'Thank you - your review is up.';
           form.reset();
           rating = 5;
           document.querySelectorAll('#rvStars button').forEach((x) => x.classList.add('on'));

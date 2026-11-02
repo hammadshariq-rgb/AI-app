@@ -1,10 +1,8 @@
 // ── Reviews ───────────────────────────────────────────────────────────────────
 // What people say about Callisto, written on the website and read back there.
 //
-// Anyone passing can write one, so nothing written here reaches the page on its
-// own: a new review is held until a person approves it. That is the whole point
-// of the queue - a stranger having a bad day cannot put a sentence on the front
-// of the site and leave it there until someone notices.
+// Every review goes up straight away. The content check on the POST route turns
+// away sexual content, hate and adult links, and hide() takes down anything else.
 //
 // Everything else assumes the worst too: lengths are capped, HTML is stripped
 // rather than stored, and one address cannot flood the queue.
@@ -62,19 +60,20 @@ async function add({ name, text, rating, ip }) {
     text: cleanText,
     rating: stars,
     createdAt: new Date(),
-    approved: false,          // held until someone says otherwise
+    approved: true,
     ip: ip || null,
   });
-  return { ok: true, pending: true };
+  return { ok: true };
 }
 
-// What the website shows: approved only, newest first.
-async function list(limit = 24) {
+// What the website shows: everything not taken down, newest first, including
+// reviews from when they all waited for approval.
+async function list(limit = 200) {
   const col = await collection();
   const rows = await col
-    .find({ approved: true })
+    .find({ hiddenAt: { $exists: false } })
     .sort({ createdAt: -1 })
-    .limit(Math.max(1, Math.min(60, Number(limit) || 24)))
+    .limit(Math.max(1, Math.min(500, Number(limit) || 200)))
     .toArray();
   return rows.map(publicShape);
 }
@@ -103,7 +102,7 @@ async function approve(id) {
   const oid = _id(id);
   if (!oid) return { ok: false, error: 'Unknown review.' };
   const col = await collection();
-  const r = await col.updateOne({ _id: oid }, { $set: { approved: true, approvedAt: new Date() } });
+  const r = await col.updateOne({ _id: oid }, { $set: { approved: true, approvedAt: new Date() }, $unset: { hiddenAt: '' } });
   return { ok: r.matchedCount > 0 };
 }
 
