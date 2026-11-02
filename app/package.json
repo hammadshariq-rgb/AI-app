@@ -1,6 +1,6 @@
 {
   "name": "callisto",
-  "version": "1.9.25",
+  "version": "1.9.26",
   "description": "Callisto — your own personal AI assistant",
   "keywords": [
     "AI",
@@ -72,10 +72,12 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": [
-        "Muhammad Hammad Shariq",
-        "Hammad Shariq"
-      ]
+      "signtoolOptions": {
+        "publisherName": [
+          "Muhammad Hammad Shariq",
+          "Hammad Shariq"
+        ]
+      }
     },
     "mac": {
       "artifactName": "Callisto-AI-${version}-${arch}.${ext}",
@@ -166,7 +168,7 @@
   },
   "devDependencies": {
     "electron": "43.8.6",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "26.18.0",
     "png-to-ico": "^3.0.2"
   },
   "allowScripts": {

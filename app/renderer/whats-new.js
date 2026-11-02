@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.26': [
+      { icon: '🩺', title: 'Crash reports fixed', text: 'If Callisto crashes it can now tell us, unless you have turned crash reports off, so problems get fixed sooner.' }
+    ],
     '1.9.25': [
       { icon: '🔐', title: 'Account & security', text: 'Now in Account settings, with a new design: two-factor, devices, subscription and deleting your account.' }
     ],

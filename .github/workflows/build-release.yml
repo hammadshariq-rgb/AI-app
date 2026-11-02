@@ -88,10 +88,11 @@ jobs:
         run: |
           if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGN_ACCOUNT" ] && [ -n "$AZURE_CERT_PROFILE" ]; then
             echo "Signing with Azure Trusted Signing."
-            # publisherName is deliberately not passed: the TrustedSigning
-            # PowerShell module has no such parameter and rejects the whole
-            # command. The publisher comes from the certificate anyway.
+            # publisherName must be the certificate's CN. electron-builder 26 keeps
+            # it out of the TrustedSigning command and writes it to app-update.yml;
+            # without it the updater stops checking who signed an update.
             npx electron-builder --win --publish always \
+              --config.win.azureSignOptions.publisherName="Muhammad Hammad Shariq" \
               --config.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" \
               --config.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" \
               --config.win.azureSignOptions.certificateProfileName="$AZURE_CERT_PROFILE" \
@@ -102,6 +103,12 @@ jobs:
             unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
             npx electron-builder --win --publish always
           fi
+
+      # The release stays a draft if this fails, so no installed app sees it.
+      - name: Check the update publisher name
+        working-directory: app
+        shell: bash
+        run: grep -q "Muhammad Hammad Shariq" dist/win-unpacked/resources/app-update.yml
 
       - name: Save EXE as artifact
         uses: actions/upload-artifact@v4
