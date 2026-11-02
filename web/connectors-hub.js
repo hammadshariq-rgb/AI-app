@@ -17,11 +17,7 @@
     { f: 'stripe', n: 'Stripe', head: 'Three payments came in overnight', stat: '$420', label: 'revenue today', bars: [2, 5, 3, 6, 4, 8] },
     { f: 'finance', n: 'Finance', head: 'Your portfolio moved while you were away', stat: '+1.4%', label: 'portfolio today', bars: [4, 3, 4, 5, 5, 7] },
     { f: 'googlecalendar', n: 'Google Calendar', head: 'You have a free hour before your 3pm', stat: '4', label: 'events today', bars: [5, 2, 6, 3, 4, 2] },
-    { f: 'gmail', n: 'Gmail', head: 'Two emails need a reply today', stat: '2', label: 'need a reply', bars: [6, 4, 5, 3, 2, 2] },
-    { f: 'googlemeet', n: 'Google Meet', head: 'Your next call starts in 25 minutes', stat: '25m', label: 'until your call', bars: [2, 3, 4, 5, 6, 7] },
-    { f: 'googleslides', n: 'Google Slides', head: 'Your pitch deck is ready to present', stat: '12', label: 'slides', bars: [3, 3, 4, 4, 5, 5] },
     { f: 'spotify', n: 'Spotify', head: 'Your focus playlist is ready when you are', stat: '38', label: 'songs queued', bars: [4, 6, 5, 7, 5, 6] },
-    { f: 'googlecast', n: 'Chromecast / Smart TV', head: 'Living room TV is on and ready to cast', stat: 'On', label: 'living room TV', bars: [5, 5, 5, 5, 5, 5] },
   ];
 
   const css = document.createElement('style');
@@ -62,8 +58,8 @@
     @media (prefers-reduced-motion:reduce){.ch-out,.ch-orb,.ch-ring,.ch-card.in{animation:none}}`;
   document.head.appendChild(css);
 
-  const COLS = [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13]];
-  const X = [34, 134, 234], ORB = { x: 500, y: 210 }, SIZE = 52;
+  const COLS = [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]];
+  const X = [70, 200], ORB = { x: 500, y: 210 }, SIZE = 52;
   const pos = [];
   COLS.forEach((col, c) => col.forEach((a, r) => {
     const gap = 84, h = (col.length - 1) * gap;
