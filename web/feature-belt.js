@@ -17,24 +17,30 @@
     pen: '<path d="M6 36c7-1 8-13 15-13s5 11 11 11 7-12 10-20"/><circle cx="6" cy="36" r="2.5"/><circle cx="42" cy="14" r="2.5"/><path d="M42 14h-8M42 14v8" opacity=".45"/>',
   };
   const ITEMS = [
-    { id: 'video', name: 'AI Video', where: 'App only', colour: '#bcd4ff',
-      text: 'Turn a sentence or a photo into a short video, then download it or post it to your socials.',
-      facts: ['From text', 'From a photo', 'Video Studio'] },
-    { id: 'cube', name: '3D Studio', where: 'App only', colour: '#bcd4ff',
-      text: 'Describe anything and get a coloured 3D model you can spin, zoom and change by voice or by hand.',
-      facts: ['Voice edits', 'Hand control', 'Download'] },
-    { id: 'image', name: 'Image Generation', where: 'Web + app', colour: '#bcd4ff',
-      text: 'Say what you want to see and Callisto draws it, ready to change, download or use in a video.',
-      facts: ['From text', 'Edit by asking'] },
-    { id: 'hand', name: 'Hand Control', where: 'App only', colour: '#bcd4ff',
-      text: 'Move the Callisto cursor with one hand and pinch to click, with gestures on the other. No keyboard or mouse.',
-      facts: ['Pinch to click', 'Gestures', 'Your own poses'] },
-    { id: 'tv', name: 'Cast to TV', where: 'App only', colour: '#bcd4ff',
-      text: 'Say "play this on the TV" and Callisto finds your television and puts it on, with no remote.',
-      facts: ['Chromecast', 'Voice'] },
-    { id: 'pen', name: 'Sketching', where: 'Web + app', colour: '#bcd4ff',
-      text: 'Draw on an open canvas with the pen, by voice, or with your hand, then turn the sketch into 3D or video.',
-      facts: ['Pen and shapes', 'Say what to add'] },
+    { id: 'video', name: 'AI Video', where: 'App only', colour: '#6fd4ff',
+      text: 'Turn a sentence or a photo into a short video. It plays in the Video Studio when it is ready, and you can keep working while it renders.',
+      say: 'Make a video of this car racing a cheetah',
+      rows: [['Start from', 'A description or your own photo'], ['Length', 'Up to 10 seconds'], ['When it is done', 'Download it or post it to your socials'], ['Included', '2 a week free, 5 a day on Premium']] },
+    { id: 'cube', name: '3D Studio', where: 'App only', colour: '#6fd4ff',
+      text: 'Describe anything and get a fully coloured 3D model you can spin, tilt and zoom. Click a part, like the helmet, to change its colour, size or shape.',
+      say: 'Make me a 3D model of a red sports car',
+      rows: [['Edit by', 'Clicking a part or saying the change'], ['Hands', 'Right rotates and zooms, left selects'], ['Save as', 'A .glb file to download'], ['Included', '2 a week free, 5 a day on Premium']] },
+    { id: 'image', name: 'Image Generation', where: 'Web + app', colour: '#6fd4ff',
+      text: 'Say what you want to see and Callisto draws it. Then ask for changes in plain words, download it, or use it as the start of a video.',
+      say: 'Draw me a logo for a coffee brand',
+      rows: [['Start from', 'A description or your own picture'], ['Change it', 'Just say what should be different'], ['Use it for', 'Posts, logos, ideas and video scenes'], ['Included', '2 a week free, 5 a day on Premium']] },
+    { id: 'hand', name: 'Hand Control', where: 'App only', colour: '#6fd4ff',
+      text: 'Use Callisto without touching the keyboard or mouse. Your camera follows your hands, and your left hand becomes the cursor.',
+      say: 'Show your left hand, then pinch to click',
+      rows: [['Left hand', 'Moves the cursor, pinch to click'], ['Right hand', 'One finger to listen, a fist to stop'], ['Works in', 'The main screen, 3D Studio and Sketching'], ['Make your own', 'Teach it poses and choose what they do']] },
+    { id: 'tv', name: 'Cast to TV', where: 'App only', colour: '#6fd4ff',
+      text: 'Tell Callisto what to watch and it finds the television on your network and puts it on. No phone, no remote and no hunting for the right input.',
+      say: 'Play this on the TV',
+      rows: [['Finds', 'Chromecast and Android TVs on your Wi-Fi'], ['Plays', 'YouTube, Netflix and Prime Video'], ['Control', 'By voice from your computer'], ['Note', 'Your TV and computer need the same network']] },
+    { id: 'pen', name: 'Sketching', where: 'Web + app', colour: '#6fd4ff',
+      text: 'Draw on an open canvas with the pen and shapes, tell Callisto what to add, or press Hands in the app and pinch to draw in the air.',
+      say: 'Add a mountain range behind the house',
+      rows: [['Draw with', 'Pen, shapes, text and your own pictures'], ['Every mark', 'Can be moved, resized and recoloured'], ['In the app', 'Draw with your hand through the camera'], ['Next step', 'Hand it on to 3D Studio or video']] },
   ];
 
   const SPACING = 1.35, CURVE = 0.95, BAND = 1.22, TILT = 0.8, KB = 0.68, SPEED = 26;
@@ -64,18 +70,23 @@
     .fb-controls button:focus-visible,.fb-dialog button:focus-visible,.fb-dialog a:focus-visible{outline:2px solid #8fb4ff;outline-offset:2px}
     .fb-dialog{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,6,14,.72);backdrop-filter:blur(10px)}
     .fb-box{position:relative;width:min(1080px,100%);min-height:min(600px,86vh);max-height:92vh;overflow:auto;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);border-radius:6px;background:var(--fb-card);border:1px solid var(--fb-line);color:var(--fb-text);box-shadow:0 50px 140px rgba(0,0,0,.65);animation:fbIn .28s ease-out}
-    .fb-figure{position:relative;display:flex;align-items:center;justify-content:center;min-height:280px;padding:40px;background:#05070e;border-right:1px solid var(--fb-line);overflow:hidden;
-      background-image:linear-gradient(rgba(188,212,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(188,212,255,.05) 1px,transparent 1px);background-size:48px 48px}
-    .fb-figure svg{width:min(62%,280px);height:auto;color:#dbe7ff;stroke-width:.7}
-    .fb-count{position:absolute;left:24px;bottom:20px;font:12px/1 'Share Tech Mono',ui-monospace,monospace;letter-spacing:.14em;color:rgba(188,212,255,.6)}
-    .fb-copy{display:flex;flex-direction:column;justify-content:center;padding:64px 56px 48px}
-    .fb-where{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--fb-sub)}
-    .fb-box h3{font-size:clamp(36px,4.6vw,60px);line-height:1.04;font-weight:600;letter-spacing:-.02em;margin:14px 0 20px;color:var(--fb-text)}
-    .fb-box p{font-size:18px;line-height:1.6;color:var(--fb-sub);margin:0 0 28px;max-width:44ch}
-    .fb-facts{list-style:none;margin:0 0 34px;padding:0;border-top:1px solid var(--fb-line)}
-    .fb-facts li{font-size:15px;padding:13px 0;border-bottom:1px solid var(--fb-line);color:var(--fb-text)}
-    .fb-cta{align-self:flex-start;padding:15px 28px;border-radius:4px;background:#eef3ff;color:#070b16!important;text-decoration:none;font-size:15px;font-weight:600}
-    body.light .fb-cta{background:#0d1630;color:#fff!important}
+    .fb-figure{position:relative;display:flex;align-items:center;justify-content:center;min-height:280px;padding:40px;border-right:1px solid rgba(0,200,255,.25);overflow:hidden;
+      background:linear-gradient(rgba(111,212,255,.07) 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,rgba(111,212,255,.07) 1px,transparent 1px) 0 0/48px 48px,radial-gradient(circle at 50% 46%,#1f4dff 0%,#0f2bb0 26%,#071661 50%,#040a2b 76%,#02050f 100%)}
+    .fb-figure svg{width:min(62%,280px);height:auto;color:#d9f4ff;stroke-width:.7;filter:drop-shadow(0 0 16px rgba(0,200,255,.75))}
+    .fb-count{position:absolute;left:24px;bottom:20px;font:12px/1 'Share Tech Mono',ui-monospace,monospace;letter-spacing:.14em;color:#7fdcff}
+    .fb-copy{display:flex;flex-direction:column;justify-content:center;padding:52px 52px 40px}
+    .fb-where{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#35c9ff}
+    body.light .fb-where{color:#0a6fc2}
+    .fb-box::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#1a3bff,#00c8ff);z-index:1}
+    .fb-say{margin:0 0 22px;padding:12px 16px;border-left:2px solid #00c8ff;background:rgba(0,200,255,.08);font-size:15px;color:var(--fb-text)}
+    .fb-say span{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#35c9ff;margin-bottom:4px}
+    body.light .fb-say span{color:#0a6fc2}
+    .fb-box h3{font-size:clamp(36px,4.6vw,60px);line-height:1.04;font-weight:600;letter-spacing:-.02em;margin:12px 0 16px;color:var(--fb-text)}
+    .fb-box p{font-size:16px;line-height:1.6;color:var(--fb-sub);margin:0 0 20px}
+    .fb-facts{list-style:none;margin:0 0 26px;padding:0;border-top:1px solid var(--fb-line)}
+    .fb-facts li{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;font-size:14px;line-height:1.4;padding:10px 0;border-bottom:1px solid var(--fb-line);color:var(--fb-text)}
+    .fb-facts li span{color:var(--fb-sub)}
+    .fb-cta{align-self:flex-start;padding:15px 28px;border-radius:4px;background:linear-gradient(90deg,#1a3bff,#00a8f0);color:#fff!important;text-decoration:none;font-size:15px;font-weight:600}
     .fb-close{position:absolute;top:18px;right:20px;background:none;border:0;color:var(--fb-sub);font:inherit;font-size:14px;cursor:pointer;padding:8px}
     @keyframes fbIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
     @media (max-width:760px){.fb-box{grid-template-columns:1fr;min-height:0}.fb-figure{min-height:200px;border-right:0;border-bottom:1px solid var(--fb-line)}.fb-figure svg{width:120px}.fb-copy{padding:32px 22px 26px}.fb-box p{font-size:16px}}
@@ -247,7 +258,8 @@
       <button type="button" class="fb-close">Close &#10005;</button>
       <div class="fb-figure">${svgIcon(it.id)}<span class="fb-count">0${i + 1} / 0${ITEMS.length}</span></div>
       <div class="fb-copy"><div class="fb-where">${esc(it.where)}</div><h3>${esc(it.name)}</h3><p>${esc(it.text)}</p>
-        <ul class="fb-facts">${it.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+        <div class="fb-say"><span>Try saying</span>&ldquo;${esc(it.say)}&rdquo;</div>
+        <ul class="fb-facts">${it.rows.map((x) => `<li><span>${esc(x[0])}</span>${esc(x[1])}</li>`).join('')}</ul>
         <a class="fb-cta" href="/#downloadSec">${appOnly ? 'Download Callisto' : 'Get the app'}</a></div></div>`;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
