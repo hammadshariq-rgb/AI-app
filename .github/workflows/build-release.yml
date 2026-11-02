@@ -10,6 +10,12 @@ on:
 permissions:
   contents: write
 
+# package.json says releaseType: release, and electron-builder 26 obeys it, which
+# published each build as soon as Windows finished, before the Mac files. Keep it
+# a draft until publish-release; this does not change app-update.yml.
+env:
+  EP_DRAFT: 'true'
+
 jobs:
 
   # The release tag follows app/package.json, so bumping the version there is all
@@ -287,8 +293,10 @@ jobs:
               fi
             done
             # electron-builder published nothing this time, so upload the files.
+            # A second draft for the same tag makes publish-release fail.
+            gh release view "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
             gh release create "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft \
-              --title "${{ needs.version.outputs.tag }}" --notes "Callisto ${{ needs.version.outputs.version }}" 2>/dev/null || true
+              --title "${{ needs.version.outputs.tag }}" --notes "Callisto ${{ needs.version.outputs.version }}"
             # The .zip matters as much as the .dmg: Squirrel.Mac, which is what
             # electron-updater uses on a Mac, can only install an update from a
             # zip. It was missing from this list, so latest-mac.yml pointed at

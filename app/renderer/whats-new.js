@@ -12,7 +12,7 @@
   'use strict';
 
   var NOTES = {
-    '1.9.26': [
+    '1.9.28': [
       { icon: '🩺', title: 'Crash reports fixed', text: 'If Callisto crashes it can now tell us, unless you have turned crash reports off, so problems get fixed sooner.' }
     ],
     '1.9.25': [
