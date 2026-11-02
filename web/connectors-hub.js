@@ -54,12 +54,18 @@
     @keyframes chOrb{50%{transform:scale(1.05)}}
     @keyframes chRing{50%{opacity:.35}}
     @keyframes chIn{from{opacity:0;transform:translate(14px,-10px) rotate(1.5deg)}to{opacity:1;transform:none}}
-    @media (max-width:760px){.ch-panel{grid-template-columns:1fr;padding:16px}.ch-stack{margin-top:22px}}
+    @media (max-width:760px){.ch-panel{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:14px 16px 14px 8px}
+      .ch-stack,.ch-card{min-height:230px}.ch-card{padding:12px}.ch-top{font-size:11px;gap:6px}.ch-top img{width:14px;height:14px}
+      .ch-eg{font-size:8px;letter-spacing:.08em}.ch-head{font-size:13px;margin:10px 0 8px}.ch-stat{font-size:26px}.ch-label{font-size:11px}
+      .ch-bars{height:38px;gap:4px}.ch-ghost.a{transform:translate(8px,-8px)}.ch-ghost.b{transform:translate(4px,-4px)}}
     @media (prefers-reduced-motion:reduce){.ch-out,.ch-orb,.ch-ring,.ch-card.in{animation:none}}`;
   document.head.appendChild(css);
 
   const COLS = [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]];
-  const X = [70, 200], ORB = { x: 500, y: 210 }, SIZE = 52;
+  // On a phone the same picture is drawn narrower, so the card can stay beside
+  // the orb rather than dropping below it.
+  const SMALL = window.matchMedia('(max-width:760px)').matches;
+  const X = SMALL ? [30, 96] : [70, 200], ORB = { x: SMALL ? 222 : 500, y: 210 }, SIZE = 52, WIDE = SMALL ? 300 : 640;
   const pos = [];
   COLS.forEach((col, c) => col.forEach((a, r) => {
     const gap = 84, h = (col.length - 1) * gap;
@@ -69,11 +75,11 @@
     const p = pos[i], sx = p.x + SIZE / 2, mid = (sx + ORB.x) / 2;
     return `M${sx},${p.y} C${mid},${p.y} ${mid},${ORB.y} ${ORB.x - 46},${ORB.y}`;
   };
-  const OUT = `M${ORB.x + 46},${ORB.y} H640`;
+  const OUT = `M${ORB.x + 46},${ORB.y} H${WIDE}`;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
   root.insertAdjacentHTML('beforeend', `<div class="ch-panel">
-    <svg class="ch-map" viewBox="0 0 640 420" role="group" aria-label="Apps connected to Callisto">
+    <svg class="ch-map" viewBox="0 0 ${WIDE} 420" role="group" aria-label="Apps connected to Callisto">
       <defs><radialGradient id="chOrbFill" cx=".38" cy=".32" r=".8">
         <stop offset="0" stop-color="#8aacff"/><stop offset=".3" stop-color="#3060ff"/><stop offset=".6" stop-color="#1a3bff"/><stop offset="1" stop-color="#05108a"/></radialGradient>
         <filter id="chGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="16"/></filter></defs>

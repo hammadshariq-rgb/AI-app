@@ -2,8 +2,8 @@
 // Lifted whole from the desktop app, where it runs alongside the dot field
 // rather than instead of it: the dots sit behind, these strands sweep across.
 // The site only had the dots, which is why it still looked wrong.
-(function initShaderBackground() {
-  const canvas = document.getElementById('shaderBg');
+// Run once per screen: the voice screen, and the typing screen that covers it.
+function initWaveLines(canvas) {
   if (!canvas) return;
   const gl = canvas.getContext('webgl');
   if (!gl) return;
@@ -129,6 +129,10 @@
 
   const t0 = Date.now();
   function render() {
+    // Whichever screen is out of sight costs nothing.
+    const chat = document.getElementById('chatApp');
+    const chatOpen = chat && !chat.classList.contains('hidden');
+    if (chatOpen !== (canvas.id === 'chatWave')) { requestAnimationFrame(render); return; }
     const t = (Date.now() - t0) / 1000;
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
@@ -143,4 +147,6 @@
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);
-})();
+}
+initWaveLines(document.getElementById('shaderBg'));
+initWaveLines(document.getElementById('chatWave'));

@@ -1767,6 +1767,8 @@
     /* One continuous background: no dividers, no boxed pricing glow, and the
        hero's dark edge fades out over the beams instead of stopping at a line. */
     .glow-div, .aurora-wrap { display: none; }
+    /* The typing screen's strands fill it, the same as on the voice screen. */
+    #chatWave { top: 0; left: 0; width: 100%; height: 100%; transform: none; opacity: 1; }
     #hero { border: 0; }
     footer { border-top: 0; }
     #pricing { overflow: visible !important; }
@@ -5322,7 +5324,38 @@
 </script>
 <script defer src="/panels/bridge.js?v=1"></script>
 <script defer src="/wave-app.js?v=1"></script>
-  <script defer src="/wave-lines.js?v=2"></script>
+  <script defer src="/wave-lines.js?v=3"></script>
+<script>
+  // The typing screen covers the page, so scrolling past the end of the chat
+  // has to lead somewhere: back to the voice screen and on down the website.
+  document.addEventListener('DOMContentLoaded', function () {
+    var app = document.getElementById('chatApp'), msgs = document.getElementById('msgs');
+    if (!app || !msgs) return;
+    var pushed = 0, lastAt = 0, touchY = null;
+    function push(amount) {
+      if (app.classList.contains('hidden')) return;
+      if (msgs.scrollTop + msgs.clientHeight < msgs.scrollHeight - 4) { pushed = 0; return; }
+      var now = Date.now();
+      if (now - lastAt > 500) pushed = 0;
+      lastAt = now;
+      pushed += amount;
+      if (pushed < 320) return;
+      pushed = 0;
+      document.getElementById('shiftVoiceBtn').click();
+      setTimeout(function () { document.getElementById('demos').scrollIntoView(); }, 60);
+    }
+    app.addEventListener('wheel', function (e) {
+      if (e.deltaY > 0 && !e.target.closest('#chatSidebar,#hnavScrollBody,#inputArea')) push(e.deltaY);
+    }, { passive: true });
+    app.addEventListener('touchstart', function (e) { touchY = e.touches[0].clientY; }, { passive: true });
+    app.addEventListener('touchmove', function (e) {
+      if (touchY === null) return;
+      var d = touchY - e.touches[0].clientY;
+      touchY = e.touches[0].clientY;
+      if (d > 0) push(d * 3);
+    }, { passive: true });
+  });
+</script>
   <script defer src="/panels/panels.js?v=1"></script>
 <script defer src="/panels/portfolio.js?v=1"></script>
 <script defer src="/gates.js?v=1"></script>
@@ -5334,7 +5367,7 @@
 <script defer src="/gestures.js?v=1"></script>
 <script defer src="/beams-bg.js?v=1"></script>
 <script defer src="/feature-belt.js?v=5"></script>
-<script defer src="/connectors-hub.js?v=2"></script>
+<script defer src="/connectors-hub.js?v=3"></script>
 <script defer src="/gestures-web.js?v=1"></script>
 <script defer src="/gestures-ui.js?v=1"></script>
 <script defer src="/panels/calendar-overlay.js?v=1"></script>
@@ -5411,13 +5444,19 @@
       } catch (_) {}
       if (!list.length) { document.getElementById('rvMarquee').style.display = 'none'; return; }
       document.getElementById('rvMarquee').style.display = '';
-      // Repeated until one pass is wider than any screen, then doubled, so a
-      // handful of reviews still flows with no gap. Newest first in every pass.
-      let html = list.map(card).join('');
-      for (let n = list.length; n < 8; n += list.length) html += list.map(card).join('');
-      track.innerHTML = html + html;
-      // The same reading speed however many there are.
-      track.style.animationDuration = Math.max(30, track.scrollWidth / 2 / 45) + 's';
+      const marquee = document.getElementById('rvMarquee');
+      const html = list.map(card).join('');
+      track.innerHTML = html;
+      // Each review once. They flow only when there are more than fit on screen,
+      // because looping sooner shows the same person side by side.
+      const flows = track.scrollWidth > marquee.clientWidth;
+      marquee.style.justifyContent = flows ? '' : 'center';
+      track.style.animation = flows ? '' : 'none';
+      if (flows) {
+        track.innerHTML = html + html;
+        // The same reading speed however many there are.
+        track.style.animationDuration = Math.max(20, track.scrollWidth / 2 / 45) + 's';
+      }
     }
 
     document.getElementById('rvStars').addEventListener('click', (e) => {
