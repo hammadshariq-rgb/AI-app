@@ -2356,6 +2356,15 @@
                 <div id="profileSince" class="profile-value"></div>
               </div>
 
+              <!-- MY BUSINESS: what Callisto knows about it, filled in from
+                   conversation and editable here. -->
+              <div class="profile-section" id="bizSection">
+                <div class="profile-label">MY BUSINESS</div>
+                <p class="biz-sub">Callisto fills this in as you talk about your business, and uses it for every money, cost and market answer. Change anything here.</p>
+                <div id="bizFields" class="biz-fields"></div>
+                <div class="biz-row"><button type="button" id="bizSave" class="profile-name-save-btn">SAVE</button><span id="bizMsg" class="biz-msg" role="status" aria-live="polite"></span></div>
+              </div>
+
               <div class="profile-section">
                 <div class="profile-label">ACCOUNT &amp; SECURITY</div>
                 <button type="button" id="openAccountSecurity" onclick="window.CallistoAccount && window.CallistoAccount.open()"
@@ -3112,6 +3121,7 @@
 <script src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
 <script src="rich-math.js"></script>
 <script src="diagram.js"></script>
+<script src="business.js"></script>
   <script src="account-security.js?v=3"></script>
   <script src="memory-orb.js?v=1"></script>
   <script>

@@ -130,6 +130,59 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 // strong preferences. Moods, one-off requests and anything sensitive (health,
 // money details beyond the business, passwords) are left out.
 const _LEARN_HINT = /\b(?:i(?:'|’)?m|i am|i(?:'|’)?ve|i have|i had|i was|i work|i run|i own|i live|i love|i hate|i like|i prefer|i want|i(?:'|’)?ll be|we(?:'|’)?re|we are|our|my|me and)\b/i;
+// Business details - revenue, costs, customers, suppliers - kept as a profile
+// rather than loose memories, so every business answer works from all of them.
+const _BIZ_HINT = /\b(?:my|our)\s+(?:business|company|shop|store|brand|startup|agency|restaurant|clinic|product|customers?|clients?|revenue|sales|profit|margins?|costs?|expenses|rent|suppliers?|staff|employees|team|pricing|prices|orders|turnover)\b|\b(?:we|i)\s+(?:sell|make|run|own|charge|spend|earn|import|export|ship|hired?)\b|\b(?:revenue|turnover|profit|monthly|per month|a month|a year|annual)\b.*\d/i;
+async function _learnBusiness(message) {
+  const text = String(message || '').trim();
+  if (text.length < 12 || !_BIZ_HINT.test(text)) return;
+  const current = store.get('business') || {};
+  const res = await fetch(`${_serverBase()}/ai/learn-business`, {
+    method: 'POST',
+    headers: { ..._authHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 1500), current }),
+  });
+  if (!res.ok) return;
+  const { changes } = await res.json();
+  if (!changes || !Object.keys(changes).length) return;
+  const next = { ...current, ...changes, updatedAt: Date.now() };
+  store.set('business', next);
+  cloudPushPrefs({ business: next }).catch(() => {});
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('business:changed', next);
+  console.log('[BUSINESS] updated', Object.keys(changes).join(', '));
+}
+
+const BUSINESS_LABELS = {
+  name: 'Business', what: 'What they sell', customers: 'Customers', revenue: 'Revenue', costs: 'Costs',
+  pricing: 'Pricing', team: 'Team', suppliers: 'Suppliers', markets: 'Markets', channels: 'Channels',
+  goals: 'Goals', challenges: 'Challenges', notes: 'Notes',
+};
+function _businessNote() {
+  const b = store.get('business') || {};
+  const lines = Object.keys(BUSINESS_LABELS).filter((k) => b[k]).map((k) => '- ' + BUSINESS_LABELS[k] + ': ' + String(b[k]).slice(0, 300));
+  if (!lines.length) return '';
+  return '\n\nTHEIR BUSINESS (what they have told you; work from these exact figures):\n' + lines.join('\n')
+    + '\nWhen they ask about their business, money, costs, growth or the market: use these numbers, not'
+    + ' generic advice. To cut costs, name the specific line items with an estimated saving each and what'
+    + ' it trades off. Connect it to what is happening in the world right now that touches THIS business -'
+    + ' exchange rates, interest rates, tariffs and trade rules, shipping and fuel, energy prices, wars and'
+    + ' sanctions, elections, supply shortages - and say exactly how each one hits their costs, prices or'
+    + ' demand and what to do about it. Explain the market mechanism in one line so they learn it. If a'
+    + ' figure you need is missing, say which one and give the answer with a stated assumption.';
+}
+
+ipcMain.handle('business:get', () => store.get('business') || {});
+ipcMain.handle('business:save', (_e, b) => {
+  const clean = {};
+  for (const k of Object.keys(BUSINESS_LABELS)) {
+    if (b && typeof b[k] === 'string' && b[k].trim()) clean[k] = b[k].trim().slice(0, 600);
+  }
+  clean.updatedAt = Date.now();
+  store.set('business', clean);
+  cloudPushPrefs({ business: clean }).catch(() => {});
+  return { ok: true, business: clean };
+});
+
 async function _learnFromMessage(message) {
   const text = String(message || '').trim();
   if (text.length < 15 || text.split(/\s+/).length < 4 || !_LEARN_HINT.test(text)) return;
@@ -202,6 +255,7 @@ async function cloudPullPrefs() {
     if (prefs.reminders?.length)     store.set('reminders', prefs.reminders);
     if (prefs.userLocation)          store.set('userLocation', prefs.userLocation);
     if (prefs.musicService)          store.set('music.service', prefs.musicService);
+    if (prefs.business && typeof prefs.business === 'object') store.set('business', prefs.business);
     // Sync connector OAuth tokens (Spotify, Google, etc.) — skip tokens that are already set locally
     if (prefs.connectors && typeof prefs.connectors === 'object') {
       for (const [key, val] of Object.entries(prefs.connectors)) {
@@ -244,6 +298,9 @@ async function cloudPushPrefs(patch = null) {
         reminders:    store.get('reminders') || [],
         userLocation: store.get('userLocation') || null,
         musicService: store.get('music.service') || '',
+        // Included in every full sync: the full sync replaces everything kept
+        // for the account, so leaving it out would erase it.
+        business:     store.get('business') || {},
         connectors,
       };
       await fetch(`${_serverBase()}/user/prefs`, { method: 'POST', headers, body: JSON.stringify({ prefs }) });
@@ -3506,7 +3563,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   } catch (_) {}
 
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _businessNote() + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
@@ -3628,6 +3685,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // of what people said in passing was simply lost. This looks at what they
   // said, after the reply, and keeps only what is lasting and important.
   _learnFromMessage(message).catch(() => {});
+  _learnBusiness(message).catch(() => {});
 
   let finalText = (result.text && result.text.trim() && !result.text.includes('undefined'))
     ? result.text.trim()

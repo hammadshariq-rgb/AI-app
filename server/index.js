@@ -1794,6 +1794,12 @@ app.post('/user/prefs', authMiddleware, async (req, res) => {
     // Enforce size limit — prefs must be under 2MB serialised
     const size = Buffer.byteLength(JSON.stringify(prefs), 'utf8');
     if (size > 2 * 1024 * 1024) return res.status(413).json({ error: 'Prefs too large (max 2 MB)' });
+    // Older app versions send the whole set without the business profile; a
+    // full save from one of those must not erase it.
+    if (!prefs.business) {
+      const had = await users.findByIdCached(req.user.id);
+      if (had && had.prefs && had.prefs.business) prefs.business = had.prefs.business;
+    }
     await users.update(req.user.id, { prefs });
     res.json({ ok: true });
   } catch (err) {
@@ -2947,7 +2953,12 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, contentGua
       : null;
 
     const base = [{ role: 'system', content: webSystemPrompt() }, ...fromPage];
-    const extras = [memoryMsg, stockMsg].filter(Boolean);
+    const biz = user && user.prefs && user.prefs.business;
+    const bizLines = biz ? BUSINESS_FIELDS.filter((k) => biz[k]).map((k) => '- ' + k + ': ' + String(biz[k]).slice(0, 300)) : [];
+    const bizMsg = bizLines.length
+      ? { role: 'system', content: 'THEIR BUSINESS (what they have told you; use these exact figures in any business answer):\n' + bizLines.join('\n') }
+      : null;
+    const extras = [memoryMsg, bizMsg, stockMsg].filter(Boolean);
     const withContext = extras.length
       ? [...base.slice(0, -1), ...extras, base[base.length - 1]]
       : base;
@@ -3115,6 +3126,54 @@ app.post('/ai/learn', authMiddleware, aiLimiter, async (req, res) => {
     res.json({ facts: (r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '' });
   } catch (err) {
     res.status(500).json({ error: 'Could not read that just now.' });
+  }
+});
+
+// The person's business, kept up to date from what they say. Only what they
+// actually stated goes in; a guess is worse than a blank field, because every
+// piece of business advice afterwards is worked out from these numbers.
+const BUSINESS_FIELDS = ['name', 'what', 'customers', 'revenue', 'costs', 'pricing', 'team', 'suppliers', 'markets', 'channels', 'goals', 'challenges', 'notes'];
+const LEARN_BUSINESS_PROMPT = [
+  'You keep a founder\'s business profile up to date. You are given the current profile as JSON and',
+  'something they just said. Reply as JSON with ONLY the fields that should change: {"field": "new value"}.',
+  'Fields: name (business name), what (what they sell or do), customers (who and how many),',
+  'revenue (with period and currency), costs (main costs with amounts), pricing, team, suppliers',
+  '(who and which countries), markets (where they sell), channels (how they sell or market),',
+  'goals, challenges, notes.',
+  'Rules: only facts they stated about THEIR OWN business. Keep their numbers, currency and period',
+  'exactly. Every value is ONE plain string, never an object or list: "costs": "packaging from China',
+  'PKR 180k a month; ads PKR 60k a month". When a field already has something, return the whole new',
+  'value with the old items kept and the new one added. Where something came from (a supplier in',
+  'China) also goes in suppliers. Each value under 300 characters. If nothing about their business',
+  'was said, reply {}.',
+].join('\n');
+app.post('/ai/learn-business', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const text = String((req.body && req.body.text) || '').slice(0, 1500);
+    const current = (req.body && typeof req.body.current === 'object' && req.body.current) || {};
+    if (text.length < 12) return res.json({ changes: {} });
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      max_tokens: 500,
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: LEARN_BUSINESS_PROMPT },
+        { role: 'user', content: 'Current profile:\n' + JSON.stringify(current).slice(0, 4000) + '\n\nThey said:\n' + text },
+      ],
+    });
+    let out = {};
+    try { out = JSON.parse(r.choices[0].message.content || '{}'); } catch (_) {}
+    const changes = {};
+    for (const k of BUSINESS_FIELDS) {
+      let v = out[k];
+      // A list or an object still holds the facts; flatten it rather than lose them.
+      if (v && typeof v === 'object') v = Object.entries(v).map(([a, b]) => (Array.isArray(v) ? '' : a + ' ') + b).join('; ');
+      if (typeof v === 'string' && v.trim()) changes[k] = v.trim().slice(0, 300);
+    }
+    res.json({ changes });
+  } catch (err) {
+    res.json({ changes: {} });
   }
 });
 

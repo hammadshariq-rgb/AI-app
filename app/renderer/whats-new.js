@@ -13,6 +13,7 @@
 
   var NOTES = {
     '1.9.31': [
+      { icon: '💼', title: 'Remembers your business', text: 'Revenue, costs, customers and suppliers are kept in Account › My business, and every business answer works from them and from what is happening in the world.' },
       { icon: '✍️', title: 'Writes into your draft', text: 'In screen assist, say "write in this draft" — circled or not — and the text goes straight into the box you were in.' },
       { icon: '🧭', title: 'Do more with a diagram', text: 'Sketch on any diagram, or turn it into an image, poster, 3D model or video in one tap.' }
     ],

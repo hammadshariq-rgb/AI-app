@@ -34,6 +34,19 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building v$VERSION"
+      # One draft, made before either platform starts. Left to electron-builder,
+      # the Windows installer and its blockmap each created a release at the
+      # same moment, and the installer and latest.yml went into a second, hidden
+      # draft - Windows could not update to 1.9.30 until they were moved by hand.
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get.outputs.tag }}
+          VERSION: ${{ steps.get.outputs.version }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+            --title "$TAG" --notes "Callisto $VERSION"
 
   # ── Windows ────────────────────────────────────────────────────────────────
   build-windows:
@@ -349,6 +362,11 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
+          # Never publish a release a platform cannot update from.
+          names=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
+          for need in latest.yml latest-mac.yml "Callisto-AI-Setup-${TAG#v}.exe"; do
+            echo "$names" | grep -qx "$need" || { echo "::error::$need is missing from $TAG"; exit 1; }
+          done
           gh release edit "$TAG" --repo "$REPO" --draft=false --latest \
             --title "PERSONAL AI ASSISTANT CALLISTO ${TAG}"
           echo "Released $TAG"

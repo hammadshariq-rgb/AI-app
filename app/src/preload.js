@@ -190,6 +190,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Assist mode: what it worked out from the screen, and whether it is running.
   assistToggle: () => ipcRenderer.invoke('assist:toggle'),
   makeDiagram: (p) => ipcRenderer.invoke('diagram:make', p),
+  businessGet: () => ipcRenderer.invoke('business:get'),
+  businessSave: (b) => ipcRenderer.invoke('business:save', b),
+  onBusinessChanged: (cb) => ipcRenderer.on('business:changed', (_e, d) => cb(d)),
   onAssistDiagram: (cb) => ipcRenderer.on('assist:diagram', (_e, d) => cb(d)),
   onAssistResult: (cb) => ipcRenderer.on('assist:result', (_e, d) => cb(d)),
   onAssistHandoff: (cb) => ipcRenderer.on('assist:handoff', (_e, d) => cb(d)),
