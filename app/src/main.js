@@ -749,6 +749,9 @@ function buildCaptureWindow() {
     y: 0,
     frame: false,
     transparent: true,
+    // Stated outright: left unset, some graphics drivers paint a transparent
+    // window as a dark sheet over the whole screen.
+    backgroundColor: '#00000000',
     resizable: false,
     alwaysOnTop: true,
     level: 'screen-saver',
