@@ -3382,11 +3382,11 @@
       // landmark arrives, which is what the stepping was: smooth maths running
       // out of anything new to aim at. Time constants plus a short velocity
       // lead keep it moving across those gaps.
-      const TAU_FAST = 12;         // ms: stage-1 follows the data
+      const TAU_FAST = 5;          // ms: stage-1 follows the data
       const TAU_DISP = 45;         // ms: stage-2 display smoothing
       const TAU_VEL  = 90;         // ms: velocity estimate
-      const LEAD_MS  = 34;         // how far ahead the velocity is projected
-      const MAX_LEAD = 70;         // px: never throw the cursor across the screen
+      const LEAD_MS  = 42;         // how far ahead the velocity is projected
+      const MAX_LEAD = 90;         // px: never throw the cursor across the screen
       const DEAD_ZONE   = 0.35;    // px: ignore movement below this (micro-jitter)
       const HALF_CURSOR = 18;
       let velX = 0, velY = 0;      // px per ms
@@ -3431,8 +3431,8 @@
       }
       // 1.1Hz when still is heavy smoothing; beta lets it open right up when
       // the hand actually travels.
-      const euroX = OneEuro(2.4, 0.06, 1.0);
-      const euroY = OneEuro(2.4, 0.06, 1.0);
+      const euroX = OneEuro(3.5, 0.12, 1.0);
+      const euroY = OneEuro(3.5, 0.12, 1.0);
 
       // The hand can't reach the very edge of the camera's view and stay
       // tracked, so the middle of the view covers the whole screen. It also
@@ -3469,9 +3469,10 @@
         }
 
         const lm = lastLeftLm;
-        // Use midpoint of index tip (8) + middle tip (12) for a more stable centroid
-        const rawX = reach((lm[8].x + lm[12].x) * 0.5) * window.innerWidth;
-        const rawY = reach((lm[8].y + lm[12].y) * 0.5) * window.innerHeight;
+        // The tip of the pointing finger. Averaging in the middle finger dragged
+        // the cursor about whenever that finger curled.
+        const rawX = reach(lm[8].x) * window.innerWidth;
+        const rawY = reach(lm[8].y) * window.innerHeight;
 
         const nowMs = performance.now();
         const dt = _lastTickAt ? Math.min(100, nowMs - _lastTickAt) : 16;
@@ -3591,7 +3592,7 @@
           if (onCanvas || _penEl) {
             // A stroke that wanders off the canvas is finished rather than
             // left open, which would otherwise swallow the next press.
-            handPenTick(onCanvas && pinched, apart);
+            handPenTick(pinched, apart, onCanvas);
             if (onCanvas || _penEl) return;
           }
         }
@@ -3642,6 +3643,12 @@
       function pressAt(x, y) {
         const hit = document.elementFromPoint(x, y);
         if (!hit) return false;
+        // Nothing of Callisto's here: the press is for the file, folder or button
+        // behind this see-through window.
+        if (window._isCallistoUI && !window._isCallistoUI(hit)) {
+          window.jarvis?.pressOutside?.(x, y);
+          return true;
+        }
         const target = hit.closest(PRESSABLE) || hit;
         const base = {
           bubbles: true, cancelable: true, composed: true,
@@ -3689,16 +3696,26 @@
         });
       }
 
-      function handPenTick(pinched, apart) {
+      // Pinch starts a mark, and it lasts until the hand has really opened. Ending
+      // it as soon as the pinch loosened cut strokes up, and needing an open hand
+      // first means a pinch used on a button can't carry on and draw.
+      function handPenTick(pinched, apart, onCanvas) {
         if (pinched && !_penEl) {
-          const el = document.elementFromPoint(smoothX, smoothY);
+          if (!onCanvas || !triggerArmed) return;
+          const from = _aimTrail[0] || { x: smoothX, y: smoothY };
+          const el = document.elementFromPoint(from.x, from.y);
           if (!el) return;
-          _penEl = el;
+          triggerArmed = false;
+          _penEl = el.closest('svg') || el;
+          _penX = from.x; _penY = from.y;
           _penId++;
           magicCursor.classList.add('pinch');
           magicCursor.classList.remove('armed');
-          el.dispatchEvent(_penEvent('pointerdown', smoothX, smoothY, _penId, true));
-        } else if (pinched && _penEl) {
+          // Down on what is under the finger, the rest on the canvas: drawing
+          // rebuilds the shapes, and events sent to a removed one go nowhere,
+          // which left the pen stuck.
+          el.dispatchEvent(_penEvent('pointerdown', from.x, from.y, _penId, true));
+        } else if (!apart && _penEl) {
           // To the element the stroke started on, not whatever is under the
           // cursor now - a synthetic pointer cannot be captured, and following
           // the cursor would break the line the moment it crossed a shape.
@@ -3706,7 +3723,7 @@
             _penX = smoothX; _penY = smoothY;
             _penEl.dispatchEvent(_penEvent('pointermove', smoothX, smoothY, _penId, true));
           }
-        } else if (!pinched && _penEl) {
+        } else if (apart && _penEl) {
           const el = _penEl;
           _penEl = null;
           magicCursor.classList.remove('pinch');
@@ -3909,6 +3926,15 @@
         return lm[8].y < lm[12].y - 0.04
             && lm[8].y < lm[16].y - 0.04
             && lm[8].y < lm[20].y - 0.04;
+      }
+
+      // ── Open hand: all four fingers out ─────────────────────────────────
+      // Measured from the wrist, so it holds at any angle. Switching apps and
+      // modes need this, because a pointing hand moves about constantly.
+      function isOpenPalm(lm) {
+        const ga = window.__gestureAspect || 1;
+        const far = (a) => Math.hypot((lm[a].x - lm[0].x) * ga, lm[a].y - lm[0].y);
+        return [[8, 6], [12, 10], [16, 14], [20, 18]].every(([t, p]) => far(t) > far(p) * 1.05);
       }
 
       // ── Fist: ALL 4 fingers clearly closed ──────────────────────────────────
@@ -4337,7 +4363,13 @@
         // ── Hand swap ───────────────────────────────────────────────
         // Turning the right hand over — palm to back of hand — means "next".
         // What that means depends on what is on screen, so it is routed below.
-        if (gestureIdx >= 0) checkHandSwap(lms[gestureIdx], hands[gestureIdx]?.label);
+        // Swaps and waves belong to the right hand, and only when the vote says
+        // so: a guess from where the hand is in the frame is not enough.
+        const votes = gestureIdx >= 0 ? tracks[gestureIdx].votes : [];
+        const trulyRight = votes.filter((l) => l === 'Right').length > votes.filter((l) => l === 'Left').length;
+        const wavingHand = gestureIdx >= 0 && trulyRight && isOpenPalm(lms[gestureIdx]);
+        if (wavingHand) checkHandSwap(lms[gestureIdx], hands[gestureIdx]?.label);
+        else swap.facing = null;
 
         // -- The customer's own poses -----------------------------------------
         // Recording takes the frame first; otherwise a saved pose can fire.
@@ -4408,7 +4440,8 @@
           // ── 5a. SWIPE — one sweep sideways → the next window along ──────
           // Checked before the wave, because a swipe is the clearer gesture
           // and should not be swallowed by a looser one.
-          const swipeDir = checkSwipe(lm, i, performance.now());
+          if (!wavingHand) { swipeHist[i] = []; swipeArmed[i] = null; waveHist[i] = []; }
+          const swipeDir = wavingHand ? checkSwipe(lm, i, performance.now()) : null;
           if (swipeDir && canFire('wave')) {
             showGesture(swipeDir === 'left' ? '👈' : '👉',
               swipeDir === 'left' ? 'Previous app' : 'Next app');
@@ -4418,7 +4451,7 @@
           }
 
           // ── 5. WAVE — wrist oscillation → scroll markets OR switch mode ─
-          else if (checkWave(lm, i) && canFire('wave')) {
+          else if (wavingHand && checkWave(lm, i) && canFire('wave')) {
             if (typeof marketsOverlayOpen !== 'undefined' && marketsOverlayOpen) {
               // Left hand wave scrolls between market cards
               const wh = waveHist[i] || [];
@@ -4592,7 +4625,7 @@
               _mpBusy = false;
               // Smooth the estimate so one slow frame doesn't swing the cadence
               _inferMs = _inferMs * 0.8 + (performance.now() - t0) * 0.2;
-              sendInterval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, Math.round(_inferMs * 1.25)));
+              sendInterval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, Math.round(_inferMs * 1.05)));
             });
           }
           rafId = requestAnimationFrame(loop);

@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.29': [
+      { icon: '🖐️', title: 'Sharper hand control', text: 'The cursor follows your fingertip faster, and only an open right hand can wave or swipe, so pointing no longer switches tabs.' },
+      { icon: '✏️', title: 'Pinch, open, pinch', text: 'Pinch to draw, open your hand to stop, pinch again for the next mark. Pinch the eraser, move, then pinch what you want gone.' },
+      { icon: '▶️', title: 'Play on YouTube', text: 'Say "play something on YouTube" and the video starts.' },
+      { icon: '📁', title: 'Beyond Callisto', text: 'Pinch files and buttons behind Callisto to click them.' }
+    ],
     '1.9.28': [
       { icon: '🩺', title: 'Crash reports fixed', text: 'If Callisto crashes it can now tell us, unless you have turned crash reports off, so problems get fixed sooner.' }
     ],

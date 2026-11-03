@@ -293,6 +293,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   appVersion:    () => ipcRenderer.invoke('app:version'),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
   setClickThrough:  (flag) => ipcRenderer.invoke('app:setClickThrough', flag),
+  pressOutside:     (x, y) => ipcRenderer.invoke('cursor:pressOutside', { x, y }),
   setUserLocation:  (loc)  => ipcRenderer.invoke('app:setUserLocation', loc),
   focusWindow:   () => ipcRenderer.invoke('app:focusWindow'),
   // HiggsField

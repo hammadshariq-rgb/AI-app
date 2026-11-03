@@ -1817,6 +1817,41 @@ ipcMain.handle('app:setClickThrough', (_e, flag) => {
     overlayWindow.setIgnoreMouseEvents(!!flag, { forward: true });
 });
 
+// ── A pinch on something behind this window ──────────────────────────────────
+// A file, a folder, a delete button in another app. The real pointer goes there,
+// clicks and comes back. On Windows one helper stays running, so a click doesn't
+// wait for PowerShell to start. A Mac asks for Accessibility permission.
+let _clickHelper = null;
+function clickHelper() {
+  if (_clickHelper && !_clickHelper.killed && _clickHelper.exitCode === null) return _clickHelper;
+  const script = [
+    "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public struct P{public int X;public int Y;}public static class M{[DllImport(\"user32.dll\")]public static extern bool SetCursorPos(int x,int y);[DllImport(\"user32.dll\")]public static extern bool GetCursorPos(out P p);[DllImport(\"user32.dll\")]public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e);}'",
+    'while (($l = [Console]::In.ReadLine()) -ne $null) { $a = $l.Split(" "); $p = New-Object P; [void][M]::GetCursorPos([ref]$p); [void][M]::SetCursorPos([int]$a[0],[int]$a[1]); [M]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [M]::mouse_event(4,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 30; [void][M]::SetCursorPos($p.X,$p.Y) }',
+  ].join('; ');
+  _clickHelper = require('child_process').spawn('powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script],
+    { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
+  _clickHelper.on('error', () => { _clickHelper = null; });
+  return _clickHelper;
+}
+app.on('will-quit', () => { try { if (_clickHelper) _clickHelper.kill(); } catch (_) {} });
+
+ipcMain.handle('cursor:pressOutside', (e, p) => {
+  if (!overlayWindow || overlayWindow.isDestroyed() || e.sender !== overlayWindow.webContents) return false;
+  const x = Number(p && p.x), y = Number(p && p.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  const b = overlayWindow.getBounds();
+  const at = { x: Math.round(b.x + x), y: Math.round(b.y + y) };
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  if (process.platform === 'win32') {
+    const real = require('electron').screen.dipToScreenPoint(at);
+    clickHelper().stdin.write(Math.round(real.x) + ' ' + Math.round(real.y) + '\n');
+  } else if (process.platform === 'darwin') {
+    require('child_process').execFile('osascript', ['-e', 'tell application "System Events" to click at {' + at.x + ',' + at.y + '}'], () => {});
+  }
+  return true;
+});
+
 // ── Where the pointer is, asked of the system rather than the window ─────────
 // Click-through used to be driven by the window's own mousemove events. The
 // moment it was told to ignore the mouse it stopped receiving them, so it
@@ -3013,6 +3048,25 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
       _sendTTS(_e.sender, 'Right away.');
       return { text: 'Right away.', audio: null, card: null, hasAction: true };
     }
+  }
+
+  // "Play X on YouTube" is a video on YouTube, whatever X sounds like: never a
+  // song on another app and never a file on this computer. The first result is
+  // opened so it starts playing, and the results page is the fallback.
+  const _ytM = !_forTv && _lo.match(/^(?:play(?:s+me)?|watch|puts+on|shows+me)s+(.+?)s+(?:on|from)s+(?:youtube|yt)[.!?]*$/);
+  if (_ytM) {
+    const q = _ytM[1].trim().replace(/s+(?:video|clip)$/, '');
+    const results = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    const said = `Playing ${q} on YouTube.`;
+    _sendTTS(_e.sender, said);
+    fetch(results, { headers: { 'Accept-Language': 'en' }, signal: AbortSignal.timeout(4000) })
+      .then((r) => r.text())
+      .then((html) => {
+        const m = html.match(/"videoId":"([w-]{11})"/);
+        return commands.run('open_url', m ? `https://www.youtube.com/watch?v=${m[1]}` : results);
+      })
+      .catch(() => commands.run('open_url', results).catch(() => {}));
+    return { text: said, audio: null, card: null, hasAction: true };
   }
 
   // ── Fast path: play commands — skip AI entirely, go straight to Spotify ──────

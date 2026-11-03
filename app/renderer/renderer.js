@@ -97,6 +97,7 @@ window._clickThroughActive = false;
   // So a ring around the pointer counts too. The window becomes clickable
   // just BEFORE the pointer lands on a button rather than just after, which
   // is the difference between a cross that works and one that does not.
+  window._isCallistoUI = (el) => isClickableEl(el);
   const NEAR = 14;
   function uiNear(x, y) {
     if (isClickableEl(document.elementFromPoint(x, y))) return true;
