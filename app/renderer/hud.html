@@ -133,6 +133,13 @@
     .card-body{
       padding:12px 14px 14px;
     }
+    .hud-card.worked .card-desc{font-size:13px}
+    .hud-card.held .timer-bar{animation-play-state:paused}
+    .card-desc.worked{max-height:min(62vh,560px)!important;overflow-y:auto;font-size:13.5px;line-height:1.6}
+    .card-desc.worked p{margin:0 0 10px}
+    .card-desc.worked strong{color:#fff;display:inline-block;margin-top:2px}
+    .card-desc.worked .katex-display{margin:6px 0;overflow-x:auto;overflow-y:hidden}
+    .card-desc.worked .katex{color:#eef3ff;font-size:1.08em}
     .card-desc{
       font-size:12.5px;
       line-height:1.6;
@@ -253,6 +260,10 @@
 
 <div id="stack"></div>
 
+<link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css">
+<script src="../node_modules/katex/dist/katex.min.js"></script>
+<script src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
+<script src="rich-math.js"></script>
 <script>
 const { ipcRenderer } = require('electron');
 const stack = document.getElementById('stack');
@@ -306,7 +317,12 @@ function showCard(data) {
   // ttl lets the caller say how long a card is worth: the "watching your
   // screen" and "listening" notices are three-second signals, not something to
   // leave sitting over someone's work for ten.
-  const dur = ttl ? Math.max(1, ttl / 1000) : ((type === 'wiki' || type === 'info') ? 10 : 7);
+  // Long enough to read: a worked answer stays far longer than a one-liner.
+  const readLen = String((data.card && (data.card.summary || '')) || data.text || '').length
+    + (Array.isArray(data.card && data.card.steps) ? data.card.steps.join(' ').length : 0);
+  const dur = ttl ? Math.max(1, ttl / 1000)
+    : (data.rich || readLen > 220) ? Math.min(120, 15 + readLen / 18)
+    : ((type === 'wiki' || type === 'info') ? 10 : 7);
 
   // Everything shown is text, never markup: this window can reach the system, and
   // the words come from the web and from whatever was circled on screen.
@@ -320,6 +336,10 @@ function showCard(data) {
   const cardTitle = esc(card?.title || title || (type === 'wiki' ? 'Identified' : cfg.label));
   const cardSub   = esc(card?.source || card?.category || '');
   const bodyText  = esc(card?.summary || card?.description || text || '');
+  // A worked answer: steps, equations and the final answer, drawn properly.
+  const M = window.CallistoMath;
+  const worked = M && (data.rich || (card && Array.isArray(card.steps) && card.steps.length) || M.hasMath(text));
+  const richText = worked ? M.fromCard(card, card?.summary ? card.summary : text) : '';
   const eventSub  = esc(card?.when || (card?.to ? 'To: ' + card.to : ''));
 
   const el = document.createElement('div');
@@ -362,7 +382,7 @@ function showCard(data) {
           </div>
         </div>
         <div class="card-body">
-          <div class="card-desc">${bodyText.replace(/\n/g,'<br>')}</div>
+          <div class="card-desc${worked ? ' worked' : ''}">${worked ? M.toHtml(richText) : bodyText.replace(/\n/g,'<br>')}</div>
         </div>`;
     } else {
       // No image — icon + title inline, then text below
@@ -375,19 +395,24 @@ function showCard(data) {
           </div>
         </div>
         <div class="card-body">
-          <div class="card-desc">${bodyText.replace(/\n/g,'<br>')}</div>
+          <div class="card-desc${worked ? ' worked' : ''}">${worked ? M.toHtml(richText) : bodyText.replace(/\n/g,'<br>')}</div>
         </div>`;
     }
   }
 
   html += `<div class="timer-bar"></div>`;
   el.innerHTML = html;
+  if (worked) { el.classList.add('worked'); M.render(el.querySelector('.card-desc')); }
+  // Reading it holds it: the timer waits while the pointer is on the card.
+  el.addEventListener('mouseenter', () => el.classList.add('held'));
+  el.addEventListener('mouseleave', () => el.classList.remove('held'));
   stack.prepend(el);
 
   // Cap at 4 cards
   while (stack.children.length > 4) dismiss(stack.lastElementChild, true);
 
-  setTimeout(() => dismiss(el), dur * 1000);
+  const expire = () => { if (el.classList.contains('held')) return setTimeout(expire, 1500); dismiss(el); };
+  setTimeout(expire, dur * 1000);
 }
 
 function dismiss(el, instant = false) {

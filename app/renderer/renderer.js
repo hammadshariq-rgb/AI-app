@@ -946,7 +946,7 @@ function _paintStreamingText(el, md) {
 }
 
 function _looksLikeMarkdown(t) {
-  return typeof t === 'string' && /(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(t);
+  return typeof t === 'string' && /\\\(|\\\[|\$\$|(^|\n)\s*(#{1,4}\s|[-*•]\s|\d+[.)]\s|\|.+\|)|\*\*[^*]+\*\*|```|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(t);
 }
 
 // Links in formatted replies open in the browser, never inside the app window.
@@ -1047,6 +1047,7 @@ function addMessage(role, text) {
   if (role === 'assistant' && _looksLikeMarkdown(text)) {
     textSpan.classList.add('msg-rich');
     textSpan.innerHTML = _renderChatMarkdown(text);   // HTML is escaped first
+    window.CallistoMath?.render(textSpan);
   } else {
     textSpan.textContent = text;
   }
@@ -5742,8 +5743,10 @@ if (window.jarvis.onHudResponse) {
     // Treat it like an incoming AI message: a chat bubble, and in the app the card
     // beside it. From another app the small card already showed it, so the chat
     // just keeps the answer for later.
-    history.push({ role: 'assistant', content: text });
-    addMessage('assistant', text);
+    // A circled question answered with working shows the working here too,
+    // not only the one-line answer.
+    const full = window.CallistoMath ? window.CallistoMath.fromCard(card, text) : text;
+    addMessage('assistant', full);
     if (card && !background) showCard(card);
   });
 }

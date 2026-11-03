@@ -3552,6 +3552,10 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
       // blank one. It is also $0.10/$0.50 per million against $0.40/$1.60, so
       // a look costs about a quarter of what it did.
       model: 'gpt-6-luna',
+      // Low, not the default and not none. On a real bearings question none was
+      // fastest but answered 8.24 km, the wrong answer people saw; low gave the
+      // right 8.17 km and was still quicker than the default.
+      reasoning_effort: 'low',
       // Newer models take max_completion_tokens, and reject a temperature.
       // 600 was fine while the answers were one line. Asking for working on a
       // maths question made them longer than that, and a truncated answer is
@@ -3567,10 +3571,13 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             dateLine,
             '',
             'Reply as JSON:',
-            '{"text": string, "action": {"kind": string, "label": string, "title": string,',
+            '{"text": string, "spoken": string, "action": {"kind": string, "label": string, "title": string,',
             ' "date": string, "time": string, "replacement": string, "files": string[]} | null}',
             '',
-            '"text" is what you say to them. Two or three sentences, no more.',
+            '"text" is shown on a card that draws bold text and LaTeX. For anything',
+            'that is not a question to work through, keep it to two or three sentences.',
+            '"spoken" is read aloud: one or two plain sentences with the result, no',
+            'symbols, no LaTeX - "The angle is 34 degrees and LB is about 8.24 km."',
             'Lead with the single most useful thing YOU can do about what is on screen.',
             '',
             'NEVER do these:',
@@ -3626,39 +3633,40 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             'open to reach it. Keep each step to one short line. Offer to do it for',
             'them at the end only if it is something you can actually do.',
             '',
-            'NO MARKDOWN, EVER. No asterisks for bold, no backticks, no hashes, no',
-            'bullet characters. This is read aloud and shown on a plain card, so',
-            '**Compose** appears on screen with the asterisks still in it. Write',
-            'Compose, or "the Compose button".',
-            'NEVER write LaTeX. No backslash-parentheses, no dollar signs, no \\frac,',
-            'no \\left or \\right. This is read aloud and shown on a small card, and',
-            'both turn it into nonsense - "backslash open paren r equals minus backslash',
-            'frac four five". Write it the way you would say it: r = -4/5, u25 = 9000 x',
-            '(-4/5)^24, S = 5000.',
+            'FORMATTING "text": the only markdown is **bold** for step headings. No',
+            'hashes, backticks or bullet characters. ALL maths is LaTeX: inline as',
+            '\\( ... \\), and every equation or line of working on its own line as',
+            '\\[ ... \\]. Use \\frac, \\sin, ^ and \\times properly. Never put',
+            'maths in plain text like "x^2" or "4/5" in "text". Never put LaTeX or',
+            'asterisks in "spoken".',
             'WORKING, NOT JUST ANSWERS. For maths, physics, chemistry or biology this is',
             'the single most important rule, and a correct answer written as one',
             'paragraph is a FAILED answer. Lay it out exactly like this, with a REAL',
             'LINE BREAK between every line - never run the steps together into prose:',
             '',
-            'Step 1 - Identify the sequence',
-            'The terms are 2, 1, 1/2, 1/4, so each one is half the last.',
-            'Common ratio r = 1/2, first term u1 = 2.',
+            '**Step 1: Identify the sequence**',
+            'Each term is half the last, so the common ratio is \\(r = \\tfrac{1}{2}\\) and \\(u_1 = 2\\).',
             '',
-            'Step 2 - Use the formula for the nth term',
-            'un = u1 x r^(n-1)',
-            'u8 = 2 x (1/2)^7',
+            '**Step 2: Use the formula for the nth term**',
+            '\\[u_n = u_1 r^{n-1}\\]',
+            '\\[u_8 = 2 \\times \\left(\\tfrac{1}{2}\\right)^7\\]',
             '',
-            'Step 3 - Work it out',
-            '(1/2)^7 = 1/128',
-            'u8 = 2 x 1/128 = 2/128',
+            '**Step 3: Work it out**',
+            '\\[u_8 = 2 \\times \\tfrac{1}{128} = \\tfrac{1}{64}\\]',
             '',
-            'Answer: u8 = 1/64',
+            '**Final answer**',
+            '\\[\\boxed{u_8 = \\tfrac{1}{64}}\\]',
             '',
             'So: a short heading for each step, the rule or formula named before it is',
             'used, the numbers substituted in on their own line, then the arithmetic,',
-            'then a final line starting "Answer:". Say WHY a step is taken where it is',
+            'then **Final answer** with the result boxed in \\[\\boxed{...}\\]. Say WHY a step is taken where it is',
             'not obvious. If the question has numbered parts, do all of them, each with',
             'its own working under its own heading. An answer with no working is no use',
+            'ARITHMETIC: never jump straight to a rounded result. Write each value on its',
+            'own line to six decimal places, for example \\(\\cos 40^\\circ = 0.766044\\), then',
+            'substitute those numbers and compute. Rounding the parts early changes the',
+            'answer, so round only the final result, to the accuracy the question asks',
+            'for (3 significant figures if it does not say), and check it once more.',
             'to somebody trying to learn it or check their own.',
             '',
             'A QUESTION THAT WANTS WORDS, NOT A CALCULATION - "explain", "describe",',
@@ -3678,7 +3686,10 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
             'check you are reading the question whose heading matches, not the list item',
             'with that number inside a different question. Begin your answer by naming',
             'what you found - "Question 3 asks you to..." - so a mistake is obvious at',
-            'once. If that number is not on the screen, or you cannot tell which block',
+            'once. Read ALL of it before answering: the full wording, every sub-part',
+            '(a), (b), (c), the numbers, units, marks, any diagram and its labels and',
+            'angles, any table, graph or code. A diagram\'s values count as part of the',
+            'question. If that number is not on the screen, or you cannot tell which block',
             'it belongs to, SAY SO and describe what you can see instead. Solving the',
             'wrong question confidently is far worse than asking which one they meant.',
             'Only say what you can actually see. If text is too small or cut off, say so.',
@@ -3746,7 +3757,7 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
     // worth saying is silence. The model drifts into "shall I check again?" on a
     // quiet screen, and that is the one thing it must never do while watching.
     if (watching && !action && /\?\s*$/.test(text)) text = 'NOTHING';
-    res.json({ ok: true, text, action });
+    res.json({ ok: true, text, spoken: String(out.spoken || '').slice(0, 600), action });
   } catch (err) {
     console.error('[screen-read]', err.message);
     res.status(500).json({ error: 'I could not read the screen just then.' });
@@ -3787,6 +3798,7 @@ Only list files you can actually read on screen. If none, use an empty array.
       // at $2.00/$8.00 per million - the dearest call in the app for a job
       // Luna does at $0.10/$0.50.
       model: 'gpt-6-luna',
+      reasoning_effort: 'low',   // see /ai/screen-read: faster than the default, still right
       max_completion_tokens: 900,
       messages: [{
         role: 'user',
@@ -3869,7 +3881,7 @@ Be direct, specific and intelligent — like a brilliant professor giving you th
     const spokenText = answer;
 
     res.json({
-      text: spokenText,
+      text: spokenText.replace(/\\[()[\]]/g, ''),
       card: {
         type: cardType,
         title: subject,

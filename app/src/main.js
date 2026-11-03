@@ -714,7 +714,8 @@ function hudWouldDuplicate() {
 }
 
 function sendToHud(channel, data) {
-  if (channel === 'hud:card' && hudWouldDuplicate()) return;
+  // Screen assist always says it has started, whatever is in front.
+  if (channel === 'hud:card' && !(data && data.force) && hudWouldDuplicate()) return;
   ensureHud();
   // wait for load if freshly created
   if (hudWindow.webContents.isLoading()) {
@@ -6753,7 +6754,17 @@ function screenWatchIntervalMs() {
   return Math.max(2, Number.isFinite(s) && s > 0 ? s : 5) * 1000;
 }
 
+// Callisto's own windows are left out of every screenshot it takes. Pressing
+// Alt+Shift+C with Callisto in front used to capture Callisto instead of the
+// question behind it, so the answer was about the wrong screen.
 async function grabScreen(maxWidth = 1280) {
+  const ours = [overlayWindow, hudWindow].filter((w) => w && !w.isDestroyed());
+  ours.forEach((w) => { try { w.setContentProtection(true); } catch (_) {} });
+  try { return await _grabScreen(maxWidth); }
+  finally { ours.forEach((w) => { try { w.setContentProtection(false); } catch (_) {} }); }
+}
+
+async function _grabScreen(maxWidth) {
   const { desktopCapturer, screen: eScreen } = require('electron');
   const d = eScreen.getPrimaryDisplay().size;
   const w = Math.min(maxWidth, d.width);
@@ -6835,7 +6846,7 @@ async function _readScreenOnce(question, { mode, width, frame } = {}) {
     const res = await ai.serverFetch('screen-read', { imageBase64: shot, question, today, mode }, { timeout: 60000, retries: 1 });
     const data = await res.json();
     return data && data.text
-      ? { ok: true, text: data.text, action: data.action || null, shot }
+      ? { ok: true, text: data.text, spoken: data.spoken || '', action: data.action || null, shot }
       : { error: 'I could not make sense of that screen.' };
   } catch (err) {
     return { error: 'I could not read the screen just then.' };
@@ -7111,8 +7122,9 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     _sendTTS(e.sender, why);
     return { ok: false };
   }
-  sendToHud('hud:card', { type: 'info', text: String(out.text).slice(0, 1200) });
-  _sendTTS(e.sender, out.text);
+  // The card shows the full working; the voice says the short version.
+  sendToHud('hud:card', { type: 'info', title: 'About your screen', text: String(out.text).slice(0, 6000), rich: true, force: true });
+  _sendTTS(e.sender, out.spoken || String(out.text).replace(/\\[()[\]]/g, '').replace(/\*\*/g, '').slice(0, 600));
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     // With the picture. The answer on its own, in a window they were not even
     // looking at, gives no way to tell which screen it was about.
@@ -7619,7 +7631,7 @@ function stopAssist(reason) {
   if (reason === 'toggled' || reason === 'shortcut') {
     // The second press is "I have finished speaking": say it is thinking, so
     // the pause before the answer reads as working rather than as nothing.
-    sendToHud('hud:card', { type: 'info', text: '🧠 Thinking…', ttl: 3000 });
+    sendToHud('hud:card', { type: 'info', text: '🧠 Thinking…', ttl: 3000, force: true });
   } else if (reason === 'daily') {
     // Always said, introduction or not: otherwise it just stops responding and
     // looks broken.
@@ -7753,7 +7765,7 @@ function startAssist() {
   // they may well have moved. Kept so the answer is about the right picture.
   ASSIST.frame = null;
   ASSIST.thumb = null;
-  grabScreen(1600).then((shot) => {
+  grabScreen(1280).then((shot) => {
     if (!shot) return;
     ASSIST.frame = shot;
     // A small copy of the same frame, for showing in the app next to the
@@ -7774,8 +7786,9 @@ function startAssist() {
   ASSIST.announced = true;
   sendToHud('hud:card', {
     type: 'info',
-    text: '👀 Watching your screen. Say what you need, then press Alt+Shift+C again.',
+    text: '👀 Screen assist is on. Say what you need, then press Alt+Shift+C again.',
     ttl: 3000,
+    force: true,
   });
   // And then the microphone bars stay up for as long as it is actually
   // listening. The second notice card used to say this and vanish, which left
