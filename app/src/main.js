@@ -779,7 +779,7 @@ function warmCaptureOverlay() {
   try { buildCaptureWindow(); } catch (err) { console.warn('[capture] warm failed:', err.message); }
 }
 
-async function openCaptureOverlay() {
+async function openCaptureOverlay(opts = {}) {
   const ready = buildCaptureWindow();
   // Fit the current display, in case they changed screen or resolution since.
   try {
@@ -798,6 +798,7 @@ async function openCaptureOverlay() {
   _captureShot = null;
   _screenShot = null;
   captureWindow.webContents.send('capture:reset');
+  captureWindow.webContents.send('capture:mode', { assist: !!opts.assist });
   captureWindow.show();
   captureWindow.focus();
 
@@ -819,9 +820,22 @@ function closeCaptureOverlay() {
   if (captureWindow && !captureWindow.isDestroyed()) captureWindow.hide();
 }
 
+// Circled while screen assist is on: the question that follows is about this
+// part only. Escape takes the circle away again and the whole screen counts.
+ipcMain.on('capture:assist-area', async (_e, bounds) => {
+  if (!ASSIST.on) return;
+  try {
+    const crop = await _cropCapture(bounds);
+    if (!crop || !ASSIST.on) return;
+    ASSIST.frame = crop;
+    ASSIST.circled = true;
+    try { ASSIST.thumb = require('electron').nativeImage.createFromDataURL(crop).resize({ width: 560 }).toDataURL(); } catch (_) {}
+  } catch (_) {}
+});
+
 // IPC: overlay signals it's done (after identification request sent)
 ipcMain.on('capture:done', () => closeCaptureOverlay());
-ipcMain.on('capture:cancel', () => closeCaptureOverlay());
+ipcMain.on('capture:cancel', () => { if (ASSIST.on) return void stopAssist('escape'); closeCaptureOverlay(); });
 ipcMain.on('capture:hide', () => closeCaptureOverlay());
 
 // The whole screen, taken just BEFORE the overlay appears.
@@ -1468,19 +1482,9 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send('jarvis:clipboard-ai', { text });
   });
 
-  // Ctrl+Shift+X — Magic Cursor: open screen-capture lasso overlay (circle anything → AI identifies it).
-  // Pressing it again while the cursor is up puts it away.
-  bindShortcut('magicCursor',
-    process.platform === 'darwin'
-      ? ['Alt+Shift+X', 'CommandOrControl+Shift+X']
-      : ['CommandOrControl+Shift+X', 'Alt+Shift+X'], () => {
-    if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) { closeCaptureOverlay(); return; }
-    if (blockedByMacPermission('screen', 'Magic Cursor')) return;
-    // Where the user was decides where the answer goes (see capture:identify).
-    captureFromApp = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible() && overlayWindow.isFocused());
-    if (captureWindow && !captureWindow.isDestroyed()) closeCaptureOverlay();   // a finished one still identifying
-    openCaptureOverlay();
-  });
+  // Circling has no shortcut of its own any more. It is part of screen assist
+  // (Alt+Shift+C): while that is on, a press and a circle on the screen narrows
+  // the question down to what was circled.
 
   // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer.
   // The mic lives in the app window, so it decides start or stop and reports back
@@ -6758,7 +6762,7 @@ function screenWatchIntervalMs() {
 // Alt+Shift+C with Callisto in front used to capture Callisto instead of the
 // question behind it, so the answer was about the wrong screen.
 async function grabScreen(maxWidth = 1280) {
-  const ours = [overlayWindow, hudWindow].filter((w) => w && !w.isDestroyed());
+  const ours = [overlayWindow, hudWindow, captureWindow].filter((w) => w && !w.isDestroyed());
   ours.forEach((w) => { try { w.setContentProtection(true); } catch (_) {} });
   try { return await _grabScreen(maxWidth); }
   finally { ours.forEach((w) => { try { w.setContentProtection(false); } catch (_) {} }); }
@@ -7108,7 +7112,8 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   // No "Thinking…" card here: the second key press already sent one, and two
   // of them stacked is the card appearing twice.
   const out = await _readScreenOnce(
-    'They asked this out loud while you were watching their screen: "' + q + '"\n'
+    (ASSIST.circled ? 'They circled one part of their screen; the picture shows only that part. ' : '')
+    + 'They asked this out loud while you were watching their screen: "' + q + '"\n'
     + 'Answer it about what is actually on the screen in front of them. If they '
     + 'point at something - "question 2", "this error", "the second one" - find it '
     + 'on screen and work from that. Do not say you cannot see it unless the screen '
@@ -7124,6 +7129,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   }
   // The card shows the full working; the voice says the short version.
   sendToHud('hud:card', { type: 'info', title: 'About your screen', text: String(out.text).slice(0, 6000), rich: true, force: true });
+  _teachDiagram(q, out.text);
   _sendTTS(e.sender, out.spoken || String(out.text).replace(/\\[()[\]]/g, '').replace(/\*\*/g, '').slice(0, 600));
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     // With the picture. The answer on its own, in a window they were not even
@@ -7621,6 +7627,7 @@ async function _doAssistAction(action) {
 function stopAssist(reason) {
   if (!ASSIST.on) return { ok: false };
   ASSIST.on = false;
+  closeCaptureOverlay();
   if (ASSIST.timer) clearInterval(ASSIST.timer);
   ASSIST.timer = null;
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
@@ -7765,6 +7772,7 @@ function startAssist() {
   // they may well have moved. Kept so the answer is about the right picture.
   ASSIST.frame = null;
   ASSIST.thumb = null;
+  ASSIST.circled = false;
   grabScreen(1280).then((shot) => {
     if (!shot) return;
     ASSIST.frame = shot;
@@ -7795,8 +7803,35 @@ function startAssist() {
   // no way to tell an open microphone from a broken one.
   sendToHud('hud:listening', { sustained: true, label: '👀 Watching your screen · listening' });
   _tellOverlayAssist({ on: true });
+  // Moving the mouse does nothing; pressing and circling picks out an area.
+  openCaptureOverlay({ assist: true }).catch(() => {});
   return { ok: true };
 }
+
+// Asking how or why something works gets a labelled diagram, drawn after the
+// answer so the answer never waits for it. One drawing goes to both the card
+// and the conversation.
+const TEACH_Q = /\b(explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|label|structure|process|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|molecule|cell|ecosystem|photosynthesis|respiration|anatomy|solve|question)\b/i;
+async function _teachDiagram(question, answer) {
+  if (!TEACH_Q.test(String(question || '')) || String(answer || '').length < 140) return;
+  try {
+    const res = await ai.serverFetch('diagram', { question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }, { timeout: 60000, retries: 0 });
+    const d = await res.json();
+    if (!d || !d.svg) return;
+    sendToHud('hud:diagram', d);
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('assist:diagram', d);
+  } catch (_) {}
+}
+
+ipcMain.handle('diagram:make', async (_e, p) => {
+  try {
+    const res = await ai.serverFetch('diagram', {
+      question: String((p && p.question) || '').slice(0, 1500),
+      answer: String((p && p.answer) || '').slice(0, 5000),
+    }, { timeout: 60000, retries: 0 });
+    return await res.json();
+  } catch (_) { return { svg: null }; }
+});
 
 ipcMain.handle('assist:toggle', () => (ASSIST.on ? stopAssist('toggled') : startAssist()));
 ipcMain.handle('assist:state', () => ({

@@ -218,6 +218,16 @@ let lassoHue = 220;
 // then would put the lasso into the very picture it is meant to be selecting
 // from. It is a fraction of a second, and the prompt appears when it lifts.
 let armed = false;
+// Inside screen assist: a circle narrows the question and stays drawn; nothing
+// is asked here, they say it out loud.
+let assistMode = false;
+ipcRenderer.on('capture:mode', (_e, m) => {
+  assistMode = !!(m && m.assist);
+  const hint = document.getElementById('hint');
+  if (hint) hint.innerHTML = assistMode
+    ? 'Screen assist is on — <span>press and circle what you mean, or just ask · Esc to stop</span>'
+    : 'Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span>';
+});
 
 lassoCanvas.addEventListener('mousedown', e => {
   if (e.button !== 0 || !armed) return;
@@ -323,6 +333,12 @@ async function finishSelection() {
   const bounds = getBounds();
   if (bounds.width < 20 || bounds.height < 20) {
     lCtx.clearRect(0, 0, lassoCanvas.width, lassoCanvas.height);
+    return;
+  }
+  if (assistMode) {
+    ipcRenderer.send('capture:assist-area', bounds);
+    const hint = document.getElementById('hint');
+    if (hint) hint.innerHTML = 'Got it — <span>now ask about what you circled · circle again to change it</span>';
     return;
   }
 

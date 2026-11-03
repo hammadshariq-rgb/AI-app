@@ -83,8 +83,8 @@
     },
     {
       targets: ['#micWrap'],
-      title: 'Circle anything on screen',
-      body: `Press ${MAGIC}${KEY('Shift')}${KEY('X')} and draw a circle round anything — an error, a product, a paragraph, a bill — and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
+      title: 'Circle to narrow it down',
+      body: `While screen assist is on, press and draw a circle round anything — an error, a product, a paragraph, a bill — and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
       foot: IS_MAC
         ? 'On a Mac this is <b>Option</b>, not Cmd, and it needs <b>Screen Recording</b> permission the first time.'
         : null,

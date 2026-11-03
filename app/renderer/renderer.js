@@ -5893,7 +5893,16 @@ window.jarvis.onAssistResult?.((res) => {
 
   if (!text) return;
   remember(text);
-  _attachAssistShot(addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text), shot);
+  const _bubble = addMessage('assistant', (title ? '**' + title + '**\n\n' : '') + text);
+  _attachAssistShot(_bubble, shot);
+  window._lastAssistBubble = _bubble;
+});
+
+// The diagram for the last screen answer, drawn once in main and shown in both
+// places, so the card and the chat never pay for two.
+window.jarvis.onAssistDiagram?.((d) => {
+  const el = window._lastAssistBubble;
+  if (el && d && d.svg) window.CallistoDiagram?.show(el, d);
 });
 
 // Something offered from the screen that is really a conversation. Put it in
@@ -6497,6 +6506,8 @@ async function sendToJarvis(rawText) {
   // If the reply was already streaming into a bubble, finalise that one instead.
   const msgEl = _finishReplyGate(res.text);
   showStopBtn(false); setState('idle');
+  // How something works gets a labelled diagram under the answer, drawn after.
+  if (msgEl && res.text && !res.card) window.CallistoDiagram?.attach(msgEl, text, res.text);
 
   // Spreadsheet — preview, open in Excel, and the AI's ideas as one-tap follow-ups
   if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
@@ -6764,7 +6775,7 @@ function _finishReplyGate(finalText) {
   if (el && hasText) {
     const span = el.querySelector('.msg-text');
     if (span) {
-      if (_looksLikeMarkdown(finalText)) { span.classList.add('msg-rich'); span.innerHTML = _renderChatMarkdown(finalText); }
+      if (_looksLikeMarkdown(finalText)) { span.classList.add('msg-rich'); span.innerHTML = _renderChatMarkdown(finalText); window.CallistoMath?.render(span); }
       else { span.classList.remove('msg-rich'); span.textContent = finalText; }
     }
     el._fullText = finalText;
@@ -8144,7 +8155,7 @@ async function showSplash(name) {
 function initWelcomeScroll() {
   const CAPS = [
     { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak to any tab, AI responds by voice',     kbd: keys('Ctrl+Shift+C'), colorA: '#00c8ff', colorB: '#003a5c' },
-    { emoji: '◉', title: 'MAGIC CURSOR',       sub: 'Circle anything on screen — AI identifies',  kbd: keys('Ctrl+Shift+X'), colorA: '#8b5cf6', colorB: '#2d1b69' },
+    { emoji: '◉', title: 'SCREEN ASSIST',      sub: 'Ask about your screen — circle to narrow it', kbd: keys('Alt+Shift+C'), colorA: '#8b5cf6', colorB: '#2d1b69' },
     { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       kbd: null,           colorA: '#00e5b0', colorB: '#00382e' },
     { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       kbd: null,           colorA: '#f472b6', colorB: '#5c1840' },
     { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             kbd: null,           colorA: '#60a5fa', colorB: '#1e3a5c' },
@@ -8681,10 +8692,10 @@ const ONBOARD_STEPS = [
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🔮</span>
           <div class="ob-shortcut-info">
-            <div class="ob-shortcut-name">Magic cursor — circle to identify</div>
-            <div class="ob-shortcut-desc">Draw a circle around anything on screen — AI tells you what it is</div>
+            <div class="ob-shortcut-name">Screen assist — ask about your screen</div>
+            <div class="ob-shortcut-desc">Press it, say your question, press again. Circle part of the screen to narrow it down</div>
           </div>
-          <span class="ob-kbd">${keys('Ctrl+Shift+X')}</span>
+          <span class="ob-kbd">${keys('Alt+Shift+C')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">💬</span>

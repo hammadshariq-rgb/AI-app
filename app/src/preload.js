@@ -189,6 +189,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
   // Assist mode: what it worked out from the screen, and whether it is running.
   assistToggle: () => ipcRenderer.invoke('assist:toggle'),
+  makeDiagram: (p) => ipcRenderer.invoke('diagram:make', p),
+  onAssistDiagram: (cb) => ipcRenderer.on('assist:diagram', (_e, d) => cb(d)),
   onAssistResult: (cb) => ipcRenderer.on('assist:result', (_e, d) => cb(d)),
   onAssistHandoff: (cb) => ipcRenderer.on('assist:handoff', (_e, d) => cb(d)),
   onAssistState: (cb) => ipcRenderer.on('assist:state', (_e, d) => cb(d)),

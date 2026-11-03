@@ -164,6 +164,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const { createGuard, REFUSAL } = require('./content-guard');
 // Its own client on the runtime's fetch: a failed check here refuses pictures,
 // so it can't depend on the older fetch the main client ships with.
+const { makeDiagram } = require('./diagram');
+const drawDiagram = makeDiagram(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
 const contentGuard = createGuard(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
 
 // Validate required env vars on startup
@@ -3150,6 +3152,20 @@ app.post('/web/speak', authMiddleware, aiLimiter, async (req, res) => {
     res.json({ audio: Buffer.from(await r.arrayBuffer()).toString('base64') });
   } catch (err) {
     res.status(500).json({ error: 'Could not read that out just now.' });
+  }
+});
+
+// A teaching diagram for an answer that has already been given. Not a message:
+// it rides along with one, so it does not count against the daily allowance.
+app.post('/ai/diagram', authMiddleware, aiLimiter, async (req, res) => {
+  try {
+    const question = String((req.body && req.body.question) || '').slice(0, 1500);
+    const answer = String((req.body && req.body.answer) || '').slice(0, 5000);
+    if (!question || answer.length < 40) return res.json({ svg: null });
+    if (await contentGuard.review({ text: question }, req.userId)) return res.json({ svg: null });
+    res.json(await drawDiagram({ question, answer }));
+  } catch (err) {
+    res.json({ svg: null });
   }
 });
 

@@ -264,6 +264,7 @@
 <script src="../node_modules/katex/dist/katex.min.js"></script>
 <script src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
 <script src="rich-math.js"></script>
+<script src="diagram.js"></script>
 <script>
 const { ipcRenderer } = require('electron');
 const stack = document.getElementById('stack');
@@ -295,6 +296,21 @@ ipcRenderer.on('hud:listening-stop', () => {
   listenEl.classList.remove('held');
   document.body.classList.remove('listening');
   listenEl.style.display = 'none';
+});
+// A diagram that finished after the answer: under the newest worked card, and
+// the card waits longer now there is more on it.
+ipcRenderer.on('hud:diagram', (_e, d) => {
+  const card = document.querySelector('.hud-card.worked') || document.querySelector('.hud-card');
+  const desc = card && card.querySelector('.card-desc');
+  const svg = window.CallistoDiagram && d && d.svg ? window.CallistoDiagram.clean(d.svg) : null;
+  if (!desc || !svg) return;
+  const fig = document.createElement('figure');
+  fig.className = 'teach-diagram';
+  fig.appendChild(svg);
+  if (d.caption) { const c = document.createElement('figcaption'); c.textContent = d.caption; fig.appendChild(c); }
+  desc.appendChild(fig);
+  card.classList.add('held');
+  setTimeout(() => card.classList.remove('held'), 30000);
 });
 ipcRenderer.on('hud:card', (_e, data) => {
   if (!listenHold) listenEl.style.display = 'none';

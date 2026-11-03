@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.30': [
+      { icon: '📐', title: 'Answers with working', text: 'Maths and science answers show every step, with proper equations and a boxed final answer, on the card and in the chat.' },
+      { icon: '🧭', title: 'Teaching diagrams', text: 'Ask how something works and Callisto draws a labelled diagram to go with the answer.' },
+      { icon: '⭕', title: 'Circle inside screen assist', text: 'Press Alt+Shift+C, circle part of the screen, then ask about it. Ctrl+Shift+X is gone.' },
+      { icon: '👀', title: 'Screen assist sees your screen', text: 'It now always says it has started, and never mistakes Callisto for what you were looking at.' }
+    ],
     '1.9.29': [
       { icon: '🖐️', title: 'Sharper hand control', text: 'The cursor follows your fingertip faster, and only an open right hand can wave or swipe, so pointing no longer switches tabs.' },
       { icon: '✏️', title: 'Pinch, open, pinch', text: 'Pinch to draw, open your hand to stop, pinch again for the next mark. Pinch the eraser, move, then pinch what you want gone.' },
