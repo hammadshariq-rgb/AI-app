@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.31': [
+      { icon: '✍️', title: 'Writes into your draft', text: 'In screen assist, say "write in this draft" — circled or not — and the text goes straight into the box you were in.' },
+      { icon: '🧭', title: 'Do more with a diagram', text: 'Sketch on any diagram, or turn it into an image, poster, 3D model or video in one tap.' }
+    ],
     '1.9.30': [
       { icon: '📐', title: 'Answers with working', text: 'Maths and science answers show every step, with proper equations and a boxed final answer, on the card and in the chat.' },
       { icon: '🧭', title: 'Teaching diagrams', text: 'Ask how something works and Callisto draws a labelled diagram to go with the answer.' },

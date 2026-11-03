@@ -6952,7 +6952,8 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       return { ok: false, reason: 'permission' };
     }
     const written = await _readScreenOnce(
-      'They have a cursor in a box on screen and said, out loud: "' + q + '"\n'
+      (ASSIST.circled ? 'They circled the box they mean; the picture shows only that part. ' : '')
+      + 'They have a cursor in a box on screen and said, out loud: "' + q + '"\n'
       + 'Look at what is on screen and WRITE THE TEXT ITSELF, ready to go '
       + 'straight into that box.\n'
       + '\n'
@@ -6976,6 +6977,8 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     );
     if (written.ok && written.text) {
       const body = String(written.text).trim().replace(/^["'`]|["'`]$/g, '');
+      // The circling layer took the keyboard; give it back to their draft.
+      _restoreFocusNext = true;
       const ok = await pasteIntoFocusedApp(body);
       sendToHud('hud:card', {
         type: 'magic-edit',
@@ -7186,9 +7189,15 @@ function rememberFrontApp() {
   } catch (_) { /* not knowing simply means pasting wherever focus is */ }
 }
 
+// Set when screen assist's circling layer has been up: once it closes, Windows
+// may give the keyboard to any window, so the draft is put back in front first.
+let _restoreFocusNext = false;
+
 function restoreFrontApp() {
   return new Promise((resolve) => {
     const f = _frontAppAtStart;
+    const forced = _restoreFocusNext;
+    _restoreFocusNext = false;
     if (!f) return resolve(false);
     // Only worth doing when one of our own windows is actually in front. It
     // costs about two seconds on Windows and the OS may refuse to hand focus
@@ -7196,7 +7205,7 @@ function restoreFrontApp() {
     // their draft - it is skipped entirely and the paste just goes there.
     const oursInFront = [overlayWindow, hudWindow, captureWindow].some(
       (w) => w && !w.isDestroyed() && w.isVisible() && w.isFocused());
-    if (!oursInFront) return resolve(false);
+    if (!oursInFront && !forced) return resolve(false);
     const { execFile } = require('child_process');
     try {
       if (f.kind === 'mac') {

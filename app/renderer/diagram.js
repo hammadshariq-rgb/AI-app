@@ -72,6 +72,7 @@
       cap.textContent = r.caption;
       fig.appendChild(cap);
     }
+    addActions(fig, svg, r.caption || question);
   }
 
   // A drawing that has already been made, put under a message.
@@ -82,7 +83,57 @@
     fig.className = 'teach-diagram';
     fig.appendChild(svg);
     if (d.caption) { const c = document.createElement('figcaption'); c.textContent = d.caption; fig.appendChild(c); }
+    addActions(fig, svg, d.caption || '');
     (msgEl.querySelector('.msg') || msgEl).appendChild(fig);
+  }
+
+  // The diagram as a picture file, for the sketch studio.
+  function toPngFile(svgEl) {
+    return new Promise((resolve, reject) => {
+      const vb = (svgEl.getAttribute('viewBox') || '0 0 720 440').split(/\s+/).map(Number);
+      const w = vb[2] || 720, h = vb[3] || 440;
+      const copy = svgEl.cloneNode(true);
+      copy.setAttribute('width', w * 2);
+      copy.setAttribute('height', h * 2);
+      const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(copy));
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = w * 2; c.height = h * 2;
+        c.getContext('2d').drawImage(img, 0, 0);
+        c.toBlob((b) => (b ? resolve(new File([b], 'diagram.png', { type: 'image/png' })) : reject(new Error('blank'))), 'image/png');
+      };
+      img.onerror = () => reject(new Error('Could not draw the diagram.'));
+      img.src = url;
+    });
+  }
+
+  // Take the diagram further: draw on it, or make it into something else with
+  // the studios that already exist. Each one is asked for exactly as if spoken.
+  function addActions(fig, svgEl, subject) {
+    const about = String(subject || 'this diagram').replace(/\s+/g, ' ').trim().slice(0, 220);
+    const row = document.createElement('div');
+    row.className = 'teach-diagram-actions';
+    const make = (label, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      row.appendChild(b);
+    };
+    const ask = (text) => () => window._runGesturePrompt?.(text);
+    make('Sketch it', async () => {
+      try {
+        const file = await toPngFile(svgEl);
+        window.CallistoDraw?.show?.();
+        await window.CallistoDraw?.addImageFile?.(file);
+      } catch (_) {}
+    });
+    make('Image', ask('Make an image of this, as a clear labelled illustration: ' + about));
+    make('Poster', ask('Make a poster explaining this, with a title and labels: ' + about));
+    make('3D model', ask('Create a 3D model of ' + about));
+    make('Video', ask('Make a video showing ' + about));
+    fig.appendChild(row);
   }
 
   const css = document.createElement('style');
@@ -91,6 +142,10 @@
     .teach-diagram svg{display:block;width:100%;height:auto}
     .teach-diagram figcaption{padding:8px 14px 11px;font-size:12px;line-height:1.5;color:rgba(185,205,245,.8)}
     .teach-diagram.loading{border-style:dashed}
+    .teach-diagram-actions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+    .teach-diagram-actions button{padding:6px 12px;border-radius:999px;border:1px solid rgba(120,160,255,.3);background:rgba(61,92,255,.12);color:#cfe0ff;font:inherit;font-size:12px;cursor:pointer}
+    .teach-diagram-actions button:hover{background:rgba(61,92,255,.28);border-color:rgba(0,200,255,.5)}
+    .teach-diagram-actions button:focus-visible{outline:2px solid #6f8cff;outline-offset:2px}
     .teach-diagram-wait{padding:14px;font-size:12.5px;color:rgba(185,205,245,.75);animation:tdPulse 1.4s ease-in-out infinite}
     @keyframes tdPulse{50%{opacity:.45}}
     @media (prefers-reduced-motion:reduce){.teach-diagram-wait{animation:none}}`;
