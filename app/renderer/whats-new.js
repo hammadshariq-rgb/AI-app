@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.35': [
+      { icon: '↩️', title: 'Top bar restored', text: 'Everything along the top is back exactly where it was, with the expand button just left of the X.' }
+    ],
     '1.9.34': [
       { icon: '⤢', title: 'Expand beside close', text: 'The expand button now sits next to the X at the top right, and both stay visible in the small window.' },
       { icon: '💻', title: 'Watch code run', text: 'When Callisto is working through code and you switch to another app, a live terminal card shows each command, pass and failure, with an X to close it.' },
