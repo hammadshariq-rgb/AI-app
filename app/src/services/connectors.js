@@ -775,6 +775,32 @@ async function getInstagramStats() {
       return row ? (row.values?.[0]?.value ?? row.total_value?.value ?? null) : null;
     };
 
+    // Who the audience is and what they do: countries, cities, ages and
+    // genders of followers, and every kind of interaction. Each is optional -
+    // demographics need 100 followers, and Graph refuses what it does not have.
+    const breakdown = async (metricName, by, extra = '') => {
+      try {
+        const r = await graph(`${igId}/insights?metric=${metricName}&period=lifetime&metric_type=total_value&breakdown=${by}${extra}`);
+        const res = r && !r.error && r.data && r.data[0] && r.data[0].total_value && r.data[0].total_value.breakdowns;
+        const rows = (res && res[0] && res[0].results) || [];
+        return rows.map((x) => ({ name: (x.dimension_values || []).join(' '), value: x.value || 0 }))
+          .sort((a, b) => b.value - a.value).slice(0, 10);
+      } catch (_) { return []; }
+    };
+    const [fCountry, fCity, fAge, fGender, eCountry, eAge] = await Promise.all([
+      breakdown('follower_demographics', 'country'),
+      breakdown('follower_demographics', 'city'),
+      breakdown('follower_demographics', 'age'),
+      breakdown('follower_demographics', 'gender'),
+      breakdown('engaged_audience_demographics', 'country', '&timeframe=this_month'),
+      breakdown('engaged_audience_demographics', 'age', '&timeframe=this_month'),
+    ]);
+    const activity = {};
+    try {
+      const t = await graph(`${igId}/insights?metric=likes,comments,shares,saves,replies,follows_and_unfollows,website_clicks,profile_links_taps&metric_type=total_value&period=day&since=${since}&until=${until}`);
+      for (const d of (t && !t.error && t.data) || []) activity[d.name] = d.total_value ? d.total_value.value : null;
+    } catch (_) {}
+
     const followers = igData.followers_count || 0;
     const views30 = sumDaily('views');
     const reach30 = sumDaily('reach');
@@ -793,6 +819,8 @@ async function getInstagramStats() {
       interactions,
       // Share of the people reached who did something — the number creators watch.
       engagementRate: interactions && reach30 ? ((interactions / reach30) * 100).toFixed(1) : null,
+      activity30: activity,
+      audience: { countries: fCountry, cities: fCity, ages: fAge, genders: fGender, engagedCountries: eCountry, engagedAges: eAge },
       recentPosts: (mediaData.data || []).map((p) => ({
         id: p.id,
         caption: (p.caption || '').replace(/\s+/g, ' ').slice(0, 120),
@@ -1143,7 +1171,7 @@ async function getGoogleAnalyticsStats() {
         metrics: [{ name: 'screenPageViews' }],
         dimensions: [{ name: 'pagePath' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: 5,
+        limit: 10,
       }),
     });
     const pagesData = await pagesRes.json();
@@ -1151,6 +1179,39 @@ async function getGoogleAnalyticsStats() {
       path: r.dimensionValues?.[0]?.value || '/',
       views: parseInt(r.metricValues?.[0]?.value || 0),
     }));
+
+    // The breakdowns the Analytics dashboard shows: where people are, how
+    // they arrived, what they used, what they did. Each one is optional.
+    const ga = async (dims, metrics = ['totalUsers', 'sessions'], limit = 10) => {
+      try {
+        const d = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }], dimensions: dims.map((name) => ({ name })),
+            metrics: metrics.map((name) => ({ name })), orderBys: [{ metric: { metricName: metrics[0] }, desc: true }], limit }),
+        }).then((x) => x.json());
+        if (!d || d.error) return [];
+        return (d.rows || []).map((r) => {
+          const o = { name: r.dimensionValues.map((v) => v.value).join(' / ') };
+          metrics.forEach((m, i) => { o[m] = Number(r.metricValues[i].value) || 0; });
+          return o;
+        });
+      } catch (_) { return []; }
+    };
+    const [countries, cities, channels, sources, devices, browsers, systems, languages, landing, events, newVsReturning, referrers] = await Promise.all([
+      ga(['country']), ga(['city']), ga(['sessionDefaultChannelGroup']), ga(['sessionSourceMedium']),
+      ga(['deviceCategory']), ga(['browser']), ga(['operatingSystem']), ga(['language']),
+      ga(['landingPage'], ['sessions', 'totalUsers']), ga(['eventName'], ['eventCount']),
+      ga(['newVsReturning']), ga(['pageReferrer'], ['sessions']),
+    ]);
+    let activeNow = null;
+    try {
+      const rt = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metrics: [{ name: 'activeUsers' }] }),
+      }).then((x) => x.json());
+      if (rt && !rt.error) activeNow = rt.rows && rt.rows[0] ? Number(rt.rows[0].metricValues[0].value) : 0;
+    } catch (_) {}
 
     // Visitors day by day, for the chart. Optional: the rest stands without it.
     let series = [];
@@ -1186,6 +1247,8 @@ async function getGoogleAnalyticsStats() {
         transactions: parseInt(totals7[6]?.value || 0),
       },
       topPages,
+      activeNow,
+      breakdown: { countries, cities, channels, sources, devices, browsers, systems, languages, landingPages: landing, events, newVsReturning, referrers },
     };
   } catch (err) {
     console.error('Google Analytics stats error:', err.message);
@@ -1487,6 +1550,67 @@ function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace
   return lines.length ? lines.join('\n') : null;
 }
 
+// Every breakdown and every recent post, so "where were they from" or "which
+// reel did best" can be answered from what was fetched, without asking again.
+function formatAnalyticsDetail(a) {
+  const out = [];
+  const num = (v) => (v == null ? '?' : Number(v).toLocaleString());
+  const list = (label, rows, key) => {
+    if (rows && rows.length) out.push(label + ': ' + rows.map((r) => (r.name || '(not set)') + ' ' + num(key ? r[key] : r.value)).join(', '));
+  };
+  const ga = a.googleAnalytics;
+  if (ga) {
+    const m = ga.last30Days || {}; const w = ga.last7Days || {};
+    out.push('WEBSITE (' + ga.siteName + '), last 30 days: ' + num(m.users) + ' users, ' + num(m.sessions) + ' sessions, ' + num(m.pageViews)
+      + ' page views, bounce rate ' + m.bounceRate + '%, average session ' + m.avgSessionSec + 's, ' + num(m.transactions) + ' transactions, revenue '
+      + m.revenue + '. Last 7 days: ' + num(w.users) + ' users, ' + num(w.sessions) + ' sessions.' + (ga.activeNow != null ? ' Active right now: ' + ga.activeNow + '.' : ''));
+    const b = ga.breakdown || {};
+    list('Users by country', b.countries, 'totalUsers'); list('Users by city', b.cities, 'totalUsers');
+    list('Users by channel', b.channels, 'totalUsers'); list('Users by source / medium', b.sources, 'totalUsers');
+    list('Sessions by referrer', b.referrers, 'sessions'); list('Users by device', b.devices, 'totalUsers');
+    list('Users by browser', b.browsers, 'totalUsers'); list('Users by operating system', b.systems, 'totalUsers');
+    list('Users by language', b.languages, 'totalUsers'); list('New vs returning users', b.newVsReturning, 'totalUsers');
+    list('Sessions by landing page', b.landingPages, 'sessions'); list('Events', b.events, 'eventCount');
+    if (ga.topPages && ga.topPages.length) out.push('Page views by page: ' + ga.topPages.map((p) => p.path + ' ' + p.views).join(', '));
+    if (ga.series && ga.series.length) out.push('Users by day: ' + ga.series.map((d) => d.date.slice(5) + ' ' + d.value).join(', '));
+  }
+  const ig = a.instagram;
+  if (ig) {
+    out.push('INSTAGRAM (@' + ig.username + '): ' + num(ig.followers) + ' followers, following ' + num(ig.following) + ', ' + num(ig.posts) + ' posts. Last 30 days: '
+      + num(ig.views30) + ' views, ' + num(ig.reach30) + ' accounts reached, ' + num(ig.profileViews30) + ' profile views, ' + num(ig.accountsEngaged)
+      + ' accounts engaged, ' + num(ig.interactions) + ' interactions, engagement rate ' + (ig.engagementRate == null ? '?' : ig.engagementRate) + '%.');
+    const act = ig.activity30 || {};
+    if (Object.keys(act).length) out.push('Instagram activity, last 30 days: ' + Object.entries(act).map(([k, v]) => k.replace(/_/g, ' ') + ' ' + num(v)).join(', '));
+    const au = ig.audience || {};
+    list('Followers by country', au.countries); list('Followers by city', au.cities); list('Followers by age', au.ages);
+    list('Followers by gender', au.genders); list('Engaged audience by country (this month)', au.engagedCountries);
+    list('Engaged audience by age (this month)', au.engagedAges);
+    if (ig.recentPosts && ig.recentPosts.length) {
+      out.push('Recent Instagram posts, newest first: ' + ig.recentPosts.slice(0, 15).map((p) => '[' + String(p.date || '').slice(0, 10) + ' ' + p.kind + '] "'
+        + String(p.caption || '').slice(0, 50) + '" views ' + num(p.views) + ', reach ' + num(p.reach) + ', likes ' + num(p.likes) + ', comments ' + num(p.comments)
+        + (p.shares != null ? ', shares ' + num(p.shares) : '') + (p.saved != null ? ', saves ' + num(p.saved) : '')).join(' | '));
+    }
+  }
+  const tt = a.tiktok;
+  if (tt) {
+    out.push('TIKTOK (' + tt.username + '): ' + num(tt.followers) + ' followers, ' + num(tt.totalLikes) + ' total likes, ' + num(tt.videoCount) + ' videos.');
+    if (tt.recentVideos && tt.recentVideos.length) {
+      out.push('Recent TikToks: ' + tt.recentVideos.slice(0, 15).map((v) => '"' + String(v.title || '').slice(0, 50) + '" views ' + num(v.views) + ', likes '
+        + num(v.likes) + ', comments ' + num(v.comments) + ', shares ' + num(v.shares)).join(' | '));
+    }
+  }
+  const yt = a.youtube;
+  if (yt) {
+    out.push('YOUTUBE (' + yt.channelName + '): ' + num(yt.subscribers) + ' subscribers, ' + num(yt.totalViews) + ' total views, ' + num(yt.videoCount) + ' videos.');
+    if (yt.recentVideos && yt.recentVideos.length) {
+      out.push('Recent YouTube videos: ' + yt.recentVideos.slice(0, 10).map((v) => '"' + String(v.title || '').slice(0, 50) + '"'
+        + (v.views != null ? ' views ' + num(v.views) : '') + (v.likes != null ? ', likes ' + num(v.likes) : '')).join(' | '));
+    }
+  }
+  for (const k of ['shopify', 'squarespace', 'stripe']) if (a[k]) out.push(k.toUpperCase() + ': ' + JSON.stringify(a[k]).slice(0, 1500));
+  return out.join('\n');
+}
+
 async function pollForToken(service, state) {
   if (!state) return false;
   for (let i = 0; i < 60; i++) {
@@ -1701,7 +1825,7 @@ module.exports = {
   getInstagramPage, getInstagramInbox, getInstagramThread, sendInstagramMessage,
   findInstagramContact,
   getYouTubeStats, getInstagramStats, getTikTokStats, getShopifyStats,
-  getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats,
+  getSquarespaceStats, getGoogleAnalyticsStats, getStripeStats, formatAnalyticsDetail,
   getAllAnalytics, formatAnalyticsForAI, formatAnalyticsForBriefing,
   listAnalyticsProperties, saveAnalyticsPropertyId, loadAnalyticsPropertyId,
 };

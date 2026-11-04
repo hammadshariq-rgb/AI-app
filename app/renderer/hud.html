@@ -640,5 +640,108 @@ function _showHudPrompt(d) {
 ipcRenderer.on('hud:prompt', (_e, d) => _showHudPrompt(d));
 ipcRenderer.on('hud:prompt-close', _closeHudPrompt);
 </script>
+<!-- ── Terminal card: what Callisto is running, while you are elsewhere ──────
+     The deploy-log card from the reference design: a dark shell with three
+     dots, a mono log where commands, passes, failures and notes each have their
+     own mark, lines sliding up as they arrive and a blinking cursor while it
+     works. A cursor-following glow on the edge, and an X to put it away. -->
+<style>
+#termCard{position:fixed;right:28px;top:28px;width:380px;border-radius:22px;padding:1px;pointer-events:all;
+  background:rgba(255,255,255,.10);box-shadow:0 22px 60px rgba(0,0,0,.55);opacity:0;transform:translateY(-8px);
+  transition:opacity .25s ease,transform .25s ease;font-family:-apple-system,'Segoe UI',system-ui,sans-serif}
+#termCard.on{opacity:1;transform:none}
+#termCard .tc-edge{position:absolute;inset:0;border-radius:22px;opacity:0;transition:opacity .4s;pointer-events:none;
+  background:radial-gradient(240px circle at var(--x,50%) var(--y,0%),rgba(232,121,249,.95),transparent 70%)}
+#termCard:hover .tc-edge{opacity:1}
+#termCard .tc-face{position:relative;border-radius:21px;background:#0b0d15;padding:16px 16px 14px;overflow:hidden}
+#termCard .tc-face::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
+  background:radial-gradient(380px circle at var(--x,50%) var(--y,0%),rgba(232,121,249,.14),transparent 65%)}
+#termCard:hover .tc-face::before{opacity:1}
+#termCard .tc-head{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+#termCard .tc-title{flex:1;min-width:0;font-size:13px;font-weight:600;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#termCard .tc-dots{display:flex;gap:6px}
+#termCard .tc-dots i{width:10px;height:10px;border-radius:50%;display:block}
+#termCard .tc-x{width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);
+  color:#cbd5e1;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#termCard .tc-x:hover{background:rgba(255,120,140,.16);border-color:rgba(255,120,140,.5);color:#ffb4c0}
+#termCard .tc-log{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-height:150px;max-height:300px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.3);border-radius:14px;padding:14px;
+  font:12px/1.55 'Cascadia Mono',Consolas,'SF Mono',Menlo,monospace}
+#termCard .tc-line{display:flex;gap:8px;animation:tcSlide .3s ease both}
+#termCard .tc-m{width:12px;flex:none;text-align:center}
+#termCard .tc-t{min-width:0;word-break:break-word;white-space:pre-wrap}
+#termCard .cmd .tc-m{color:#f0abfc}#termCard .cmd .tc-t{color:#f1f5f9}
+#termCard .ok .tc-m{color:#6ee7b7}#termCard .ok .tc-t{color:#cbd5e1}
+#termCard .fail .tc-m{color:#fda4af}#termCard .fail .tc-t{color:#fecdd3}
+#termCard .info .tc-m{color:#64748b}#termCard .info .tc-t{color:#94a3b8}
+#termCard .wait .tc-m{color:#fcd34d}#termCard .wait .tc-t{color:#fde68a}
+#termCard .done .tc-m{color:#67e8f9}#termCard .done .tc-t{color:#a5f3fc}
+#termCard .tc-cur{display:inline-block;width:6px;height:12px;margin-left:4px;transform:translateY(2px);background:#f0abfc;animation:tcBlink 1s steps(2,start) infinite}
+#termCard .tc-foot{position:relative;display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#94a3b8}
+#termCard .tc-foot b{width:6px;height:6px;border-radius:50%;background:#34d399;animation:tcPulse 1.6s ease-in-out infinite}
+#termCard.idle .tc-foot b{animation:none;background:#64748b}
+@keyframes tcSlide{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes tcBlink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes tcPulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){#termCard .tc-line,#termCard .tc-cur,#termCard .tc-foot b{animation:none}}
+</style>
+<div id="termCard" hidden>
+  <div class="tc-edge"></div>
+  <div class="tc-face">
+    <div class="tc-head">
+      <span class="tc-dots" aria-hidden="true"><i style="background:rgba(251,113,133,.8)"></i><i style="background:rgba(251,191,36,.8)"></i><i style="background:rgba(52,211,153,.8)"></i></span>
+      <span class="tc-title" id="tcTitle">Callisto</span>
+      <button class="tc-x" id="tcClose" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="tc-log" id="tcLog" role="log" aria-label="What Callisto is running"></div>
+    <div class="tc-foot"><b></b><span id="tcState">Working…</span></div>
+  </div>
+</div>
+<script>
+(function () {
+  const { ipcRenderer } = require('electron');
+  const card = document.getElementById('termCard');
+  const log = document.getElementById('tcLog');
+  const MARK = { cmd: '$', ok: '✓', fail: '✗', info: '›', wait: '!', done: '●' };
+  let closedFor = null;   // the task they closed it for stays closed
+  let hideT = null;
+  card.addEventListener('mousemove', (e) => {
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--x', (e.clientX - r.left) + 'px');
+    card.style.setProperty('--y', (e.clientY - r.top) + 'px');
+  });
+  function close() {
+    card.classList.remove('on');
+    setTimeout(() => { if (!card.classList.contains('on')) card.hidden = true; }, 260);
+  }
+  document.getElementById('tcClose').addEventListener('click', () => { closedFor = card.dataset.task || null; close(); });
+  ipcRenderer.on('hud:term', (_e, d) => {
+    if (!d) return;
+    if (d.hide) return close();
+    if (closedFor && closedFor === d.task) return;
+    card.dataset.task = d.task || '';
+    document.getElementById('tcTitle').textContent = d.title || 'Callisto';
+    const seen = log.children.length;
+    const lines = Array.isArray(d.lines) ? d.lines.slice(-12) : [];
+    log.textContent = '';
+    lines.forEach((l, i) => {
+      const row = document.createElement('div');
+      row.className = 'tc-line ' + (MARK[l.type] ? l.type : 'info');
+      if (i < Math.min(seen, lines.length) - 1) row.style.animation = 'none';
+      const m = document.createElement('span'); m.className = 'tc-m'; m.textContent = MARK[l.type] || '›';
+      const t = document.createElement('span'); t.className = 'tc-t'; t.textContent = String(l.text || '');
+      if (d.running && i === lines.length - 1) { const c = document.createElement('span'); c.className = 'tc-cur'; t.appendChild(c); }
+      row.append(m, t); log.appendChild(row);
+    });
+    card.classList.toggle('idle', !d.running);
+    document.getElementById('tcState').textContent = d.state || (d.running ? 'Working…' : 'Finished');
+    card.hidden = false;
+    requestAnimationFrame(() => card.classList.add('on'));
+    clearTimeout(hideT);
+    if (!d.running && !d.waiting) hideT = setTimeout(close, 15000);
+  });
+})();
+</script>
+
 </body>
 </html>

@@ -3640,7 +3640,9 @@ app.post('/ai/screen-read', authMiddleware, appMessageLimit, aiLimiter, async (r
       // maths question made them longer than that, and a truncated answer is
       // not merely short: the JSON never closes, parsing fails, and the whole
       // thing comes back empty. A worked solution needs room.
-      max_completion_tokens: 2400,
+      // Its thinking counts against this too, and a fixed file has to fit
+      // after it - 2400 could cut a code fix off halfway.
+      max_completion_tokens: 6000,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -4154,7 +4156,10 @@ app.post('/ai/agent-step', authMiddleware, appMessageLimit, aiLimiter, async (re
     const model = 'gpt-5.4';
     const r = await openai.chat.completions.create({
       model,
-      ...tokenCap(model, 700),
+      // A write carries the WHOLE file. At 700 tokens anything past ~2,500
+      // characters was cut off mid-JSON, failed to parse and became 'done' -
+      // so it could not write a real file at all.
+      ...tokenCap(model, 12000),
       response_format: { type: 'json_object' },
       messages: [
         {

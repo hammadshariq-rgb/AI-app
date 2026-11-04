@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.34': [
+      { icon: '⤢', title: 'Expand beside close', text: 'The expand button now sits next to the X at the top right, and both stay visible in the small window.' },
+      { icon: '💻', title: 'Watch code run', text: 'When Callisto is working through code and you switch to another app, a live terminal card shows each command, pass and failure, with an X to close it.' },
+      { icon: '📊', title: 'Full analytics', text: 'Countries, cities, traffic sources, devices, live visitors, and your Instagram audience and activity, all in the panel and in answers.' },
+      { icon: '🛠️', title: 'Better coding', text: 'Callisto can now write and fix whole files, not just short ones, in tasks and in screen assist.' },
+      { icon: '⚡', title: 'Quicker Windows updates', text: 'Updates on Windows now install silently and reopen Callisto by themselves.' }
+    ],
     '1.9.33': [
       { icon: '💳', title: 'New Premium price', text: 'Premium is now US$25 a month or US$250 a year for new subscribers. If you already subscribe, your price stays the same.' },
       { icon: '🧊', title: 'Complete 3D models', text: 'Ask for a scene, like Superman flying into a building, and every part of it is modelled, not just the main thing.' },

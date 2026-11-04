@@ -1785,6 +1785,8 @@
       background: linear-gradient(180deg, #02070b 0%, rgba(2,7,11,.72) 35%, rgba(2,7,11,0) 100%);
     }
     body.light #demos::before { background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0) 100%); }
+    /* One typeface for all text on the page. Only CALLISTO under the orb keeps its own. */
+    body *:not(#orbName):not(#nav):not(#nav *):not(svg):not(svg *) { font-family: var(--body) !important; }
   </style>
   <link rel="stylesheet" href="/panels/panels.css?v=2" />
   <link rel="stylesheet" href="/analytics-overlay.css?v=1" />

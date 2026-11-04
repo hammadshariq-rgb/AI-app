@@ -2546,14 +2546,7 @@
         </div>
 
         <div id="topBar">
-          <!-- Expand above the menu: on some Macs the window opens small with no
-               obvious way to make it full size. -->
           <div id="navCol">
-          <button id="expandBtn" class="shiny-btn" title="Expand window" aria-label="Expand window">
-            <svg id="expandIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:2;pointer-events:none">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-          </button>
           <!-- Hamburger / nav button -->
           <button id="historyBtn" class="shiny-btn" title="Chat History">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="position:relative;z-index:2;pointer-events:none">
@@ -2610,7 +2603,15 @@
 
           <div id="dockBar" style="display:none"></div>
 
-          <button id="closeBtn" title="Close">✕</button>
+          <!-- Expand sits beside close, in one row, so nothing else moves. -->
+          <div id="winCtl">
+            <button id="expandBtn" title="Expand window" aria-label="Expand window">
+              <svg id="expandIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+              </svg>
+            </button>
+            <button id="closeBtn" title="Close">✕</button>
+          </div>
         </div>
 
         <div id="orbContainer">

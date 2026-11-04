@@ -252,6 +252,12 @@
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5a3.5 3.5 0 0 1 0 6.5M18 14.5c2 .8 3 2.8 3 5.5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
   };
+  // Extra breakdowns: a titled list per dimension, only those with data.
+  function sections(defs) {
+    return defs.filter(function (d) { return d[1] && d[1].length; }).map(function (d) {
+      return { title: d[0], rows: d[1].slice(0, 8).map(function (r) { return { t: r.name || '(not set)', main: compact(d[2] ? r[d[2]] : r.value), sub: '' }; }) };
+    });
+  }
   function rowsFrom(list, map) { return (list || []).slice(0, 6).map(map); }
   function barsFrom(list, valueOf, labelOf) {
     return (list || []).filter(function (x) { return valueOf(x) != null; }).slice(0, 12).reverse()
@@ -296,7 +302,8 @@
         a: { icon: 'eye', value: total != null ? num(total) : '—', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
         b: { icon: 'heart', value: d.reach30 != null ? num(d.reach30) : num(sumOf(d.recentPosts, function (p) { return p.likes; }) || 0), label: d.reach30 != null ? 'Reach · 30 days' : 'Likes · recent posts', sub: d.engagementRate != null ? d.engagementRate + '% engagement' : '' },
         chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Views per post' },
-        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) }
+        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) },
+        more: (function (a, act) { a = a || {}; var acts = Object.keys(act || {}).filter(function (k) { return act[k] != null; }).map(function (k) { return { name: k.replace(/_/g, ' '), value: act[k] }; }); return sections([['Activity · 30 days', acts], ['Followers by country', a.countries], ['Followers by city', a.cities], ['Followers by age', a.ages], ['Followers by gender', a.genders], ['Engaged audience by country', a.engagedCountries], ['Engaged audience by age', a.engagedAges]]); })(d.audience, d.activity30)
       };
     },
     tiktok: function (d) {
@@ -327,7 +334,9 @@
         a: { icon: 'eye', value: num(m.pageViews), label: 'Page views · 30 days', sub: num(m.sessions) + ' sessions' },
         b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : '—', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
         chart: { label: 'Visitors', series: seriesOf(d), bars: barsFrom(d.topPages, viewsOf, function (p) { return p.path; }), barLabel: 'Views per page' },
-        list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) }
+        list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) },
+        more: (function (b) { b = b || {}; return sections([['Countries', b.countries, 'totalUsers'], ['Cities', b.cities, 'totalUsers'], ['How they found you', b.channels, 'totalUsers'], ['Sources', b.sources, 'totalUsers'], ['Referring sites', b.referrers, 'sessions'], ['Devices', b.devices, 'totalUsers'], ['Browsers', b.browsers, 'totalUsers'], ['Operating systems', b.systems, 'totalUsers'], ['Languages', b.languages, 'totalUsers'], ['New vs returning', b.newVsReturning, 'totalUsers'], ['Landing pages', b.landingPages, 'sessions'], ['Events', b.events, 'eventCount']]); })(d.breakdown),
+        live: d.activeNow
       };
     },
     shopify: function (d) { return shopTiles(d, d.shopName); },
@@ -408,6 +417,12 @@
         small(t.a) + small(t.b) +
         '<div class="aob-tile aob-wide">' + chartTile + '</div>' +
         '<div class="aob-tile aob-wide"><div class="aob-legend">' + esc(t.list.title) + '</div>' + rows + '</div>' +
+        (t.live != null ? '<div class="aob-tile aob-wide"><div class="aob-legend">On the site right now</div><div class="aob-row"><span class="aob-row-t">Active visitors</span><span class="aob-row-s"><b>' + esc(String(t.live)) + '</b></span></div></div>' : '') +
+        (t.more || []).map(function (sec) {
+          return '<div class="aob-tile aob-half"><div class="aob-legend">' + esc(sec.title) + '</div>' + sec.rows.map(function (r) {
+            return '<div class="aob-row"><span class="aob-row-t">' + esc(String(r.t).slice(0, 48)) + '</span><span class="aob-row-s"><b>' + esc(r.main) + '</b></span></div>';
+          }).join('') + '</div>';
+        }).join('') +
       '</div>';
     root.querySelector('#aoClose').addEventListener('click', close);
   }

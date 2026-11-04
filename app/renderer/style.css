@@ -5590,12 +5590,28 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   flex-shrink: 0;
 }
 
-#navCol { display: flex; flex-direction: column; gap: 10px; align-self: flex-start; }
+#navCol { display: flex; align-items: center; }
+/* Expand and close, side by side at the right, never pushed off a narrow window. */
+#winCtl { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; padding-right: 14px; -webkit-app-region: no-drag; }
 #expandBtn {
-  color: rgba(160, 220, 255, 0.95);
-  --sb-highlight: rgba(80, 200, 255, 1);
-  --sb-highlight-subtle: rgba(160, 225, 255, 0.9);
+  background: transparent;
+  border: 1px solid rgba(80, 200, 255, 0.3);
+  color: rgba(140, 215, 255, 0.75);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
 }
+#expandBtn:hover { border-color: rgba(80, 200, 255, 0.8); color: #6fd2ff; box-shadow: 0 0 12px rgba(50, 180, 255, 0.3); }
+#closeBtn { flex-shrink: 0; }
+body.light-mode #expandBtn { border-color: rgba(30, 90, 200, 0.3); color: rgba(30, 70, 160, 0.8); }
 #historyBtn {
   color: rgba(160, 220, 255, 0.95);
   --sb-highlight: rgba(80, 200, 255, 1);
@@ -10513,3 +10529,9 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 .aob-big-long { font-size: 28px; }
 .aob-empty { font-size: 13px; color: rgba(170, 192, 235, .65); line-height: 1.5; padding: 10px 0; }
 @media (max-width: 720px) { .aob-tile, .aob-wide { grid-column: span 6; } }
+
+/* A narrow window drops the extras in the top bar before it ever drops
+   expand and close: those two must always be on screen. */
+@media (max-width: 760px) { #newsFlash { display: none !important; } }
+@media (max-width: 560px) { #hudWeather, #hudClock, #appTitle { display: none !important; } }
+#topBar { min-width: 0; }

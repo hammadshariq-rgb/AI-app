@@ -157,6 +157,28 @@ const BUSINESS_LABELS = {
   pricing: 'Pricing', team: 'Team', suppliers: 'Suppliers', markets: 'Markets', channels: 'Channels',
   goals: 'Goals', challenges: 'Challenges', notes: 'Notes',
 };
+// The full analytics - every country, source, device and post - kept for half
+// an hour after it was fetched, so a follow-up like "where were they from" is
+// answered from the real numbers instead of "I don't have that".
+let _analyticsDetail = { at: 0, text: '' };
+const ANALYTICS_WORDS = /\b(analytics|visitors?|traffic|views?|followers?|reach|audience|countr(?:y|ies)|cit(?:y|ies)|engagement|impressions|bounce|sessions?|page ?views|insights|subscribers?|likes|shares|saves|demographics?|referr\w*|sources?|devices?|stats|statistics)\b/i;
+async function _analyticsNote(message) {
+  try {
+    const fresh = _analyticsDetail.text && Date.now() - _analyticsDetail.at < 30 * 60 * 1000;
+    if (!fresh && ANALYTICS_WORDS.test(String(message || ''))) {
+      // Through the few-minute cache the dashboard uses, so asking twice is instant.
+      const names = Object.keys(STAT_FETCHERS);
+      const fetchAll = Promise.all(names.map((p) => _statFor(p, false).catch(() => null)))
+        .then((vals) => Object.fromEntries(names.map((p, i) => [p, vals[i]])));
+      const all = await Promise.race([fetchAll, new Promise((r) => setTimeout(() => r(null), 8000))]);
+      const text = all ? connectors.formatAnalyticsDetail(all) : '';
+      if (text) _analyticsDetail = { at: Date.now(), text };
+    }
+    if (!_analyticsDetail.text || Date.now() - _analyticsDetail.at > 30 * 60 * 1000) return '';
+    return '\n\nTHEIR ANALYTICS (fetched live from their connected accounts; answer any question about these numbers - countries, cities, sources, devices, posts - straight from here, never say you do not have it if it is listed):\n' + _analyticsDetail.text;
+  } catch (_) { return ''; }
+}
+
 function _businessNote() {
   const b = store.get('business') || {};
   const lines = Object.keys(BUSINESS_LABELS).filter((k) => b[k]).map((k) => '- ' + BUSINESS_LABELS[k] + ': ' + String(b[k]).slice(0, 300));
@@ -600,7 +622,7 @@ function createOverlayWindow() {
   // Mac: reset mouse-event pass-through whenever the window comes into focus.
   // Transparent frameless windows can get stuck ignoring clicks after losing focus.
   if (process.platform === 'darwin') {
-    overlayWindow.on('blur', () => { _overlayBlurAt = Date.now(); });
+    overlayWindow.on('blur', () => { _overlayBlurAt = Date.now(); if (TASK && TASK.on && _termLines.length) setTimeout(() => _termSend(), 4100); });
     overlayWindow.on('focus', () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.setIgnoreMouseEvents(false);
@@ -3572,7 +3594,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   } catch (_) {}
 
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _businessNote() + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
@@ -4272,6 +4294,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
+    try { const d = connectors.formatAnalyticsDetail(analytics); if (d) _analyticsDetail = { at: Date.now(), text: d }; } catch (_) {}
     const summary = connectors.formatAnalyticsForAI(
       platform === 'all' ? analytics : { [platform]: analytics[platform] }
     );
@@ -5403,6 +5426,27 @@ function _taskRunCommand(cmd, cwd) {
   });
 }
 
+// ── The terminal card ────────────────────────────────────────────────────────
+// While a task runs, the side card shows it as a live log - commands, passes,
+// failures and anything waiting on them - but only when they are in another
+// app. Inside Callisto the task panel already shows it.
+let _termLines = [];
+let _termTask = '';
+function _termSend(extra = {}) {
+  if (hudWouldDuplicate()) return;
+  const folder = String((TASK && TASK.folder) || '').split(/[\\/]/).filter(Boolean).pop() || 'Callisto';
+  sendToHud('hud:term', {
+    task: _termTask, title: folder + ' · Callisto', lines: _termLines.slice(-12),
+    running: !!(TASK && TASK.on && !TASK.awaiting), ...extra,
+  });
+}
+function _term(type, text, extra) {
+  String(text || '').split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean).slice(-4)
+    .forEach((l) => _termLines.push({ type, text: l.slice(0, 220) }));
+  _termLines = _termLines.slice(-40);
+  _termSend(extra);
+}
+
 async function _taskLoop() {
   while (TASK.on) {
     if (TASK.steps.length >= TASK_MAX_STEPS) {
@@ -5438,7 +5482,7 @@ async function _taskLoop() {
     if (plan.action === 'ask') {
       TASK.awaiting = 'answer';
       _taskSay('task:needs-you', { kind: 'question', question: plan.question, steps: TASK.steps.length });
-      sendToHud('hud:card', { type: 'info', text: '🧑 ' + (plan.question || 'I need you for a moment.'), ttl: 12000 });
+      _term('wait', plan.question || 'I need you for a moment.', { waiting: true, state: 'Waiting for you' });
       _sendTTS(TASK.sender, plan.question || 'I need you for a moment.');
       return;                                   // the answer restarts the loop
     }
@@ -5460,7 +5504,7 @@ async function _taskLoop() {
         kind: 'write', path: rel, contents: String(plan.contents || ''),
         why: plan.why || '', folder: TASK.folder, steps: TASK.steps.length,
       });
-      sendToHud('hud:card', { type: 'info', text: '📝 Wants to write ' + rel, ttl: 12000 });
+      _term('wait', 'Wants to write ' + rel + ' - open Callisto to let it through', { waiting: true, state: 'Waiting for you' });
       _sendTTS(TASK.sender, `I have written ${rel}. Have a look and let it through if you are happy.`);
       return;
     }
@@ -5475,16 +5519,19 @@ async function _taskLoop() {
       _taskSay('task:needs-you', {
         kind: 'approve', command: cmd, why: plan.why || '', folder: TASK.folder, steps: TASK.steps.length,
       });
-      sendToHud('hud:card', { type: 'info', text: '🔒 Needs your go-ahead: ' + cmd, ttl: 12000 });
+      _term('wait', 'Needs your go-ahead: ' + cmd, { waiting: true, state: 'Waiting for you' });
       _sendTTS(TASK.sender, 'This next one needs your go-ahead.');
       return;
     }
 
     _taskSay('task:step', { kind: 'running', command: cmd, why: plan.why || '' });
+    if (plan.why) _term('info', plan.why);
+    _term('cmd', cmd);
     const res = await _taskRunCommand(cmd, TASK.folder);
     TASK.runs++;
     TASK.steps.push({ kind: 'run', command: cmd, code: res.code, output: res.output });
     _taskSay('task:step', { kind: 'ran', command: cmd, ok: res.ok, output: res.output });
+    _term(res.ok ? 'ok' : 'fail', res.output || (res.ok ? 'Done' : 'Failed with code ' + res.code));
   }
 }
 
@@ -5493,7 +5540,7 @@ function _taskFinish(summary) {
   TASK.awaiting = null;
   TASK.pending = null;
   _taskSay('task:done', { summary, steps: TASK.steps.length, runs: TASK.runs });
-  sendToHud('hud:card', { type: 'info', text: '✅ ' + String(summary).slice(0, 400), ttl: 10000 });
+  _term('done', String(summary).slice(0, 400), { state: 'Finished' });
   if (TASK.sender) _sendTTS(TASK.sender, String(summary).slice(0, 400));
 }
 
@@ -5522,6 +5569,8 @@ ipcMain.handle('task:start', async (e, { goal, folder } = {}) => {
     folder: where,
     awaiting: null, pending: null, startedAt: Date.now(), runs: 0,
   });
+  _termLines = [{ type: 'info', text: String(TASK.goal || '').slice(0, 220) }];
+  _termTask = 't' + TASK.startedAt;
   _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
   return { ok: true, folder: TASK.folder };
 });
@@ -5660,6 +5709,8 @@ ipcMain.handle('proc:run', async (e, { name, extra } = {}) => {
     folder: store.get('project.folder') || app.getPath('home'),
     awaiting: null, pending: null, startedAt: Date.now(), runs: 0,
   });
+  _termLines = [{ type: 'info', text: String(TASK.goal || '').slice(0, 220) }];
+  _termTask = 't' + TASK.startedAt;
   _taskLoop().catch((err) => _taskFinish('Something went wrong partway through: ' + err.message));
   return { ok: true, name: p.name, steps: (p.steps || []).length };
 });
@@ -6636,7 +6687,11 @@ ipcMain.on('update:install', () => {
   }, 12000);
 
   try {
-    autoUpdater.quitAndInstall(false, true);
+    // Silent on Windows: the full installer used to open and wait to be clicked
+    // through, which is most of why updates felt slower there than on a Mac.
+    // It now installs in the background and reopens Callisto by itself. A Mac
+    // ignores the flag.
+    autoUpdater.quitAndInstall(true, true);
   } catch (err) {
     clearTimeout(stuck);
     console.warn('[UPDATE] quitAndInstall threw:', err.message);
