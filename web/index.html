@@ -368,6 +368,13 @@
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       max-width: 880px;
     }
+    /* Three phone-shaped recordings: tall frames, side by side. */
+    .demo-grid-tall {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      max-width: 900px;
+    }
+    .demo-grid-tall .demo-frame { aspect-ratio: 9 / 16; }
+    @media (max-width: 760px) { .demo-grid-tall { max-width: 360px; } }
     .demo-card { margin: 0; }
     .demo-frame {
       position: relative;
@@ -1903,33 +1910,47 @@
     <h2 class="sec-title">Watch it actually do things</h2>
     <p class="sec-sub">Real recordings, no edits. This is Callisto on an ordinary laptop.</p>
 
-    <div class="demo-grid demo-grid-two">
+    <div class="demo-grid demo-grid-tall">
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="none"
                  controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
-                 poster="assets/demo/demo-1.jpg">
-            <source src="assets/demo/demo-1.mp4" type="video/mp4">
+                 poster="assets/demo/demo-1.jpg?v=2">
+            <source src="assets/demo/demo-1.mp4?v=2" type="video/mp4">
           </video>
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">01</span>
-          <b>Making things</b>
-          <span>Documents, slides, 3D models and video &mdash; from one sentence.</span>
+          <b>Opening Callisto</b>
+          <span>One shortcut and it&rsquo;s there, ready to listen.</span>
         </figcaption>
       </figure>
       <figure class="demo-card">
         <div class="demo-frame">
           <video class="demo-video" playsinline muted loop preload="none"
                  controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
-                 poster="assets/demo/demo-2.jpg">
-            <source src="assets/demo/demo-2.mp4" type="video/mp4">
+                 poster="assets/demo/demo-2.jpg?v=2">
+            <source src="assets/demo/demo-2.mp4?v=2" type="video/mp4">
           </video>
         </div>
         <figcaption class="demo-cap">
           <span class="demo-num">02</span>
           <b>Hand control</b>
           <span>Point to move, pinch to click. The camera is read on your own machine.</span>
+        </figcaption>
+      </figure>
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="none"
+                 controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
+                 poster="assets/demo/demo-3.jpg">
+            <source src="assets/demo/demo-3.mp4" type="video/mp4">
+          </video>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">03</span>
+          <b>AI video</b>
+          <span>Describe it in a sentence and watch the video get made.</span>
         </figcaption>
       </figure>
     </div>
