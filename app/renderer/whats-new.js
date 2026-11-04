@@ -13,7 +13,10 @@
 
   var NOTES = {
     '1.9.33': [
-      { icon: '💳', title: 'New Premium price', text: 'Premium is now US$25 a month or US$250 a year for new subscribers. If you already subscribe, your price stays the same.' }
+      { icon: '💳', title: 'New Premium price', text: 'Premium is now US$25 a month or US$250 a year for new subscribers. If you already subscribe, your price stays the same.' },
+      { icon: '🧊', title: 'Complete 3D models', text: 'Ask for a scene, like Superman flying into a building, and every part of it is modelled, not just the main thing.' },
+      { icon: '🧠', title: 'Smarter memory', text: 'Callisto only remembers what you actually tell it, and no longer links things you never connected.' },
+      { icon: '🗞️', title: 'Cleaner daily update', text: 'No more marketing advice in your daily update, and answer cards no longer pop up over Callisto itself.' }
     ],
     '1.9.32': [
       { icon: '📈', title: 'Charts to scale', text: 'Break-even charts, supply and demand, graphs of functions and data are drawn exactly from the numbers, fully labelled.' },
