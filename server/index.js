@@ -2969,6 +2969,9 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, contentGua
       // gpt-5.4, so the same question got a worse, staler answer on the site
       // than in the product it is advertising.
       messages: withContext,
+      // Same speed settings as the app: no thinking pause before the first
+      // word, and this person's long instructions read back from cache.
+      ...speedParams('gpt-5.4', req.userId),
       max_completion_tokens: 1024,
       temperature: 0.2,
       top_p: 0.9,
@@ -3108,7 +3111,7 @@ app.post('/ai/chat', authMiddleware, appMessageLimit, aiLimiter, contentGuard.gu
 // Picking lasting facts out of something the person said, for their memory.
 // The prompt is fixed here, not sent by the app, so this can only ever do this
 // one small job - which is why it doesn't count against the daily messages.
-const LEARN_PROMPT = 'You pick out facts worth remembering long-term about the user of a personal assistant. Reply with up to 2 lines, each a short third-person fact starting "User", or the single word NONE. Only lasting, important things: people in their life and their names, their business or job and its details, goals and plans, major life events, places they live or love, strong likes and dislikes, how they want to be addressed. Asking about a topic does not make it an interest: only record an interest they state themselves. Never: passing moods, one-off requests, questions they asked, health conditions, passwords or financial account details. Skip anything already known.';
+const LEARN_PROMPT = 'You pick out facts worth remembering long-term about the user of a personal assistant. Reply with up to 2 lines, each a short third-person fact starting "User", or the single word NONE. Only lasting, important things: people in their life and their names, their business or job and its details, goals and plans, major life events, places they live or love, strong likes and dislikes, how they want to be addressed. Asking about a topic does not make it an interest: only record an interest they state themselves. Never: passing moods, one-off requests, questions they asked, health conditions, passwords or financial account details. Skip anything already known. Never guess or infer: only what they plainly said. One fact per line, never two facts joined, and never a link between things they did not connect themselves.';
 app.post('/ai/learn', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const text = String((req.body && req.body.text) || '').slice(0, 1500);

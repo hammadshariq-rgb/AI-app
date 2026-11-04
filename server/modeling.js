@@ -80,7 +80,7 @@ function mountModeling(app, { authMiddleware }) {
             // construction, and models were coming out soft and vague. The
             // description itself comes from Callisto; this adds the qualities
             // every model wants, without overriding anything it asked for.
-            prompt: `${prompt.slice(0, 700)}, highly detailed, sharp well-defined edges, clean even surfaces, accurate proportions, single centred object on a plain background`,
+            prompt: `${prompt.slice(0, 700)}, highly detailed, sharp well-defined edges, clean even surfaces, accurate proportions, every element described above included and arranged as described, plain background`,
             // Meshy's current spec only accepts 'realistic'; 'sculpture' was removed.
             art_style: 'realistic',
             should_remesh: true,

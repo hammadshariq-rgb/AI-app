@@ -6990,7 +6990,10 @@ if (window.jarvis.onSentenceText) {
       // sitting in Creations could not be animated at all - the request
       // quietly became a fresh video made from the words instead.
       let seedUrl = null;
-      if (!imageBase64 && /\b(it|this|that|the (?:image|picture|photo|sketch|drawing))\b/i.test(text)) {
+      // Only when the words point at a picture - "animate it", "a video of
+      // this", "the image" - never because "that" or "it" appears somewhere
+      // in a description ("a building that has glass walls").
+      if (!imageBase64 && /\b(?:animate|bring)\s+(?:it|this|that)\b|\b(?:video|clip|animation)\s+(?:of|from|with)\s+(?:it|this|that)\b|\b(?:of|from)\s+(?:it|this|that)\s*[.!?]?\s*$|\b(?:this|that|the|my) (?:image|picture|photo|pic|sketch|drawing)\b/i.test(text)) {
         seedUrl = window._lastGeneratedImageUrl || null;
         if (!seedUrl) {
           try {
@@ -8560,9 +8563,8 @@ async function composeDailyBriefing(addressAs) {
   if (news) parts.push({ kind: 'news', label: 'The world', text: String(news).trim() });
   for (const line of _splitStatLines(stats)) parts.push({ kind: 'numbers', label: 'Your accounts', text: line });
 
-  // The day's marketing feedback, read from those same numbers.
-  const note = await settle(window.jarvis.marketingNote?.(stats), 7000);
-  if (note) parts.push({ kind: 'marketing', label: 'Marketing', text: 'Your marketing note for today: ' + String(note).trim() });
+  // No marketing advice here. It guessed at a strategy from a few numbers
+  // ("post more about financial literacy") that had nothing behind it.
 
   // Today's calendar - only today, and only when Google Calendar is connected.
   const todays = Array.isArray(cal) ? cal.filter((e) => e && e.start && new Date(e.start).toDateString() === new Date().toDateString()) : [];

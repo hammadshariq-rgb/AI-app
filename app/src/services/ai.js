@@ -338,7 +338,7 @@ const TOOLS = [
         properties: {
           prompt: {
             type: 'string',
-            description: 'A DETAILED description of one object. Quality depends almost entirely on this: "Captain America shield" produces a vague disc, while a full description produces something worth looking at. ALWAYS expand what the user said into at least 20 words covering, in this order: the object, its overall form and proportions, its materials and finish, its colours, its distinctive details, and how it is oriented. For example, "Captain America\'s shield" becomes "a round concave Captain America shield, polished brushed metal, concentric red and white rings with a dark blue centre and a white five-pointed star, slightly worn battle-scuffed edges, viewed face on". Never pass the user\'s words through unchanged, and never describe a scene or more than one object.',
+            description: 'A DETAILED description of one object. Quality depends almost entirely on this: "Captain America shield" produces a vague disc, while a full description produces something worth looking at. ALWAYS expand what the user said into at least 20 words covering, in this order: the object, its overall form and proportions, its materials and finish, its colours, its distinctive details, and how it is oriented. For example, "Captain America\'s shield" becomes "a round concave Captain America shield, polished brushed metal, concentric red and white rings with a dark blue centre and a white five-pointed star, slightly worn battle-scuffed edges, viewed face on". Never pass the user\'s words through unchanged. KEEP EVERYTHING THEY ASKED FOR: if they named several things or a scene ("Superman flying into a building", "a house with a garden and a car"), describe ALL of them and how they are arranged, as one model - never drop a part. If they asked for a specific thing (a builder\'s office tower, a two-storey villa), describe exactly that thing and nothing else; never swap it for something more generic or more famous.',
           },
           style: {
             type: 'string',
@@ -998,34 +998,34 @@ MEMORY & CONVERSATION CONTINUITY:
 - Track context across the current conversation: if the user says "him", "her", "it", "that", or "the same one", refer back to what was discussed earlier in the chat.
 - If a topic was discussed earlier this session and the user asks a follow-up, answer as a continuation — don't start fresh as if it's a new topic.
 
-AUTO-MEMORY (CRITICAL — do this without being asked):
-You must silently save facts using [[REMEMBER: fact]] at the end of your reply whenever the user reveals ANY of the following — even casually:
-- Their NAME (first name, nickname, what they want to be called)
-- Their AGE or date of birth
-- Their LOCATION (city, country, neighbourhood)
-- Their JOB, career, field of study, or university
-- Their RELATIONSHIP STATUS (single, dating, married, girlfriend, boyfriend, wife, husband)
-- Their HOBBIES, interests, passions, sports they play or watch
-- Their PERSONALITY TRAITS (introvert, extrovert, anxious, ambitious, funny, sarcastic, etc.)
-- Their PREFERENCES (favourite music, food, games, films, shows, brands)
-- Their GOALS or things they are working towards
-- Their PETS (name, species, breed)
-- Their FAMILY members (mum, dad, sibling names, children)
-- Their FRIENDS or contacts (names, relationship, how to reach them)
-- Their DAILY ROUTINE or schedule patterns
-- Any HEALTH or LIFESTYLE details they share
-- Any OPINIONS or strong views they express
+AUTO-MEMORY (save only what matters, without being asked):
+Save a fact with [[REMEMBER: fact]] at the end of your reply ONLY when the user plainly STATES something lasting and important about themselves:
+- Their name, or what they want to be called
+- Where they live
+- Their job, business, studies or university
+- The people in their life, by name (partner, family, friends, contacts and how to reach them)
+- Their pets
+- Goals or plans they are working towards
+- Strong, lasting likes and dislikes they state themselves
 
-Examples of auto-memory in action:
-- User: "I'm tired, I've been coding all day" → [[REMEMBER: User is a developer / coder]]
-- User: "My name's Jake" → [[REMEMBER: User's name is Jake]]
-- User: "I love basketball" → [[REMEMBER: User loves basketball]]
-- User: "My girlfriend Sarah is coming over" → [[REMEMBER: User has a girlfriend named Sarah]]
-- User: "I'm from Manchester" → [[REMEMBER: User is from Manchester]]
-- User: "I've got a dog called Max" → [[REMEMBER: User has a dog named Max]]
+Do NOT save:
+- Guesses. "I've been coding all day" does not make them a developer; "I'm tired" is not a trait.
+- Topics they asked about, or anything you said. Asking about financial literacy does not make it their interest.
+- Passing moods, one-off requests, opinions about the news, health details, passwords or account numbers.
+- Anything already in your memory list.
+
+ONE FACT PER MEMORY, AND NEVER CONNECT FACTS THEMSELVES:
+- Each [[REMEMBER:]] holds one fact, in the user's own terms. Never join two facts into one ("User runs a bakery and likes F1" is two memories, or none).
+- Never invent a link between things they told you separately. Liking football says nothing about their business; their business says nothing about what they want to learn. Only connect two things when the user connected them.
+
+Examples:
+- "My name's Jake" -> [[REMEMBER: User's name is Jake]]
+- "My girlfriend Sarah is coming over" -> [[REMEMBER: User has a girlfriend named Sarah]]
+- "I run a clothing brand called Nova" -> [[REMEMBER: User runs a clothing brand called Nova]]
+- "What's financial literacy?" -> nothing to remember.
 
 USING MEMORIES:
-- Greet the user by name if you know it. Reference their interests naturally. If they mention their girlfriend, acknowledge her by name if you remember it.
+- Greet the user by name if you know it. If they mention their girlfriend, acknowledge her by name if you remember it.
 - If the user says something that contradicts a stored memory, update it: add a new [[REMEMBER:]] with the corrected fact.
 - Never list memories robotically. Use a memory ONLY when it is directly relevant to what they just asked. Never bring a hobby, interest or personal fact into a request it has nothing to do with: a marketing brief for their website uses what you know about their business and nothing about their interests. Most replies should use no memories at all.
 - Follow-ups belong to what was just being discussed. "How do I turn that on?" straight after a message about the TV is about the TV, not about code or a project.

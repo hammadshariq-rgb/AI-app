@@ -600,6 +600,7 @@ function createOverlayWindow() {
   // Mac: reset mouse-event pass-through whenever the window comes into focus.
   // Transparent frameless windows can get stuck ignoring clicks after losing focus.
   if (process.platform === 'darwin') {
+    overlayWindow.on('blur', () => { _overlayBlurAt = Date.now(); });
     overlayWindow.on('focus', () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.setIgnoreMouseEvents(false);
@@ -763,10 +764,19 @@ function ensureHud() {
 // minimised or behind something. If its own window is up and focused, the reply
 // is already on screen there, and a HUD card on top of it is just a duplicate
 // stacking over the interface.
+//
+// Focus alone was not enough: Callisto loses focus for a moment while a reply
+// streams in (a click on a card, a notification, the mic), and the card then
+// popped up over Callisto's own chat. So a window that was in front in the
+// last few seconds still counts as in front, and so does one that is open on
+// screen and not minimised while nothing else has been clicked since.
+let _overlayBlurAt = 0;
 function hudWouldDuplicate() {
   try {
-    return !!(overlayWindow && !overlayWindow.isDestroyed()
-      && overlayWindow.isVisible() && overlayWindow.isFocused());
+    if (!overlayWindow || overlayWindow.isDestroyed()) return false;
+    if (!overlayWindow.isVisible() || overlayWindow.isMinimized()) return false;
+    if (overlayWindow.isFocused()) return true;
+    return Date.now() - _overlayBlurAt < 4000;
   } catch (_) { return false; }
 }
 
@@ -1051,7 +1061,6 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
       overlayWindow.focus();
       overlayWindow.webContents.send('jarvis:hud-response', { text, card: shown });
     } else {
-      ensureHud();
       sendToHud('hud:card', { type: 'wiki', text, card: shown, title: shown.title || 'Identified' });
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('jarvis:hud-response', { text, card: shown, background: true });
