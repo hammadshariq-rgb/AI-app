@@ -10365,7 +10365,7 @@ async function loadSettingsPane() {
   const subEl = document.getElementById('profileSub');
   const upgradeBox = document.getElementById('profileUpgrade');
   if (isActive) {
-    subEl.textContent = '✓ ACTIVE — US$20/month';
+    subEl.textContent = '✓ ACTIVE — US$25/month';
     subEl.className = 'profile-value profile-sub-active';
     upgradeBox?.classList.add('hidden');
   } else {
@@ -13153,8 +13153,8 @@ function _setPaywallPlan(plan) {
   const cta = document.getElementById('paywallBuy');
   if (cta) {
     cta.textContent = annual
-      ? 'Get Yearly — US$200/yr'
-      : 'Get Premium — US$20/mo';
+      ? 'Get Yearly — US$250/yr'
+      : 'Get Premium — US$25/mo';
   }
 }
 
