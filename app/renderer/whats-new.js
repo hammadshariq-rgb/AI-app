@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.33': [
+      { icon: '💳', title: 'New Premium price', text: 'Premium is now US$25 a month or US$250 a year for new subscribers. If you already subscribe, your price stays the same.' }
+    ],
     '1.9.32': [
       { icon: '📈', title: 'Charts to scale', text: 'Break-even charts, supply and demand, graphs of functions and data are drawn exactly from the numbers, fully labelled.' },
       { icon: '📐', title: 'Textbook-style answers', text: 'Maths, science, chemistry and business answers show bold steps, proper equations and a boxed final answer, in chat and on the card.' },
