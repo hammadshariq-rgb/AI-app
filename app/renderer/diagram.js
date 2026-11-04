@@ -72,7 +72,6 @@
       cap.textContent = r.caption;
       fig.appendChild(cap);
     }
-    addActions(fig, svg, r.caption || question);
   }
 
   // A drawing that has already been made, put under a message.
@@ -83,7 +82,6 @@
     fig.className = 'teach-diagram';
     fig.appendChild(svg);
     if (d.caption) { const c = document.createElement('figcaption'); c.textContent = d.caption; fig.appendChild(c); }
-    addActions(fig, svg, d.caption || '');
     (msgEl.querySelector('.msg') || msgEl).appendChild(fig);
   }
 

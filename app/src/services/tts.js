@@ -73,7 +73,39 @@ async function synthesizeOnce(text) {
   }
 }
 
+// Written answers carry LaTeX and **bold** for the screen. Read aloud as they
+// are, they come out as "backslash frac". Whole equations on their own lines
+// are skipped - they are on the screen - and small inline maths is said the
+// way a person would say it.
+const B = String.fromCharCode(92);
+function speakable(text) {
+  let t = String(text || '');
+  t = t.split(B + B).join(B);
+  // Display equations: shown, not read.
+  t = t.replace(new RegExp(B + B + '\\[[\\s\\S]*?' + B + B + '\\]', 'g'), ' ');
+  t = t.replace(/\$\$[\s\S]*?\$\$/g, ' ');
+  // Inline maths: turned into words.
+  t = t.replace(new RegExp(B + B + '\\(([\\s\\S]*?)' + B + B + '\\)', 'g'), (_m, m) => mathWords(m));
+  t = t.replace(/\*\*/g, '').replace(/[#`]/g, '');
+  return t.replace(/\s+/g, ' ').trim();
+}
+function mathWords(m) {
+  const cmd = (name) => new RegExp(B + B + name + '\\b', 'g');
+  let s = String(m);
+  for (let i = 0; i < 3; i++) s = s.replace(new RegExp(B + B + 't?frac\\{([^{}]*)\\}\\{([^{}]*)\\}', 'g'), '$1 over $2');
+  s = s.replace(new RegExp(B + B + 'sqrt\\{([^{}]*)\\}', 'g'), 'the square root of $1');
+  s = s.replace(/\^\{?2\}?/g, ' squared').replace(/\^\{?3\}?/g, ' cubed').replace(/\^\{([^{}]*)\}/g, ' to the power $1').replace(/\^(\w)/g, ' to the power $1');
+  s = s.replace(/_\{([^{}]*)\}/g, ' $1').replace(/_(\w)/g, ' $1');
+  s = s.replace(cmd('times'), ' times ').replace(cmd('cdot'), ' times ').replace(cmd('div'), ' divided by ')
+    .replace(cmd('pm'), ' plus or minus ').replace(cmd('approx'), ' approximately ').replace(cmd('le(q)?'), ' at most ')
+    .replace(cmd('ge(q)?'), ' at least ').replace(cmd('neq?'), ' not equal to ').replace(cmd('(right)?arrow'), ' gives ')
+    .replace(cmd('pi'), ' pi ').replace(cmd('theta'), ' theta ').replace(cmd('Delta'), ' delta ').replace(cmd('circ'), ' degrees ');
+  s = s.replace(new RegExp(B + B + '[a-zA-Z]+', 'g'), ' ').replace(/[{}]/g, '').replace(/=/g, ' equals ');
+  return ' ' + s + ' ';
+}
+
 async function synthesize(text) {
+  text = speakable(text);
   if (!text || !text.trim()) return null;
   try {
     return await synthesizeOnce(text);
@@ -94,4 +126,5 @@ async function synthesizeChunks(sentences) {
   return results.filter(Boolean);
 }
 
-module.exports = { synthesize, synthesizeChunks, setSpeed };
+module.exports = {
+  speakable, synthesize, synthesizeChunks, setSpeed };

@@ -224,9 +224,13 @@ let assistMode = false;
 ipcRenderer.on('capture:mode', (_e, m) => {
   assistMode = !!(m && m.assist);
   const hint = document.getElementById('hint');
-  if (hint) hint.innerHTML = assistMode
-    ? 'Screen assist is on — <span>press and circle what you mean, or just ask · Esc to stop</span>'
-    : 'Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span>';
+  if (hint) {
+    hint.innerHTML = assistMode
+      ? 'Screen assist is on — <span>circle what you mean, or just ask · press <b>Esc</b> to turn off screen assist</span>'
+      : 'Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span>';
+    // In assist mode the bar shows straight away: it is the "it's on" signal.
+    if (assistMode) hint.style.display = '';
+  }
 });
 
 lassoCanvas.addEventListener('mousedown', e => {
@@ -338,7 +342,7 @@ async function finishSelection() {
   if (assistMode) {
     ipcRenderer.send('capture:assist-area', bounds);
     const hint = document.getElementById('hint');
-    if (hint) hint.innerHTML = 'Got it — <span>now ask about what you circled · circle again to change it</span>';
+    if (hint) hint.innerHTML = 'Got it — <span>now ask about what you circled · circle again to change it · <b>Esc</b> to turn off</span>';
     return;
   }
 

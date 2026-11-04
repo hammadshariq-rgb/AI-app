@@ -12,6 +12,11 @@
   'use strict';
 
   var NOTES = {
+    '1.9.32': [
+      { icon: '📐', title: 'Textbook-style answers', text: 'Maths, science, chemistry and business answers show bold steps, proper equations and a boxed final answer, in chat and on the card.' },
+      { icon: '⤢', title: 'Expand button', text: 'Top left, above the menu: make Callisto fill the screen, or shrink it back.' },
+      { icon: '👀', title: 'Screen assist fixes', text: 'No more dark screen, the notice shows from the first press, and Esc turns it off.' }
+    ],
     '1.9.31': [
       { icon: '💼', title: 'Remembers your business', text: 'Revenue, costs, customers and suppliers are kept in Account › My business, and every business answer works from them and from what is happening in the world.' },
       { icon: '✍️', title: 'Writes into your draft', text: 'In screen assist, say "write in this draft" — circled or not — and the text goes straight into the box you were in.' },

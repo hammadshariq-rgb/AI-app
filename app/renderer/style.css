@@ -5590,6 +5590,12 @@ body.light-mode .wiki-source-tag { color: rgba(60, 90, 160, 0.35); }
   flex-shrink: 0;
 }
 
+#navCol { display: flex; flex-direction: column; gap: 10px; align-self: flex-start; }
+#expandBtn {
+  color: rgba(160, 220, 255, 0.95);
+  --sb-highlight: rgba(80, 200, 255, 1);
+  --sb-highlight-subtle: rgba(160, 225, 255, 0.9);
+}
 #historyBtn {
   color: rgba(160, 220, 255, 0.95);
   --sb-highlight: rgba(80, 200, 255, 1);

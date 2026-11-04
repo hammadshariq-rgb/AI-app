@@ -1046,7 +1046,7 @@ function addMessage(role, text) {
   textSpan.className = 'msg-text';
   if (role === 'assistant' && _looksLikeMarkdown(text)) {
     textSpan.classList.add('msg-rich');
-    textSpan.innerHTML = _renderChatMarkdown(text);   // HTML is escaped first
+    textSpan.innerHTML = _renderChatMarkdown(window.CallistoMath ? window.CallistoMath.prep(text) : text);   // HTML is escaped first
     window.CallistoMath?.render(textSpan);
   } else {
     textSpan.textContent = text;
@@ -5898,6 +5898,16 @@ window.jarvis.onAssistResult?.((res) => {
   window._lastAssistBubble = _bubble;
 });
 
+// Expand or shrink the whole window.
+document.getElementById('expandBtn')?.addEventListener('click', async () => {
+  const r = await window.jarvis.toggleExpand?.().catch(() => null);
+  const btn = document.getElementById('expandBtn');
+  if (!r || !btn) return;
+  btn.title = r.expanded ? 'Shrink window' : 'Expand window';
+  btn.setAttribute('aria-label', btn.title);
+  btn.querySelector('path')?.setAttribute('d', r.expanded ? 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7' : 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7');
+});
+
 // The diagram for the last screen answer, drawn once in main and shown in both
 // places, so the card and the chat never pay for two.
 window.jarvis.onAssistDiagram?.((d) => {
@@ -6775,7 +6785,7 @@ function _finishReplyGate(finalText) {
   if (el && hasText) {
     const span = el.querySelector('.msg-text');
     if (span) {
-      if (_looksLikeMarkdown(finalText)) { span.classList.add('msg-rich'); span.innerHTML = _renderChatMarkdown(finalText); window.CallistoMath?.render(span); }
+      if (_looksLikeMarkdown(finalText)) { span.classList.add('msg-rich'); span.innerHTML = _renderChatMarkdown(window.CallistoMath ? window.CallistoMath.prep(finalText) : finalText); window.CallistoMath?.render(span); }
       else { span.classList.remove('msg-rich'); span.textContent = finalText; }
     }
     el._fullText = finalText;

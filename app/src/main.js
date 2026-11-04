@@ -6822,11 +6822,19 @@ function screenWatchIntervalMs() {
 // Callisto's own windows are left out of every screenshot it takes. Pressing
 // Alt+Shift+C with Callisto in front used to capture Callisto instead of the
 // question behind it, so the answer was about the wrong screen.
+//
+// Not with content protection: on some Windows PCs that paints a transparent
+// window solid black, which is the dark sheet people saw over the whole screen
+// in screen assist. The windows are made invisible for the moment of the grab
+// instead. The small checks for change (320 wide) leave them alone, or the card
+// would blink every few seconds.
 async function grabScreen(maxWidth = 1280) {
-  const ours = [overlayWindow, hudWindow, captureWindow].filter((w) => w && !w.isDestroyed());
-  ours.forEach((w) => { try { w.setContentProtection(true); } catch (_) {} });
+  if (maxWidth <= 400) return _grabScreen(maxWidth);
+  const ours = [overlayWindow, hudWindow, captureWindow].filter((w) => w && !w.isDestroyed() && w.isVisible());
+  ours.forEach((w) => { try { w.setOpacity(0); } catch (_) {} });
+  if (ours.length) await new Promise((r) => setTimeout(r, 60));
   try { return await _grabScreen(maxWidth); }
-  finally { ours.forEach((w) => { try { w.setContentProtection(false); } catch (_) {} }); }
+  finally { ours.forEach((w) => { try { w.setOpacity(1); } catch (_) {} }); }
 }
 
 async function _grabScreen(maxWidth) {
@@ -7874,7 +7882,12 @@ function startAssist() {
   sendToHud('hud:listening', { sustained: true, label: '👀 Watching your screen · listening' });
   _tellOverlayAssist({ on: true });
   // Moving the mouse does nothing; pressing and circling picks out an area.
-  openCaptureOverlay({ assist: true }).catch(() => {});
+  // The notice goes up again once that layer is showing, above it, because on
+  // the first press the layer is still being built and used to cover it.
+  openCaptureOverlay({ assist: true }).then(() => {
+    if (!ASSIST.on) return;
+    try { if (hudWindow && !hudWindow.isDestroyed()) hudWindow.setAlwaysOnTop(true, 'screen-saver', 2); } catch (_) {}
+  }).catch(() => {});
   return { ok: true };
 }
 
@@ -7892,6 +7905,26 @@ async function _teachDiagram(question, answer) {
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('assist:diagram', d);
   } catch (_) {}
 }
+
+// Fills the screen, or puts it back. Some Macs open the window small, and the
+// green button on a frameless window is easy to miss or absent.
+ipcMain.handle('window:toggleExpand', () => {
+  const w = overlayWindow;
+  if (!w || w.isDestroyed()) return { ok: false };
+  const area = screen.getDisplayMatching(w.getBounds()).workArea;
+  const b = w.getBounds();
+  const big = w.isMaximized() || w.isFullScreen() || (b.width >= area.width - 8 && b.height >= area.height - 8);
+  if (big) {
+    if (w.isFullScreen()) w.setFullScreen(false);
+    if (w.isMaximized()) w.unmaximize();
+    const width = Math.round(area.width * 0.7), height = Math.round(area.height * 0.75);
+    w.setBounds({ x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2), width, height });
+  } else {
+    w.setBounds(area);
+    w.maximize();
+  }
+  return { ok: true, expanded: !big };
+});
 
 ipcMain.handle('diagram:make', async (_e, p) => {
   try {
