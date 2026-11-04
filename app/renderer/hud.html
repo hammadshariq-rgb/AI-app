@@ -302,7 +302,7 @@ ipcRenderer.on('hud:listening-stop', () => {
 ipcRenderer.on('hud:diagram', (_e, d) => {
   const card = document.querySelector('.hud-card.worked') || document.querySelector('.hud-card');
   const desc = card && card.querySelector('.card-desc');
-  const svg = window.CallistoDiagram && d && d.svg ? window.CallistoDiagram.clean(d.svg) : null;
+  const svg = window.CallistoDiagram && d ? window.CallistoDiagram.visual(d) : null;
   if (!desc || !svg) return;
   const fig = document.createElement('figure');
   fig.className = 'teach-diagram';

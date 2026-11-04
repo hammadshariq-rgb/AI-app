@@ -8,7 +8,7 @@
   'use strict';
 
   // Asking how or why something works, in any subject, or asking for a picture.
-  const TEACH = /\b(explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|sketch|visuali[sz]e|label(?:led)?|structure of|process of|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|bond|molecule|cell|organ|ecosystem|food (?:chain|web)|photosynthesis|respiration|anatomy|layers? of|parts of)\b/i;
+  const TEACH = /\b(chart|plot|construct|break[- ]?even|margin|elasticity|explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|sketch|visuali[sz]e|label(?:led)?|structure of|process of|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|bond|molecule|cell|organ|ecosystem|food (?:chain|web)|photosynthesis|respiration|anatomy|layers? of|parts of)\b/i;
   const NOT_TEACH = /^(?:open|play|search|set|remind|send|call|message|email|close|turn|create|make me (?:a|an) (?:image|video|picture))\b/i;
 
   const ELEMENTS = new Set(['svg', 'g', 'defs', 'marker', 'lineargradient', 'radialgradient', 'stop',
@@ -46,6 +46,78 @@
     return document.importNode(root, true);
   }
 
+  // A chart from numbers, drawn to scale: axes, gridlines, tick labels, lines,
+  // a key and the marked points. Everything is built here, nothing is parsed.
+  const NS = 'http://www.w3.org/2000/svg';
+  const COLOURS = ['#35c9ff', '#ff9f43', '#3ddc97', '#ff7b72', '#c08bff', '#ffcf5c'];
+  function niceStep(span) {
+    const raw = span / 8, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    return [1, 2, 2.5, 5, 10].map((m) => m * p).find((s) => s >= raw) || p * 10;
+  }
+  const fmt = (v) => (Math.abs(v) >= 1000 ? v.toLocaleString('en-US') : String(Math.round(v * 100) / 100));
+  function chart(c) {
+    const W = 720, H = 440, L = 86, R = c.kind === 'line' ? 190 : 28, T = 56, Bm = 64;
+    const pw = W - L - R, ph = H - T - Bm;
+    const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+    const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
+    svg.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, rx: 18, fill: '#0b1226' }));
+    svg.appendChild(el('text', { x: 28, y: 34, fill: '#e8eeff', 'font-size': 18, 'font-weight': 700, 'font-family': 'Inter, Segoe UI, Arial, sans-serif' }, c.title || ''));
+    const font = { 'font-family': 'Inter, Segoe UI, Arial, sans-serif' };
+    const ymin = c.y.min, ymax = c.y.max;
+    const sy = (v) => T + ph - ((v - ymin) / (ymax - ymin)) * ph;
+    const ys = niceStep(ymax - ymin);
+    for (let v = Math.ceil(ymin / ys) * ys; v <= ymax + 1e-9; v += ys) {
+      svg.appendChild(el('line', { x1: L, x2: L + pw, y1: sy(v), y2: sy(v), stroke: '#1e2a4a', 'stroke-width': 1 }));
+      svg.appendChild(el('text', Object.assign({ x: L - 10, y: sy(v) + 4, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'end' }, font), fmt(v)));
+    }
+    if (c.kind === 'bar') {
+      const n = c.bars.length, slot = pw / n, bw = Math.min(56, slot * 0.6);
+      c.bars.forEach((b, i) => {
+        const x = L + slot * i + (slot - bw) / 2, y0 = sy(Math.max(0, ymin)), y1 = sy(b.value);
+        svg.appendChild(el('rect', { x, y: Math.min(y0, y1), width: bw, height: Math.abs(y1 - y0), rx: 4, fill: COLOURS[i % COLOURS.length] }));
+        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: T + ph + 20, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'middle' }, font), b.label));
+        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: Math.min(y0, y1) - 6, fill: '#e8eeff', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(b.value)));
+      });
+    } else {
+      const xmin = c.x.min, xmax = c.x.max;
+      const sx = (v) => L + ((v - xmin) / (xmax - xmin)) * pw;
+      const xs = niceStep(xmax - xmin);
+      for (let v = Math.ceil(xmin / xs) * xs; v <= xmax + 1e-9; v += xs) {
+        svg.appendChild(el('line', { x1: sx(v), x2: sx(v), y1: T, y2: T + ph, stroke: '#1e2a4a', 'stroke-width': 1 }));
+        svg.appendChild(el('text', Object.assign({ x: sx(v), y: T + ph + 20, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(v)));
+      }
+      const clip = (v, a, b) => Math.max(a, Math.min(b, v));
+      c.series.forEach((s, i) => {
+        const d = s.points.map((p, k) => (k ? 'L' : 'M') + clip(sx(p[0]), L, L + pw).toFixed(1) + ' ' + clip(sy(p[1]), T, T + ph).toFixed(1)).join(' ');
+        const col = COLOURS[i % COLOURS.length];
+        svg.appendChild(el('path', Object.assign({ d, fill: 'none', stroke: col, 'stroke-width': 2.6, 'stroke-linejoin': 'round' }, s.dash ? { 'stroke-dasharray': '7 6' } : {})));
+        const ky = T + 14 + i * 26;
+        svg.appendChild(el('line', Object.assign({ x1: L + pw + 22, x2: L + pw + 50, y1: ky, y2: ky, stroke: col, 'stroke-width': 3 }, s.dash ? { 'stroke-dasharray': '6 4' } : {})));
+        svg.appendChild(el('text', Object.assign({ x: L + pw + 58, y: ky + 4, fill: '#e8eeff', 'font-size': 13 }, font), s.name));
+      });
+      c.markers.forEach((m) => {
+        const x = sx(m.x), y = sy(m.y);
+        svg.appendChild(el('line', { x1: x, x2: x, y1: y, y2: T + ph, stroke: '#ffcf5c', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
+        svg.appendChild(el('line', { x1: L, x2: x, y1: y, y2: y, stroke: '#ffcf5c', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
+        svg.appendChild(el('circle', { cx: x, cy: y, r: 5.5, fill: '#ffcf5c', stroke: '#0b1226', 'stroke-width': 2 }));
+        const right = x < L + pw * 0.7;
+        svg.appendChild(el('text', Object.assign({ x: right ? x + 12 : x - 12, y: y + 18, fill: '#ffcf5c', 'font-size': 13, 'font-weight': 600, 'text-anchor': right ? 'start' : 'end' }, font), m.label));
+      });
+      svg.appendChild(el('text', Object.assign({ x: L + pw / 2, y: H - 16, fill: '#c9d6f5', 'font-size': 13, 'text-anchor': 'middle' }, font), c.x.label));
+    }
+    svg.appendChild(el('line', { x1: L, x2: L + pw, y1: T + ph, y2: T + ph, stroke: '#8fb4ff', 'stroke-width': 1.6 }));
+    svg.appendChild(el('line', { x1: L, x2: L, y1: T, y2: T + ph, stroke: '#8fb4ff', 'stroke-width': 1.6 }));
+    const yl = el('text', Object.assign({ x: 0, y: 0, fill: '#c9d6f5', 'font-size': 13, 'text-anchor': 'middle', transform: 'translate(22 ' + (T + ph / 2) + ') rotate(-90)' }, font), c.y.label);
+    svg.appendChild(yl);
+    return svg;
+  }
+
+  // Whatever came back - an exact chart or a drawing - as an element.
+  function visual(d) {
+    if (d && d.chart) { try { return chart(d.chart); } catch (_) { return null; } }
+    return d && d.svg ? clean(d.svg) : null;
+  }
+
   function wanted(question, answer) {
     const q = String(question || '').trim();
     if (!q || NOT_TEACH.test(q)) return false;
@@ -62,7 +134,7 @@
     body.appendChild(fig);
     let r = null;
     try { r = await window.jarvis.makeDiagram({ question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }); } catch (_) {}
-    const svg = r && r.svg ? clean(r.svg) : null;
+    const svg = visual(r);
     if (!svg) { fig.remove(); return; }
     fig.classList.remove('loading');
     fig.textContent = '';
@@ -76,7 +148,7 @@
 
   // A drawing that has already been made, put under a message.
   function show(msgEl, d) {
-    const svg = d && d.svg ? clean(d.svg) : null;
+    const svg = visual(d);
     if (!svg || !msgEl) return;
     const fig = document.createElement('figure');
     fig.className = 'teach-diagram';
@@ -149,5 +221,5 @@
     @media (prefers-reduced-motion:reduce){.teach-diagram-wait{animation:none}}`;
   document.head.appendChild(css);
 
-  window.CallistoDiagram = { attach, clean, wanted, show };
+  window.CallistoDiagram = { attach, clean, wanted, show, visual };
 })();

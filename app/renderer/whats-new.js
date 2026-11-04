@@ -13,6 +13,7 @@
 
   var NOTES = {
     '1.9.32': [
+      { icon: '📈', title: 'Charts to scale', text: 'Break-even charts, supply and demand, graphs of functions and data are drawn exactly from the numbers, fully labelled.' },
       { icon: '📐', title: 'Textbook-style answers', text: 'Maths, science, chemistry and business answers show bold steps, proper equations and a boxed final answer, in chat and on the card.' },
       { icon: '⤢', title: 'Expand button', text: 'Top left, above the menu: make Callisto fill the screen, or shrink it back.' },
       { icon: '👀', title: 'Screen assist fixes', text: 'No more dark screen, the notice shows from the first press, and Esc turns it off.' }

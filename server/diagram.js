@@ -8,8 +8,29 @@
 const MAX_SVG = 60000;
 
 const STYLE = [
-  'You draw ONE teaching diagram as SVG for the explanation you are given, the kind a',
-  'good textbook would print beside it. Reply as JSON: {"svg": string | null, "caption": string}.',
+  'You give ONE visual for the explanation, the kind a good textbook prints beside it.',
+  'Reply as JSON: {"chart": object | null, "svg": string | null, "caption": string}.',
+  '',
+  'CHOOSE THE KIND FIRST:',
+  '- Anything plotted from numbers is a "chart", never svg: break-even charts, cost and',
+  '  revenue, supply and demand with numbers, a function y = f(x), a data series, a',
+  '  bar comparison. It is drawn exactly to scale from the numbers you give, so',
+  '  compute every point yourself and get them right.',
+  '- A concept with no numbers to plot - a circuit, a cell, a cycle, a process, forces,',
+  '  a structure - is an "svg" drawing (rules below). Leave chart null.',
+  '',
+  'THE CHART: {"kind": "line" | "bar", "title": string,',
+  ' "x": {"label": string with units, "min": number, "max": number},',
+  ' "y": {"label": string with units, "min": number, "max": number},',
+  ' "series": [{"name": string, "points": [[x, y], ...], "dash": boolean}],',
+  ' "markers": [{"x": number, "y": number, "label": string}],',
+  ' "bars": [{"label": string, "value": number}]}  (bars only for kind "bar")',
+  'For straight lines give the two end points. For curves give 20-40 points. Use the',
+  'axis range the question asks for (a printed grid that runs 0 to 100 means x.max 100).',
+  'A break-even chart has total revenue, total costs and fixed costs (dash true), and',
+  'a marker at the break-even point labelled "Break-even: Q units, $R". Mark',
+  'equilibrium, intercepts, maxima and anything the question asks to identify.',
+  'Name every series as the textbook does: "Total revenue", "Total costs", "Fixed costs".',
   '',
   'Return {"svg": null, "caption": ""} when a picture would not genuinely help: small',
   'talk, opinions, definitions of a single word, simple arithmetic, lists of facts.',
@@ -67,6 +88,36 @@ function checkSvg(svg) {
   return s;
 }
 
+// Only numbers and short labels survive, so a chart can never carry markup.
+function checkChart(c) {
+  if (!c || typeof c !== 'object') return null;
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const txt = (v, n) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, n);
+  const axis = (a) => (a && num(a.min) !== null && num(a.max) !== null && a.max > a.min
+    ? { label: txt(a.label, 60), min: a.min, max: a.max } : null);
+  const kind = c.kind === 'bar' ? 'bar' : 'line';
+  const out = { kind, title: txt(c.title, 80), x: axis(c.x), y: axis(c.y), series: [], markers: [], bars: [] };
+  if (kind === 'line') {
+    if (!out.x || !out.y) return null;
+    for (const s of (Array.isArray(c.series) ? c.series : []).slice(0, 6)) {
+      const pts = (Array.isArray(s && s.points) ? s.points : [])
+        .filter((p) => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).slice(0, 200);
+      if (pts.length >= 2) out.series.push({ name: txt(s.name, 40), points: pts, dash: !!s.dash });
+    }
+    if (!out.series.length) return null;
+    for (const m of (Array.isArray(c.markers) ? c.markers : []).slice(0, 6)) {
+      if (m && num(m.x) !== null && num(m.y) !== null) out.markers.push({ x: m.x, y: m.y, label: txt(m.label, 60) });
+    }
+  } else {
+    for (const b of (Array.isArray(c.bars) ? c.bars : []).slice(0, 20)) {
+      if (b && num(b.value) !== null) out.bars.push({ label: txt(b.label, 30), value: b.value });
+    }
+    if (!out.bars.length) return null;
+    if (!out.y) { const top = Math.max(0, ...out.bars.map((b) => b.value)); out.y = { label: '', min: Math.min(0, ...out.bars.map((b) => b.value)), max: top || 1 }; }
+  }
+  return out;
+}
+
 function makeDiagram(openai) {
   return async function diagram({ question, answer }) {
     const r = await openai.chat.completions.create({
@@ -82,9 +133,12 @@ function makeDiagram(openai) {
     });
     let out = {};
     try { out = JSON.parse(r.choices[0].message.content || '{}'); } catch (_) { return { svg: null }; }
+    const caption = String(out.caption || '').slice(0, 240);
+    const chart = checkChart(out.chart);
+    if (chart) return { chart, caption };
     const svg = checkSvg(out.svg);
-    return svg ? { svg, caption: String(out.caption || '').slice(0, 240) } : { svg: null };
+    return svg ? { svg, caption } : { svg: null };
   };
 }
 
-module.exports = { makeDiagram, checkSvg };
+module.exports = { makeDiagram, checkSvg, checkChart };

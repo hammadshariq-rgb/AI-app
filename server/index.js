@@ -3221,6 +3221,7 @@ app.post('/ai/diagram', authMiddleware, aiLimiter, async (req, res) => {
     const question = String((req.body && req.body.question) || '').slice(0, 1500);
     const answer = String((req.body && req.body.answer) || '').slice(0, 5000);
     if (!question || answer.length < 40) return res.json({ svg: null });
+    // A chart question is often short to answer and still needs the chart.
     if (await contentGuard.review({ text: question }, req.userId)) return res.json({ svg: null });
     res.json(await drawDiagram({ question, answer }));
   } catch (err) {

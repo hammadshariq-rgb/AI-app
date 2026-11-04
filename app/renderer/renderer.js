@@ -5912,7 +5912,7 @@ document.getElementById('expandBtn')?.addEventListener('click', async () => {
 // places, so the card and the chat never pay for two.
 window.jarvis.onAssistDiagram?.((d) => {
   const el = window._lastAssistBubble;
-  if (el && d && d.svg) window.CallistoDiagram?.show(el, d);
+  if (el && d && (d.svg || d.chart)) window.CallistoDiagram?.show(el, d);
 });
 
 // Something offered from the screen that is really a conversation. Put it in

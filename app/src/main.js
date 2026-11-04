@@ -7894,13 +7894,13 @@ function startAssist() {
 // Asking how or why something works gets a labelled diagram, drawn after the
 // answer so the answer never waits for it. One drawing goes to both the card
 // and the conversation.
-const TEACH_Q = /\b(explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|label|structure|process|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|molecule|cell|ecosystem|photosynthesis|respiration|anatomy|solve|question)\b/i;
+const TEACH_Q = /\b(chart|plot|construct|break[- ]?even|explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|label|structure|process|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|molecule|cell|ecosystem|photosynthesis|respiration|anatomy|solve|question)\b/i;
 async function _teachDiagram(question, answer) {
   if (!TEACH_Q.test(String(question || '')) || String(answer || '').length < 140) return;
   try {
     const res = await ai.serverFetch('diagram', { question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }, { timeout: 60000, retries: 0 });
     const d = await res.json();
-    if (!d || !d.svg) return;
+    if (!d || !(d.svg || d.chart)) return;
     sendToHud('hud:diagram', d);
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('assist:diagram', d);
   } catch (_) {}
