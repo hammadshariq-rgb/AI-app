@@ -369,6 +369,12 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+// The owner's private dashboard at /admin (admin-dashboard.js). Ahead of CORS
+// on purpose: its page posts to its own address, which the browser marks with
+// the server's own origin - not one of the site origins CORS lets through.
+// It is same-origin, password-gated and rate-limited on its own.
+require('./admin-dashboard').mountAdminDashboard(app, { limiter, secretMatches });
+
 app.use(cors({
   origin: (origin, cb) => {
     // Allow requests with no origin (Electron app, curl) or whitelisted origins
