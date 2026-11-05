@@ -2997,15 +2997,20 @@ window._checkQuickLaunch = async function(text) {
   // 'calendar' is deliberately not in this list. It sat here and matched
   // first, so "open my calendar" launched the system Calendar app instead
   // of showing the one inside Callisto, which is what was meant.
-  const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|photos|settings|maps|camera|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
+  const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|photos|settings|maps|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
   // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
   const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
   // A file or folder ("open my budget file", "open resume.pdf") is found and opened
   // by the main process, not launched as an app.
   const opensFile = /.\s+(?:file|document|doc|word\s+doc(?:ument)?|pdf|spreadsheet|sheet|excel\s+(?:file|sheet)|presentation|slides|deck|powerpoint|photo|picture|image|video|folder)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/i.test(tOpen);
-  const appOpenM = !isTV && !opensFile && (tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i));
+  // "Open the camera" means Callisto's own camera, to look at something - not
+  // the Windows or Mac Camera app. Only "the camera app" opens that.
+  const camLook = /\b(?:camera|webcam|cam)\b/i.test(tOpen) && !/\bcamera\s+app\b/i.test(tOpen);
+  const appOpenM = !isTV && !opensFile && !camLook && (tOpen.match(APP_OPEN_RE) || tOpen.match(/^(?:open|launch|start)\s+(?:up\s+)?(?:my\s+|the\s+)?(.{2,30})\s*$/i));
   if (appOpenM) {
     const appName = (appOpenM[1] || '').trim().toLowerCase();
+    // 'open the camera app' is the one way to ask for the system Camera app.
+    const _cam = appName === 'camera app' ? 'camera' : null;
     if (!appName || appName.length < 2) { /* too short, let AI handle */ }
     else {
       // Map to URI schemes / known names
@@ -3024,7 +3029,7 @@ window._checkQuickLaunch = async function(text) {
       if (uri && /^https?:/i.test(uri)) {
         window.jarvis.openUrl(uri);
       } else {
-        window.jarvis.openApp(appName);
+        window.jarvis.openApp(_cam || appName);
       }
       return true;
     }
@@ -3195,7 +3200,7 @@ window._checkQuickLaunch = async function(text) {
   // camera straight back, and says what it makes of it.
   const WANTS_CAMERA = new RegExp(
     // Asking for the camera itself.
-    '\\b(?:turn on|open|start|use|switch on)\\b[^.?!]{0,16}\\b(?:camera|webcam|cam)\\b'
+    '\\b(?:turn on|open|ooen|opne|oepn|opn|launch|bring up|start|use|switch on)\\b[^.?!]{0,16}\\b(?:camera|webcam|cam)\\b'
     + '|\\b(?:camera|webcam)\\b[^.?!]{0,10}\\b(?:on|please)\\b'
     // Or asking it to look, which means the same thing.
     + '|\\b(?:look at|have a look at|check out|see|watch)\\b\\s+(?:this|that|these|me|what)\\b'

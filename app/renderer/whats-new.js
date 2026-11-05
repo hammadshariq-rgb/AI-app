@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.36': [
+      { icon: '📷', title: 'Open camera means scan', text: 'Open my camera, open the camera, open this camera - they all start Callisto scanning now. Say 'open the camera app' for the system Camera app.' },
+      { icon: '🔄', title: 'Reopens after updating', text: 'On Windows, Callisto now reopens by itself once an update has installed.' }
+    ],
     '1.9.35': [
       { icon: '↩️', title: 'Top bar restored', text: 'Everything along the top is back exactly where it was, with the expand button just left of the X.' }
     ],

@@ -6691,6 +6691,32 @@ ipcMain.on('update:install', () => {
     // through, which is most of why updates felt slower there than on a Mac.
     // It now installs in the background and reopens Callisto by itself. A Mac
     // ignores the flag.
+    //
+    // The silent install does not reliably reopen it on Windows - the
+    // assisted installer skips its own "run after" in silent mode - so a
+    // small hidden watcher waits for the new Callisto.exe to be written and
+    // the installer to finish, then starts it. If the installer did start it,
+    // the watcher sees it running and does nothing.
+    if (process.platform === 'win32') {
+      try {
+        const script = [
+          '$exe = $env:CALLISTO_EXE; $t0 = Get-Date; Start-Sleep -Seconds 5',
+          'for ($i = 0; $i -lt 90; $i++) {',
+          '  Start-Sleep -Seconds 2',
+          "  if (Get-Process | Where-Object { $_.ProcessName -like 'Callisto-AI-Setup*' }) { continue }",
+          '  if ((Get-Item -LiteralPath $exe).LastWriteTime -gt $t0) {',
+          "    if (-not (Get-Process -Name 'Callisto' -ErrorAction SilentlyContinue)) { Start-Process -FilePath $exe }",
+          '    exit',
+          '  }',
+          '}',
+          "if (-not (Get-Process -Name 'Callisto' -ErrorAction SilentlyContinue)) { Start-Process -FilePath $exe }",
+        ].join('\n');
+        require('child_process').spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', script], {
+          detached: true, stdio: 'ignore', windowsHide: true,
+          env: { ...process.env, CALLISTO_EXE: process.execPath },
+        }).unref();
+      } catch (err) { console.warn('[UPDATE] could not start the relaunch watcher:', err.message); }
+    }
     autoUpdater.quitAndInstall(true, true);
   } catch (err) {
     clearTimeout(stuck);
