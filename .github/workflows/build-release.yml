@@ -15,6 +15,10 @@ permissions:
 # a draft until publish-release; this does not change app-update.yml.
 env:
   EP_DRAFT: 'true'
+  # Installers and update files live in their own public repository, so this
+  # one can be private. RELEASES_TOKEN is a fine-grained token with Contents
+  # read and write on that repository only.
+  RELEASE_REPO: hammadshariq-rgb/callisto-releases
 
 jobs:
 
@@ -40,12 +44,12 @@ jobs:
       # draft - Windows could not update to 1.9.30 until they were moved by hand.
       - name: Create the draft release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAG: ${{ steps.get.outputs.tag }}
           VERSION: ${{ steps.get.outputs.version }}
         run: |
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+          gh release view "$TAG" --repo "$RELEASE_REPO" > /dev/null 2>&1 || \
+          gh release create "$TAG" --repo "$RELEASE_REPO" --draft \
             --title "$TAG" --notes "Callisto $VERSION"
 
   # ── Windows ────────────────────────────────────────────────────────────────
@@ -96,7 +100,7 @@ jobs:
         working-directory: app
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -190,7 +194,7 @@ jobs:
         # an empty CSC_LINK still looks configured to electron-builder, which then
         # tries to read a certificate from an empty path and fails.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
           APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
@@ -307,8 +311,8 @@ jobs:
             done
             # electron-builder published nothing this time, so upload the files.
             # A second draft for the same tag makes publish-release fail.
-            gh release view "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
-            gh release create "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft \
+            gh release view "${{ needs.version.outputs.tag }}" --repo "$RELEASE_REPO" > /dev/null 2>&1 || \
+            gh release create "${{ needs.version.outputs.tag }}" --repo "$RELEASE_REPO" --draft \
               --title "${{ needs.version.outputs.tag }}" --notes "Callisto ${{ needs.version.outputs.version }}"
             # The .zip matters as much as the .dmg: Squirrel.Mac, which is what
             # electron-updater uses on a Mac, can only install an update from a
@@ -316,7 +320,7 @@ jobs:
             # a zip that had never been uploaded - only its .blockmap had, which
             # matched the pattern below - and every Mac update attempt asked for
             # a file that was not there and gave up without a word.
-            gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
+            gh release upload "${{ needs.version.outputs.tag }}" --repo "$RELEASE_REPO" --clobber \
               dist/*.dmg dist/*.zip dist/*.blockmap
             # latest-mac.yml is what installed Macs read to find an update.
             if [ -f dist/latest-mac.yml ]; then
@@ -330,7 +334,7 @@ jobs:
                 fi
                 echo "latest-mac.yml names $f - present."
               done
-              gh release upload "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber dist/latest-mac.yml
+              gh release upload "${{ needs.version.outputs.tag }}" --repo "$RELEASE_REPO" --clobber dist/latest-mac.yml
             else
               echo "::error::latest-mac.yml wasn't produced, so Macs won't see this release as an update."
               exit 1
@@ -358,9 +362,9 @@ jobs:
     steps:
       - name: Publish the release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAG: ${{ needs.version.outputs.tag }}
-          REPO: ${{ github.repository }}
+          REPO: ${{ env.RELEASE_REPO }}
         run: |
           # Never publish a release a platform cannot update from.
           names=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
@@ -372,3 +376,24 @@ jobs:
           echo "Released $TAG"
           gh release view "$TAG" --repo "$REPO" --json assets \
             --jq '.assets[].name'
+
+      # Apps from before the move still look for updates in this repository.
+      # Until they have all updated to a version that knows the new place, each
+      # release is copied here too. Remove this step once the switch is done.
+      - name: Copy the release to the old repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES_GH: ${{ secrets.RELEASES_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          mkdir -p mirror
+          GH_TOKEN="$RELEASES_GH" gh release download "$TAG" --repo "$RELEASE_REPO" --dir mirror
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber mirror/*
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "PERSONAL AI ASSISTANT CALLISTO ${TAG}" \
+              --notes "Also at https://github.com/${RELEASE_REPO}/releases" mirror/*
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Copied $TAG to $GITHUB_REPOSITORY"

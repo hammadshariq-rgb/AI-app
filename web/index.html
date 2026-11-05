@@ -5267,8 +5267,11 @@
 // they were still pointing at v1.3.13 under the old product name, which has
 // not been a real filename since the app was renamed to Callisto.
 (function () {
-  fetch('https://api.github.com/repos/hammadshariq-rgb/AI-app/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
-    .then(function (r) { return r.ok ? r.json() : null; })
+  // Releases now live in their own public repository; the old one is asked
+  // only if the new one has nothing yet.
+  var latest = function (repo) { return fetch('https://api.github.com/repos/hammadshariq-rgb/' + repo + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+  latest('callisto-releases')
+    .then(function (rel) { return rel && rel.assets && rel.assets.length ? rel : latest('AI-app'); })
     .then(function (rel) {
       if (!rel || !rel.assets) return;
       var find = function (re) { var a = rel.assets.filter(function (x) { return re.test(x.name); })[0]; return a && a.browser_download_url; };

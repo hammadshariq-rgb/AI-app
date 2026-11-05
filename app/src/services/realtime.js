@@ -8,7 +8,7 @@ const _nodeFetch = require('node-fetch');
 // Wikipedia's API policy rejects library default User-Agents and answers with an
 // HTML error page, which then fails JSON parsing — the silent cause of most
 // missing cards. Identify the app on every request unless a caller overrides it.
-const DEFAULT_UA = 'CallistoDesktop/1.2 (+https://github.com/hammadshariq-rgb/AI-app)';
+const DEFAULT_UA = 'CallistoDesktop/1.2 (+https://callistoai.net)';
 
 function fetch(url, opts = {}) {
   const { timeout, ...rest } = opts || {};

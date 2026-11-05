@@ -1503,7 +1503,7 @@ app.whenReady().then(async () => {
             title: 'Callisto AI update',
             body: 'A new version is ready but could not install itself. Click to download it.',
           });
-          n.on('click', () => shell.openExternal('https://github.com/hammadshariq-rgb/AI-app/releases/latest'));
+          n.on('click', () => shell.openExternal('https://github.com/hammadshariq-rgb/callisto-releases/releases/latest'));
           n.show();
         } catch (_) {}
       }

@@ -74,20 +74,26 @@ document.getElementById('f').addEventListener('submit',function(e){e.preventDefa
 let _dl = { at: 0, value: null };
 async function downloads() {
   if (_dl.value && Date.now() - _dl.at < 10 * 60 * 1000) return _dl.value;
-  const repo = process.env.RELEASES_REPO || 'hammadshariq-rgb/AI-app';
+  // Both places installers have lived: the new releases repository and the
+  // old one, where releases are still copied during the move.
+  const repos = ['hammadshariq-rgb/callisto-releases', 'hammadshariq-rgb/AI-app'];
   const headers = { 'User-Agent': 'callisto-admin', Accept: 'application/vnd.github+json' };
   if (process.env.GITHUB_TOKEN) headers.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
   try {
-    const r = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, { headers });
-    const list = r.ok ? await r.json() : [];
-    const versions = (Array.isArray(list) ? list : []).map((rel) => {
-      let win = 0; let mac = 0;
-      for (const a of rel.assets || []) {
-        if (/\.exe$/i.test(a.name)) win += a.download_count || 0;
-        if (/\.dmg$/i.test(a.name)) mac += a.download_count || 0;
+    const byTag = new Map();
+    for (const repo of repos) {
+      const r = await fetch('https://api.github.com/repos/' + repo + '/releases?per_page=50', { headers }).catch(() => null);
+      const list = r && r.ok ? await r.json() : [];
+      for (const rel of Array.isArray(list) ? list : []) {
+        const v = byTag.get(rel.tag_name) || { tag: rel.tag_name, win: 0, mac: 0, at: rel.published_at || '' };
+        for (const a of rel.assets || []) {
+          if (/[.]exe$/i.test(a.name)) v.win += a.download_count || 0;
+          if (/[.]dmg$/i.test(a.name)) v.mac += a.download_count || 0;
+        }
+        byTag.set(rel.tag_name, v);
       }
-      return { tag: rel.tag_name, win, mac };
-    });
+    }
+    const versions = [...byTag.values()].sort((x, y) => String(y.at).localeCompare(String(x.at)));
     const total = versions.reduce((s, v) => s + v.win + v.mac, 0);
     _dl = { at: Date.now(), value: { total, versions } };
   } catch (_) {
