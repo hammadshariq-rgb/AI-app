@@ -4633,6 +4633,14 @@
 
   // The camera card, as in the app: it takes one photo and Callisto looks at it.
   // The same file the app uses (camera-look.js); here it asks the server directly.
+  window.jarvis = window.jarvis || {};
+  window.jarvis.makeDiagram = async function (p) {
+    if (!token) return { svg: null };
+    try {
+      const r = await fetch(SERVER + '/ai/diagram', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(p || {}) });
+      return r.ok ? await r.json() : { svg: null };
+    } catch (_) { return { svg: null }; }
+  };
   window.CallistoWebLook = async function (imageBase64, question) {
     if (!token) return { error: 'Sign in first and I can look at that.' };
     try {
@@ -4740,6 +4748,13 @@
             const d=JSON.parse(line.slice(5).trim());
             if(d.delta){fullText+=d.delta;bubble.innerHTML=fmt(fullText);msgsEl.scrollTop=msgsEl.scrollHeight;}
             if(d.done){
+              // Same as the app: no em dashes on screen, maths drawn properly,
+              // and a diagram under an answer about how something is made or works.
+              fullText=fullText.replace(/[ \t]*\u2014[ \t]*/g, ', ');
+              const _M=window.CallistoMath;
+              bubble.innerHTML=(_M && _M.hasMath(fullText)) ? _M.toHtml(fullText) : fmt(fullText);
+              try{ _M && _M.render(bubble); }catch(_){}
+              try{ window.CallistoDiagram && window.CallistoDiagram.attach(bubble, t, fullText); }catch(_){}
               msgs.push({role:'assistant',content:fullText});
               // Charts are drawn once, at the end. Doing it on every delta
               // would redraw a half-written chart dozens of times and the
@@ -5666,6 +5681,11 @@
     });
   });
 </script>
-<script src="camera-look.js?v=1"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="rich-math.js?v=1"></script>
+<script src="diagram.js?v=1"></script>
+<script src="camera-look.js?v=2"></script>
 </body>
 </html>

@@ -52,7 +52,7 @@
     unescape(el);
     el.classList.add('math-answer');
     // "Final answer" as a small green label, the way a worked answer ends.
-    el.querySelectorAll('strong').forEach((s) => { if (/^s*final answers?:?s*$/i.test(s.textContent)) s.classList.add('final-pill'); });
+    el.querySelectorAll('strong').forEach((s) => { if (/^\s*final answers?:?\s*$/i.test(s.textContent)) s.classList.add('final-pill'); });
     try {
       window.renderMathInElement(el, {
         delimiters: [
