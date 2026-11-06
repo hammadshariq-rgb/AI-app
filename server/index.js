@@ -3873,6 +3873,41 @@ app.post('/ai/vision', authMiddleware, appMessageLimit, expensiveLimiter, async 
       return res.json({ text: REFUSAL, answer: REFUSAL, subject: '', files: [], card: null });
     }
 
+    // The camera card: someone holding something up, or showing themselves.
+    // A short verdict they can read at a glance, then the specifics under it -
+    // fit, colour, grooming, light, setting, one thing to change - so the
+    // answer is worth having without being a wall of text.
+    if (req.body.mode === 'camera') {
+      const q = String(instruction || '').slice(0, 400);
+      const r = await openai.chat.completions.create({
+        model: 'gpt-6-luna',
+        reasoning_effort: 'low',
+        max_completion_tokens: 1200,
+        response_format: { type: 'json_object' },
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: imageBase64, detail: 'high' } },
+            { type: 'text', text: [
+              'This photo was just taken with their webcam: they are showing you themselves or something they are holding.',
+              q ? 'They asked: "' + q + '". Answer that question about this photo.' : 'They want your honest, useful take on it.',
+              'Reply as JSON: {"subject": "2-5 words naming the main thing", "verdict": "1-2 sentences, direct and specific", "details": ["4-6 short points"]}.',
+              'The points are specific to THIS photo and each says something useful. For a person or an outfit: how it fits and sits,',
+              'the colours and what they go with, hair and grooming, expression and posture, the lighting and background, and one',
+              'concrete thing to change. For an object: what it is, its condition, anything wrong with it, what it goes with or is',
+              'used for, and one useful tip. Be warm but honest: if something does not work, say so and say what would.',
+              'Never comment on body shape, weight or attractiveness. Each point under 22 words, no markdown.',
+            ].join(' ') },
+          ],
+        }],
+      });
+      let out = {};
+      try { out = JSON.parse(r.choices[0].message.content || '{}'); } catch (_) {}
+      const verdict = String(out.verdict || '').slice(0, 400);
+      const details = (Array.isArray(out.details) ? out.details : []).map((d) => String(d).slice(0, 220)).filter(Boolean).slice(0, 6);
+      return res.json({ subject: String(out.subject || '').slice(0, 60), answer: verdict, text: verdict, details });
+    }
+
     // When the user said something while circling ("summarise these", "get
     // these under 1MB"), answer that instead of describing the picture. Files
     // on screen are named back so the app can find them on disk and act.

@@ -6357,6 +6357,12 @@ window._stripAssistantName = stripAssistantName;
 async function sendToJarvis(rawText) {
   // Every handler below reads this, so the name comes off once, here.
   let text = stripAssistantName(rawText);
+  // The camera card is open with a photo on it: whatever they say or type
+  // ("how do I look?", "does this go with black jeans?") is about that photo.
+  if (window.CallistoCameraLook && window.CallistoCameraLook.hasPhoto && window.CallistoCameraLook.hasPhoto()) {
+    window.CallistoCameraLook.ask(text);
+    return;
+  }
   // Before anything is sent: is an account missing that this needs?
   if (window.CallistoGate) {
     const need = window.CallistoGate.needsService(text);

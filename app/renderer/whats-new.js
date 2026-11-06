@@ -13,6 +13,7 @@
 
   var NOTES = {
     '1.9.37': [
+      { icon: '📸', title: 'A better camera look', text: 'A new camera card with a countdown ring and Retake. Ask about the photo by typing, the mic or Ctrl+Shift+C, and open More for the details.' },
       { icon: '🧠', title: 'Your business, in the memory orb', text: 'Your business details now sit under Add a memory, and Callisto fills them in by itself as you talk about your work.' },
       { icon: '📐', title: 'Diagrams that earn their place', text: 'Diagrams now come for how things are made or how they work, in a cleaner textbook style, and also show on the side card.' },
       { icon: '💬', title: 'Shorter answers', text: 'Answers are short by default. Ask for detail when you want it.' },

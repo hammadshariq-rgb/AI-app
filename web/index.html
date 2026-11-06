@@ -4631,8 +4631,30 @@
     b.appendChild(a);
   }
 
+  // The camera card, as in the app: it takes one photo and Callisto looks at it.
+  // The same file the app uses (camera-look.js); here it asks the server directly.
+  window.CallistoWebLook = async function (imageBase64, question) {
+    if (!token) return { error: 'Sign in first and I can look at that.' };
+    try {
+      const r = await fetch(SERVER + '/ai/vision', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ mode: 'camera', imageBase64, instruction: question || null }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return { error: d.error || 'I could not get a look at that.' };
+      const text = d.answer || d.text;
+      return text ? { ok: true, text, subject: d.subject || '', details: Array.isArray(d.details) ? d.details : [] } : { error: 'I could not make sense of that.' };
+    } catch (_) { return { error: 'I could not get a look at that just now.' }; }
+  };
+  window.CallistoCameraHooks = { onAnswer: (r) => addMsg('ai', r.text + (r.details && r.details.length ? '\n\n' + r.details.map((d) => '- ' + d).join('\n') : '')) };
+  const WANTS_CAMERA = /\b(?:open|ooen|turn on|start|launch|use|switch on|bring up)\b[^.?!]{0,16}\b(?:camera|webcam|cam)\b|\bhow do i look\b|\bwhat am i (?:wearing|holding)\b|\bcamera scanner\b/i;
+
   async function send(){
     const t=uIn.value.trim();if(!t||busy)return;
+    if (WANTS_CAMERA.test(t) && !/camera app/i.test(t) && window.CallistoCameraLook) {
+      uIn.value=''; addMsg('user', t);
+      if (!token) { if (typeof showAuthForced === 'function') showAuthForced(); return; }
+      window.CallistoCameraLook.start(t);
+      return;
+    }
     // Open/search/play actions run instantly in a new tab — no AI round trip.
     const act = webActionFor(t);
     if(act){
@@ -5644,5 +5666,6 @@
     });
   });
 </script>
+<script src="camera-look.js?v=1"></script>
 </body>
 </html>

@@ -8496,6 +8496,7 @@ ipcMain.handle('camera:look', async (_e, { imageBase64, question }) => {
       method: 'POST',
       headers: { ..._authHeader(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        mode: 'camera',
         imageBase64,
         instruction: question
           || 'They are holding this up to the camera for you to look at. Say what you see and '
@@ -8509,7 +8510,7 @@ ipcMain.handle('camera:look', async (_e, { imageBase64, question }) => {
     }
     const data = await res.json();
     const text = data && (data.answer || data.text || data.subject);
-    return text ? { ok: true, text, subject: data.subject || '' } : { error: 'I could not make sense of that.' };
+    return text ? { ok: true, text, subject: data.subject || '', details: Array.isArray(data.details) ? data.details : [] } : { error: 'I could not make sense of that.' };
   } catch (err) {
     return { error: 'I could not get a look at that just now.' };
   }
