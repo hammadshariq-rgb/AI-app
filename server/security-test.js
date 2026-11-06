@@ -46,7 +46,7 @@ const req = (path, opts = {}) => new Promise((resolve) => {
 });
 
 const waitUp = async () => {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 120; i++) {   // up to 30s: a cold start on a busy laptop can take 15
     const r = await req('/terms');
     if (r.status && r.status !== 0) return true;
     await new Promise((s) => setTimeout(s, 250));
