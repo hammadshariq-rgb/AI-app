@@ -1964,21 +1964,10 @@ app.get('/checkout', authLimiter, async (req, res) => {
   }
 });
 
-app.get('/success', connectLimiter, async (req, res) => {
-  res.send(`
-    <html>
-    <head>
-      <script>
-        // Auto-open the Jarvis app via deep link after a short delay
-        setTimeout(() => { window.location.href = 'jarvis://subscribed'; }, 1500);
-      </script>
-    </head>
-    <body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0a0f1a;color:#d0eeff;">
-      <h2 style="color:#00c8ff;">You're subscribed!</h2>
-      <p>Your account is now active. Opening Callisto…</p>
-      <p style="color:#666;font-size:13px;">If Callisto doesn't open automatically, <a href="jarvis://subscribed" style="color:#00c8ff;">click here</a>.</p>
-    </body></html>
-  `);
+// After paying: the thank-you page, in the same two-half design as sign-up.
+app.get('/success', connectLimiter, (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });
 
 app.get('/account', connectLimiter, (req, res) => {
