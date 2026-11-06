@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * tv-cast.js — TV control: Google TV / Android TV / Chromecast, Roku, Fire TV
+ * tv-cast.js - TV control: Google TV / Android TV / Chromecast, Roku, Fire TV
  *
  * Strategy (best → fallback):
- *  1. ADB over TCP (port 5555) — direct shell commands, most reliable
- *  2. DIAL HTTP (port 8008) — REST API built into Android TV / Chromecast
- *  3. castv2 (TLS port 8009) — native Chromecast protocol
+ *  1. ADB over TCP (port 5555) - direct shell commands, most reliable
+ *  2. DIAL HTTP (port 8008) - REST API built into Android TV / Chromecast
+ *  3. castv2 (TLS port 8009) - native Chromecast protocol
  */
 
 const { Client, DefaultMediaReceiver } = require('castv2-client');
@@ -113,7 +113,7 @@ function discover(onUpdate, timeoutMs = 6000) {
   }, timeoutMs / 2);
   setTimeout(() => { clearTimeout(rq); try { m.destroy(); } catch (_) {} }, timeoutMs);
 
-  // Rokus and Fire TVs don't speak Google Cast — they answer SSDP instead.
+  // Rokus and Fire TVs don't speak Google Cast - they answer SSDP instead.
   discoverSsdp((dev) => {
     if (scanResults.find((d) => d.host === dev.host)) return;
     scanResults.push(dev);
@@ -265,7 +265,7 @@ async function connect(host, port = 8009, kind = null) {
   let   adbPath    = adbExePath || (adbOnPath ? 'adb (on PATH)' : null);
 
   if (!adbFound) {
-    adbError = 'adb.exe not found — install Android Platform Tools';
+    adbError = 'adb.exe not found - install Android Platform Tools';
     console.log('[TV] ADB not available: no adb.exe found');
   } else {
     // Try connect + shell, capture full output for diagnostics
@@ -290,7 +290,7 @@ async function connect(host, port = 8009, kind = null) {
   }
 
   // 2. Test castv2 connectivity as fallback. A TV waking from standby can take
-  // well over 5s to finish the TLS handshake, so allow longer and try twice —
+  // well over 5s to finish the TLS handshake, so allow longer and try twice - 
   // a single short attempt is what made "connect" fail at random.
   let hasCastv2  = false;
   let castError  = '';
@@ -389,7 +389,7 @@ async function castv2Launch(appId) {
     await new Promise(r => setTimeout(r, 500));
     const App = makeAppClass(appId);
     // Report what actually happened: a launch that errors or never answers is a
-    // failure, not a success — otherwise Callisto says "playing" to a blank TV.
+    // failure, not a success - otherwise Callisto says "playing" to a blank TV.
     return await new Promise(resolve => {
       const t = setTimeout(() => resolve(false), 12000);
       try {
@@ -401,7 +401,7 @@ async function castv2Launch(appId) {
 
 // ── Waking the TV ─────────────────────────────────────────────────────────────
 // A resting Google TV runs its screensaver ("Dreaming"), and anything opened then
-// starts behind it — the user had to press a remote button before commands showed.
+// starts behind it - the user had to press a remote button before commands showed.
 // One wake-up key press ends the screensaver; it takes about two seconds to close.
 async function ensureAwake() {
   if (!adbReady()) return;
@@ -498,13 +498,13 @@ const fmtTime = (s) => {
 
 async function seek({ to = null, by = null }) {
   if (connectedDev.kind === 'roku') return { ok: false, message: 'Skipping to a time isn\'t supported on a Roku yet.' };
-  if (!adbReady()) return { ok: false, message: 'Skipping needs full control of your TV — accept the debugging prompt on the TV, then ask again.' };
+  if (!adbReady()) return { ok: false, message: 'Skipping needs full control of your TV - accept the debugging prompt on the TV, then ask again.' };
   const np = await nowPlaying();
   if (!np) return { ok: false, message: 'Nothing is playing on your TV right now.' };
   const target = to != null ? to : (np.position != null ? np.position + by : null);
   const where = target != null ? fmtTime(target) : null;
 
-  // YouTube: reopen the same video at the exact second — found by its title when
+  // YouTube: reopen the same video at the exact second - found by its title when
   // Callisto didn't start it.
   if (/youtube/.test(np.pkg) && target != null) {
     let videoId = lastPlayed?.app === 'youtube' && lastPlayed.videoId
@@ -568,13 +568,13 @@ async function launchApp(appKey) {
     if (!installed.includes(`package:${pkg}`)) {
       const store = fire ? `amzn://apps/android?p=${pkg}` : `market://details?id=${pkg}`;
       await adb.shellWithAuth(connectedDev.host, `am start -a android.intent.action.VIEW -d '${store}'`, 8000).catch(() => {});
-      const err = new Error(`${APP_LABEL[appKey] || appKey} isn't installed on your TV. I've opened its page in the TV's app store — install it there, then ask again.`);
+      const err = new Error(`${APP_LABEL[appKey] || appKey} isn't installed on your TV. I've opened its page in the TV's app store - install it there, then ask again.`);
       err.notInstalled = true;
       throw err;
     }
   }
 
-  // 1. ADB — most reliable on Android TV, and the only way on Fire TV
+  // 1. ADB - most reliable on Android TV, and the only way on Fire TV
   if (connectedDev.hasAdb && pkg) {
     // monkey launches an app by package without needing its activity name.
     // Android TV apps sit under LEANBACK_LAUNCHER; Fire TV apps often only
@@ -596,7 +596,7 @@ async function launchApp(appKey) {
     if (ok && await cameToFront(pkg)) return true;
   }
   if (fire) throw new Error(connectedDev.hasAdb
-    ? `Couldn't open ${appKey} — is it installed on the Fire TV?`
+    ? `Couldn't open ${appKey} - is it installed on the Fire TV?`
     : 'Accept "Allow USB debugging?" on your Fire TV first, then ask again.');
 
   // 2. DIAL HTTP
@@ -605,7 +605,7 @@ async function launchApp(appKey) {
     if (ok) { console.log('[TV] DIAL launched', dialName); return true; }
   }
 
-  // 3. castv2 — the last resort, and for YouTube it is not a good one.
+  // 3. castv2 - the last resort, and for YouTube it is not a good one.
   //
   // What castv2 starts is the cast RECEIVER, which is a blank page waiting to
   // be sent something. On a Chromecast that is a grey screen with nothing on
@@ -642,7 +642,7 @@ async function castYouTube(query, startAt = 0) {
     return { ok: true, title, videoId };
   }
 
-  // 1. ADB — deep link directly to video (Android TV and Fire TV alike)
+  // 1. ADB - deep link directly to video (Android TV and Fire TV alike)
   if (connectedDev.hasAdb) {
     // A plain "view this link" lets Android hand it to whichever YouTube app the
     // TV has. Guessing an activity name fails silently on many TVs, and am start
@@ -651,7 +651,7 @@ async function castYouTube(query, startAt = 0) {
     if (ok) return { ok: true, title, videoId, startedAt: at };
   }
 
-  // Fire TV has no Cast or DIAL fallback — it's ADB or nothing.
+  // Fire TV has no Cast or DIAL fallback - it's ADB or nothing.
   if (connectedDev.kind === 'firetv') {
     throw new Error(connectedDev.hasAdb
       ? 'The Fire TV wouldn\'t open YouTube. Check the YouTube app is installed on it.'
@@ -681,7 +681,7 @@ async function castYouTube(query, startAt = 0) {
 }
 
 // ── Upgrade to ADB in the background ──────────────────────────────────────────
-// Android TVs with network debugging on (port 5555) can be driven directly —
+// Android TVs with network debugging on (port 5555) can be driven directly - 
 // the only reliable way to open a specific video. Fetch adb if needed, connect,
 // and wait for the user to accept the "Allow debugging?" prompt on the TV.
 let adbUpgrade = null;
@@ -705,7 +705,7 @@ function upgradeToAdb(onStatus) {
       s.on('timeout', () => { s.destroy(); resolve(false); });
       s.on('error', () => resolve(false));
     });
-    if (!reachable) return false;   // network debugging is off — stay on Cast
+    if (!reachable) return false;   // network debugging is off - stay on Cast
 
     if (!adb.findAdb()) {
       say({ phase: 'downloading' });
@@ -833,7 +833,7 @@ async function remoteKey(rokuKey, androidKeycode) {
     if (!connectedDev.hasAdb) return { ok: false, error: 'Accept "Allow USB debugging?" on your Fire TV first.' };
     return { ok: await adbShell(`input keyevent ${androidKeycode}`) };
   }
-  return null;   // a Cast device — handled below
+  return null;   // a Cast device - handled below
 }
 
 async function setVolume(level) {
@@ -1005,7 +1005,7 @@ async function playbackState(pkg) {
 }
 
 // Netflix reports "playing" with the position stuck at 0 while it sits on
-// "Who's watching?" — that's the home screen's preview, not the film. The only
+// "Who's watching?" - that's the home screen's preview, not the film. The only
 // honest test is whether the position actually moves.
 async function reallyPlaying(pkg) {
   const a = await playbackInfo(pkg);
@@ -1070,24 +1070,24 @@ function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '
 async function passProfileGate(app, pkg, profile) {
   // Wait for one of the two real outcomes rather than a fixed delay: the film
   // plays by itself, or "Who's watching?" is up. The picker appears about 20
-  // seconds into a TV's cold start, and pressing keys before that hit nothing —
+  // seconds into a TV's cold start, and pressing keys before that hit nothing - 
   // which is how Netflix ended up sitting on the picker doing nothing.
   const outcome = await waitForPlaybackOrPicker(pkg, app === 'netflix' ? 45000 : 40000);
   if (outcome === 'playing') return { note: null };
 
-  // Prime can be seen, so only act if "Who's watching?" is really on screen —
+  // Prime can be seen, so only act if "Who's watching?" is really on screen - 
   // otherwise OK would type into the search box. Netflix can't be seen; a watch
   // link that isn't playing by now is waiting on the picker.
   let seen = null;
   if (app === 'prime') {
     // Prime can take 10s or more to reach the picker from a fresh start, and a
-    // screenshot mid-load is just a dark screen — so keep looking for a while.
+    // screenshot mid-load is just a dark screen - so keep looking for a while.
     for (const end = Date.now() + 12000; Date.now() < end; await sleep(1500)) {
       seen = await readProfiles().catch(() => null);
       if (seen && Array.isArray(seen.names) && seen.names.length) break;
       seen = null;
     }
-    if (!seen) return { note: null };      // no picker appeared — nothing to choose
+    if (!seen) return { note: null };      // no picker appeared - nothing to choose
   }
   if (!profile || (!profile.name && !profile.position)) return { needsProfile: true, names: seen?.names || null };
   return chooseProfile(app, profile, seen);
@@ -1115,7 +1115,7 @@ async function chooseProfile(app, profile, seen = null) {
       await press(delta > 0 ? (vertical ? KEY.DOWN : KEY.RIGHT) : (vertical ? KEY.UP : KEY.LEFT), Math.abs(delta));
     } else if (app === 'netflix') {
       // Netflix hides its screen from screenshots, so a name means nothing to us
-      // until the user says where it is. Nothing is pressed — the picker stays up.
+      // until the user says where it is. Nothing is pressed - the picker stays up.
       return { needsPosition: true };
     } else {
       return { needsProfile: true, names: seen?.names || null };
@@ -1126,11 +1126,11 @@ async function chooseProfile(app, profile, seen = null) {
 }
 
 // Netflix is open on the right profile, but its TV app decides for itself whether
-// to honour a title — so say what's true rather than claiming it's playing.
+// to honour a title - so say what's true rather than claiming it's playing.
 function netflixOpenedMessage(query, profile) {
   const who = profile?.name ? ` on ${profile.name}'s profile` : '';
   return query
-    ? `Netflix is open${who}. If it hasn't started "${query}", press play on it with your remote — Netflix's TV app doesn't always let me open a title directly.`
+    ? `Netflix is open${who}. If it hasn't started "${query}", press play on it with your remote - Netflix's TV app doesn't always let me open a title directly.`
     : `Netflix is open${who}.`;
 }
 
@@ -1142,7 +1142,7 @@ function askForProfile(app, query, profile, gate) {
     ? `${label} doesn't let me read its profile names. Which number is ${profile?.name || 'yours'}, counting from the left?`
     : gate.names && gate.names.length
       ? `${label} is asking who's watching: ${gate.names.join(', ')}. Which profile?`
-      : `${label} is asking who's watching. Which profile — say the name, or its number from the left?`;
+      : `${label} is asking who's watching. Which profile - say the name, or its number from the left?`;
   return { ok: true, partial: true, askProfile: true, app, query, profileName: profile?.name || null, names: gate.names || null, needsPosition: !!gate.needsPosition, message };
 }
 
@@ -1193,7 +1193,7 @@ function matchFile(files, query) {
   for (const f of files) {
     const hits = want.filter((w) => f.words.includes(w)).length;
     const score = hits / want.length;
-    // On a tie, the name with fewer extra words is the closer match —
+    // On a tie, the name with fewer extra words is the closer match - 
     // "john wick" means John Wick (2014), not John Wick: Chapter 3.
     if (score > (best?.score || 0) || (best && score === best.score && f.words.length < best.words.length)) best = { ...f, score };
   }
@@ -1203,9 +1203,9 @@ function matchFile(files, query) {
 // ── One entry point for everything above ─────────────────────────────────────
 //   { action: 'search',     app: 'youtube', query }
 //   { action: 'play_title', app: 'netflix' | 'prime', query, profile }
-//   { action: 'play_file',  query }                  — from the TV's own storage
+//   { action: 'play_file',  query } - from the TV's own storage
 //   { action: 'open_app',   app, profile }
-//   { action: 'remote',     key, level }             — pause, mute, volume, power…
+//   { action: 'remote',     key, level } - pause, mute, volume, power…
 async function run(cmd) {
   if (!connectedDev) throw new Error('Not connected to any TV');
   const { action, app = 'youtube', query = '', profile = null } = cmd || {};
@@ -1237,7 +1237,7 @@ async function run(cmd) {
       try {
         const r = await castYouTube(query);
         return r.partial
-          ? { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` }
+          ? { ok: true, partial: true, message: `I opened YouTube on your TV - search for "${query}" there.` }
           : { ok: true, message: `Playing "${r.title || query}" on YouTube.` };
       } catch (err) {
         // Do not paper over it. This catch used to open the app anyway and
@@ -1245,11 +1245,11 @@ async function run(cmd) {
         // device meant an empty grey screen and a false claim.
         if (err.needsAdb) return { ok: false, needsAdb: true, message: err.message };
         await launchApp('youtube').catch(() => {});
-        return { ok: true, partial: true, message: `I opened YouTube on your TV — search for "${query}" there.` };
+        return { ok: true, partial: true, message: `I opened YouTube on your TV - search for "${query}" there.` };
       }
     }
     await launchApp(app);
-    return { ok: true, partial: true, message: `I opened ${app} on your TV — search for "${query}" there.` };
+    return { ok: true, partial: true, message: `I opened ${app} on your TV - search for "${query}" there.` };
   }
 
   if (action === 'play_title' && app === 'netflix') {
@@ -1264,11 +1264,11 @@ async function run(cmd) {
     }
     if (!adbReady()) {
       await launchApp('netflix');
-      return { ok: true, partial: true, message: `I opened Netflix — search for "${query}" there. Full control needs the TV's debugging permission.` };
+      return { ok: true, partial: true, message: `I opened Netflix - search for "${query}" there. Full control needs the TV's debugging permission.` };
     }
     const pkg = pkgFor('netflix');
     lastPlayed = { app: 'netflix', netflixId: id, title: query, at: Date.now() };
-    // Ask for the title on a fresh start — the only moment Netflix reads it.
+    // Ask for the title on a fresh start - the only moment Netflix reads it.
     // Measured on a TCL Google TV: this build ignores the request in every form
     // (watch link, title page, nflx:, the partner deeplink URL and the DIAL
     // payload), before and after its profile screen, and lands on Netflix's home.
@@ -1281,9 +1281,9 @@ async function run(cmd) {
     return { ok: true, partial: true, message: netflixOpenedMessage(query, profile) };
   }
 
-  // The user answered "who's watching?" — pick that profile on the screen now.
+  // The user answered "who's watching?" - pick that profile on the screen now.
   if (action === 'choose_profile') {
-    if (!adbReady()) return { ok: false, message: 'Choosing a profile needs the TV\'s debugging permission — accept the prompt on the TV, then ask again.' };
+    if (!adbReady()) return { ok: false, message: 'Choosing a profile needs the TV\'s debugging permission - accept the prompt on the TV, then ask again.' };
     const pkg = pkgFor(app);
     const seen = app === 'prime' ? await readProfiles().catch(() => null) : null;
     const gate = await chooseProfile(app, profile, seen);
@@ -1311,7 +1311,7 @@ async function run(cmd) {
     return {
       ok: true, chosen: true,
       message: playing ? `Playing ${what || ''} on ${label} as ${who}.`.replace('  ', ' ')
-        : what ? `${what} is up in ${label}'s search as ${who} — pick it with your remote.`
+        : what ? `${what} is up in ${label}'s search as ${who} - pick it with your remote.`
           : `Chose ${who} on ${label}.`,
     };
   }
@@ -1321,7 +1321,7 @@ async function run(cmd) {
       await roku(`/search/browse?keyword=${encodeURIComponent(query)}&provider-id=${ROKU_CHANNELS.prime}&launch=true`);
       return { ok: true, partial: true, message: `I searched Prime Video for "${query}" on your Roku.` };
     }
-    if (!adbReady()) { await launchApp('prime'); return { ok: true, partial: true, message: `I opened Prime Video — search for "${query}" there.` }; }
+    if (!adbReady()) { await launchApp('prime'); return { ok: true, partial: true, message: `I opened Prime Video - search for "${query}" there.` }; }
     const pkg = pkgFor('prime');
     lastPlayed = { app: 'prime', title: query, at: Date.now() };
     await sh(`am force-stop ${pkg}`);
@@ -1330,11 +1330,11 @@ async function run(cmd) {
     if (gate.needsProfile || gate.needsPosition) return askForProfile('prime', query, profile, gate);
     // Stop at the results: pressing on into a title can land on "Rent" or "Buy",
     // and Callisto shouldn't start a purchase.
-    return { ok: true, partial: true, message: `"${query}" is up in Prime Video's search — pick it with your remote.` };
+    return { ok: true, partial: true, message: `"${query}" is up in Prime Video's search - pick it with your remote.` };
   }
 
   if (action === 'play_file') {
-    if (!adbReady()) return { ok: false, message: 'Playing files from the TV needs its debugging permission — accept the prompt on the TV, then ask again.' };
+    if (!adbReady()) return { ok: false, message: 'Playing files from the TV needs its debugging permission - accept the prompt on the TV, then ask again.' };
     const files = await indexTvFiles();
     const hit = matchFile(files, query);
     if (!hit) return { ok: false, message: files.length ? `I couldn't find "${query}" among the ${files.length} videos on your TV.` : 'I couldn\'t find any videos stored on your TV.' };
@@ -1344,7 +1344,7 @@ async function run(cmd) {
   }
 
   if (action === 'open_app') {
-    // Netflix and Prime open on "Who's watching?" — get past it, or ask who.
+    // Netflix and Prime open on "Who's watching?" - get past it, or ask who.
     if (adbReady() && (app === 'netflix' || app === 'prime')) {
       const pkg = pkgFor(app);
       await sh(`am force-stop ${pkg}`);
@@ -1383,7 +1383,7 @@ const REMOTE = {
 };
 
 // An exact volume over ADB. The TV's own scale varies (0–15 on Fire TV, 0–100 on
-// TCL), so read it from the audio report — `volume --get` prints nothing on some TVs.
+// TCL), so read it from the audio report - `volume --get` prints nothing on some TVs.
 async function adbSetVolume(level) {
   const audio = await sh("dumpsys audio | grep -A6 '^- STREAM_MUSIC'", 6000).catch(() => '');
   const max = Number((audio.match(/Max:\s*(\d+)/) || [])[1]) || 15;

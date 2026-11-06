@@ -16,7 +16,7 @@ function positionRightPanels() {
 }
 
 // Keep the stack honest. The portfolio grows as stocks load and the calendar
-// grows when a month has six rows — neither changes an attribute, so watching
+// grows when a month has six rows - neither changes an attribute, so watching
 // class/style alone left the panels overlapping until the next resize.
 (function watchPanels() {
   var finPanel = document.getElementById('finPanel');
@@ -178,7 +178,7 @@ function positionRightPanels() {
         dot.textContent = '●';
         var label = document.createElement('span');
         label.style.flex = '1';
-        label.textContent = ev.time ? ev.time + ' — ' + ev.title : ev.title;
+        label.textContent = ev.time ? ev.time + ' - ' + ev.title : ev.title;
         var delBtn = document.createElement('button');
         delBtn.textContent = '✕';
         delBtn.style.cssText = 'background:none;border:none;color:rgba(255,80,80,0.6);cursor:pointer;font-size:10px;padding:0 2px;line-height:1;';
@@ -576,7 +576,7 @@ function escCal(str) {
       if (!!a.done !== !!b.done) return a.done ? 1 : -1;
       return (a.due || 0) - (b.due || 0);
     });
-    // Hide tasks already ticked off on an earlier day — the list is about what's left.
+    // Hide tasks already ticked off on an earlier day - the list is about what's left.
     sorted = sorted.filter(function(t) { return !t.done || startOfDay(t.completedAt || 0) === todayStart(); });
 
     if (!sorted.length) {

@@ -33,7 +33,7 @@ async function api(path, { token, method = 'GET', body, timeoutMs = 20000 } = {}
   }
 }
 
-// "ten seconds", "a 12 second video", "15s" — a length spoken inside the request
+// "ten seconds", "a 12 second video", "15s" - a length spoken inside the request
 // rather than set on a dial, which is how people actually ask for it.
 const WORD_SECONDS = {
   five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -66,7 +66,7 @@ async function generate({ token, prompt, imageBase64, imageUrl, seconds }, onPro
     try {
       job = await api(`/video/job/${encodeURIComponent(jobId)}`, { token, timeoutMs: 15000 });
     } catch (_) {
-      continue; // a dropped poll isn't fatal — keep waiting
+      continue; // a dropped poll isn't fatal - keep waiting
     }
     try { onProgress && onProgress({ status: job.status, seconds: length }); } catch (_) {}
     if (job.status === 'SUCCEEDED' && job.url) return { ok: true, url: job.url, seconds: length };

@@ -3,7 +3,7 @@
 // Callisto: the screen dims, a single spotlight glides from one part of the
 // interface to the next, and a card explains what each part does.
 //
-// One element (the spotlight) moves between steps, so the motion stays smooth —
+// One element (the spotlight) moves between steps, so the motion stays smooth - 
 // its huge box-shadow is the dimmed backdrop, and the hole is the highlight.
 (function () {
   'use strict';
@@ -38,7 +38,7 @@
     {
       targets: ['#attachWrap', '#micWrap', '#clearWrap'],
       title: 'Talk to Callisto',
-      body: `Tap the mic and just speak. Or press ${MOD}${KEY('Shift')}${KEY('C')} to talk from any app — even when Callisto is minimised.`,
+      body: `Tap the mic and just speak. Or press ${MOD}${KEY('Shift')}${KEY('C')} to talk from any app - even when Callisto is minimised.`,
       foot: '<b>+</b> attaches a photo or file &nbsp;·&nbsp; the bin clears the conversation',
     },
     {
@@ -46,45 +46,45 @@
       // people never find on their own.
       targets: ['#attachWrap', '#micWrap'],
       title: 'Work on anything, anywhere',
-      body: `Highlight any text — in a document, an email, code — and press ${MAGIC}${KEY('Shift')}${KEY('E')}. Tell Callisto to rewrite it, or just ask <em>"is this any good?"</em> and it answers without touching your words.`,
+      body: `Highlight any text - in a document, an email, code - and press ${MAGIC}${KEY('Shift')}${KEY('E')}. Tell Callisto to rewrite it, or just ask <em>"is this any good?"</em> and it answers without touching your words.`,
       foot: IS_MAC
-        ? 'On a Mac this one is <b>Option</b>, not Cmd — and the first time you use it macOS will ask for <b>Accessibility</b> permission, which is what lets Callisto read your highlighted text.'
+        ? 'On a Mac this one is <b>Option</b>, not Cmd - and the first time you use it macOS will ask for <b>Accessibility</b> permission, which is what lets Callisto read your highlighted text.'
         : null,
-      foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen — a photo, a chart, a paragraph — and Callisto tells you what it is.`,
+      foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen - a photo, a chart, a paragraph - and Callisto tells you what it is.`,
     },
     {
       targets: ['#micWrap'],
       title: 'Ask it to look at your screen',
-      body: 'Say <em>"watch this"</em> and Callisto reads your whole screen — the error, the form, the small print — and tells you what it would do about it. It names the actual button or field, rather than giving you vague advice. Then it keeps watching while you work, and speaks up when something changes.',
+      body: 'Say <em>"watch this"</em> and Callisto reads your whole screen - the error, the form, the small print - and tells you what it would do about it. It names the actual button or field, rather than giving you vague advice. Then it keeps watching while you work, and speaks up when something changes.',
       foot: 'A bar shows at the bottom the whole time it is looking, with a <b>Stop</b> button. You can give it a job too: <em>"watch my screen and tell me how to add this scope"</em>.',
     },
     {
       targets: ['#micWrap'],
-      title: 'Screen assist — press once, speak, press again',
-      body: `${ALT}${KEY('Shift')}${KEY('C')} works from any app, and it is two presses. <b>Press it once</b> and Callisto takes in whatever is on your screen right then and opens the microphone — the bars in the corner stay up for as long as it is listening. Say what you want: <em>"solve question 2"</em>, <em>"why is this failing?"</em>, <em>"make this answer shorter"</em>. <b>Press it again</b> when you have finished talking, and it answers out loud and on a card over the app you are in. It remembers the screen from the first press, so it is still answering about the right thing even if you have scrolled away.`,
-      foot: 'The answer lands in Callisto too, with a picture of the screen it read. While it is on it also offers things of its own accord — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em> — five-second cards that do nothing unless you press them.'
-        + (IS_MAC ? ' On a Mac, macOS will ask for <b>Screen Recording</b> permission the first time — without it Callisto is handed a black picture and cannot see your screen at all.' : ''),
+      title: 'Screen assist - press once, speak, press again',
+      body: `${ALT}${KEY('Shift')}${KEY('C')} works from any app, and it is two presses. <b>Press it once</b> and Callisto takes in whatever is on your screen right then and opens the microphone - the bars in the corner stay up for as long as it is listening. Say what you want: <em>"solve question 2"</em>, <em>"why is this failing?"</em>, <em>"make this answer shorter"</em>. <b>Press it again</b> when you have finished talking, and it answers out loud and on a card over the app you are in. It remembers the screen from the first press, so it is still answering about the right thing even if you have scrolled away.`,
+      foot: 'The answer lands in Callisto too, with a picture of the screen it read. While it is on it also offers things of its own accord - <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em>, <em>"This reads like a machine wrote it"</em> - five-second cards that do nothing unless you press them.'
+        + (IS_MAC ? ' On a Mac, macOS will ask for <b>Screen Recording</b> permission the first time - without it Callisto is handed a black picture and cannot see your screen at all.' : ''),
     },
     {
       targets: ['#micWrap'],
       title: 'It can type for you, too',
-      body: `Put your cursor in the box you want filled — a Gmail draft, a WhatsApp or Discord message, a document — press ${ALT}${KEY('Shift')}${KEY('C')}, and say what to write <b>with the word "here" in it</b>: <em>"write an email here to Sam about Friday"</em>, <em>"reply to him here saying I'm running late"</em>, <em>"write an email in this draft about the invoice"</em>. Press it again and the words appear in that box.`,
-      foot: '"Here" (or <em>"in this draft"</em>) is what separates typing from answering — without it, <em>"what did he say"</em> and <em>"is this a scam"</em> are still answered out loud instead of being typed into your message. It reads the thread above your cursor, so a chat gets one short line and an email gets a proper one.'
+      body: `Put your cursor in the box you want filled - a Gmail draft, a WhatsApp or Discord message, a document - press ${ALT}${KEY('Shift')}${KEY('C')}, and say what to write <b>with the word "here" in it</b>: <em>"write an email here to Sam about Friday"</em>, <em>"reply to him here saying I'm running late"</em>, <em>"write an email in this draft about the invoice"</em>. Press it again and the words appear in that box.`,
+      foot: '"Here" (or <em>"in this draft"</em>) is what separates typing from answering - without it, <em>"what did he say"</em> and <em>"is this a scam"</em> are still answered out loud instead of being typed into your message. It reads the thread above your cursor, so a chat gets one short line and an email gets a proper one.'
         + (IS_MAC ? ' Needs <b>Accessibility</b> permission on a Mac.' : ''),
     },
     {
       targets: ['#micWrap'],
       title: 'What else screen assist does',
-      body: 'Once it is watching, everything is about what is in front of you — you never have to send it anything or explain where you are.'
-        + '<br><br><b>Homework and revision.</b> <em>"Solve question 3"</em> works out which question that is on the page, then sets out the steps — the rule, the numbers put in, the arithmetic, the answer — for maths, physics, chemistry and biology.'
+      body: 'Once it is watching, everything is about what is in front of you - you never have to send it anything or explain where you are.'
+        + '<br><br><b>Homework and revision.</b> <em>"Solve question 3"</em> works out which question that is on the page, then sets out the steps - the rule, the numbers put in, the arithmetic, the answer - for maths, physics, chemistry and biology.'
         + '<br><b>When you are stuck.</b> <em>"How do I send an email?"</em>, <em>"where are my drafts?"</em> and it tells you which button to press and where it is, in your program, not in general.'
         + '<br><b>Anything on the page.</b> <em>"What does this error mean?"</em>, <em>"is this a scam?"</em>, <em>"summarise this"</em>, <em>"what is this in pounds?"</em>',
-      foot: 'It also speaks up on its own while it is watching — <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em> — cards that last five seconds and do nothing unless you press them. Letting one run out is a no.',
+      foot: 'It also speaks up on its own while it is watching - <em>"Diarise ‘Meeting with Sam’? Tomorrow at 5 pm"</em>, <em>"That answer looks wrong"</em> - cards that last five seconds and do nothing unless you press them. Letting one run out is a no.',
     },
     {
       targets: ['#micWrap'],
       title: 'Circle to narrow it down',
-      body: `While screen assist is on, press and draw a circle round anything — an error, a product, a paragraph, a bill — and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
+      body: `While screen assist is on, press and draw a circle round anything - an error, a product, a paragraph, a bill - and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
       foot: IS_MAC
         ? 'On a Mac this is <b>Option</b>, not Cmd, and it needs <b>Screen Recording</b> permission the first time.'
         : null,
@@ -93,12 +93,12 @@
       targets: ['#gestureToggleBtn'],
       title: 'Hands-free control',
       body: `Press ${MOD}${KEY('Shift')}${KEY('G')} or tap this to control Callisto with your hands through the camera. Point to move the cursor, pinch your thumb and finger together to press what it is over, and turn your hand over to move on. On your other hand, point to speak and make a fist to stop.`,
-      foot: 'It works in assist mode too — there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
+      foot: 'It works in assist mode too - there, point-to-speak and fist-to-stop switch off, because Callisto is already listening. Nothing leaves your computer: the camera is read on your machine only.',
     },
     {
       targets: ['#gestureToggleBtn'],
       title: 'Teach it your own gestures',
-      body: 'Open <b>My gestures</b> while the camera is on, hold any pose for three seconds, and say what it should do — pick a Callisto action, or write your own instruction in plain words.',
+      body: 'Open <b>My gestures</b> while the camera is on, hold any pose for three seconds, and say what it should do - pick a Callisto action, or write your own instruction in plain words.',
       foot: 'Your poses stay on this computer, and they work every time Callisto starts.',
     },
     {
@@ -107,28 +107,28 @@
       open: 'artifacts',
       targets: ['#lnavPaneArtifacts'],
       title: 'Make things',
-      body: 'Ask for a <em>picture</em>, a <em>video</em> or a <em>3D model</em> and Callisto makes it — five of each, every day. Everything you make lands here in <b>Creations</b>, and 3D models open in a studio you can spin, recolour and edit by voice.',
+      body: 'Ask for a <em>picture</em>, a <em>video</em> or a <em>3D model</em> and Callisto makes it - five of each, every day. Everything you make lands here in <b>Creations</b>, and 3D models open in a studio you can spin, recolour and edit by voice.',
       pad: 8,
     },
     {
       targets: [],
       title: 'Sketch with your voice',
-      body: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> — <em>"draw me a house"</em> — and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
-      whenMissing: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> — <em>"draw me a house"</em> — and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
+      body: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> - <em>"draw me a house"</em> - and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
+      whenMissing: 'Say <em>draw</em>, <em>sketch</em> or <em>paint</em> - <em>"draw me a house"</em> - and a canvas opens and Callisto draws it. Keep going: <em>"add a tree next to it"</em>, <em>"make the roof red"</em>. Each request builds on the last.',
     },
     {
       open: 'connectors',
       targets: ['#lnavPaneConnectors'],
       title: 'Connect your accounts',
-      body: 'Open <b>Connectors</b> and link what you use — Instagram, TikTok, YouTube, Spotify, Google Calendar, your shop, and Stripe for payments. <em>Connect these for the full experience:</em> the more Callisto can see, the more it can actually answer.',
-      foot: 'Then just ask — <em>how are my videos doing?</em>, <em>how much money came in this week?</em>, <em>post this to Instagram</em>. Nothing is published without showing you first.',
+      body: 'Open <b>Connectors</b> and link what you use - Instagram, TikTok, YouTube, Spotify, Google Calendar, your shop, and Stripe for payments. <em>Connect these for the full experience:</em> the more Callisto can see, the more it can actually answer.',
+      foot: 'Then just ask - <em>how are my videos doing?</em>, <em>how much money came in this week?</em>, <em>post this to Instagram</em>. Nothing is published without showing you first.',
       pad: 8,
     },
     {
       open: 'settings',
       targets: ['#profileNameInput', '#profileNameSaveBtn'],
       title: 'Call it what you like',
-      body: 'Callisto is only the name it came with. Type a new one here and it answers to whatever you pick — and it uses your name back.',
+      body: 'Callisto is only the name it came with. Type a new one here and it answers to whatever you pick - and it uses your name back.',
       whenMissing: 'Open the side panel, go to <b>Settings</b>, and you can rename Callisto to anything you like.',
     },
     {
@@ -143,8 +143,8 @@
       open: 'settings',
       targets: ['#openMemoryOrb'],
       title: 'It remembers you',
-      body: 'Tell Callisto things — your partner\'s name, your business, what you like — and it remembers them in every conversation. Open the <b>memory orb</b> here to see everything it knows, add more, or remove anything.',
-      whenMissing: 'Tell Callisto things — names, your business, what you like — and it remembers them. In <b>Account</b>, open the <b>memory orb</b> to see, add or remove what it knows.',
+      body: 'Tell Callisto things - your partner\'s name, your business, what you like - and it remembers them in every conversation. Open the <b>memory orb</b> here to see everything it knows, add more, or remove anything.',
+      whenMissing: 'Tell Callisto things - names, your business, what you like - and it remembers them. In <b>Account</b>, open the <b>memory orb</b> to see, add or remove what it knows.',
       pad: 8,
     },
     {
@@ -168,12 +168,12 @@
       targets: ['#finPanel'],
       title: 'Your portfolio',
       body: 'Stocks you follow sit here with live prices. Say <em>"show me my markets"</em> to open the full view and hear how they\'re doing.',
-      whenMissing: 'Say <em>"show me Apple stock"</em>, then tap <b>Add to Portfolio</b> — your holdings will appear down here with live prices.',
+      whenMissing: 'Say <em>"show me Apple stock"</em>, then tap <b>Add to Portfolio</b> - your holdings will appear down here with live prices.',
     },
     {
       targets: ['#remindersPanel .rp-header-tasks', '#tkList'],
       title: 'Tasks',
-      body: 'Things to get done on a given day. Say <em>"add finishing my homework to my list"</em> — each morning Callisto reads them back after the weather.',
+      body: 'Things to get done on a given day. Say <em>"add finishing my homework to my list"</em> - each morning Callisto reads them back after the weather.',
     },
     {
       targets: ['#glassCalendar'],
@@ -241,7 +241,7 @@
     layer.querySelector('.tour-next').addEventListener('click', next);
     layer.querySelector('.tour-back').addEventListener('click', back);
     layer.querySelector('.tour-skip').addEventListener('click', () => finish(true));
-    // Clicks on the dimmed backdrop do nothing — the interface underneath stays
+    // Clicks on the dimmed backdrop do nothing - the interface underneath stays
     // put until the tour is over.
     layer.addEventListener('click', (e) => { if (e.target === layer) e.stopPropagation(); });
   }

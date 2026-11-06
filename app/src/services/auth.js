@@ -88,7 +88,7 @@ async function pingActivity(token) {
 //
 // The state that goes through Google is the SHA-256 of `verifier`; the verifier
 // itself stays in this process and is only ever sent to the poll. Someone who
-// sees the sign-in link — in a browser history, a log, over a shoulder — has
+// sees the sign-in link - in a browser history, a log, over a shoulder - has
 // the state but not the verifier, and the server will not hand the result to
 // a poll that cannot produce it.
 const crypto = require('crypto');
@@ -151,7 +151,7 @@ async function forgotPassword(email) {
   }
 }
 
-// Account settings — two-factor, devices, billing, deletion — all signed in.
+// Account settings - two-factor, devices, billing, deletion - all signed in.
 // Only these paths: this is the one place the app sends the token on the
 // screen's behalf, so it must not become a way to call anything else.
 const ACCOUNT_PATHS = new Map([

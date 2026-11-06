@@ -1,7 +1,7 @@
 // Builds real Excel workbooks from the spreadsheet the AI designs.
 //
 // The AI describes a sheet by columns and rows. Computed columns are written
-// against column *names* — "{Quantity} * {Unit price}" — and resolved here into
+// against column *names* - "{Quantity} * {Unit price}" - and resolved here into
 // real cell references, so the formulas are always right even though the model
 // never has to count columns or rows. Totals, number formats, dropdowns and a
 // frozen, filterable header come from the column types.

@@ -37,7 +37,7 @@
             sub: (d.last7Days && d.last7Days.orders) + ' payments' },
           { label: 'Last 30 days', value: cur + money(Number(d.last30Days && d.last30Days.revenue) || 0),
             sub: (d.last30Days && d.last30Days.orders) + ' payments' },
-          { label: 'Customers', value: String(d.totalCustomers || '—') }
+          { label: 'Customers', value: String(d.totalCustomers || ' - ') }
         ];
       },
       list: function (d) {
@@ -55,7 +55,7 @@
           { label: 'Subscribers', value: num(d.subscribers) },
           { label: 'Views, 28 days', value: num(d.views28 != null ? d.views28 : d.totalViews) },
           { label: 'Videos', value: num(d.videoCount) },
-          { label: 'Watch time', value: d.watchTime != null ? num(d.watchTime) + ' hrs' : '—' }
+          { label: 'Watch time', value: d.watchTime != null ? num(d.watchTime) + ' hrs' : ' - ' }
         ];
       },
       list: function (d) {
@@ -71,9 +71,9 @@
       metrics: function (d) {
         return [
           { label: 'Followers', value: num(d.followers) },
-          { label: 'Views, 30 days', value: d.views30 != null ? num(d.views30) : '—' },
-          { label: 'Reach, 30 days', value: d.reach30 != null ? num(d.reach30) : '—' },
-          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : '—' }
+          { label: 'Views, 30 days', value: d.views30 != null ? num(d.views30) : ' - ' },
+          { label: 'Reach, 30 days', value: d.reach30 != null ? num(d.reach30) : ' - ' },
+          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ' }
         ];
       },
       list: function (d) {
@@ -89,9 +89,9 @@
       metrics: function (d) {
         return [
           { label: 'Followers', value: num(d.followers) },
-          { label: 'Reach', value: d.reach != null ? num(d.reach) : '—' },
+          { label: 'Reach', value: d.reach != null ? num(d.reach) : ' - ' },
           { label: 'Posts', value: num(d.posts) },
-          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : '—' }
+          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ' }
         ];
       },
       list: function (d) {
@@ -113,7 +113,7 @@
           { label: 'Followers', value: num(d.followers) },
           { label: 'Likes', value: num(d.totalLikes != null ? d.totalLikes : d.likes) },
           { label: 'Videos', value: num(d.videoCount) },
-          { label: 'Views', value: d.views != null ? num(d.views) : '—' }
+          { label: 'Views', value: d.views != null ? num(d.views) : ' - ' }
         ];
       },
       list: function (d) {
@@ -127,7 +127,7 @@
   /* ── Small helpers ─────────────────────────────────────────────────────── */
   function num(v) {
     var n = Number(v);
-    return isFinite(n) ? n.toLocaleString() : '—';
+    return isFinite(n) ? n.toLocaleString() : ' - ';
   }
   function money(v) {
     var n = Number(v) || 0;
@@ -299,7 +299,7 @@
       return {
         handle: d.username ? '@' + d.username : '',
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: total != null ? num(total) : '—', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
+        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
         b: { icon: 'heart', value: d.reach30 != null ? num(d.reach30) : num(sumOf(d.recentPosts, function (p) { return p.likes; }) || 0), label: d.reach30 != null ? 'Reach · 30 days' : 'Likes · recent posts', sub: d.engagementRate != null ? d.engagementRate + '% engagement' : '' },
         chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Views per post' },
         list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) },
@@ -311,7 +311,7 @@
       return {
         handle: d.username,
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: total != null ? num(total) : '—', label: 'Views · recent videos' },
+        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: 'Views · recent videos' },
         b: { icon: 'heart', value: num(d.totalLikes != null ? d.totalLikes : d.likes), label: 'Likes', sub: d.videoCount != null ? num(d.videoCount) + ' videos' : '' },
         chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentVideos, viewsOf, function (v) { return v.title; }), barLabel: 'Views per video' },
         list: { title: 'Recent videos', empty: 'No videos yet.', rows: rowsFrom(d.recentVideos, function (v) { return { t: v.title || 'Video', main: v.views != null ? compact(v.views) + ' views' : '', sub: v.likes != null ? compact(v.likes) + ' likes' : '' }; }) }
@@ -320,8 +320,8 @@
     facebook: function (d) {
       return {
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: d.reach != null ? num(d.reach) : '—', label: 'Reach' },
-        b: { icon: 'heart', value: d.engagementRate != null ? d.engagementRate + '%' : '—', label: 'Engagement', sub: d.posts != null ? num(d.posts) + ' posts' : '' },
+        a: { icon: 'eye', value: d.reach != null ? num(d.reach) : ' - ', label: 'Reach' },
+        b: { icon: 'heart', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ', label: 'Engagement', sub: d.posts != null ? num(d.posts) + ' posts' : '' },
         chart: { label: 'Reach', series: seriesOf(d) },
         list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.message || 'Post', main: p.likes != null ? compact(p.likes) + ' likes' : '', sub: '' }; }) }
       };
@@ -332,7 +332,7 @@
         handle: d.siteName,
         hero: { value: compact(m.users), label: 'Visitors · 30 days' },
         a: { icon: 'eye', value: num(m.pageViews), label: 'Page views · 30 days', sub: num(m.sessions) + ' sessions' },
-        b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : '—', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
+        b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : ' - ', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
         chart: { label: 'Visitors', series: seriesOf(d), bars: barsFrom(d.topPages, viewsOf, function (p) { return p.path; }), barLabel: 'Views per page' },
         list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) },
         more: (function (b) { b = b || {}; return sections([['Countries', b.countries, 'totalUsers'], ['Cities', b.cities, 'totalUsers'], ['How they found you', b.channels, 'totalUsers'], ['Sources', b.sources, 'totalUsers'], ['Referring sites', b.referrers, 'sessions'], ['Devices', b.devices, 'totalUsers'], ['Browsers', b.browsers, 'totalUsers'], ['Operating systems', b.systems, 'totalUsers'], ['Languages', b.languages, 'totalUsers'], ['New vs returning', b.newVsReturning, 'totalUsers'], ['Landing pages', b.landingPages, 'sessions'], ['Events', b.events, 'eventCount']]); })(d.breakdown),
@@ -348,7 +348,7 @@
       handle: handle,
       hero: { value: moneyTile(cur, m.revenue), label: 'Sales · 30 days' },
       a: { icon: 'bag', value: num(m.orders || 0), label: 'Orders · 30 days', sub: m.paidOrders != null ? num(m.paidOrders) + ' paid' : '' },
-      b: { icon: 'users', value: d.totalCustomers != null ? num(d.totalCustomers) : '—', label: 'Customers' },
+      b: { icon: 'users', value: d.totalCustomers != null ? num(d.totalCustomers) : ' - ', label: 'Customers' },
       chart: { label: 'Daily sales', series: (d.series || []).map(function (p) { return { x: p.date, y: p.value }; }), money: cur },
       list: { title: 'Recent orders', empty: 'No orders to show yet.', rows: rowsFrom(d.recentOrders, function (o) { return { t: 'Order ' + (o.orderNumber || ''), main: o.total || '', sub: o.status ? String(o.status).toLowerCase() : '' }; }) }
     };

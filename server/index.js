@@ -2654,6 +2654,7 @@ app.post('/web/voice', optionalAuth, checkGuestOrUserLimit, aiLimiter, async (re
         voiceNumbers = await webStatsFor(req.userId, false).then((s) => webstats.describe(s)).catch(() => null);
       }
       learnFrom(req.userId, transcript).catch(() => {});
+      learnBusinessFrom(req.userId, transcript).catch(() => {});
     }
     const voiceKnown = memoriesOf(voiceUser).slice(-40);
     const voiceSystem = [
@@ -2951,7 +2952,7 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, contentGua
     if (req.userId) {
       const said = [...fromPage].reverse().find((m) => m.role === 'user');
       // Nothing refused is ever kept as something to remember about them.
-      req.contentVerdict.then((refused) => { if (!refused) return learnFrom(req.userId, said && said.content); }).catch(() => {});
+      req.contentVerdict.then((refused) => { if (!refused) { learnBusinessFrom(req.userId, said && said.content).catch(() => {}); return learnFrom(req.userId, said && said.content); } }).catch(() => {});
     }
     const memoryMsg = known.length
       ? { role: 'system', content: 'WHAT YOU KNOW ABOUT THEM (from earlier conversations, without announcing it). Use a memory ONLY when it is directly relevant to what they just asked. Never bring a hobby, interest or personal fact into a request it has nothing to do with: a marketing brief for their website uses what you know about their business and nothing about their interests. Most replies should use no memories at all.\n'
@@ -3161,6 +3162,14 @@ app.post('/ai/learn-business', authMiddleware, aiLimiter, async (req, res) => {
     const text = String((req.body && req.body.text) || '').slice(0, 1500);
     const current = (req.body && typeof req.body.current === 'object' && req.body.current) || {};
     if (text.length < 12) return res.json({ changes: {} });
+    res.json({ changes: await businessChanges(text, current) });
+  } catch (err) {
+    res.json({ changes: {} });
+  }
+});
+
+// What, if anything, this sentence changes in their business profile.
+async function businessChanges(text, current) {
     const r = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       max_tokens: 500,
@@ -3180,11 +3189,27 @@ app.post('/ai/learn-business', authMiddleware, aiLimiter, async (req, res) => {
       if (v && typeof v === 'object') v = Object.entries(v).map(([a, b]) => (Array.isArray(v) ? '' : a + ' ') + b).join('; ');
       if (typeof v === 'string' && v.trim()) changes[k] = v.trim().slice(0, 300);
     }
-    res.json({ changes });
-  } catch (err) {
-    res.json({ changes: {} });
-  }
-});
+    return changes;
+}
+
+// The same learning for the website and for voice: business details are
+// picked up from what people say wherever they say it, not only when they
+// fill in the form. Wide hint; the model keeps only real business facts.
+const BIZ_HINT = new RegExp([
+  '\\b(?:my|our|the)\\s+(?:\\w+\\s+)?(?:business|company|shop|store|brand|startup|agency|restaurant|cafe|caf.|bakery|salon|clinic|boutique|firm|practice|studio|side hustle|products?|app|website|customers?|clients?|revenue|sales|profit|margins?|costs?|expenses|rent|suppliers?|staff|employees|team|pricing|prices|orders|turnover|inventory|stock|menu|services?)\\b',
+  '\\b(?:we|i)\\s+(?:just\\s+|also\\s+|now\\s+|recently\\s+|finally\\s+)?(?:sell|make|run|own|charge|spend|earn|import|export|ship|hired?|started|launched|opened|deliver|stock|supply|manufacture|offer|source|buy)\\b',
+  '\\b(?:revenue|turnover|profit|monthly|per month|a month|a year|annual|per order|per unit|wholesale|retail|customers?|clients?|orders|sales)\\b.*\\d',
+].join('|'), 'i');
+async function learnBusinessFrom(userId, text) {
+  const t = String(text || '').trim().slice(0, 1500);
+  if (!userId || t.length < 12 || !BIZ_HINT.test(t)) return;
+  const user = await users.findById(userId);
+  if (!user) return;
+  const current = (user.prefs && user.prefs.business) || {};
+  const changes = await businessChanges(t, current);
+  if (!changes || !Object.keys(changes).length) return;
+  await users.update(userId, { 'prefs.business': { ...current, ...changes, updatedAt: Date.now() } });
+}
 
 // The day's marketing note for the daily update: one observation from their own
 // numbers and one thing to do today. Fixed prompt, one small job, so like

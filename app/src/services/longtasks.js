@@ -129,7 +129,7 @@ function summarise(jobs) {
     if (job.status === 'failed') {
       lines.push(`I could not get anywhere with "${what}".`);
     } else if (failed) {
-      lines.push(`I finished ${done} of the ${job.steps.length} parts of "${what}" — ${failed} wouldn't go through.`);
+      lines.push(`I finished ${done} of the ${job.steps.length} parts of "${what}" - ${failed} wouldn't go through.`);
     } else {
       const hours = job.startedAt && job.finishedAt
         ? Math.round((job.finishedAt - job.startedAt) / 3600000) : 0;

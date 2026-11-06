@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Flex:slnt,wght@-10..0,100..1000&display=swap');
 
 /* ── Animatable CSS custom properties for shiny-btn ── */
 @property --sb-angle {
@@ -10540,3 +10540,7 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 /* The headline fades out at its right end, so on a mid-size window it never
    runs under the expand button. Nothing moves; only the last of the text fades. */
 #newsFlashTrack { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
+
+/* The business form now lives in the memory orb (memory-orb.js moves it in
+   when the orb opens); it is no longer shown in Account. */
+.profile-section#bizSection{display:none}

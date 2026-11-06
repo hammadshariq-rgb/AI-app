@@ -7,9 +7,28 @@
 (function () {
   'use strict';
 
-  // Asking how or why something works, in any subject, or asking for a picture.
-  const TEACH = /\b(chart|plot|construct|break[- ]?even|margin|elasticity|explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|sketch|visuali[sz]e|label(?:led)?|structure of|process of|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|bond|molecule|cell|organ|ecosystem|food (?:chain|web)|photosynthesis|respiration|anatomy|layers? of|parts of)\b/i;
+  // A diagram is for a PROCESS or a MECHANISM - how a thing is made, how it
+  // moves or works, what happens in what order - or a structure, a cycle, a
+  // chart. "How is lipstick made" and "how does ATP move through cells" get
+  // one. "What is lipstick" does not, and nor does maths worked in steps:
+  // those read better as words. Asking for a picture always gets one.
+  const TEACH = new RegExp([
+    // how a thing is made, produced or formed
+    '\\bhow (?:is|are|was|were)\\b.{0,60}\\b(?:made|produced|manufactured|formed|created|built|grown|processed|digested|absorbed|transported|refined|generated|recycled|brewed|assembled|extracted)\\b',
+    '\\bhow (?:do|does|did|can) (?:you|we|they|people|one|i|companies|factories)\\b.{0,40}\\b(?:make|produce|manufacture|build|form|create|grow|brew|refine|recycle|extract|assemble)\\b',
+    // how a thing works or moves
+    '\\bhow (?:do|does|did)\\b.{0,60}\\b(?:work|works|move|travel|flow|pass|get (?:into|through|to)|reach|enter|leave|spread|form|happen|transport|convert|turn into|circulate|reproduce|replicate|fold|bind|charge|generate)\\b',
+    '\\bwhat happens (?:when|during|in|to|inside|after|before)\\b', '\\bwalk me through (?:how|the process)\\b',
+    '\\b(?:the )?(?:process|stages|steps) of\\b', '\\blife ?cycle\\b', '\\b(?:water|carbon|nitrogen|krebs|calvin|cell|business|product) cycle\\b',
+    '\\b(?:structure|parts|layers|anatomy) of\\b', '\\bcircuit\\b', '\\bfood (?:chain|web)\\b',
+    '\\b(?:photosynthesis|respiration|digestion|mitosis|meiosis|osmosis|diffusion|transcription|translation|supply chain)\\b',
+    // or a picture asked for by name
+    '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
+  ].join('|'), 'i');
   const NOT_TEACH = /^(?:open|play|search|set|remind|send|call|message|email|close|turn|create|make me (?:a|an) (?:image|video|picture))\b/i;
+  // Worked maths: steps in words beat a picture, unless a graph was asked for.
+  const STEP_MATHS = /\b(?:solve|calculate|evaluate|simplify|differentiate|integrate|factori[sz]e|expand|work out|find the (?:value|sum|area|volume|gradient|derivative|integral)|prove|show that)\b/i;
+  const ASKED_PICTURE = /\b(?:diagram|draw|illustrate|chart|plot|graph|sketch|visuali[sz]e|break[- ]?even)\b/i;
 
   const ELEMENTS = new Set(['svg', 'g', 'defs', 'marker', 'lineargradient', 'radialgradient', 'stop',
     'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan', 'title']);
@@ -49,7 +68,7 @@
   // A chart from numbers, drawn to scale: axes, gridlines, tick labels, lines,
   // a key and the marked points. Everything is built here, nothing is parsed.
   const NS = 'http://www.w3.org/2000/svg';
-  const COLOURS = ['#35c9ff', '#ff9f43', '#3ddc97', '#ff7b72', '#c08bff', '#ffcf5c'];
+  const COLOURS = ['#2F6FEB', '#E0892B', '#2E9E6A', '#C8473D', '#7A5AF8', '#B08900'];
   function niceStep(span) {
     const raw = span / 8, p = Math.pow(10, Math.floor(Math.log10(raw)));
     return [1, 2, 2.5, 5, 10].map((m) => m * p).find((s) => s >= raw) || p * 10;
@@ -60,31 +79,31 @@
     const pw = W - L - R, ph = H - T - Bm;
     const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
     const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
-    svg.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, rx: 18, fill: '#0b1226' }));
-    svg.appendChild(el('text', { x: 28, y: 34, fill: '#e8eeff', 'font-size': 18, 'font-weight': 700, 'font-family': 'Inter, Segoe UI, Arial, sans-serif' }, c.title || ''));
+    svg.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, rx: 18, fill: '#F7F6F2' }));
+    svg.appendChild(el('text', { x: 28, y: 34, fill: '#1E2430', 'font-size': 18, 'font-weight': 600, 'font-family': 'Inter, Segoe UI, Arial, sans-serif' }, c.title || ''));
     const font = { 'font-family': 'Inter, Segoe UI, Arial, sans-serif' };
     const ymin = c.y.min, ymax = c.y.max;
     const sy = (v) => T + ph - ((v - ymin) / (ymax - ymin)) * ph;
     const ys = niceStep(ymax - ymin);
     for (let v = Math.ceil(ymin / ys) * ys; v <= ymax + 1e-9; v += ys) {
-      svg.appendChild(el('line', { x1: L, x2: L + pw, y1: sy(v), y2: sy(v), stroke: '#1e2a4a', 'stroke-width': 1 }));
-      svg.appendChild(el('text', Object.assign({ x: L - 10, y: sy(v) + 4, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'end' }, font), fmt(v)));
+      svg.appendChild(el('line', { x1: L, x2: L + pw, y1: sy(v), y2: sy(v), stroke: '#E4E6EB', 'stroke-width': 1 }));
+      svg.appendChild(el('text', Object.assign({ x: L - 10, y: sy(v) + 4, fill: '#5B6474', 'font-size': 12, 'text-anchor': 'end' }, font), fmt(v)));
     }
     if (c.kind === 'bar') {
       const n = c.bars.length, slot = pw / n, bw = Math.min(56, slot * 0.6);
       c.bars.forEach((b, i) => {
         const x = L + slot * i + (slot - bw) / 2, y0 = sy(Math.max(0, ymin)), y1 = sy(b.value);
         svg.appendChild(el('rect', { x, y: Math.min(y0, y1), width: bw, height: Math.abs(y1 - y0), rx: 4, fill: COLOURS[i % COLOURS.length] }));
-        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: T + ph + 20, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'middle' }, font), b.label));
-        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: Math.min(y0, y1) - 6, fill: '#e8eeff', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(b.value)));
+        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: T + ph + 20, fill: '#5B6474', 'font-size': 12, 'text-anchor': 'middle' }, font), b.label));
+        svg.appendChild(el('text', Object.assign({ x: x + bw / 2, y: Math.min(y0, y1) - 6, fill: '#1E2430', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(b.value)));
       });
     } else {
       const xmin = c.x.min, xmax = c.x.max;
       const sx = (v) => L + ((v - xmin) / (xmax - xmin)) * pw;
       const xs = niceStep(xmax - xmin);
       for (let v = Math.ceil(xmin / xs) * xs; v <= xmax + 1e-9; v += xs) {
-        svg.appendChild(el('line', { x1: sx(v), x2: sx(v), y1: T, y2: T + ph, stroke: '#1e2a4a', 'stroke-width': 1 }));
-        svg.appendChild(el('text', Object.assign({ x: sx(v), y: T + ph + 20, fill: '#9fb0d6', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(v)));
+        svg.appendChild(el('line', { x1: sx(v), x2: sx(v), y1: T, y2: T + ph, stroke: '#E4E6EB', 'stroke-width': 1 }));
+        svg.appendChild(el('text', Object.assign({ x: sx(v), y: T + ph + 20, fill: '#5B6474', 'font-size': 12, 'text-anchor': 'middle' }, font), fmt(v)));
       }
       const clip = (v, a, b) => Math.max(a, Math.min(b, v));
       c.series.forEach((s, i) => {
@@ -93,21 +112,21 @@
         svg.appendChild(el('path', Object.assign({ d, fill: 'none', stroke: col, 'stroke-width': 2.6, 'stroke-linejoin': 'round' }, s.dash ? { 'stroke-dasharray': '7 6' } : {})));
         const ky = T + 14 + i * 26;
         svg.appendChild(el('line', Object.assign({ x1: L + pw + 22, x2: L + pw + 50, y1: ky, y2: ky, stroke: col, 'stroke-width': 3 }, s.dash ? { 'stroke-dasharray': '6 4' } : {})));
-        svg.appendChild(el('text', Object.assign({ x: L + pw + 58, y: ky + 4, fill: '#e8eeff', 'font-size': 13 }, font), s.name));
+        svg.appendChild(el('text', Object.assign({ x: L + pw + 58, y: ky + 4, fill: '#1E2430', 'font-size': 13 }, font), s.name));
       });
       c.markers.forEach((m) => {
         const x = sx(m.x), y = sy(m.y);
-        svg.appendChild(el('line', { x1: x, x2: x, y1: y, y2: T + ph, stroke: '#ffcf5c', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
-        svg.appendChild(el('line', { x1: L, x2: x, y1: y, y2: y, stroke: '#ffcf5c', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
-        svg.appendChild(el('circle', { cx: x, cy: y, r: 5.5, fill: '#ffcf5c', stroke: '#0b1226', 'stroke-width': 2 }));
+        svg.appendChild(el('line', { x1: x, x2: x, y1: y, y2: T + ph, stroke: '#C2410C', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
+        svg.appendChild(el('line', { x1: L, x2: x, y1: y, y2: y, stroke: '#C2410C', 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }));
+        svg.appendChild(el('circle', { cx: x, cy: y, r: 5.5, fill: '#C2410C', stroke: '#F7F6F2', 'stroke-width': 2 }));
         const right = x < L + pw * 0.7;
-        svg.appendChild(el('text', Object.assign({ x: right ? x + 12 : x - 12, y: y + 18, fill: '#ffcf5c', 'font-size': 13, 'font-weight': 600, 'text-anchor': right ? 'start' : 'end' }, font), m.label));
+        svg.appendChild(el('text', Object.assign({ x: right ? x + 12 : x - 12, y: y + 18, fill: '#C2410C', 'font-size': 13, 'font-weight': 600, 'text-anchor': right ? 'start' : 'end' }, font), m.label));
       });
-      svg.appendChild(el('text', Object.assign({ x: L + pw / 2, y: H - 16, fill: '#c9d6f5', 'font-size': 13, 'text-anchor': 'middle' }, font), c.x.label));
+      svg.appendChild(el('text', Object.assign({ x: L + pw / 2, y: H - 16, fill: '#3B4352', 'font-size': 13, 'text-anchor': 'middle' }, font), c.x.label));
     }
-    svg.appendChild(el('line', { x1: L, x2: L + pw, y1: T + ph, y2: T + ph, stroke: '#8fb4ff', 'stroke-width': 1.6 }));
-    svg.appendChild(el('line', { x1: L, x2: L, y1: T, y2: T + ph, stroke: '#8fb4ff', 'stroke-width': 1.6 }));
-    const yl = el('text', Object.assign({ x: 0, y: 0, fill: '#c9d6f5', 'font-size': 13, 'text-anchor': 'middle', transform: 'translate(22 ' + (T + ph / 2) + ') rotate(-90)' }, font), c.y.label);
+    svg.appendChild(el('line', { x1: L, x2: L + pw, y1: T + ph, y2: T + ph, stroke: '#1E2430', 'stroke-width': 1.6 }));
+    svg.appendChild(el('line', { x1: L, x2: L, y1: T, y2: T + ph, stroke: '#1E2430', 'stroke-width': 1.6 }));
+    const yl = el('text', Object.assign({ x: 0, y: 0, fill: '#3B4352', 'font-size': 13, 'text-anchor': 'middle', transform: 'translate(22 ' + (T + ph / 2) + ') rotate(-90)' }, font), c.y.label);
     svg.appendChild(yl);
     return svg;
   }
@@ -121,6 +140,7 @@
   function wanted(question, answer) {
     const q = String(question || '').trim();
     if (!q || NOT_TEACH.test(q)) return false;
+    if (STEP_MATHS.test(q) && !ASKED_PICTURE.test(q)) return false;
     // A short reply to a how/why question is not worth a picture either.
     return TEACH.test(q) && String(answer || '').length > 140;
   }
@@ -208,9 +228,9 @@
 
   const css = document.createElement('style');
   css.textContent = `
-    .teach-diagram{margin:12px 0 2px;padding:0;border-radius:14px;overflow:hidden;border:1px solid rgba(120,160,255,.2);background:#0b1226;max-width:720px}
+    .teach-diagram{margin:12px 0 2px;padding:0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#F7F6F2;max-width:720px}
     .teach-diagram svg{display:block;width:100%;height:auto}
-    .teach-diagram figcaption{padding:8px 14px 11px;font-size:12px;line-height:1.5;color:rgba(185,205,245,.8)}
+    .teach-diagram figcaption{padding:10px 16px 12px;font-size:12.5px;line-height:1.5;color:#3B4352;border-top:1px solid #E4E6EB;background:#F7F6F2}
     .teach-diagram.loading{border-style:dashed}
     .teach-diagram-actions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
     .teach-diagram-actions button{padding:6px 12px;border-radius:999px;border:1px solid rgba(120,160,255,.3);background:rgba(61,92,255,.12);color:#cfe0ff;font:inherit;font-size:12px;cursor:pointer}

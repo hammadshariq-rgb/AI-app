@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
-// Real path of a dragged/picked File — File.path was removed in Electron 32.
+// Real path of a dragged/picked File - File.path was removed in Electron 32.
 function filePathOf(file) {
   try { return (webUtils && webUtils.getPathForFile(file)) || file.path || null; }
   catch (_) { return file.path || null; }
@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   authVerify: () => ipcRenderer.invoke('auth:verify'),
   authGoogle: () => ipcRenderer.invoke('auth:google'),
   authLogout: () => ipcRenderer.invoke('auth:logout'),
-  // authGetToken intentionally removed — JWT must never cross the IPC bridge to renderer
+  // authGetToken intentionally removed - JWT must never cross the IPC bridge to renderer
   onGoogleSuccess: (cb) => ipcRenderer.on('auth:google-success', (_e, d) => cb(d)),
   onSubscriptionActivated: (cb) => ipcRenderer.on('subscription:activated', () => cb()),
   getProfile: () => ipcRenderer.invoke('profile:get'),
@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   openApp: (name) => ipcRenderer.invoke('jarvis:openApp', name),
   openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
   // Forward a quick-launch result to the HUD overlay (Ctrl+Shift+C mode)
-  platform: process.platform,   // 'darwin' on a Mac — shortcuts show ⌘ Cmd there
+  platform: process.platform,   // 'darwin' on a Mac - shortcuts show ⌘ Cmd there
   hudForward: (text, card) => ipcRenderer.invoke('jarvis:hudForward', { text, card }),
   // convo: this turn is part of a running conversation, so its answer belongs on
   // the card over the user's app, the same as a Ctrl+Shift+C question.
@@ -230,7 +230,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   fetchModelFile: (url) => ipcRenderer.invoke('model:fetchFile', url),
   artifactsList:   ()   => ipcRenderer.invoke('artifacts:list'),
 
-  // Skills installed from GitHub — instructions Callisto follows, never code.
+  // Skills installed from GitHub - instructions Callisto follows, never code.
   skillsList:      ()     => ipcRenderer.invoke('skills:list'),
   skillsInstall:   (url)  => ipcRenderer.invoke('skills:install', url),
   skillsRemove:    (id)   => ipcRenderer.invoke('skills:remove', id),
@@ -266,7 +266,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   setLatestMedia: (kind, item) => ipcRenderer.invoke('media:setLatest', { kind, item }),
   onVideoEdited: (cb) => ipcRenderer.on('media:videoEdited', (_e, d) => cb(d)),
   getLatestMedia: ()           => ipcRenderer.invoke('media:getLatest'),
-  // Shopping — real product results (images, prices) from the license server
+  // Shopping - real product results (images, prices) from the license server
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   shopOpen:      (url, fallbackUrl)    => ipcRenderer.invoke('shop:open', { url, fallbackUrl }),
   runCommand:    (command, folder)     => ipcRenderer.invoke('command:run', { command, folder }),
@@ -293,8 +293,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   pickProjectFolder: ()                => ipcRenderer.invoke('command:pickFolder'),
   getProjectFolder:  ()                => ipcRenderer.invoke('command:getFolder'),
   setProjectFolder:  (folder)          => ipcRenderer.invoke('command:setFolder', folder),
-  // AI phone calling — the assistant dials a business and negotiates on the user's behalf
-  // Quit app (used by gesture — clap = clear + quit)
+  // AI phone calling - the assistant dials a business and negotiates on the user's behalf
+  // Quit app (used by gesture - clap = clear + quit)
   quitApp:       () => ipcRenderer.invoke('app:quit'),
   appVersion:    () => ipcRenderer.invoke('app:version'),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),

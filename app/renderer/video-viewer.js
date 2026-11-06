@@ -1,8 +1,8 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Callisto Video Studio
 
-   The same centred card as the 3D studio — dark see-through backdrop, glass
-   stage, progress ring while it renders — for AI videos. Generation keeps
+   The same centred card as the 3D studio - dark see-through backdrop, glass
+   stage, progress ring while it renders - for AI videos. Generation keeps
    running if the card is closed; the caller shows a "Video ready" notice then.
 
    Public API:
@@ -48,7 +48,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16"/></svg>
               <span>Download</span>
             </button>
-            <button class="mv-icon-btn" id="vvClose" aria-label="Close — keeps rendering in the background">
+            <button class="mv-icon-btn" id="vvClose" aria-label="Close - keeps rendering in the background">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
           </div>
@@ -65,7 +65,7 @@
             <div class="mv-ring-pct" id="vvRingPct">0%</div>
             <div class="mv-ring-label" id="vvRingLabel">Queued</div>
           </div>
-          <div class="mv-ring-note">You can close this — Callisto keeps rendering and lets you know when it's ready.</div>
+          <div class="mv-ring-note">You can close this - Callisto keeps rendering and lets you know when it's ready.</div>
         </div>
       </div>`;
     document.body.appendChild(root);

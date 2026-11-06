@@ -1,6 +1,6 @@
 // ── Artifacts ─────────────────────────────────────────────────────────────────
-// Everything the user created this week — AI images, Meshy 3D models, Higgsfield
-// videos — kept as local files so they still open after the generator's links
+// Everything the user created this week - AI images, Meshy 3D models, Higgsfield
+// videos - kept as local files so they still open after the generator's links
 // expire (image links die within hours). The collection resets every Monday.
 
 const fs = require('fs');

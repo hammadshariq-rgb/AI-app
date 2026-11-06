@@ -4,7 +4,7 @@
    Two-factor sign-in, forgotten passwords, the devices signed in, the
    subscription, and deleting the account. Everything here goes through
    window.jarvis.accountCall, which attaches the sign-in token in the main
-   process — the page itself never holds it.
+   process - the page itself never holds it.
 
    Every piece of text that came from the server is escaped before it goes on
    screen. A device name is built from a user-agent, and a user-agent is
@@ -184,8 +184,8 @@
   }
 
   /* ══ Confirming the email address ═════════════════════════════════════════ */
-  // After signing up with a password, a 6-digit code goes to their inbox — any
-  // provider, Gmail or Hotmail or anything else — and the AI stays shut until
+  // After signing up with a password, a 6-digit code goes to their inbox - any
+  // provider, Gmail or Hotmail or anything else - and the AI stays shut until
   // it is typed here. Resolves true once verified, false if they leave it for
   // later (it comes back on the next launch).
   function askEmailCode(email) {
@@ -194,7 +194,7 @@
         <div class="ac-eyebrow">CALLISTO &middot; CONFIRM YOUR EMAIL</div>
         <div class="ac-title">Check your inbox</div>
         <p class="ac-sub">We sent a 6-digit code to <b>${esc(email || 'your email')}</b>. Type it here to confirm
-          it is you. It can take a minute — check spam if it is not there.</p>
+          it is you. It can take a minute - check spam if it is not there.</p>
         <label class="ac-label" for="acVcode">Code</label>
         <input class="ac-input code" id="acVcode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
         <div class="ac-msg" id="acMsg" role="status" aria-live="polite"></div>
@@ -336,7 +336,7 @@
       <h3>Two-factor sign-in <span class="ac-pill ${on ? 'on' : 'off'}">${on ? 'ON' : 'OFF'}</span></h3>
       <p class="ac-text">${on
         ? 'Signing in with your password also needs a code from your authenticator app.'
-        : 'Ask for a code from an authenticator app — Google Authenticator, Authy, 1Password — as well as your password, so a stolen password is not enough on its own.'}
+        : 'Ask for a code from an authenticator app - Google Authenticator, Authy, 1Password - as well as your password, so a stolen password is not enough on its own.'}
         ${me.hasPassword === false ? '<br>You sign in with Google, so turn on 2-Step Verification in your Google account to protect that.' : ''}</p>
       <div id="tfArea"></div>
       <div class="ac-row" id="tfButtons">
@@ -442,7 +442,7 @@
       </div>`).join('');
     const s = section(`
       <h3>Devices signed in</h3>
-      <p class="ac-text">Anything you do not recognise, sign it out — then change your password.</p>
+      <p class="ac-text">Anything you do not recognise, sign it out - then change your password.</p>
       <div>${rows || '<p class="ac-text">No devices to show.</p>'}</div>
       ${r && r.note ? `<p class="ac-text" style="margin-top:8px">${esc(r.note)}</p>` : ''}
       <div class="ac-msg" id="devMsg" role="status" aria-live="polite"></div>
@@ -492,7 +492,7 @@
       btn = '<button class="ac-btn danger-ghost" data-bill="cancel">End subscription</button>';
     } else {
       pill = '<span class="ac-pill off">FREE PLAN</span>';
-      text = 'You are on the free plan — 15 messages a day.';
+      text = 'You are on the free plan - 15 messages a day.';
       btn = '';
     }
     const s = section(`
@@ -518,7 +518,7 @@
     const s = section(`
       <h3>Delete account</h3>
       <div class="ac-danger">
-        <p class="ac-text" style="margin:0">Deletes your account and everything in it — your connected accounts, settings and history.
+        <p class="ac-text" style="margin:0">Deletes your account and everything in it - your connected accounts, settings and history.
           Any subscription is cancelled first, so you are not charged again. This cannot be undone.</p>
         <div id="delArea"><div class="ac-row"><button class="ac-btn danger-ghost" id="delStart">Delete my account…</button></div></div>
       </div>`);

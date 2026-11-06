@@ -46,7 +46,7 @@
   async function startTask(goal) {
     const r = await J().taskStart?.(goal);
     if (r && r.ok) {
-      say(`Right — working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
+      say(`Right - working on that in \`${r.folder}\`. I will get on with the safe parts and stop when I need you.`);
       return true;
     }
     if (r && r.error === 'busy') { say(`I am still working on "${r.goal}". Say *"stop"* if you want me to drop it.`); return true; }
@@ -103,7 +103,7 @@
         if (!teaching.steps.length) {
           teaching = null;
           await J().procCancel?.();
-          say('Nothing to save — I did not catch any steps. Start again whenever you like.');
+          say('Nothing to save - I did not catch any steps. Start again whenever you like.');
           return true;
         }
         const res = await J().procSave?.(teaching.name);
@@ -118,7 +118,7 @@
       }
       teaching.steps.push(t);
       await J().procNote?.(t, 'say');
-      say(`Noted — step ${teaching.steps.length}. Carry on, or say *"that's it"* when you are done.`);
+      say(`Noted - step ${teaching.steps.length}. Carry on, or say *"that's it"* when you are done.`);
       return true;
     }
 
@@ -128,7 +128,7 @@
       const name = m[1].replace(/[.?!]+$/, '').trim();
       teaching = { name, steps: [] };
       await J().procStart?.(name);
-      say(`Go on then — walk me through **${name}**, one step per message. I will write each one down. Say *"that's it"* when you have finished.`);
+      say(`Go on then - walk me through **${name}**, one step per message. I will write each one down. Say *"that's it"* when you have finished.`);
       return true;
     }
 
@@ -136,7 +136,7 @@
     if (PROC_LIST.test(t)) {
       const list = (await J().procList?.()) || [];
       say(list.length
-        ? `You have taught me ${list.length}:\n\n${list.map((p) => `• **${p.name}** — ${p.steps} step${p.steps === 1 ? '' : 's'}${p.runs ? `, run ${p.runs}×` : ''}`).join('\n')}`
+        ? `You have taught me ${list.length}:\n\n${list.map((p) => `• **${p.name}** - ${p.steps} step${p.steps === 1 ? '' : 's'}${p.runs ? `, run ${p.runs}×` : ''}`).join('\n')}`
         : 'Nothing yet. Say *"let me show you how I do the Monday report"* and walk me through it.');
       return true;
     }
@@ -151,11 +151,11 @@
         || list.find((p) => p.name.toLowerCase().includes(wanted.toLowerCase()));
       if (hit) {
         const r = await J().procRun?.(hit.name);
-        if (r && r.ok) { say(`Working through **${hit.name}** — ${r.steps} step${r.steps === 1 ? '' : 's'}. I will stop and ask if anything needs you.`); return true; }
+        if (r && r.ok) { say(`Working through **${hit.name}** - ${r.steps} step${r.steps === 1 ? '' : 's'}. I will stop and ask if anything needs you.`); return true; }
         say(`I could not start that: ${(r && r.error) === 'busy' ? 'I am already working on something.' : ((r && r.error) || 'unknown problem')}`);
         return true;
       }
-      // Not a procedure — fall through so it is treated as an ordinary request.
+      // Not a procedure - fall through so it is treated as an ordinary request.
     }
 
     // ── "the project is in …" ──────────────────────────────────────────────
@@ -163,7 +163,7 @@
     if (fm && fm[1]) {
       const r = await J().setProjectFolder?.(fm[1].trim());
       if (r && r.ok) {
-        say(`Right — I'll work in \`${r.folder}\`.`);
+        say(`Right - I'll work in \`${r.folder}\`.`);
         if (pendingGoal) { const g = pendingGoal; pendingGoal = null; await startTask(g); }
         return true;
       }
@@ -200,7 +200,7 @@
       say(`${d.ok ? '✅' : '⚠️'} ${d.ok ? 'Done' : 'That failed'}${out ? `\n\n\`\`\`\n${out.slice(-900)}\n\`\`\`` : ''}`);
     } else if (d.kind === 'wrote') {
       say(d.ok
-        ? `📝 Wrote \`${d.path}\` — ${d.bytes} bytes.`
+        ? `📝 Wrote \`${d.path}\` - ${d.bytes} bytes.`
         : `⚠️ Could not write \`${d.path}\`: ${d.error || 'unknown problem'}`);
     }
   });
@@ -213,7 +213,7 @@
       window._agentAwaitingAnswer = true;
       return;
     }
-    // Something that changes things — a command, or a file to be written.
+    // Something that changes things - a command, or a file to be written.
     // Shown in full, and nothing happens until this is pressed.
     const isWrite = d.kind === 'write';
     const body = isWrite ? String(d.contents || '') : String(d.command || '');
@@ -245,7 +245,7 @@
       note.style.cssText = 'font-size:11px;opacity:.65;margin-top:6px';
       note.textContent = approved
         ? (isWrite ? 'Writing it…' : 'Running it…')
-        : 'Skipped — finding another way.';
+        : 'Skipped - finding another way.';
       row.querySelector('.msg').appendChild(note);
       J().taskResume?.({ approved });
     };

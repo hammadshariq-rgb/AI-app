@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.37': [
+      { icon: '🧠', title: 'Your business, in the memory orb', text: 'Your business details now sit under Add a memory, and Callisto fills them in by itself as you talk about your work.' },
+      { icon: '📐', title: 'Diagrams that earn their place', text: 'Diagrams now come for how things are made or how they work, in a cleaner textbook style, and also show on the side card.' },
+      { icon: '💬', title: 'Shorter answers', text: 'Answers are short by default. Ask for detail when you want it.' },
+      { icon: '🚫', title: 'Sensible requests only', text: 'Callisto no longer announces or makes 3D models, pictures or videos of swear words.' }
+    ],
     '1.9.36': [
       { icon: '📷', title: 'Open camera means scan', text: 'Open my camera, open the camera, open this camera - they all start Callisto scanning now. Say "open the camera app" for the system Camera app.' },
       { icon: '🔄', title: 'Reopens after updating', text: 'On Windows, Callisto now reopens by itself once an update has installed.' }
@@ -40,7 +46,7 @@
     ],
     '1.9.31': [
       { icon: '💼', title: 'Remembers your business', text: 'Revenue, costs, customers and suppliers are kept in Account › My business, and every business answer works from them and from what is happening in the world.' },
-      { icon: '✍️', title: 'Writes into your draft', text: 'In screen assist, say "write in this draft" — circled or not — and the text goes straight into the box you were in.' },
+      { icon: '✍️', title: 'Writes into your draft', text: 'In screen assist, say "write in this draft" - circled or not - and the text goes straight into the box you were in.' },
       { icon: '🧭', title: 'Do more with a diagram', text: 'Sketch on any diagram, or turn it into an image, poster, 3D model or video in one tap.' }
     ],
     '1.9.30': [

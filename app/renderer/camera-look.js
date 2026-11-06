@@ -174,7 +174,7 @@
     videoEl.srcObject = stream;
     try { await videoEl.play(); } catch (_) {}
     root.querySelector('#clSnap').disabled = false;
-    statusEl.textContent = 'Hold it up — I will look in a moment.';
+    statusEl.textContent = 'Hold it up - I will look in a moment.';
     capture(3);     // a short countdown, so there is time to get it in frame
   }
 

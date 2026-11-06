@@ -90,7 +90,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16"/></svg>
               <span>Download</span>
             </button>
-            <button class="mv-icon-btn" id="isClose" aria-label="Close — keeps generating in the background">
+            <button class="mv-icon-btn" id="isClose" aria-label="Close - keeps generating in the background">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
           </div>
@@ -108,7 +108,7 @@
             <div class="mv-ring-pct" id="isRingPct">0%</div>
             <div class="mv-ring-label" id="isRingLabel">Queued</div>
           </div>
-          <div class="mv-ring-note">You can close this — Callisto keeps going and lets you know when it's ready.</div>
+          <div class="mv-ring-note">You can close this - Callisto keeps going and lets you know when it's ready.</div>
         </div>
       </div>`;
     document.body.appendChild(root);

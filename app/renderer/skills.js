@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Skills — ways of working, added from GitHub
+   Skills - ways of working, added from GitHub
 
    Somebody has already worked out how to write a reel that lands, or how to
    run outreach, and written it down. Pointing Callisto at that repository
@@ -109,7 +109,7 @@
       <div class="sk-sub">Paste the address of a repository that holds one. Callisto will
         follow it whenever a request matches what the skill is for.</div>
       <input class="sk-input" id="skUrl" placeholder="github.com/owner/repo" autocomplete="off" spellcheck="false" />
-      <div class="sk-eg">Works with a whole repo or one folder inside it —
+      <div class="sk-eg">Works with a whole repo or one folder inside it - 
         <code>github.com/owner/skills</code> or
         <code>github.com/owner/skills/tree/main/instagram</code></div>
       <div class="sk-msg" id="skMsg"></div>

@@ -1,6 +1,6 @@
 'use strict';
 /**
- * adb-direct.js — ADB over TCP using adb.exe
+ * adb-direct.js - ADB over TCP using adb.exe
  * Auto-downloads platform-tools if adb.exe not found.
  */
 
@@ -86,9 +86,9 @@ async function downloadAdb(onProgress) {
     const AdmZip = loadAdmZip();
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(app.getPath('userData'), true);
-    // zip extracts to platform-tools/ directory — that's exactly what we want
+    // zip extracts to platform-tools/ directory - that's exactly what we want
   } catch (e) {
-    // adm-zip might not be bundled — fall back to the OS's own unzip
+    // adm-zip might not be bundled - fall back to the OS's own unzip
     await new Promise((resolve, reject) => {
       const done = (err) => (err ? reject(err) : resolve());
       if (process.platform === 'win32') {
@@ -109,7 +109,7 @@ async function downloadAdb(onProgress) {
 
   // Verify
   const adbExe = bundledAdbPath();
-  if (!fs.existsSync(adbExe)) throw new Error('Extraction failed — adb not found after extract');
+  if (!fs.existsSync(adbExe)) throw new Error('Extraction failed - adb not found after extract');
   // Zip extraction drops the executable bit on macOS and Linux.
   if (process.platform !== 'win32') { try { fs.chmodSync(adbExe, 0o755); } catch (_) {} }
   onProgress && onProgress('ADB tools ready!');

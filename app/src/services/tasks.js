@@ -1,4 +1,4 @@
-// To-do tasks. Unlike reminders, a task has no alarm time — it belongs to a day
+// To-do tasks. Unlike reminders, a task has no alarm time - it belongs to a day
 // and is read back in the briefing when the user next opens Callisto that day.
 'use strict';
 

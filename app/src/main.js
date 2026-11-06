@@ -10,7 +10,7 @@ const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 
 // The product is called Callisto now, but Electron derives the data folder from
-// the product name — so without pinning it here, every existing customer would
+// the product name - so without pinning it here, every existing customer would
 // lose their settings, tokens and connections the moment they updated. Packaged
 // builds keep reading the folder they always have.
 //
@@ -18,13 +18,13 @@ const Store = require('electron-store');
 // its own electron-store as it loads, and a store resolves its file once, from
 // wherever userData points at that moment. Pinning the path afterwards split
 // the app in two: tokens were written to this folder while stt, tts and the
-// connectors read an empty store under the new product name — so speaking
+// connectors read an empty store under the new product name - so speaking
 // answered 401, the renderer took that for an expired session and signed the
 // user out, over and over.
 if (app.isPackaged) {
   try {
     app.setPath('userData', path.join(app.getPath('appData'), 'Your Own Personal AI'));
-  } catch (_) { /* first run on a fresh machine — the default is fine */ }
+  } catch (_) { /* first run on a fresh machine - the default is fine */ }
 } else if (process.env.CALLISTO_USERDATA) {
   // Running from source against a real installation's data, so a fault someone
   // is actually hitting can be reproduced instead of guessed at.
@@ -72,7 +72,7 @@ const store = createStore();
 const crash = require('./services/crash');
 crash.init(store.get('sentryDsn'), { release: app.getVersion(), enabled: store.get('crashReports') !== false });
 // The panel refreshes itself whenever something is created, and a finished
-// creation says so out loud — the user often closes the progress window and
+// creation says so out loud - the user often closes the progress window and
 // waits for it in the background.
 const artifacts = require('./services/artifacts').createStore(store, (entry) => {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -97,7 +97,7 @@ function notifyCreationReady(entry) {
     if (Notification.isSupported()) {
       const n = new Notification({
         title: `Your ${what} is ready`,
-        body: name ? `“${name}” — open Artifacts to see it.` : 'Open Artifacts to see it.',
+        body: name ? `“${name}” - open Artifacts to see it.` : 'Open Artifacts to see it.',
         silent: false,
       });
       // Clicking it takes them straight to the creation.
@@ -119,7 +119,7 @@ function notifyCreationReady(entry) {
 const tasks = require('./services/tasks');
 tasks.init(store);
 
-// ── Cloud prefs sync — saves user settings to MongoDB so they follow across devices ──
+// ── Cloud prefs sync - saves user settings to MongoDB so they follow across devices ──
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 // ── Remembering what matters from ordinary conversation ─────────────────────
@@ -132,7 +132,11 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 const _LEARN_HINT = /\b(?:i(?:'|’)?m|i am|i(?:'|’)?ve|i have|i had|i was|i work|i run|i own|i live|i love|i hate|i like|i prefer|i want|i(?:'|’)?ll be|we(?:'|’)?re|we are|our|my|me and)\b/i;
 // Business details - revenue, costs, customers, suppliers - kept as a profile
 // rather than loose memories, so every business answer works from all of them.
-const _BIZ_HINT = /\b(?:my|our)\s+(?:business|company|shop|store|brand|startup|agency|restaurant|clinic|product|customers?|clients?|revenue|sales|profit|margins?|costs?|expenses|rent|suppliers?|staff|employees|team|pricing|prices|orders|turnover)\b|\b(?:we|i)\s+(?:sell|make|run|own|charge|spend|earn|import|export|ship|hired?)\b|\b(?:revenue|turnover|profit|monthly|per month|a month|a year|annual)\b.*\d/i;
+// Wide on purpose: people mention their business in passing ("I sell candles
+// on Instagram", "the café does about 200 covers a day", "we just hired two
+// people"), not in a form. The server decides what is really a business fact
+// and keeps only that, so a false alarm here costs one small call and nothing else.
+const _BIZ_HINT = /\b(?:my|our|the)\s+(?:\w+\s+)?(?:business|company|shop|store|brand|startup|agency|restaurant|cafe|caf.|bakery|salon|clinic|boutique|firm|practice|studio|side hustle|product|products|app|website|customers?|clients?|revenue|sales|profit|margins?|costs?|expenses|rent|suppliers?|staff|employees|team|pricing|prices|orders|turnover|inventory|stock|menu|services?)\b|\b(?:we|i)\s+(?:just\s+|also\s+|now\s+|recently\s+|finally\s+)?(?:sell|make|run|own|charge|spend|earn|import|export|ship|hired?|started|launched|opened|deliver|stock|supply|manufacture|offer|source|buy)\b|\b(?:revenue|turnover|profit|monthly|per month|a month|a year|annual|per order|per unit|wholesale|retail)\b.*\d|\b(?:customers?|clients?|orders|sales)\b.*\d/i;
 async function _learnBusiness(message) {
   const text = String(message || '').trim();
   if (text.length < 12 || !_BIZ_HINT.test(text)) return;
@@ -157,6 +161,24 @@ const BUSINESS_LABELS = {
   pricing: 'Pricing', team: 'Team', suppliers: 'Suppliers', markets: 'Markets', channels: 'Channels',
   goals: 'Goals', challenges: 'Challenges', notes: 'Notes',
 };
+
+// ── Is there a real thing to make? ───────────────────────────────────────────
+// "Make me a 3D model of fuck" used to be announced - "Building a 3D model of
+// fuck" - and then built. A request whose subject is only a swear word, a slur
+// or nothing at all is answered plainly instead, before anything is announced,
+// started or charged to their allowance.
+const _CREATIVE_FILLER = /\b(?:please|can|could|would|you|u|make|create|generate|build|render|design|draw|give|show|me|a|an|the|of|for|some|one|3d|three|d|model|models|mesh|sculpt|image|images|picture|pic|photo|video|clip|animation|poster|logo|that|this|it|now|quick|quickly|just|real|realistic|cool|nice|big|small)\b/gi;
+const _CREATIVE_JUNK = /^(?:fuck\w*|f\W*ck\w*|shit\w*|bitch\w*|cunt\w*|dick\w*|cock\w*|puss(?:y|ies)|ass(?:hole)?s?|arse\w*|bastard\w*|slut\w*|whore\w*|wank\w*|twat\w*|prick\w*|bollocks|crap|damn|hell|piss\w*|fag\w*|retard\w*|nigg\w*|porn\w*|nude\w*|naked|boob\w*|tits?|penis\w*|vagina\w*|sex\w*|xxx|lol|lmao|idk|nothing|anything|something|stuff|whatever|bruh|asdf\w*|test(?:ing)?)$/i;
+function _junkCreative(text) {
+  const rest = String(text || '').toLowerCase()
+    // Disguised spellings: f*ck, f_ck, sh!t, b!tch.
+    .replace(/f[^a-z\s]+c?k/g, 'fuck').replace(/sh[^a-z\s]+t/g, 'shit').replace(/b[^a-z\s]+tch/g, 'bitch')
+    .replace(_CREATIVE_FILLER, ' ').replace(/[^a-z\s]/g, ' ').trim();
+  if (!rest) return true;
+  return rest.split(/\s+/).every((w) => w.length < 2 || _CREATIVE_JUNK.test(w));
+}
+const _JUNK_REPLY = "I can't make that one. Tell me what you'd like it to be of and I'll make it.";
+
 // The full analytics - every country, source, device and post - kept for half
 // an hour after it was fetched, so a follow-up like "where were they from" is
 // answered from the real numbers instead of "I don't have that".
@@ -264,7 +286,7 @@ async function cloudPullPrefs() {
     if (!res.ok) return;
     const { prefs } = await res.json();
     if (!prefs || typeof prefs !== 'object') return;
-    // Restore each key into local store — only overwrite if cloud value exists
+    // Restore each key into local store - only overwrite if cloud value exists
     if (prefs.memories?.length)      store.set('memories', prefs.memories);
     if (prefs.profile)               store.set('profile', prefs.profile);
     if (prefs.chatSessions?.length)  store.set('chatSessions', prefs.chatSessions);
@@ -278,7 +300,7 @@ async function cloudPullPrefs() {
     if (prefs.userLocation)          store.set('userLocation', prefs.userLocation);
     if (prefs.musicService)          store.set('music.service', prefs.musicService);
     if (prefs.business && typeof prefs.business === 'object') store.set('business', prefs.business);
-    // Sync connector OAuth tokens (Spotify, Google, etc.) — skip tokens that are already set locally
+    // Sync connector OAuth tokens (Spotify, Google, etc.) - skip tokens that are already set locally
     if (prefs.connectors && typeof prefs.connectors === 'object') {
       for (const [key, val] of Object.entries(prefs.connectors)) {
         if (val && !store.get(key)) store.set(key, val);
@@ -534,7 +556,7 @@ function createOverlayWindow() {
     const allowed = ['media', 'microphone', 'audioCapture', 'geolocation'];
     callback(allowed.includes(permission));
   });
-  // ready-to-show fires after the first paint — showing here avoids the flash of
+  // ready-to-show fires after the first paint - showing here avoids the flash of
   // unpainted transparent surface (the stray lines users saw during startup).
   overlayWindow.once('ready-to-show', () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -692,7 +714,7 @@ function macPermissionMissing(kind, feature) {
     return {
       pane: spec.pane,
       text: `${who} needs ${spec.name} access on this Mac. `
-        + 'I have opened the setting — switch Callisto on in the list, then try again.',
+        + 'I have opened the setting - switch Callisto on in the list, then try again.',
     };
   } catch (_) { /* if the check itself fails, let the feature try anyway */ }
   return null;
@@ -717,7 +739,7 @@ function bindShortcut(name, candidates, handler) {
       }
     } catch (_) { /* try the next one */ }
   }
-  console.warn('[shortcut] nothing could be bound for ' + name + ' — tried ' + candidates.join(', '));
+  console.warn('[shortcut] nothing could be bound for ' + name + ' - tried ' + candidates.join(', '));
   return null;
 }
 ipcMain.handle('shortcuts:bound', () => BOUND_KEYS);
@@ -733,7 +755,7 @@ function keyLabel(name, fallback) {
     .replace(/\bAlt\b|\bOption\b/i, 'Option');
 }
 
-// ── HUD overlay window — always-on-top transparent card overlay ─────────────
+// ── HUD overlay window - always-on-top transparent card overlay ─────────────
 function createHudWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   hudWindow = new BrowserWindow({
@@ -814,7 +836,7 @@ function sendToHud(channel, data) {
   }
 }
 
-// ── Capture overlay — Ctrl+Shift+Y screen identification ─────────────────────
+// ── Capture overlay - Ctrl+Shift+Y screen identification ─────────────────────
 // Building this window is the single slowest thing the Magic Cursor does.
 // Measured on this machine: creating it and loading the page takes about 2.5
 // SECONDS, against 30ms to show one that already exists - and it was being
@@ -1030,7 +1052,7 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
 
     // They said something while circling. Whatever it was, the useful move is
     // to hand the AI the real files it named plus what they asked for, and let
-    // it choose the tool — summarise, merge, compress, convert. Hard-coding one
+    // it choose the tool - summarise, merge, compress, convert. Hard-coding one
     // of those would only ever cover one of them.
     if (instruction) {
       const named = Array.isArray(visionOut.files) ? visionOut.files.slice(0, 6) : [];
@@ -1077,7 +1099,7 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
 
     // 6. Circled inside Callisto: the answer as a chat bubble with its card.
     //    Circled in another app: a small card over that app while Callisto speaks,
-    //    without pulling Callisto in front — the chat still keeps the answer.
+    //    without pulling Callisto in front - the chat still keeps the answer.
     if (captureFromApp && overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.show();
       overlayWindow.focus();
@@ -1104,7 +1126,7 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
 
 function toggleOverlay() {
   if (!overlayWindow || overlayWindow.isDestroyed()) { createOverlayWindow(); return; }
-  // Visible but behind another window — the user wants it in front, not hidden.
+  // Visible but behind another window - the user wants it in front, not hidden.
   // Otherwise the first press hid a window they couldn't see and they had to
   // press the shortcut twice.
   if (overlayWindow.isVisible() && !overlayWindow.isFocused()) {
@@ -1128,13 +1150,13 @@ function toggleOverlay() {
 }
 
 // Handle jarvis:// deep link from Google OAuth
-// A link can arrive before there is a window to tell — on a cold start the URL
+// A link can arrive before there is a window to tell - on a cold start the URL
 // is in argv before anything is ready, and on a Mac open-url fires early. So it
 // is held until the window exists rather than dropped, which is what made
 // signing in appear to do nothing.
 let _pendingDeepLink = null;
 
-// A jarvis:// link can be fired by ANY web page or message — clicking one is
+// A jarvis:// link can be fired by ANY web page or message - clicking one is
 // all it takes. So a link that signs somebody in, or connects an account, is
 // only honoured if this app is actually waiting for one. Otherwise a stranger
 // could send "jarvis://auth?token=<theirs>" and silently log the person into
@@ -1172,7 +1194,7 @@ function handleDeepLink(url) {
         overlayWindow.webContents.send('auth:google-success', { token, name, email });
       }
     } else if (parsed.hostname === 'subscribed') {
-      // Payment complete — bring app to front and tell renderer to re-check subscription
+      // Payment complete - bring app to front and tell renderer to re-check subscription
       if (overlayWindow) {
         overlayWindow.show();
         overlayWindow.focus();
@@ -1212,7 +1234,7 @@ function handleDeepLink(url) {
 // Only one Callisto at a time. Without this lock a jarvis:// link launched a
 // whole second copy of the app: the second-instance event never fired, the new
 // copy registered its own shortcuts, and the token went to an instance the user
-// never saw — so signing in appeared to do nothing at all.
+// never saw - so signing in appeared to do nothing at all.
 const IS_PRIMARY_INSTANCE = app.requestSingleInstanceLock();
 if (!IS_PRIMARY_INSTANCE) app.quit();
 
@@ -1256,8 +1278,8 @@ function createTray() {
     { label: `${getAssistantName()} ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: `Summon ${getAssistantName()} (${process.platform === 'darwin' ? '⌘⇧J' : 'Ctrl+Shift+J'})`, click: toggleOverlay },
-    // Opens the in-app account screen — two-factor, devices, subscription,
-    // delete — rather than a web page that could only offer "Subscribe".
+    // Opens the in-app account screen - two-factor, devices, subscription,
+    // delete - rather than a web page that could only offer "Subscribe".
     { label: 'Account & security…', click: () => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         showOverlay();
@@ -1267,7 +1289,7 @@ function createTray() {
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
-  tray.setToolTip(`${getAssistantName()} ${app.getVersion()} — Your Own Personal AI`);
+  tray.setToolTip(`${getAssistantName()} ${app.getVersion()} - Your Own Personal AI`);
   tray.setContextMenu(menu);
   tray.on('click', toggleOverlay);
 }
@@ -1297,8 +1319,8 @@ async function _fireReminder(text) {
 // Opening apps, playing Spotify and hiding windows all go through AppleScript.
 // macOS gates that behind two permissions, and without asking it just blocks
 // the commands silently:
-//   • Automation (Apple Events) — "Callisto wants to control Spotify / System Events"
-//   • Accessibility — needed to hide or switch app windows
+//   • Automation (Apple Events) - "Callisto wants to control Spotify / System Events"
+//   • Accessibility - needed to hide or switch app windows
 // Sending one harmless event to each app makes macOS show its prompt now,
 // alongside the mic and camera prompts, instead of failing later.
 function requestMacAppControlPermissions() {
@@ -1313,7 +1335,7 @@ function requestMacAppControlPermissions() {
         systemPreferences.isTrustedAccessibilityClient(true);
       }
       const systemEvents = await ask('System Events');
-      // Only ask about Spotify if it's installed — otherwise macOS would offer to find it.
+      // Only ask about Spotify if it's installed - otherwise macOS would offer to find it.
       exec(`mdfind "kMDItemCFBundleIdentifier == 'com.spotify.client'"`, async (_e, out) => {
         const spotify = String(out || '').trim() ? await ask('Spotify') : null;
         store.set('macAppControl', { systemEvents, spotify, checkedAt: Date.now() });
@@ -1427,7 +1449,7 @@ app.whenReady().then(async () => {
   // Pre-warm the news cache in the background so first query has headlines ready instantly
   realtime.fetchNewsFeeds().catch(() => {});
 
-  // Send headlines to renderer — pulls latest from cache (or fetches fresh)
+  // Send headlines to renderer - pulls latest from cache (or fetches fresh)
   function sendNewsToRenderer() {
     realtime.fetchNewsFeeds().then(data => {
       if (!overlayWindow || overlayWindow.isDestroyed()) return;
@@ -1462,7 +1484,7 @@ app.whenReady().then(async () => {
   }
   scheduleNextMidnightRefresh();
 
-  // Wait for renderer ready then send — retry after 8s in case feeds were still loading
+  // Wait for renderer ready then send - retry after 8s in case feeds were still loading
   setTimeout(sendNewsToRenderer, 4000);
   setTimeout(sendNewsToRenderer, 10000);
 
@@ -1487,7 +1509,7 @@ app.whenReady().then(async () => {
       sendUpdateReady();
     });
 
-    // Don't crash on update errors, but do say why — a silent catch is what made
+    // Don't crash on update errors, but do say why - a silent catch is what made
     // the last broken updater so hard to diagnose.
     autoUpdater.on('error', (err) => {
       const msg = String((err && err.message) || err || '');
@@ -1557,7 +1579,7 @@ app.whenReady().then(async () => {
   // Porcupine); wiring that in is the natural next step. Hotkey ships as the v1 trigger.
   globalShortcut.register('CommandOrControl+Shift+J', toggleOverlay);
 
-  // Ctrl+Space — Clipboard AI: grab clipboard text and process it with the AI
+  // Ctrl+Space - Clipboard AI: grab clipboard text and process it with the AI
   globalShortcut.register('Control+Space', () => {
     const { clipboard } = require('electron');
     const text = clipboard.readText().trim();
@@ -1577,9 +1599,9 @@ app.whenReady().then(async () => {
   // (Alt+Shift+C): while that is on, a press and a circle on the screen narrows
   // the question down to what was circled.
 
-  // Ctrl+Shift+C — HUD voice trigger: first press = start listening, second press = stop & answer.
+  // Ctrl+Shift+C - HUD voice trigger: first press = start listening, second press = stop & answer.
   // The mic lives in the app window, so it decides start or stop and reports back
-  // (hud:mic-state) — the key and the "Listening…" pill can never disagree with it.
+  // (hud:mic-state) - the key and the "Listening…" pill can never disagree with it.
   globalShortcut.register('CommandOrControl+Shift+C', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
     hudVoiceMode = true;   // the answer to what's said goes to the small card
@@ -1606,7 +1628,7 @@ app.whenReady().then(async () => {
   // shortcut is gone rather than left as a second way in that behaves almost
   // but not quite the same.
 
-  // Ctrl+Shift+G — Toggle gesture control
+  // Ctrl+Shift+G - Toggle gesture control
   globalShortcut.register('CommandOrControl+Shift+G', () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     overlayWindow.webContents.executeJavaScript('if(window._gestureToggle) window._gestureToggle();').catch(() => {});
@@ -1621,7 +1643,7 @@ app.whenReady().then(async () => {
   });
   if (!assistKey) console.warn('[shortcut] Alt+Shift+C is already taken by something else');
 
-  // Ctrl+Shift+E — Magic Editor: copy selected text, record voice instruction, AI edits it
+  // Ctrl+Shift+E - Magic Editor: copy selected text, record voice instruction, AI edits it
   const magicEditRegistered = bindShortcut('magicEdit',
     process.platform === 'darwin'
       ? ['Alt+Shift+E', 'CommandOrControl+Shift+E']
@@ -1646,8 +1668,8 @@ app.whenReady().then(async () => {
     magicClipboardSaved = saveClipboard();
     clipboard.clear();
     // The user is still holding Ctrl+Shift when this fires. Sending Ctrl+C now
-    // arrives as Ctrl+Shift+C — which in Chrome opens DevTools instead of
-    // copying — so the key helper waits for the keys to come up first.
+    // arrives as Ctrl+Shift+C - which in Chrome opens DevTools instead of
+    // copying - so the key helper waits for the keys to come up first.
     await new Promise(resolve => {
       if (process.platform === 'win32' && sendKeysFast('copy', resolve)) return;
       if (process.platform === 'darwin') {
@@ -1683,7 +1705,7 @@ app.whenReady().then(async () => {
          [System.Windows.Forms.SendKeys]::SendWait('^c')`
       ], { timeout: 3000 }, resolve);
     });
-    // Step 2: Wait for the copy to land — quick apps take a few milliseconds,
+    // Step 2: Wait for the copy to land - quick apps take a few milliseconds,
     // Google Docs and Word up to about a second.
     let selectedText = '';
     for (let waited = 0; waited < 1500 && !selectedText; waited += 50) {
@@ -1693,7 +1715,7 @@ app.whenReady().then(async () => {
     if (!selectedText) {
       restoreClipboard(magicClipboardSaved);
       magicClipboardSaved = null;
-      sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected — highlight text first, then press ${keyLabel('magicEdit', 'Ctrl+Shift+E')}.` });
+      sendToHud('hud:card', { type: 'info', text: `✏️ Nothing selected - highlight text first, then press ${keyLabel('magicEdit', 'Ctrl+Shift+E')}.` });
       return;
     }
     // Step 3: Show the editor WITHOUT taking focus.
@@ -1725,7 +1747,7 @@ app.whenReady().then(async () => {
     else sendStart();
   });
   // Another app holding this combination would silently swallow the shortcut.
-  if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app — Magic Editor won\'t open.');
+  if (!magicEditRegistered) console.warn('[SHORTCUT] Ctrl+Shift+E is taken by another app - Magic Editor won\'t open.');
 
   // What actually bound, by name. Nothing reported this before, so working out
   // why a key did nothing on a Mac - where the Magic Editor and Magic Cursor
@@ -1740,7 +1762,7 @@ app.whenReady().then(async () => {
   // Auth is handled in the renderer on first open; nothing to check here at startup
 
 
-// ── Reminder scheduler — checks every 30 seconds ──────────────────────────
+// ── Reminder scheduler - checks every 30 seconds ──────────────────────────
   setInterval(async () => {
     const reminders = store.get('reminders') || [];
     if (!reminders.length) return;
@@ -1756,7 +1778,7 @@ app.whenReady().then(async () => {
         if (now >= earlyFire) {
           r.earlyTriggered = true;
           changed = true;
-          const earlyText = `Heads up — ${r.text.replace(/^(time for|reminder:|reminder -)/i, '').trim()} in ${r.earlyMinutes} minutes.`;
+          const earlyText = `Heads up - ${r.text.replace(/^(time for|reminder:|reminder -)/i, '').trim()} in ${r.earlyMinutes} minutes.`;
           _fireReminder(earlyText);
         }
       }
@@ -1865,17 +1887,17 @@ ipcMain.handle('auth:verify', async () => {
 ipcMain.handle('auth:google', () => {
   stepAsideForSignIn();
   const server = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
-  // The browser may never hand the jarvis:// link back — Chrome asks the person
+  // The browser may never hand the jarvis:// link back - Chrome asks the person
   // first, and a dismissed dialog leaves the token stranded there with the app
   // waiting forever. So we also go and fetch the result ourselves.
   // The state goes through Google; the verifier never leaves this process.
   // The server will only hand the result to a poll that can show the
-  // verifier, from the same address the browser signed in from — which is
+  // verifier, from the same address the browser signed in from - which is
   // what stops a sign-in link sent by somebody else from logging THEM in as
   // whoever clicked it.
   const { state, verifier } = authService.newGoogleSignIn();
   // Remembered so the jarvis://auth link that comes back can be checked
-  // against it — see handleDeepLink.
+  // against it - see handleDeepLink.
   _expectedGoogleState = { state, at: Date.now() };
   commands.openInChrome(authService.getGoogleAuthUrl(server, state));
 
@@ -2034,7 +2056,7 @@ ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl
     // "content filter" explains none of that, so the refusal names the real
     // problem and the way round it.
     if (!r.ok && /content.?filter|content.?policy|safety|moderat|blocked|rejected|not allowed/i.test(String(r.error || ''))) {
-      return { error: 'The video generator refused that one. It blocks named characters and brands it does not have the rights to — Iron Man, Mario, that sort of thing — however harmless the scene is. Describe the look instead and it will go through: "a man in a red and gold armoured flying suit, repulsors glowing, streaking over a city".' };
+      return { error: 'The video generator refused that one. It blocks named characters and brands it does not have the rights to - Iron Man, Mario, that sort of thing - however harmless the scene is. Describe the look instead and it will go through: "a man in a red and gold armoured flying suit, repulsors glowing, streaking over a city".' };
     }
     return r.ok ? { ok: true, videoUrl: r.url, seconds: r.seconds || null } : { error: r.error };
   } catch (err) {
@@ -2072,7 +2094,7 @@ ipcMain.handle('creative:editimage', async (_e, { imageBase64, prompt, size }) =
 
 // ── Artifacts (this week's creations) ────────────────────────────────────────
 // Spreadsheets Callisto made: open in Excel, or show in the folder. Only files
-// inside Documents/Callisto — the renderer can't open arbitrary paths this way.
+// inside Documents/Callisto - the renderer can't open arbitrary paths this way.
 function _callistoDocPath(p) {
   const dir = path.join(app.getPath('documents'), 'Callisto');
   const resolved = path.resolve(String(p || ''));
@@ -2317,7 +2339,7 @@ ipcMain.handle('creative:blender', async (_e, { subject }) => {
 3. Assigns basic Principled BSDF materials with appropriate colours
 4. Positions the camera and a 3-point light rig for a nice render view
 5. Sets the render engine to CYCLES or EEVEE
-Return ONLY the Python code — no markdown fences, no explanation.`
+Return ONLY the Python code - no markdown fences, no explanation.`
         },
         { role: 'user', content: `Create a 3D model of: ${subject}` }
       ]
@@ -2350,9 +2372,9 @@ Return ONLY the Python code — no markdown fences, no explanation.`
     }
 
     if (!blenderExe) {
-      // Blender not installed — open download page and return the script path so user can run manually
+      // Blender not installed - open download page and return the script path so user can run manually
       shell.openExternal('https://www.blender.org/download/');
-      return { ok: false, error: 'Blender not found — opening download page', scriptPath };
+      return { ok: false, error: 'Blender not found - opening download page', scriptPath };
     }
 
     // Step 4: Open Blender with the script
@@ -2389,7 +2411,7 @@ function restoreClipboard(saved) {
 
 // Windows key helper: one PowerShell kept running with SendKeys and the key-state
 // check already loaded. Starting PowerShell for each copy and paste cost about a
-// second apiece — and the paste's 600 ms limit sometimes killed it before it typed.
+// second apiece - and the paste's 600 ms limit sometimes killed it before it typed.
 let _keyHelper = null;
 let _keyHelperSeq = 0;
 const _keyHelperWaiting = new Map();
@@ -2461,7 +2483,7 @@ ipcMain.on('magic:ended', () => {
   try {
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(false);
   } catch (_) {}
-  // Closed without an edit — give the user their clipboard back.
+  // Closed without an edit - give the user their clipboard back.
   if (magicClipboardSaved) { restoreClipboard(magicClipboardSaved); magicClipboardSaved = null; }
 });
 
@@ -2492,7 +2514,7 @@ ipcMain.handle('magic:edit', async (_e, { selectedText, instruction }) => {
         editedText,
         summary: data.summary || null,
         pasteFailed: true,
-        error: 'I could not type it back in. It is on your clipboard — press '
+        error: 'I could not type it back in. It is on your clipboard - press '
           + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V where you want it.',
       };
     }
@@ -2643,7 +2665,7 @@ ipcMain.handle('jarvis:openExternal', async (_e, url) => {
   return { ok: true };
 });
 
-// ── Google Calendar — add event ────────────────────────────────────────────
+// ── Google Calendar - add event ────────────────────────────────────────────
 ipcMain.handle('jarvis:addCalendarEvent', async (_e, { title, startISO, endISO, details }) => {
   // Build Google Calendar "create event" URL with pre-filled fields
   const fmt = iso => iso ? iso.replace(/[-:]/g, '').replace('.000Z','Z') : '';
@@ -2813,7 +2835,7 @@ async function runSecondaryAction(act, _e) {
       if (act.arg !== undefined) {
         await commands.run(act.type, act.arg).catch(() => null);
       } else if (sender && !sender.isDestroyed()) {
-        // Panel-style actions the renderer owns (markets, calendar, weather—).
+        // Panel-style actions the renderer owns (markets, calendar, weather - ).
         sender.send('jarvis:action-fired', act);
       }
   }
@@ -2998,14 +3020,14 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);
   if (!token) return { error: 'login_required' };
-  // Wrap the whole handler — any unhandled throw becomes a structured error response
+  // Wrap the whole handler - any unhandled throw becomes a structured error response
   try {
-  // Ping activity in background (don't await — keep response fast)
+  // Ping activity in background (don't await - keep response fast)
   authService.pingActivity(token).catch(() => {});
 
   // ── Fast local path: execute instantly without touching the AI or server ──
   const { ACTION_KEYWORDS: _ak } = ai;
-  // Voice transcripts arrive as 'Open WhatsApp.' or '"Song" by Artist.' — drop the
+  // Voice transcripts arrive as 'Open WhatsApp.' or '"Song" by Artist.' - drop the
   // closing punctuation and quotes so the fast commands still match.
   // "on my laptop" is where these run anyway, so it's dropped; anything for the TV
   // skips them entirely so it can never land on this computer by mistake.
@@ -3018,7 +3040,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const FAST_MESSAGING = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
   const FAST_MUSIC = /^(spotify|apple music|youtube music|deezer|tidal|amazon music)$/i;
 
-  // Fast volume/mute/shutdown — zero AI latency
+  // Fast volume/mute/shutdown - zero AI latency
   const _volMute = _lo.match(/^(mute|unmute|silence)$/);
   const _volSet  = _lo.match(/^(?:set\s+)?volume\s+(?:to\s+)?(\d+)\s*%?$/);
   const _volUpDn = _lo.match(/^volume\s+(up|down)$/);
@@ -3072,7 +3094,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const url = onYt
       ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
       : `https://www.google.com/search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`;
-    // Fire action AND TTS simultaneously — don't wait for one before the other.
+    // Fire action AND TTS simultaneously - don't wait for one before the other.
     // Say where it is going, not just that it is going: "Searching now" leaves
     // somebody watching a browser appear without being told what opened it.
     const _where = onYt ? 'YouTube' : 'Google';
@@ -3091,7 +3113,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     _sendTTS(_e.sender, _said2);
     return { text: _said2, audio: null, card: null, hasAction: true };
   }
-  // "open my budget file", "open the essay document", "open resume.pdf" — a file,
+  // "open my budget file", "open the essay document", "open resume.pdf" - a file,
   // found and opened (Finder/File Explorer's own search), not an app called "budget file".
   if (_openM && /.\s+(?:file|document|doc|docx|word(?:\s+doc(?:ument)?)?|pdf|spreadsheet|sheet|xlsx|excel(?:\s+(?:file|sheet))?|presentation|slides|deck|ppt|pptx|powerpoint|photo|picture|image|video)$|\.(?!(?:com|org|net|io|co|ca|uk|ai|app|dev|me|tv|gov|edu)$)[a-z0-9]{2,5}$/.test(_openM[1].trim())) {
     const res = await commands.run('open_file', _openM[1].trim()).catch((e) => ({ ok: false, error: e.message }));
@@ -3165,15 +3187,15 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     return { text: said, audio: null, card: null, hasAction: true };
   }
 
-  // ── Fast path: play commands — skip AI entirely, go straight to Spotify ──────
+  // ── Fast path: play commands - skip AI entirely, go straight to Spotify ──────
   // Catches: "play X", "play X on spotify", "play X by Y", "put on X", "i want to hear X", etc.
   // Not for Spotify: a title on Netflix or Prime, anything for the TV, or a video,
-  // film or game ("play the video I made", "play chess") — unless it names an artist.
+  // film or game ("play the video I made", "play chess") - unless it names an artist.
   const _notMusic = _forTv
     || /\bon\s+(?:netflix|prime|amazon|disney|hulu|hbo|max|apple\s+tv|crunchyroll|twitch|tiktok|instagram|facebook)\b/.test(_lo)
     || (/\b(?:video|videos|movie|film|episode|trailer|clip|game|chess)\b/.test(_lo) && !/\sby\s/.test(_lo));
   const _playM = !_notMusic && (_lo.match(/^(?:play(?:\s+me)?|put\s+on|i\s+want\s+to\s+(?:hear|listen\s+to)|listen\s+to|start\s+playing)\s+(.+?)(?:\s+on\s+(?:spotify|apple\s+music|youtube\s+music|youtube))?\s*$/)
-    // "Nice for What by Drake on Spotify" — no verb, but clearly a song request
+    // "Nice for What by Drake on Spotify" - no verb, but clearly a song request
     || _lo.match(/^(?!open\b|launch\b|start\b)(.+?\s+by\s+.+?)\s+on\s+spotify$/));
   if (_playM) {
     const songQuery = _playM[1].trim();
@@ -3197,7 +3219,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   const memories = store.get('memories') || [];
 
-  // Sports query — fetch ESPN card first; only open Google if no card found.
+  // Sports query - fetch ESPN card first; only open Google if no card found.
   //
   // A question naming a year that has already finished is history, not live
   // data. "Who won the 1992 Pakistan versus India test series" was being sent
@@ -3214,7 +3236,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const cardData = await _cap(realtime.fetchCardData(message).catch(() => null), 2000);
 
     if (cardData) {
-      // We have a card — speak the result, no browser needed
+      // We have a card - speak the result, no browser needed
       const c = cardData;
       const isUpcoming = c.score1 === '–';
       const scorerLines = c.scorers?.length
@@ -3241,7 +3263,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // "remind me to buy black shoes", "add a task to call the park manager".
   const _isActionRequest = /^(?:(?:hey\s+\w+|ok(?:ay)?|please|can\s+you|could\s+you|would\s+you)[,\s]+)*(?:remind|add|set|create|make|schedule|send|email|write|draft|put|book|call|text|message|play|open|launch|delete|remove|cancel|note|save|buy|order|generate|draw|translate|summari[sz]e|edit|rewrite|fix|turn|mute|pause|stop)\b/i.test(message.trim())
     || /\b(?:task|reminder|to-?do|calendar|email|spreadsheet|document|slides|presentation)\b/i.test(message);
-  // "What is a pangolin?", "what's the Eiffel Tower?", "what is Japan?" — a thing to
+  // "What is a pangolin?", "what's the Eiffel Tower?", "what is Japan?" - a thing to
   // show with a picture, like "who is". Not "what's the time", "what is my…", "what's up".
   const _isWhatIs = /^(?:so\s+)?what(?:'s|\s+is|\s+are|\s+was|\s+were)\s+(?:a\s+|an\s+|the\s+)?[\w\s'.-]{2,40}\??$/i.test(message.trim())
     && !/\b(?:my|your|our|me|i|time|date|day|today|tomorrow|tonight|weather|temperature|forecast|news|score|price|stock|worth|difference|best|going on|happening|plan|schedule|up|wrong|this|that|it|meaning|point)\b/i.test(message);
@@ -3254,9 +3276,9 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     return end > 60 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…';
   };
 
-  // Person/celebrity/historical figure query — fetch Wikipedia card first
+  // Person/celebrity/historical figure query - fetch Wikipedia card first
   const PERSON_FAST_REGEX = /\b(who is|who('s| is) (the |a )?|who was|tell me about|photo of|picture of|biography of|actor|actress|singer|rapper|musician|footballer|basketball player|tennis player|boxer|athlete|sportsperson|sportsman|sportswoman|politician|president|prime minister|pm of|chancellor|governor|founder|ceo|scientist|inventor|historical figure|who played|played by|celebrity|famous|legend)\b/i;
-  // Current-leader queries need live realtime context — don't short-circuit them
+  // Current-leader queries need live realtime context - don't short-circuit them
   const CURRENT_LEADER_REGEX = /\b(prime minister of|president of|pm of|chancellor of|who('s| is) the (current |new |present )?(?:prime minister|president|pm|chancellor|leader)|current (?:prime minister|president|pm|chancellor)|who leads|who runs|head of state|head of government)\b/i;
   const isCurrentLeader = CURRENT_LEADER_REGEX.test(message);
   if (PERSON_FAST_REGEX.test(message) && !isCurrentLeader && !_isActionRequest) {
@@ -3267,10 +3289,10 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
       if (spokenText) _sendTTS(_e.sender, spokenText);
       return { text: spokenText || p.name, audio: null, card: personCard, hasAction: false };
     }
-    // No card or no photo — fall through to normal AI flow
+    // No card or no photo - fall through to normal AI flow
   }
 
-  // Image search queries — "show me a photo of X", "picture of X", "what does X look like"
+  // Image search queries - "show me a photo of X", "picture of X", "what does X look like"
   const IMAGE_QUERY_REGEX = /\b(show me (a |the )?photo(s)? of|picture(s)? of|image(s)? of|what does .{0,30} look like|show me what .{0,30} looks like)\b/i;
   if (IMAGE_QUERY_REGEX.test(message) && !_isActionRequest) {
     const topic = message.replace(IMAGE_QUERY_REGEX, '').replace(/[?!.]+$/, '').trim();
@@ -3286,7 +3308,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     }
   }
 
-  // Historical/art/food/flag/fashion/nature queries — show card directly
+  // Historical/art/food/flag/fashion/nature queries - show card directly
   const VISUAL_CARD_REGEX = /\b(painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|battle of|world war|revolution|assassination|holocaust|moon landing|sputnik|food|dish|cuisine|pizza|sushi|burger|biryani|ramen|gucci|louis vuitton|nike|adidas|puma|supreme|landmark|show me a photo|show me the|what does .{0,20} look like|game|video game|minecraft|fortnite|call of duty|pokemon|zelda|mario|fifa|gta|game character|brand|clothing|outfit|dress|fashion|sneakers|shoes|shirt|jacket|plant|flower|tree|rose|tulip|sunflower|oak|pine|cherry blossom|cactus|orchid|colour|color|shade of|hue|tone of|red|blue|green|yellow|purple|orange|pink|black|white|brown|park|garden|beach|mountain|lake|river|forest|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|stadium|monument|national park|nature reserve|zoo|museum|island|valley|canyon|coast)\b/i;
   if ((VISUAL_CARD_REGEX.test(message) || _isWhatIs) && !_isActionRequest) {
     const visualCard = await _cap(realtime.fetchCardData(message).catch(() => null), 2000);
@@ -3301,12 +3323,12 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const EMAIL_REGEX = /\b(email|emails|inbox|messages|unread|update|updates|notifications|mail|whats new|what's new|any new|check my|briefing)\b/i;
   const UPDATE_REGEX = /\b(update|updates|briefing|whats new|what's new|any new|check my)\b/i;
   const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking|election|government|minister|leader|war|conflict|attack|died|dead|killed|arrested|resigned|fired|appointed|announced|launched|released|happened|going on|situation|update|updates|crisis|protest|strike|shooting|bombing|earthquake|flood|hurricane|tornado|disaster|accident|crash|explosion|riot|coup|invasion|ceasefire|treaty|summit|vote|voted|referendum|trial|verdict|sentenced|acquitted|charged|indicted|scandal|leaked|confirmed|reported|sources say|according to|breaking|developing|just in|prime minister of|president of|who leads|who runs|head of state|who won|who lost|result|results|outcome|record|records|new high|new low|all time)\b/i;
-  // Card queries — all topic types that produce a sidebar card
+  // Card queries - all topic types that produce a sidebar card
   const CARD_REGEX = /\b(stock|crypto|bitcoin|ethereum|price of|chart of|score|match|who is|who was|biography|photo of|picture of|image of|photos of|pictures of|show me|show me a|show me an|what does .{0,30} look like|movie|film|cinema|sequel|prequel|release date|coming out|box office|cast|director|trailer|painting|artwork|mona lisa|van gogh|picasso|flag of|national flag|food|dish|cuisine|recipe|pizza|sushi|burger|biryani|curry|ramen|lion|tiger|elephant|penguin|shark|eagle|gucci|louis vuitton|nike|adidas|battle of|world war|revolution|assassination|historical|landmark|tell me about|actor|actress|singer|rapper|musician|politician|scientist|inventor|historical figure|who played|animal|character|location|city|country|capital|park|garden|beach|mountain|lake|river|forest|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|stadium|square|plaza|district|neighbourhood|neighborhood|monument|national park|nature reserve|botanical garden|zoo|museum|gallery|island|valley|canyon|desert|coast|harbour|harbor)\b/i;
   // Fetch news for any query that could benefit from current headlines
   const NEWS_REGEX = /\b(news|latest|breaking|today|yesterday|this week|right now|recently|what happened|what's happening|what is happening|current events?|headlines?|update on|politics|global|world news|any news|tell me what|did .{0,20} happen|has .{0,20} happened|is there any|what('s| is) going on|situation in|conflict in|crisis in|war in|died|dead|killed|arrested|attacked|bombed|elected|won the|lost the|announced|launched|signed|passed|rejected|banned|approved|discovered|found|caught|escaped|missing|rescued|survived|injured|hospitalized)\b/i;
 
-  // Detect mark-as-read intent — bypass email fetch, go straight to action
+  // Detect mark-as-read intent - bypass email fetch, go straight to action
   const MARK_READ_REGEX = /\b(mark.*read|read.*all|clear.*unread|mark.*unread|all.*read)\b/i;
   const isMarkRead = MARK_READ_REGEX.test(message);
   const isEmailQuery = !isMarkRead && (UPDATE_REGEX.test(message) || EMAIL_REGEX.test(message));
@@ -3328,7 +3350,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
       || /\b(?:weather|temperature|forecast|raining|snowing)\b/i.test(q);
   }
 
-  // Run ALL data fetches in parallel — don't wait for one before starting another
+  // Run ALL data fetches in parallel - don't wait for one before starting another
   // Every one of these races the answer. Measured: a card lookup took between
   // 1.4 and 4.6 seconds and ran BEFORE a word was spoken, so a question could
   // sit for the better part of five seconds waiting on a picture. Capped, the
@@ -3336,7 +3358,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // gets - which is the right trade against the answer itself being late.
   function _cap(p, ms) { return Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]); }
 
-  // For pure action queries (open, play, search), skip all fetches — they just add latency
+  // For pure action queries (open, play, search), skip all fetches - they just add latency
   const isPureAction = !isEmailQuery && ai.ACTION_KEYWORDS.test(message) && !needsRealtime && !needsCard;
 
   // Strip assistant name from search queries so "Jarvis, who is the president" doesn't search for "Jarvis president"
@@ -3358,7 +3380,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     needsNews ? _cap(realtime.getNewsContext(searchMessage).catch(() => null), 2000) : Promise.resolve(null),
   ]);
 
-  // Email context — Gmail/Outlook removed pending ADA-CASA verification
+  // Email context - Gmail/Outlook removed pending ADA-CASA verification
   let emailContext = null;
   // "Give me an update" is not a question about email. It used to be caught by
   // the same regex and answered with "email features are coming soon", which
@@ -3409,20 +3431,20 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   if (cardData?.type === 'stock') {
     const c = cardData;
     const sign = c.positive ? '+' : '';
-    cardContext = `LIVE ${c.isCrypto ? 'CRYPTO' : 'STOCK'} DATA for ${c.name} (${c.symbol}):\nPrice: ${c.currency} ${c.price}\nChange today: ${sign}${c.change} (${sign}${c.changePct}%)\n${c.high52 ? `52-week high: ${c.currency} ${c.high52}\n` : ''}${c.low52 ? `52-week low: ${c.currency} ${c.low52}\n` : ''}${c.marketCap ? `Market cap: ${c.marketCap}\n` : ''}Source: Yahoo Finance\nRead out the price and today's change. Do not say you lack live data — this IS live data.`;
+    cardContext = `LIVE ${c.isCrypto ? 'CRYPTO' : 'STOCK'} DATA for ${c.name} (${c.symbol}):\nPrice: ${c.currency} ${c.price}\nChange today: ${sign}${c.change} (${sign}${c.changePct}%)\n${c.high52 ? `52-week high: ${c.currency} ${c.high52}\n` : ''}${c.low52 ? `52-week low: ${c.currency} ${c.low52}\n` : ''}${c.marketCap ? `Market cap: ${c.marketCap}\n` : ''}Source: Yahoo Finance\nRead out the price and today's change. Do not say you lack live data - this IS live data.`;
   } else if (cardData?.type === 'sports') {
     const c = cardData;
     const isUpcoming = c.score1 === '–';
     const scorerLines = c.scorers?.length ? `Scorers:\n${c.scorers.map(s => `- ${s.team ? s.team + ': ' : ''}${s.detail}`).join('\n')}\n` : '';
     const motmLine = c.motm ? `Man of the Match: ${c.motm}\n` : '';
     cardContext = isUpcoming
-      ? `LIVE SPORTS DATA:\n${c.team1} vs ${c.team2} — match has NOT started yet.\nStatus: ${c.status}\n${c.league ? `Competition: ${c.league}\n` : ''}Read this out clearly. Do not say you lack live data.`
+      ? `LIVE SPORTS DATA:\n${c.team1} vs ${c.team2} - match has NOT started yet.\nStatus: ${c.status}\n${c.league ? `Competition: ${c.league}\n` : ''}Read this out clearly. Do not say you lack live data.`
       : `LIVE SPORTS DATA:\nFinal Score: ${c.team1} ${c.score1} – ${c.score2} ${c.team2}\nStatus: ${c.status}\n${c.league ? `Competition: ${c.league}\n` : ''}${scorerLines}${motmLine}Read out the score and all scorers. Do not say you lack live data.`;
   } else if (cardData?.type === 'movie') {
     const m = cardData;
     cardContext = `MOVIE CARD SHOWN: "${m.title}" (${m.year}).\n${m.released ? `Release date: ${m.released}\n` : ''}${m.runtime ? `Runtime: ${m.runtime}\n` : ''}${m.genre ? `Genre: ${m.genre}\n` : ''}${m.director ? `Director: ${m.director}\n` : ''}${m.cast ? `Cast: ${m.cast}\n` : ''}${m.imdbRating ? `IMDb rating: ${m.imdbRating}/10\n` : ''}${m.plot ? `Plot: ${m.plot}\n` : ''}Speak a brief, enthusiastic 1-2 sentence summary based on this data. Do not say you lack information.`;
   } else if (cardData?.type === 'person') {
-    cardContext = `PERSON CARD SHOWN: ${cardData.name}.\n${cardData.subtitle ? `Description: ${cardData.subtitle}\n` : ''}${cardData.bio ? `Bio: ${cardData.bio}\n` : ''}Use this to answer the user's question about this person. Do not say you lack information — use what is shown.`;
+    cardContext = `PERSON CARD SHOWN: ${cardData.name}.\n${cardData.subtitle ? `Description: ${cardData.subtitle}\n` : ''}${cardData.bio ? `Bio: ${cardData.bio}\n` : ''}Use this to answer the user's question about this person. Do not say you lack information - use what is shown.`;
   } else if (cardData?.type === 'animal') {
     const a = cardData;
     cardContext = `ANIMAL CARD SHOWN: ${a.name}.\n${a.description ? `Description: ${a.description}\n` : ''}${a.funFact ? `Interesting fact: ${a.funFact}\n` : ''}A photo of the ${a.name} is shown on screen. Give a brief, engaging response about this animal using the information shown. Do not say you lack information.`;
@@ -3434,7 +3456,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   }
 
   console.log('[CHAT] parallel fetches done, newsContext:', !!newsContext, 'realtimeContext:', !!realtimeContext);
-  // Email send requests must bypass the tool-calling path — the AI needs full token budget
+  // Email send requests must bypass the tool-calling path - the AI needs full token budget
   // to write the email draft and embed the EMAILDRAFT marker; tool_choice:'required' breaks this
   const EMAIL_SEND_REGEX = /\b(send|write|compose|draft)\b.{0,40}\b(email|mail|message)\b/i;
   const isEmailSendRequest = EMAIL_SEND_REGEX.test(message);
@@ -3486,7 +3508,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
       const display = vipDisplayName(v);
       return `${i + 1}. ${display} <${v}>`;
     });
-    vipContext = `VIP SENDERS (people the user can email by first name):\n${vipLines.join('\n')}\nMatch the recipient the user mentions to this list by first name and use their full email in the draft. The name in the email address may differ slightly — e.g. "amnaweb122@gmail.com" is "Amna".`;
+    vipContext = `VIP SENDERS (people the user can email by first name):\n${vipLines.join('\n')}\nMatch the recipient the user mentions to this list by first name and use their full email in the draft. The name in the email address may differ slightly - e.g. "amnaweb122@gmail.com" is "Amna".`;
   }
 
   // When they're talking about a spreadsheet, show the AI the last one it made so
@@ -3496,7 +3518,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   if (lastSheet && /\b(spreadsheet|sheet|excel|workbook|columns?|rows?|tab|tracker)\b/i.test(message)
       && Date.now() - (lastSheet.at || 0) < 7 * 86400000) {
     const trimmedSheets = (lastSheet.sheets || []).map((s) => ({ ...s, rows: (s.rows || []).slice(0, 60) }));
-    sheetContext = `The spreadsheet you most recently built for the user ("${lastSheet.title}"), as JSON. If they ask to change it, call create_spreadsheet with the COMPLETE updated spreadsheet — keep everything they didn't ask to change:\n${JSON.stringify({ title: lastSheet.title, currency: lastSheet.currency, sheets: trimmedSheets })}`;
+    sheetContext = `The spreadsheet you most recently built for the user ("${lastSheet.title}"), as JSON. If they ask to change it, call create_spreadsheet with the COMPLETE updated spreadsheet - keep everything they didn't ask to change:\n${JSON.stringify({ title: lastSheet.title, currency: lastSheet.currency, sheets: trimmedSheets })}`;
   }
   // What they just made, so "post it", "another one" and "make it bigger" have
   // something to point at instead of drawing a blank.
@@ -3511,7 +3533,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const recent = artifacts.list().slice(0, 3);
     if (recent.length) {
       const KIND = { model: '3D model', image: 'image', video: 'video' };
-      recentContext = 'THINGS THEY RECENTLY MADE (newest first) — "it", "this" and "that" most likely mean the first one:\n'
+      recentContext = 'THINGS THEY RECENTLY MADE (newest first) - "it", "this" and "that" most likely mean the first one:\n'
         + recent.map((a, i) => `${i + 1}. ${KIND[a.kind] || a.kind}: "${a.title}"`).join('\n');
     }
   } catch (_) {}
@@ -3533,7 +3555,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   // Action queries get trimmed history for speed; conversation queries keep 30 for context
   // Streaming path: synthesize each sentence as it arrives and push audio to renderer immediately
   // This lets the user hear the first sentence while the rest is still being generated
-  // Fast path: mark-as-read — email not available in this version
+  // Fast path: mark-as-read - email not available in this version
   if (isMarkRead) {
     const spokenText = 'Email features are coming soon in a future update.';
     _sendTTS(_e.sender, spokenText);
@@ -3564,7 +3586,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   const trimmedHistory = needsAction ? history.slice(-5) : trimForSpeed(history, 14, 7000);
   // While the screen is being watched, what the user is looking at is part of
-  // the conversation — "combine these two PDFs" needs no screenshot, because
+  // the conversation - "combine these two PDFs" needs no screenshot, because
   // Callisto already knows what is on screen.
     // Set when the user circled something and said what to do with it. Used
   // once, for the turn it belongs to, then cleared.
@@ -3574,7 +3596,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   if (lastScreenContext && Date.now() - lastScreenContext.at < 60000) {
     _screenNote = `
 
-ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" — do not ask them to send a screenshot.`;
+ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app ? ` (in ${lastScreenContext.app})` : ''}. Use this when they say "this", "these", "that" or "here" - do not ask them to send a screenshot.`;
   }
   // A skill the person installed that fits what they just asked for. Its
   // instructions ride along with the request rather than sitting in every
@@ -3597,7 +3619,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
-  // Buffer to hold audio keyed by sentence index — ensures playback order matches text order
+  // Buffer to hold audio keyed by sentence index - ensures playback order matches text order
   const sentenceAudioBuffer = {};
   let sentenceIdx = 0;      // index assigned to each sentence as it arrives
   let sentenceNextPlay = 0; // index of the next audio clip to send
@@ -3644,7 +3666,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
             });
           }
           // Formatted answers: speak the prose, skip tables/code, and only read the
-          // opening of long answers — the full version is on screen.
+          // opening of long answers - the full version is on screen.
           if (/^\s*\|/.test(sentence) || /```/.test(sentence) || /^\s*[-:| ]{3,}$/.test(sentence)) return;
           if (sentenceIdx >= 6) return;
           const clean = sentence
@@ -3658,7 +3680,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
             .replace(/\|/g, ', ')
             .trim();
           if (!clean) return;
-          // For email drafts, only speak the intro — skip reading the full email body aloud
+          // For email drafts, only speak the intro - skip reading the full email body aloud
           if (isEmailSendRequest && /^(Dear|Hi|Hello)\b/i.test(clean)) return;
           if (isEmailSendRequest && /\b(Subject:|With all my love|Best regards|Sincerely|Warm regards)\b/i.test(clean)) return;
           const myIdx = sentenceIdx++;
@@ -3688,11 +3710,11 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         },
       });
 
-  // Don't block — TTS audio is already streaming to renderer via jarvis:sentence-audio IPC events
+  // Don't block - TTS audio is already streaming to renderer via jarvis:sentence-audio IPC events
   Promise.all(sentencePending).catch(() => {});
 
   if (result.memory) {
-    // Deduplicate — don't save if a very similar memory already exists
+    // Deduplicate - don't save if a very similar memory already exists
     const newFact = result.memory.toLowerCase().trim();
     const isDuplicate = memories.some(m => {
       const existing = m.toLowerCase().trim();
@@ -3704,7 +3726,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     });
     if (!isDuplicate) {
       memories.push(result.memory);
-      // Cap at 120 memories — remove oldest if over limit
+      // Cap at 120 memories - remove oldest if over limit
       if (memories.length > 120) memories.splice(0, memories.length - 120);
       store.set('memories', memories);
       cloudPushPrefs({ memories }).catch(() => {});
@@ -3729,15 +3751,15 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
   const didTakeAction = !!result.action; // track before nulling out
 
-  // For play_music — try Spotify Web API first (plays in background), else fall back to opening app/browser
+  // For play_music - try Spotify Web API first (plays in background), else fall back to opening app/browser
   let finalAction = result.action;
   // Anything about the TV is the TV's job. If a TV request reached the AI, its
-  // tools for this computer — volume, power, music, apps — must not act here
+  // tools for this computer - volume, power, music, apps - must not act here
   // ("increase my TV's volume to 80" was turning up the laptop).
   if (finalAction && /\b(?:tv|television)(?:'?s)?\b/i.test(message)
       && ['set_volume', 'system_power', 'play_music', 'open_app'].includes(finalAction.type)) {
     finalAction = null;
-    finalText = 'That sounds like it\'s for your TV, so I left this computer alone. Try saying it with "on my TV" — for example "set the volume to 80 on my TV".';
+    finalText = 'That sounds like it\'s for your TV, so I left this computer alone. Try saying it with "on my TV" - for example "set the volume to 80 on my TV".';
     _sendTTS(_e.sender, finalText);
     return { text: finalText, audio: null, card: null, hasAction: false };
   }
@@ -3787,7 +3809,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     // If Spotify is connected via OAuth, use Web API for true background playback
     const spotifyConnected = !!(store.get('connector.spotify.access_token'));
     if (spotifyConnected && (resolvedService === 'spotify' || resolvedService === '' || !aiService)) {
-      // Wrap entirely — any network/timeout rejection must NOT crash the whole handler
+      // Wrap entirely - any network/timeout rejection must NOT crash the whole handler
       let playResult = null;
       try { playResult = await playOnSpotifyTimed(query, 8000); } catch (_) { playResult = { ok: false, error: 'timeout' }; }
 
@@ -3800,7 +3822,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       }
 
       if (playResult.ok) {
-        // Plays in background — suppress Spotify window immediately
+        // Plays in background - suppress Spotify window immediately
         suppressSpotifyWindow();
         setTimeout(() => suppressSpotifyWindow(), 400);
         setTimeout(() => suppressSpotifyWindow(), 1200);
@@ -3808,10 +3830,10 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       } else if (playResult.error === 'NO_ACTIVE_DEVICE') {
-        // Spotify not open — launch it, then poll every 2s until a device registers
+        // Spotify not open - launch it, then poll every 2s until a device registers
         launchSpotifyHidden();
 
-        // Focus lock: keep Callisto in front while Spotify launches (singleton — cancels any prior lock)
+        // Focus lock: keep Callisto in front while Spotify launches (singleton - cancels any prior lock)
         startSpotifyFocusLock(32000);
 
         const devices = await waitForSpotifyDevice(28000);
@@ -3831,7 +3853,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
           }
         }
         stopSpotifyFocusLock();
-        // Retries exhausted — open the specific track URI which auto-plays via AppleScript (Mac) or WM_APPCOMMAND (Win)
+        // Retries exhausted - open the specific track URI which auto-plays via AppleScript (Mac) or WM_APPCOMMAND (Win)
         const trackUri = lastRetry?.trackUri || playResult.trackUri;
         const trackName = lastRetry?.trackName || playResult.trackName || query;
         if (trackUri) {
@@ -3840,23 +3862,23 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
           _sendTTS(_e.sender, spokenText);
           return { text: spokenText, audio: null, card: null, hasAction: true };
         }
-        // Last resort — search URI
+        // Last resort - search URI
         await commands.run('play_music', `spotify|${query}`).catch(() => {});
         const spokenText = `Opening Spotify with "${query}".`;
         _sendTTS(_e.sender, spokenText);
         return { text: spokenText, audio: null, card: null, hasAction: true };
       }
-      // Other error (token issue, network, etc.) — use track URI fallback if we have one
+      // Other error (token issue, network, etc.) - use track URI fallback if we have one
       if (playResult.trackUri) {
         finalAction = { type: 'play_music', arg: `spotify_track_uri|${playResult.trackUri}` };
         finalText = `Playing "${playResult.trackName}" by ${playResult.artistName} on Spotify.`;
       } else {
-        // No track URI — open Spotify search as last resort
+        // No track URI - open Spotify search as last resort
         finalAction = { type: 'play_music', arg: `spotify|${query}` };
         finalText = `Opening Spotify with "${query}".`;
       }
     } else if (aiService && aiService !== 'spotify') {
-      // The user named another service ("on Apple Music") — use it
+      // The user named another service ("on Apple Music") - use it
       finalAction = { type: 'play_music', arg: `${aiService}|${query}` };
     } else {
       // Spotify first: installed → the song opens in Spotify; not installed → YouTube
@@ -3866,12 +3888,16 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   }
 
-  // For call actions — check saved contacts first and dial directly
+  // For call actions - check saved contacts first and dial directly
 
-  // 3D model generation — the renderer opens the viewer and drives the job itself,
+  // 3D model generation - the renderer opens the viewer and drives the job itself,
   // because generation takes 40-90s and we don't want to hold the chat turn open.
   if (finalAction?.type === 'generate_3d_model') {
     const payload = finalAction.payload || {};
+    if (_junkCreative(message)) {
+      _sendTTS(_e.sender, _JUNK_REPLY);
+      return { text: _JUNK_REPLY, audio: null, card: null, hasAction: false };
+    }
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('model:start', payload);
     }
@@ -3880,10 +3906,10 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return { text: spokenText, audio: null, card: null, hasAction: true };
   }
 
-  // Posting to a social account — never done straight away. The renderer shows a
+  // Posting to a social account - never done straight away. The renderer shows a
   // confirm card with what will be posted and where, and only posts on approval.
   // A terminal command is only ever proposed: the card shows exactly what would
-  // run and where, and it runs when the user presses Run — never before.
+  // run and where, and it runs when the user presses Run - never before.
   if (finalAction?.type === 'run_command') {
     const p = finalAction.payload || {};
     // Reassigned below when the project turns out to be one level down.
@@ -3916,7 +3942,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
             looksLikeProject = true;
           } else if (kids.length > 1) {
             const names = kids.map((k) => path.basename(k));
-            const spoken = `There are ${names.length} projects in there — ${names.join(', ')}. Which one?`;
+            const spoken = `There are ${names.length} projects in there - ${names.join(', ')}. Which one?`;
             _sendTTS(_e.sender, spoken);
             return { text: spoken, audio: null, card: { type: 'pick-folder', why: 'so I know which one to work in' }, hasAction: false };
           }
@@ -3937,7 +3963,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       }
     }
 
-    const spokenText = 'Here\'s the command — press Run when you\'re ready.';
+    const spokenText = 'Here\'s the command - press Run when you\'re ready.';
     _sendTTS(_e.sender, spokenText);
     return {
       text: finalText && finalText.length > 4 ? finalText : spokenText,
@@ -3947,7 +3973,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     };
   }
 
-  // Reading DMs — Instagram only, and the card shows the conversation.
+  // Reading DMs - Instagram only, and the card shows the conversation.
   if (finalAction?.type === 'read_messages') {
     const who = (finalAction.payload?.from || '').trim();
     const inbox = await connectors.getInstagramInbox(25);
@@ -3973,7 +3999,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       } else if (theirLast.text) {
         spoken = `${match.name} said: ${theirLast.text}`;
       } else {
-        // No words — say what it is, and describe the picture if we can see it.
+        // No words - say what it is, and describe the picture if we can see it.
         const shot = theirLast.attachments?.[0]?.thumb || theirLast.attachments?.[0]?.url;
         const seen = await describeInstagramMedia(shot);
         spoken = seen
@@ -3990,13 +4016,13 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const spoken = inbox.threads.length === 0
       ? 'You have no Instagram messages yet.'
       : unread.length
-        ? `You have ${unread.length} unread message${unread.length === 1 ? '' : 's'} on Instagram — the newest is from ${unread[0].name}.`
+        ? `You have ${unread.length} unread message${unread.length === 1 ? '' : 's'} on Instagram - the newest is from ${unread[0].name}.`
         : `Nothing unread. Your most recent Instagram message is from ${inbox.threads[0].name}.`;
     _sendTTS(_e.sender, spoken);
     return { text: spoken, audio: null, hasAction: false, card: { type: 'dm-inbox', platform: 'instagram', ...inbox } };
   }
 
-  // Sending — Instagram really sends, so it's confirmed on a card first.
+  // Sending - Instagram really sends, so it's confirmed on a card first.
   // WhatsApp only ever types the message into the chat for the user to send.
   if (finalAction?.type === 'send_message') {
     const p = finalAction.payload || {};
@@ -4015,7 +4041,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         .replace(/^(.)/, (c) => c.toUpperCase());
       await commands.run('open_chat', `${p.platform}|${p.to || ''}|${p.message || ''}`).catch(() => null);
       const spoken = p.message
-        ? `I've opened ${where}${p.to ? ` with ${p.to}` : ''} and typed your message in — press send.`
+        ? `I've opened ${where}${p.to ? ` with ${p.to}` : ''} and typed your message in - press send.`
         : `I've opened ${where}${p.to ? ` with ${p.to}` : ''} for you.`;
       _sendTTS(_e.sender, spoken);
       return { text: spoken, audio: null, hasAction: true };
@@ -4036,7 +4062,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       let spoken;
       if (!check || !check.ok) {
         const why = (check && check.error) || 'the inbox would not open';
-        spoken = `I can't read your Instagram inbox, so I can't tell who has messaged you: ${why}. The connection usually needs the messaging permission — reconnect Instagram from Connectors and allow messages when Meta asks.`;
+        spoken = `I can't read your Instagram inbox, so I can't tell who has messaged you: ${why}. The connection usually needs the messaging permission - reconnect Instagram from Connectors and allow messages when Meta asks.`;
       } else if (!(check.threads || []).length) {
         spoken = `Your Instagram inbox is empty as far as Callisto can see. Instagram only shares conversations with the account it is connected to, so check it is the right one in Connectors.`;
       } else {
@@ -4063,7 +4089,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const n = (p.shapes || []).length;
     const spoken = finalText && finalText.length > 4
       ? finalText
-      : (p.op === 'clear' ? 'Cleared it.' : `Done — ${n} shape${n === 1 ? '' : 's'} added.`);
+      : (p.op === 'clear' ? 'Cleared it.' : `Done - ${n} shape${n === 1 ? '' : 's'} added.`);
     _sendTTS(_e.sender, spoken);
     return { text: spoken, audio: null, hasAction: true };
   }
@@ -4107,7 +4133,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     };
   }
 
-  // Handle an AI phone call — the assistant dials out and negotiates on the user's behalf
+  // Handle an AI phone call - the assistant dials out and negotiates on the user's behalf
 
   // Handle calendar actions
   if (finalAction?.type === 'get_events') {
@@ -4119,7 +4145,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const extras = _tasksAndReminders(days);
     if (!calendar.isConnected()) {
       const spokenText = extras
-        ? `${extras} Your Google Calendar isn't connected yet, so that is everything I can see — the link icon in the top bar adds it.`
+        ? `${extras} Your Google Calendar isn't connected yet, so that is everything I can see - the link icon in the top bar adds it.`
         : 'Your Google Calendar isn\'t connected yet. Click the link icon in the top bar to connect it.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
@@ -4160,7 +4186,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
     // Callisto has a calendar of its own, so an event always has somewhere to
     // go. Refusing outright because Google was not connected meant the feature
-    // did nothing at all for anyone who had not linked an account — and when
+    // did nothing at all for anyone who had not linked an account - and when
     // Google failed for any other reason, the event vanished entirely.
     // "Add to my Google Calendar" names nothing to add. Left alone the model
     // fills the gap with something - "Event", or the words of the request
@@ -4186,7 +4212,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
     const when = eventArgs.time ? `${eventArgs.date} at ${eventArgs.time}` : eventArgs.date;
     const spokenText = finalText || (googleOk
-      ? `Done — I've added "${eventArgs.title}" to your calendar for ${when}.`
+      ? `Done - I've added "${eventArgs.title}" to your calendar for ${when}.`
       : calendar.isConnected()
         ? `I've put "${eventArgs.title}" on your calendar here for ${when}, but Google Calendar wouldn't take it. You may need to reconnect it.`
         : `I've put "${eventArgs.title}" on your calendar for ${when}. Connect Google Calendar if you'd like it on there too.`);
@@ -4242,7 +4268,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
-    // Listing mode — no specific file to open
+    // Listing mode - no specific file to open
     if (!query || !shouldOpen) {
       const names = files.slice(0, 10).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
       const spokenNames = files.slice(0, 5).map(f => f.name).join(', ');
@@ -4250,7 +4276,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       _sendTTS(_e.sender, spokenText);
       return { text: `**Your Google Drive files:**\n${names}`, audio: null, card: null, hasAction: true };
     }
-    // Open mode — find best match and open in Chrome
+    // Open mode - find best match and open in Chrome
     const file = files[0];
     connectors.openDriveFile(file.id, file.mimeType, file.webViewLink).catch(() => {});
     const spokenText = `Opening "${file.name}" from your Google Drive.`;
@@ -4358,7 +4384,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     const [startDate, endDate] = finalAction.arg.split('|');
     const clearResult = await calendar.clearSchedule(startDate, endDate || startDate);
     const spokenText = clearResult.ok
-      ? (clearResult.deleted === 0 ? 'Your schedule for that period is already clear.' : finalText || `Done — I've cleared ${clearResult.deleted} event${clearResult.deleted !== 1 ? 's' : ''} from your calendar.`)
+      ? (clearResult.deleted === 0 ? 'Your schedule for that period is already clear.' : finalText || `Done - I've cleared ${clearResult.deleted} event${clearResult.deleted !== 1 ? 's' : ''} from your calendar.`)
       : 'I couldn\'t clear your calendar. Please try again.';
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -4375,7 +4401,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       return { text: spokenText, audio: null, card: null, hasAction: false };
     }
     runLongTask(job.id);
-    const spokenText = `Right — ${job.steps.length} parts to that. I'll work through it in the background; `
+    const spokenText = `Right - ${job.steps.length} parts to that. I'll work through it in the background; `
       + `leave this running and it'll be done when you come back. Say "I'm back" and I'll tell you how it went.`;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: true };
@@ -4431,7 +4457,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       const file = await documents.writeSlides(deckTitle, deckSlides, app.getPath('documents'));
       await shell.openPath(file);
       const spokenText = finalText
-        || `Your presentation "${deckTitle}" is ready — ${deckSlides.length} slide${deckSlides.length !== 1 ? 's' : ''}, saved in your Documents folder.`;
+        || `Your presentation "${deckTitle}" is ready - ${deckSlides.length} slide${deckSlides.length !== 1 ? 's' : ''}, saved in your Documents folder.`;
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: true };
     } catch (err) {
@@ -4499,7 +4525,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     store.set('memories', updated);
     cloudPushPrefs({ memories: updated }).catch(() => {});
     const removed = before - updated.length;
-    const spokenText = finalText || (removed > 0 ? `Done — I've removed ${removed} item${removed !== 1 ? 's' : ''} from memory.` : 'I couldn\'t find anything matching that in my memory.');
+    const spokenText = finalText || (removed > 0 ? `Done - I've removed ${removed} item${removed !== 1 ? 's' : ''} from memory.` : 'I couldn\'t find anything matching that in my memory.');
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false };
   }
@@ -4582,7 +4608,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return { text: spokenText, audio: null, card: null, hasAction: false };
   }
 
-  // Handle show_image — search for an image and show it as a sidebar card
+  // Handle show_image - search for an image and show it as a sidebar card
   if (finalAction?.type === 'show_image') {
     const imgQuery = finalAction.arg || '';
     const [cardResult, imgResult] = await Promise.all([
@@ -4608,6 +4634,10 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // Handle image generation separately (returns imageUrl, not a command result)
   let imageCard = null;
   if (finalAction?.type === 'generate_image') {
+    if (_junkCreative(message)) {
+      _sendTTS(_e.sender, _JUNK_REPLY);
+      return { text: _JUNK_REPLY, audio: null, card: null, hasAction: false };
+    }
     try {
       const imgRes = await ai.generateImage(finalAction.arg, finalAction.size);
       imageCard = { type: 'image', imageUrl: imgRes.url, title: 'Generated Image', description: finalAction.arg, source: 'DALL-E 3', sourceUrl: null };
@@ -4625,12 +4655,12 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     finalAction = null;
   }
 
-  // Signal renderer to flash immediately — before the app opens so transition feels instant
+  // Signal renderer to flash immediately - before the app opens so transition feels instant
   if (finalAction && overlayWindow) {
     overlayWindow.webContents.send('jarvis:action-fired', { type: finalAction.type });
   }
 
-  // For spotify track URI fallback — start focus lock so Callisto stays in front
+  // For spotify track URI fallback - start focus lock so Callisto stays in front
   if (finalAction?.type === 'play_music' && finalAction?.arg?.startsWith('spotify_track_uri|')) {
     startSpotifyFocusLock(10000);
     // After 8s suppress Spotify and restore normal alwaysOnTop
@@ -4640,11 +4670,11 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }, 8000);
   }
 
-  // Run the action command in parallel — fire-and-forget for open/url, await for file reads
+  // Run the action command in parallel - fire-and-forget for open/url, await for file reads
   const cmdResult = finalAction ? await commands.run(finalAction.type, finalAction.arg).catch(() => null) : null;
 
   // For open_app: make sure nothing is pinning Callisto on top, so the launched
-  // app comes to the front — every time, not just the first. The window's default
+  // app comes to the front - every time, not just the first. The window's default
   // is alwaysOnTop:false, so we simply return it there and leave it there.
   if (finalAction?.type === 'open_app') {
     stopSpotifyFocusLock();
@@ -4691,7 +4721,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
     const r = await pdfs.combine(files, (finalAction.payload && finalAction.payload.title) || 'Combined');
     const spoken = r.ok
-      ? `Done — ${path.basename(r.path)}, ${r.pages} pages from ${r.count} files. The originals are untouched.`
+      ? `Done - ${path.basename(r.path)}, ${r.pages} pages from ${r.count} files. The originals are untouched.`
       : (r.error || 'I could not join those.');
     if (r.ok) { try { shell.showItemInFolder(r.path); } catch (_) {} }
     _sendTTS(_e.sender, spoken);
@@ -4706,7 +4736,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         overlayWindow.show();
         overlayWindow.focus();
         // The file lands in the other half a moment later, once its own window
-        // exists — nothing to move before then.
+        // exists - nothing to move before then.
         setTimeout(() => snapOtherHalf(), 900);
       }
     } catch (_) {}
@@ -4733,7 +4763,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return { text: finalText, audio: null, card: imageCard || cardData || null, hasAction: didTakeAction };
   }
 
-  // Only send TTS here on the action path — streaming path already sent audio sentence-by-sentence
+  // Only send TTS here on the action path - streaming path already sent audio sentence-by-sentence
   if (needsAction && finalText) {
     const sentences = (finalText.match(/[^.!?]+[.!?]*/g) || [finalText])
       .map((s) => s.trim())
@@ -4741,7 +4771,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     sentences.forEach((s) => _sendTTS(_e.sender, s));
   }
 
-  // Parse email draft — first try hidden marker, then auto-detect from text
+  // Parse email draft - first try hidden marker, then auto-detect from text
   let emailDraft = null;
   const emailDraftMatch = finalText && finalText.match(/<!--EMAILDRAFT:(\{.*?\})-->/s);
   if (emailDraftMatch) {
@@ -4804,7 +4834,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 }
 
 // Every answer to a Ctrl+Shift+C question reaches the small card over the user's
-// app — including the quick ones (a person's card, a picture, a score) that return
+// app - including the quick ones (a person's card, a picture, a score) that return
 // before the end of the handler, where the forwarding used to live alone.
 ipcMain.handle('jarvis:chat', async (_e, args) => {
   resetTTS();
@@ -5275,7 +5305,7 @@ ipcMain.handle('shop:search', async (_e, { store: shopStore, query, limit }) => 
 });
 
 // Open a store's own search; if the site can't be reached at all, Google it instead.
-// Only a failed connection counts — stores often answer scripts with 503, which
+// Only a failed connection counts - stores often answer scripts with 503, which
 // says nothing about whether the page loads in a browser.
 ipcMain.handle('shop:open', async (_e, { url, fallbackUrl }) => {
   const allowed = (u) => /^https:\/\/(?:www\.)?(?:amazon\.(?:com|ca|co\.uk)|aliexpress\.com|temu\.com|google\.com)\//i.test(String(u || ''));
@@ -5450,7 +5480,7 @@ function _term(type, text, extra) {
 async function _taskLoop() {
   while (TASK.on) {
     if (TASK.steps.length >= TASK_MAX_STEPS) {
-      return _taskFinish(`I have taken ${TASK_MAX_STEPS} steps on this without finishing. Here is where it got to — tell me how you want to carry on.`);
+      return _taskFinish(`I have taken ${TASK_MAX_STEPS} steps on this without finishing. Here is where it got to - tell me how you want to carry on.`);
     }
     if (Date.now() - TASK.startedAt > TASK_MAX_MS) {
       return _taskFinish('This has been running a while, so I have stopped to check in rather than keep going.');
@@ -5621,7 +5651,7 @@ ipcMain.handle('task:state', () => ({
 }));
 
 // ── Procedures: walk it through once, it remembers ───────────────────────────
-// "Let me show you how I do the Monday report" — Callisto writes down each
+// "Let me show you how I do the Monday report" - Callisto writes down each
 // step as it happens, under a name, and does the same thing on request later.
 // The steps are kept as the person's own words, not as a recording of clicks,
 // so a saved procedure still reads like an instruction and can be edited or
@@ -5768,7 +5798,7 @@ ipcMain.handle('command:setFolder', (_e, folder) => {
   return { ok: true, folder: f };
 });
 
-// The folder commands run in — picked once, remembered after.
+// The folder commands run in - picked once, remembered after.
 ipcMain.handle('command:pickFolder', async () => {
   const res = await dialog.showOpenDialog(dialogParent(), { properties: ['openDirectory'], title: 'Choose your project folder' });
   if (res.canceled || !res.filePaths[0]) return { ok: false };
@@ -5833,7 +5863,7 @@ ipcMain.handle('jarvis:hide', () => {
 ipcMain.handle('jarvis:hudForward', (_e, { text, card }) => {
   hudVoiceMode = false;
   hudListening = false;
-  if (!text && !card) return;   // nothing to show — just end HUD mode
+  if (!text && !card) return;   // nothing to show - just end HUD mode
   const cardPayload = card
     ? { type: card.type || 'info', text: text || '', card, title: card.title || card.name || '' }
     : { type: 'info', text: text || '' };
@@ -5860,7 +5890,7 @@ ipcMain.handle('jarvis:openApp', async (_e, appName) => {
   }
 });
 
-// In-app browser — opens a floating BrowserWindow inside Callisto (no system browser)
+// In-app browser - opens a floating BrowserWindow inside Callisto (no system browser)
 let inAppBrowserWin = null;
 ipcMain.handle('jarvis:openInAppBrowser', (_e, url) => {
   if (typeof url !== 'string' || !/^https?:/i.test(url)) return;
@@ -5912,7 +5942,7 @@ ipcMain.handle('jarvis:openCheckout', (_e, plan) => {
   commands.openInChrome(url);
 });
 
-// ── Google OAuth — direct Electron flow ──────────────────────────────────────
+// ── Google OAuth - direct Electron flow ──────────────────────────────────────
 // Client ID is public (appears in auth URLs). Secret stays on the server.
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '865368740519-49kjj4p1crbibsf6mthre1ldekk5upq4.apps.googleusercontent.com';
 // This redirect URI must be registered in Google Cloud Console → Credentials
@@ -5957,7 +5987,7 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:2px;background
 </body></html>`;
 }
 
-// Only the minimum scopes registered in Google Cloud Console — no gmail, no broad calendar
+// Only the minimum scopes registered in Google Cloud Console - no gmail, no broad calendar
 const GOOGLE_OAUTH_SCOPES = {
   // calendar.events, not calendar.readonly: adding an event needs write access,
   // and read-only made every attempt fail with 403. This is the scope the
@@ -5979,7 +6009,7 @@ const GOOGLE_OAUTH_SCOPES = {
   // upload is needed so customers can post their videos to their own channel
   youtube:       'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
   analytics:     'https://www.googleapis.com/auth/analytics.readonly',
-  googleAccount: 'openid email profile',  // minimal — just identifies which Google account to use
+  googleAccount: 'openid email profile',  // minimal - just identifies which Google account to use
 };
 
 // The exact loopback addresses registered on the Google OAuth client. Google
@@ -6094,11 +6124,11 @@ async function startGoogleOAuthFlow(service) {
                 resolve(false);
                 return;
               }
-            } catch (_) { /* can't verify — save as before */ }
+            } catch (_) { /* can't verify - save as before */ }
           }
 
           if (service === 'googleAccount') {
-            // We only need the email — fetch from Google userinfo, store it, then done
+            // We only need the email - fetch from Google userinfo, store it, then done
             try {
               const uiRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
                 headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -6258,18 +6288,18 @@ ipcMain.handle('connector:connect', async (_e, service) => {
   // Google services: use direct Electron OAuth (no server needed)
   const googleServices = ['gmail', 'calendar', 'drive', 'youtube', 'analytics', 'googleAccount'];
   if (googleServices.includes(service)) {
-    startGoogleOAuthFlow(service); // non-blocking — connector:connected fires when done
+    startGoogleOAuthFlow(service); // non-blocking - connector:connected fires when done
     return true;
   }
   // Outlook: direct Microsoft OAuth (no server needed)
   if (service === 'outlook') {
-    startMicrosoftOAuthFlow(); // non-blocking — connector:connected fires when done
+    startMicrosoftOAuthFlow(); // non-blocking - connector:connected fires when done
     return true;
   }
   // Instagram and TikTok go through the server flow below: their app secrets
   // must stay on the server, and a customer build never has them. TikTok used to
   // sign in from here, which meant the button did nothing at all for anyone
-  // without the keys in their environment — including every customer.
+  // without the keys in their environment - including every customer.
   // Other services (Spotify, etc.) still use the server flow
   // A one-off secret ties this connection to this app: the server only hands
   // the tokens back to a poll that presents it.
@@ -6319,7 +6349,7 @@ ipcMain.handle('connector:disconnect', (_e, service) => {
   return true;
 });
 
-// ── Google Account URL opener — wraps any Google URL so it opens in the connected account ──
+// ── Google Account URL opener - wraps any Google URL so it opens in the connected account ──
 ipcMain.handle('google:openUrl', (_e, url) => {
   const email = connectors.getGoogleAccountEmail();
   if (email) {
@@ -6327,7 +6357,7 @@ ipcMain.handle('google:openUrl', (_e, url) => {
     const chooserUrl = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=${encodeURIComponent(url)}`;
     commands.openInChrome(chooserUrl);
   } else {
-    // No account linked — open URL directly
+    // No account linked - open URL directly
     shell.openExternal(url);
   }
 });
@@ -6398,10 +6428,10 @@ async function _placesNearMe(message) {
   const top = withDist[0];
   const rest = withDist.slice(1, 4);
   const lines = [
-    `${top.name} — ${stars(top)}${far(top)}${open(top)}`,
+    `${top.name} - ${stars(top)}${far(top)}${open(top)}`,
     top.address ? `  ${top.address}` : '',
     rest.length ? '' : null,
-    ...rest.map((p) => `${p.name} — ${stars(p)}${far(p)}${open(p)}`),
+    ...rest.map((p) => `${p.name} - ${stars(p)}${far(p)}${open(p)}`),
   ].filter((l) => l !== null && l !== undefined);
 
   const nl = String.fromCharCode(10);
@@ -6419,7 +6449,7 @@ async function _placesNearMe(message) {
   };
 }
 
-// ── Places Near Me — proxy to server Google Places endpoint ──────────────────
+// ── Places Near Me - proxy to server Google Places endpoint ──────────────────
 ipcMain.handle('places:nearby', async (_e, { query, lat, lng, city }) => {
   try {
     const token = loadAuthToken();
@@ -6798,7 +6828,7 @@ ipcMain.handle('analytics:cached', () => {
 
 ipcMain.handle('stripe:connect', async (_e, { secret_key }) => {
   try {
-    // Verify directly with Stripe — no server hop needed
+    // Verify directly with Stripe - no server hop needed
     const res = await fetch('https://api.stripe.com/v1/account', {
       headers: { Authorization: `Bearer ${secret_key}` },
     });
@@ -6855,7 +6885,7 @@ ipcMain.handle('shopify:connect', async (_e, { shop, access_token }) => {
 
 // ── Messages: Instagram DMs (read + send) and WhatsApp (compose) ─────────────
 
-// "What did she send me?" — a reel or photo has no words, so the picture is
+// "What did she send me?" - a reel or photo has no words, so the picture is
 // fetched and put through the same vision endpoint the magic cursor uses.
 async function describeInstagramMedia(url) {
   if (!url) return null;
@@ -6892,7 +6922,7 @@ ipcMain.handle('draw:open', () => {
 // ── Continuous screen awareness (conversation mode) ───────────────────────
 // While conversation mode is running, Callisto watches the screen so the user
 // never has to screenshot anything: "combine these two PDFs" just works. Every
-// frame goes to the model, which is what makes it feel instant — and what makes
+// frame goes to the model, which is what makes it feel instant - and what makes
 // it cost money, so the interval is adjustable and the count is reported back.
 const SCREEN_WATCH = {
   timer: null,
@@ -7138,7 +7168,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       const ok = await pasteIntoFocusedApp(body);
       sendToHud('hud:card', {
         type: 'magic-edit',
-        text: ok ? body.slice(0, 600) : 'I could not put that into the box. It is on your clipboard — press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V.',
+        text: ok ? body.slice(0, 600) : 'I could not put that into the box. It is on your clipboard - press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V.',
       });
       _sendTTS(e.sender, ok ? 'Written it in for you.' : 'It is on your clipboard.');
       if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -7308,8 +7338,8 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   return { ok: true, text: out.text };
 });
 
-// Put text into whatever the person is actually typing in — the Gmail draft,
-// the document, the message box — by pasting it where their cursor already is.
+// Put text into whatever the person is actually typing in - the Gmail draft,
+// the document, the message box - by pasting it where their cursor already is.
 // Callisto never takes focus: it hides itself first if it happens to hold it,
 // and the clipboard they had is put back afterwards.
 // The app they were actually working in when assist mode started. "Write it
@@ -7712,7 +7742,7 @@ async function _doAssistAction(action) {
     require('electron').clipboard.writeText(action.replacement);
     sendToHud('hud:card', {
       type: 'info',
-      text: 'Copied — press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V to put it in:\n\n'
+      text: 'Copied - press ' + (process.platform === 'darwin' ? 'Cmd' : 'Ctrl') + '+V to put it in:\n\n'
         + String(action.replacement).slice(0, 400),
     });
     return;
@@ -7723,7 +7753,7 @@ async function _doAssistAction(action) {
     sendToHud('hud:card', {
       type: 'info',
       text: r.ok
-        ? 'Made ' + require('path').basename(r.path) + ' — ' + r.pages + ' pages from ' + r.count + ' files. The originals are untouched.'
+        ? 'Made ' + require('path').basename(r.path) + ' - ' + r.pages + ' pages from ' + r.count + ' files. The originals are untouched.'
         : r.error,
     });
     if (r.ok) require('electron').shell.showItemInFolder(r.path);
@@ -7888,7 +7918,7 @@ async function _assistTick() {
       return;
     }
     ASSIST.offers += 1;
-    ASSIST.lastResult = 'offered: ' + a.kind + ' — ' + String(out.text || '').slice(0, 70);
+    ASSIST.lastResult = 'offered: ' + a.kind + ' - ' + String(out.text || '').slice(0, 70);
     console.log('[assist] offering:', ASSIST.lastResult);
     askHud(_assistCard(a, out.text), () => _doAssistAction(a));
   } catch (_) { /* a failed look is not worth ending the session over */ }
@@ -7984,9 +8014,25 @@ function startAssist() {
 // Asking how or why something works gets a labelled diagram, drawn after the
 // answer so the answer never waits for it. One drawing goes to both the card
 // and the conversation.
-const TEACH_Q = /\b(chart|plot|construct|break[- ]?even|explain|how (?:does|do|is|are|can|would)|why (?:does|do|is|are)|what happens|describe|walk me through|show (?:me )?how|diagram|draw|illustrate|label|structure|process|cycle|circuit|current|voltage|force|graph|curve|supply|demand|equilibrium|reaction|molecule|cell|ecosystem|photosynthesis|respiration|anatomy|solve|question)\b/i;
+// Same rule as the chat (renderer/diagram.js): a picture for a process or a
+// mechanism, a structure or a chart - not for a definition or worked maths.
+const TEACH_Q = new RegExp([
+  // how a thing is made, produced or formed
+  '\\bhow (?:is|are|was|were)\\b.{0,60}\\b(?:made|produced|manufactured|formed|created|built|grown|processed|digested|absorbed|transported|refined|generated|recycled|brewed|assembled|extracted)\\b',
+  '\\bhow (?:do|does|did|can) (?:you|we|they|people|one|i|companies|factories)\\b.{0,40}\\b(?:make|produce|manufacture|build|form|create|grow|brew|refine|recycle|extract|assemble)\\b',
+  // how a thing works or moves
+  '\\bhow (?:do|does|did)\\b.{0,60}\\b(?:work|works|move|travel|flow|pass|get (?:into|through|to)|reach|enter|leave|spread|form|happen|transport|convert|turn into|circulate|reproduce|replicate|fold|bind|charge|generate)\\b',
+  '\\bwhat happens (?:when|during|in|to|inside|after|before)\\b', '\\bwalk me through (?:how|the process)\\b',
+  '\\b(?:the )?(?:process|stages|steps) of\\b', '\\blife ?cycle\\b', '\\b(?:water|carbon|nitrogen|krebs|calvin|cell|business|product) cycle\\b',
+  '\\b(?:structure|parts|layers|anatomy) of\\b', '\\bcircuit\\b', '\\bfood (?:chain|web)\\b',
+  '\\b(?:photosynthesis|respiration|digestion|mitosis|meiosis|osmosis|diffusion|transcription|translation|supply chain)\\b',
+  // or a picture asked for by name
+  '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
+].join('|'), 'i');
+const TEACH_STEP_MATHS = /\b(?:solve|calculate|evaluate|simplify|differentiate|integrate|work out|prove|show that)\b/i;
 async function _teachDiagram(question, answer) {
-  if (!TEACH_Q.test(String(question || '')) || String(answer || '').length < 140) return;
+  const _q = String(question || '');
+  if (!TEACH_Q.test(_q) || (TEACH_STEP_MATHS.test(_q) && !/\b(?:chart|plot|graph|diagram|draw)\b/i.test(_q)) || String(answer || '').length < 140) return;
   try {
     const res = await ai.serverFetch('diagram', { question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }, { timeout: 60000, retries: 0 });
     const d = await res.json();
@@ -8022,7 +8068,13 @@ ipcMain.handle('diagram:make', async (_e, p) => {
       question: String((p && p.question) || '').slice(0, 1500),
       answer: String((p && p.answer) || '').slice(0, 5000),
     }, { timeout: 60000, retries: 0 });
-    return await res.json();
+    const d = await res.json();
+    // If they are in another app and the answer went to the side card, the
+    // picture goes there too.
+    try {
+      if (d && (d.svg || d.chart) && !hudWouldDuplicate() && hudWindow && !hudWindow.isDestroyed() && hudWindow.isVisible()) sendToHud('hud:diagram', d);
+    } catch (_) {}
+    return d;
   } catch (_) { return { svg: null }; }
 });
 
@@ -8072,7 +8124,7 @@ async function screenWatchTick() {
       }
     }
   } catch (_) {
-    /* a dropped frame is not worth reporting — the next one is seconds away */
+    /* a dropped frame is not worth reporting - the next one is seconds away */
   } finally {
     SCREEN_WATCH.busy = false;
   }
@@ -8116,7 +8168,7 @@ ipcMain.handle('screen:setInterval', (_e, seconds) => {
 // and the low-detail watch frame is not enough.
 // ── Custom hand gestures ───────────────────────────────────────────
 // Poses the customer recorded themselves, kept on their machine so they are
-// there every time Callisto starts — nothing about a hand shape goes online.
+// there every time Callisto starts - nothing about a hand shape goes online.
 const GESTURE_LIMIT = 20;
 
 function gestureList() {
@@ -8197,7 +8249,7 @@ ipcMain.handle('window:switchApp', async () => {
       });
     }
     if (process.platform === 'darwin') {
-      // Cmd+Tab through System Events — the normal Mac app switcher.
+      // Cmd+Tab through System Events - the normal Mac app switcher.
       const script = 'tell application "System Events" to key code 48 using command down';
       return await new Promise((resolve) => {
         require('child_process').execFile('osascript', ['-e', script], { timeout: 6000 }, (err) => {
@@ -8754,7 +8806,7 @@ async function waitForSpotifyDevice(maxMs = 14000) {
 
 // Lock/unlock Windows focus-stealing prevention.
 // LockSetForegroundWindow(LSFW_LOCK=1) prevents ANY process from calling
-// SetForegroundWindow until we call unlock — Spotify cannot bring itself to front.
+// SetForegroundWindow until we call unlock - Spotify cannot bring itself to front.
 function lockFocus() {
   if (process.platform !== 'win32') return;
   const { exec } = require('child_process');
@@ -8780,13 +8832,13 @@ function prepareForegroundOpen() {
 // Helper: minimize all Spotify windows and focus Callisto
 function suppressSpotifyWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  // The user just asked to open an app — don't hide it or steal focus back.
+  // The user just asked to open an app - don't hide it or steal focus back.
   if (Date.now() - _userOpenedAppAt < 8000) return;
   const { exec } = require('child_process');
 
   if (process.platform === 'darwin') {
     // Mac: hide Spotify via AppleScript, then bring Callisto back.
-    // Never pin alwaysOnTop here — that would keep other apps stuck behind us.
+    // Never pin alwaysOnTop here - that would keep other apps stuck behind us.
     exec(`osascript -e 'tell application "System Events" to set visible of process "Spotify" to false' 2>/dev/null`, () => {});
     overlayWindow.focus();
     return;
@@ -8812,7 +8864,7 @@ public class W32 {
   `.trim().replace(/\n\s*/g, '; ');
   runPowerShell(ps);
   overlayWindow.focus();
-  // Two light repeats to beat Spotify's own focus grab. No alwaysOnTop churn here —
+  // Two light repeats to beat Spotify's own focus grab. No alwaysOnTop churn here - 
   // the focus lock owns that, and it always restores alwaysOnTop(false) when it ends.
   for (const ms of [600, 1500]) {
     setTimeout(() => {
@@ -8823,7 +8875,7 @@ public class W32 {
   }
 }
 
-// Launch Spotify hidden (never visible) — works on Windows and Mac
+// Launch Spotify hidden (never visible) - works on Windows and Mac
 function launchSpotifyHidden() {
   const { exec } = require('child_process');
 
@@ -8834,7 +8886,7 @@ function launchSpotifyHidden() {
     // -g launches WITHOUT bringing Spotify to the foreground, so Callisto keeps focus.
     exec('open -g -a Spotify', (err) => {
       if (err) {
-        console.log('[Spotify Mac] open -g -a Spotify failed:', err.message, '— trying spotify: URI');
+        console.log('[Spotify Mac] open -g -a Spotify failed:', err.message, ' - trying spotify: URI');
         exec('open -g spotify:', () => {});
       }
     });
@@ -8854,15 +8906,15 @@ function launchSpotifyHidden() {
   try { if (fs.existsSync(roamingExe)) sp = roamingExe; } catch(_) {}
 
   if (sp) {
-    // Traditional install — /minimized is supported
+    // Traditional install - /minimized is supported
     exec(`"${sp}" /minimized`, (err) => {
       if (err) {
-        console.log('[Spotify] /minimized launch failed:', err.message, '— trying PowerShell');
+        console.log('[Spotify] /minimized launch failed:', err.message, ' - trying PowerShell');
         runPowerShell(`Start-Process -FilePath '${sp}' -ArgumentList '/minimized' -WindowStyle Minimized`);
       }
     });
   } else {
-    // Microsoft Store / AppX install — use PowerShell to launch app package
+    // Microsoft Store / AppX install - use PowerShell to launch app package
     console.log('[Spotify] No roaming exe found, launching via AppX/Store');
     runPowerShell(
       `$app = Get-AppxPackage -Name 'SpotifyAB.SpotifyMusic' -ErrorAction SilentlyContinue; ` +
@@ -8879,12 +8931,12 @@ async function playOnSpotifyTimed(query, timeoutMs = 8000) {
   ]);
 }
 
-// ── Spotify IPC — split into small handlers so renderer controls the flow ──────
+// ── Spotify IPC - split into small handlers so renderer controls the flow ──────
 // 1. Get token (renderer does all Spotify fetch() calls directly)
 ipcMain.handle('jarvis:spotifyGetToken', async () => {
   try {
     // loadTokens properly decrypts the safeStorage-encrypted token.
-    // We return the raw stored token even if technically expired — Spotify
+    // We return the raw stored token even if technically expired - Spotify
     // accepts slightly-expired tokens; the renderer will get a 401 if truly
     // expired and can show the right message.
     const tokens = connectors.loadTokens('spotify');
@@ -8923,7 +8975,7 @@ ipcMain.handle('jarvis:spotifyOpenUri', (_e, uri) => {
 
 // ── Playing a song: Spotify first, always ─────────────────────────────────────
 // Connected Spotify plays in the background (_coreSpotifyPlay). Otherwise, if the
-// Spotify app is installed, the song is found and opened in it — YouTube isn't
+// Spotify app is installed, the song is found and opened in it - YouTube isn't
 // touched. Only with no Spotify at all does it go to the user's other chosen
 // service, or else to YouTube.
 function isSpotifyInstalled() {
@@ -8973,7 +9025,7 @@ async function playSongUnconnected(query) {
   return `Spotify isn't installed, so here's ${query} on YouTube.`;
 }
 
-// ── Core Spotify play logic — shared by fast-path and IPC handler ─────────────
+// ── Core Spotify play logic - shared by fast-path and IPC handler ─────────────
 // Every call bumps _spotifyGen. An older run that is still awaiting something checks
 // alive() and bails out, so asking for a second song cleanly supersedes the first
 // instead of two runs fighting over the window and the player.
@@ -8998,7 +9050,7 @@ async function _coreSpotifyPlay(query) {
 
   // ── macOS ──────────────────────────────────────────────────────────────────
   // AppleScript `play track <uri>` starts playback instantly. It needs no Connect
-  // device registration, so we skip the launch/poll/retry dance entirely — this is
+  // device registration, so we skip the launch/poll/retry dance entirely - this is
   // what makes Mac fast. Spotify is pre-launched with `open -g` so it never takes focus.
   if (process.platform === 'darwin') {
     const found = await connectors.searchSpotifyTrack(query).catch(() => null);
@@ -9021,13 +9073,13 @@ async function _coreSpotifyPlay(query) {
       exec('pgrep -x Spotify', (_e2, out) => r(!!String(out || '').trim())));
 
     if (!running) {
-      // Background launch — `-g` keeps Callisto in front
+      // Background launch - `-g` keeps Callisto in front
       exec('open -g -a Spotify', () => {});
       await new Promise(r => setTimeout(r, 900));
     }
 
     let ok = await playTrack();
-    // Spotify may still be booting — retry briefly until it accepts AppleScript
+    // Spotify may still be booting - retry briefly until it accepts AppleScript
     for (let i = 0; i < 10 && !ok; i++) {
       if (!alive()) return superseded;
       await new Promise(r => setTimeout(r, 400));
@@ -9078,7 +9130,7 @@ async function _coreSpotifyPlay(query) {
   }
 
   if (result.error === 'NO_ACTIVE_DEVICE') {
-    console.log('[Spotify] No device — launching Spotify and polling for registration…');
+    console.log('[Spotify] No device - launching Spotify and polling for registration…');
     launchSpotifyHidden();
     startSpotifyFocusLock(20000);
 
@@ -9104,7 +9156,7 @@ async function _coreSpotifyPlay(query) {
     console.log('[Spotify] falling back to track URI + MEDIA_PLAY');
   }
 
-  // URI fallback — open the track, then press play via WM_APPCOMMAND (needs no focus)
+  // URI fallback - open the track, then press play via WM_APPCOMMAND (needs no focus)
   const trackId = String(result.trackUri || '').replace('spotify:track:', '');
   if (trackId) {
     require('electron').shell.openExternal(`spotify:track:${trackId}`);
@@ -9132,7 +9184,7 @@ async function _coreSpotifyPlay(query) {
   return finish(result);
 }
 
-// Combined handler — searches track, launches Spotify if needed, plays via Web API
+// Combined handler - searches track, launches Spotify if needed, plays via Web API
 ipcMain.handle('jarvis:spotifyPlay', async (_e, { query }) => {
   try {
     return await _coreSpotifyPlay(query);

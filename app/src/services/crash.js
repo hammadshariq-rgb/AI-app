@@ -5,8 +5,8 @@
 //
 // What is sent is kept to what explains the crash and nothing about the person:
 // no user identity, no request data, no console breadcrumbs (the app logs what
-// people say to it), and the home folder — which carries their Windows or Mac
-// account name — is replaced with "~" in every path.
+// people say to it), and the home folder - which carries their Windows or Mac
+// account name - is replaced with "~" in every path.
 //
 // Off when there is no DSN, and off if the person turns crash reports off.
 

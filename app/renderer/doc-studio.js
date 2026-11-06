@@ -6,7 +6,7 @@
    editable before you commit it to a file.
 
    The key idea is that we keep the *content*, not the file. Callisto wrote
-   these slides, so we still have the headings and bullets as data — editing
+   these slides, so we still have the headings and bullets as data - editing
    that and regenerating the file is far better than parsing a .pptx back into
    something editable. Save writes a fresh file from whatever is on screen.
    ──────────────────────────────────────────────────────────────────────────── */

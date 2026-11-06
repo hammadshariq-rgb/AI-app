@@ -52,7 +52,7 @@ async function generate({ token, prompt, style }, onProgress, onStarted) {
   // this app is still running. Handing the id back lets it be written down, so
   // quitting mid-build loses nothing.
   if (onStarted) { try { onStarted(jobId); } catch (_) {} }
-  return poll(token, `/models/job/${encodeURIComponent(jobId)}`, onProgress, 'That took too long — try a simpler description.');
+  return poll(token, `/models/job/${encodeURIComponent(jobId)}`, onProgress, 'That took too long - try a simpler description.');
 }
 
 // Picks up a job that was already started, after a restart. Meshy keeps
@@ -92,7 +92,7 @@ async function poll(token, path, onProgress, timeoutError) {
     try {
       job = await api(path, { token, timeoutMs: 15000 });
     } catch (_) {
-      continue; // a dropped poll isn't fatal — keep waiting
+      continue; // a dropped poll isn't fatal - keep waiting
     }
 
     try { onProgress && onProgress({ status: job.status, progress: job.progress || 0 }); } catch (_) {}

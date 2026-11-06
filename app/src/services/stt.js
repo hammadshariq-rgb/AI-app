@@ -15,7 +15,7 @@ function getToken() {
 const WHISPER_TIMEOUT_MS = 60000;
 
 // Build a Whisper prompt that biases transcription toward the user's name,
-// assistant name, and any VIP names — dramatically improves recognition of
+// assistant name, and any VIP names - dramatically improves recognition of
 // unusual/spelled-out names.
 function buildWhisperPrompt() {
   const profile   = store.get('profile') || {};
@@ -31,7 +31,7 @@ function buildWhisperPrompt() {
   }).filter(Boolean);
 
   const names = [...new Set([assistantName, displayName, ...vipNames].filter(Boolean))];
-  // Whisper uses the prompt to bias decoding — include likely words/phrases
+  // Whisper uses the prompt to bias decoding - include likely words/phrases
   return `${names.join(', ')}. Okay, ${assistantName}. Hey ${assistantName}. Send an email. Add a reminder. My name is ${displayName || 'the user'}.`;
 }
 

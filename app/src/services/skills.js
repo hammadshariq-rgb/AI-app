@@ -57,7 +57,7 @@ async function getJSON(url) {
 }
 
 // A skill file is a page or two of Markdown. Anything far bigger is not a
-// skill, and reading it whole first — which res.text() does — would pull an
+// skill, and reading it whole first - which res.text() does - would pull an
 // arbitrarily large file into memory before the size cap below ever ran.
 const MAX_FILE_BYTES = 256 * 1024;
 

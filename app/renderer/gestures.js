@@ -1,12 +1,12 @@
 // ── Custom hand gestures ──────────────────────────────────────────────────────
 // People's hands differ, and so do the things they want to do with them. This
-// lets someone hold a pose, name it, and say what it should do — either one of
+// lets someone hold a pose, name it, and say what it should do - either one of
 // Callisto's own actions, or anything they can put into words.
 //
 // A pose is stored as a "signature": the 21 hand landmarks moved so the wrist
 // sits at the origin, scaled by hand size, and turned so the middle knuckle
 // points up. That makes a match independent of where the hand is on screen,
-// how far away it is, and which way it is tilted — so the pose still fires
+// how far away it is, and which way it is tilted - so the pose still fires
 // tomorrow, from a different chair.
 (function () {
   'use strict';
@@ -50,7 +50,7 @@
     return out;
   }
 
-  // Mean distance between two signatures — small means the same pose.
+  // Mean distance between two signatures - small means the same pose.
   function distance(a, b) {
     if (!a || !b || a.length !== b.length) return Infinity;
     let sum = 0;

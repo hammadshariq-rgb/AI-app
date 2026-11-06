@@ -4,7 +4,7 @@
 // the middle, with the ones on either side turned away in perspective so you can
 // see where you are in the pile.
 //
-// The feeds give titles and nothing else — no pictures, no summaries — so the
+// The feeds give titles and nothing else - no pictures, no summaries - so the
 // card is built from what there actually is: the category it came from, the
 // headline itself, and its place in the run. Inventing a thumbnail for a story
 // we have not read would be a lie told in pixels.
@@ -155,7 +155,7 @@
 
   /* ── Autoplay ──────────────────────────────────────────────────────────── */
   // It moves on by itself so it can be read from across the room, and stops for
-  // good the moment anyone touches it — nothing is worse than a page that pulls
+  // good the moment anyone touches it - nothing is worse than a page that pulls
   // away while you are still reading it.
   function startAutoplay() {
     stopAutoplay();

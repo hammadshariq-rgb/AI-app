@@ -14,7 +14,7 @@
       user-select:none;
     }
 
-    /* ── Card stack — bottom-right ───────────────────────────────────────── */
+    /* ── Card stack - bottom-right ───────────────────────────────────────── */
     #stack{
       position:fixed;
       bottom:28px;right:28px;
@@ -59,7 +59,7 @@
     }
     .hud-card.dismissing{opacity:0;transform:translateX(24px) scale(0.94);}
 
-    /* top accent line — colour set per type */
+    /* top accent line - colour set per type */
     .hud-card::before{
       content:'';
       position:absolute;top:0;left:0;right:0;height:1.5px;
@@ -153,6 +153,9 @@
       scrollbar-width:thin;
       scrollbar-color:rgba(94,114,228,0.25) transparent;
     }
+    .card-desc .teach-diagram.in-card{margin:0 0 10px;border-radius:10px}
+    .card-desc .teach-diagram.in-card svg{display:block;width:100%;height:auto;max-height:150px}
+    .card-desc .teach-diagram.in-card figcaption{padding:6px 10px 8px;font-size:11px}
     .card-desc::-webkit-scrollbar{width:3px;}
     .card-desc::-webkit-scrollbar-thumb{background:rgba(94,114,228,0.3);border-radius:2px;}
     .card-desc strong{color:#fff;}
@@ -308,7 +311,11 @@ ipcRenderer.on('hud:diagram', (_e, d) => {
   fig.className = 'teach-diagram';
   fig.appendChild(svg);
   if (d.caption) { const c = document.createElement('figcaption'); c.textContent = d.caption; fig.appendChild(c); }
-  desc.appendChild(fig);
+  // At the top of the text, scaled to fit: the card keeps its size, and the
+  // words scroll underneath the picture as they always have.
+  fig.classList.add('in-card');
+  desc.insertBefore(fig, desc.firstChild);
+  desc.scrollTop = 0;
   card.classList.add('held');
   setTimeout(() => card.classList.remove('held'), 30000);
 });
@@ -344,7 +351,7 @@ function showCard(data) {
   // the words come from the web and from whatever was circled on screen.
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  // Gather image URL — try card.imageUrl first, then card.image, then card.photo
+  // Gather image URL - try card.imageUrl first, then card.image, then card.photo
   const rawImg = card?.imageUrl || card?.image || card?.photo || '';
   const imgUrl = /^(?:https?:|data:image\/)/i.test(rawImg) ? esc(rawImg) : null;
 
@@ -385,7 +392,7 @@ function showCard(data) {
         </div>
       </div>`;
 
-  // ── Knowledge / info cards — image banner ───────────────────────────────
+  // ── Knowledge / info cards - image banner ───────────────────────────────
   } else {
     if (imgUrl) {
       // Big banner image with title overlaid
@@ -401,7 +408,7 @@ function showCard(data) {
           <div class="card-desc${worked ? ' worked' : ''}">${worked ? M.toHtml(richText) : bodyText.replace(/\n/g,'<br>')}</div>
         </div>`;
     } else {
-      // No image — icon + title inline, then text below
+      // No image - icon + title inline, then text below
       html += `
         <div class="card-banner no-img">
           <div class="card-icon-big">${cfg.icon}</div>

@@ -44,7 +44,7 @@ const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 // NOTE: Gmail and Drive functions removed pending ADA-CASA AL1 assessment.
 // Re-add when verification is complete.
 
-// ── Email (Gmail + Outlook) — removed pending ADA-CASA verification ───────────
+// ── Email (Gmail + Outlook) - removed pending ADA-CASA verification ───────────
 // These functions will be restored when Gmail/Outlook connectors are re-enabled.
 
 async function getEmailUpdate() {
@@ -56,7 +56,7 @@ function formatEmailUpdateForAI(update) {
   if (!Array.isArray(mail) || !mail.length) return null;
   const unread = mail.filter((m) => m.unread);
   const lines = (unread.length ? unread : mail).slice(0, 8).map((m) =>
-    `• ${m.from}: "${m.subject}"${m.preview ? ` — ${m.preview.slice(0, 120)}` : ''}`);
+    `• ${m.from}: "${m.subject}"${m.preview ? ` - ${m.preview.slice(0, 120)}` : ''}`);
   return 'OUTLOOK INBOX (' + unread.length + ' unread of ' + mail.length + ' recent):' + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
 }
 
@@ -101,7 +101,7 @@ function saveGoogleAccountEmail(email) { store.set('googleAccountEmail', email);
 function getGoogleAccountEmail() { return store.get('googleAccountEmail') || null; }
 function disconnectGoogleAccount() { store.delete('googleAccountEmail'); }
 
-function saveGmailTokens(_tokens) { /* Gmail removed — pending ADA-CASA */ }
+function saveGmailTokens(_tokens) { /* Gmail removed - pending ADA-CASA */ }
 function saveOutlookTokens(tokens) { saveTokens('outlook', tokens); }
 function saveSpotifyTokens(tokens) { saveTokens('spotify', tokens); }
 
@@ -180,7 +180,7 @@ async function searchSpotifyTrack(query) {
 
   try {
     let res = await hit(strict, token);
-    // 401 = token stale or safeStorage returned undecrypted bytes — refresh once and retry
+    // 401 = token stale or safeStorage returned undecrypted bytes - refresh once and retry
     if (res.status === 401) {
       const fresh = await refreshSpotifyToken();
       if (!fresh) return { ok: false, error: 'not_connected' };
@@ -189,7 +189,7 @@ async function searchSpotifyTrack(query) {
     }
     let track = (await res.json().catch(() => ({})))?.tracks?.items?.[0];
 
-    // Field-filtered search found nothing — retry with the plain phrase
+    // Field-filtered search found nothing - retry with the plain phrase
     if (!track && byMatch) {
       const r2 = await hit(plain, token);
       track = (await r2.json().catch(() => ({})))?.tracks?.items?.[0];
@@ -226,7 +226,7 @@ async function playOnSpotify(query) {
     const devices = devData.devices || [];
     const device = devices.find(d => d.is_active) || devices[0];
 
-    // No device at all — caller launches Spotify and retries
+    // No device at all - caller launches Spotify and retries
     if (!device) return { ok: false, error: 'NO_ACTIVE_DEVICE', trackUri, trackName, artistName };
 
     // Transfer playback if the device isn't the active player
@@ -238,7 +238,7 @@ async function playOnSpotify(query) {
           body: JSON.stringify({ device_ids: [device.id], play: false }),
         });
         await new Promise(r => setTimeout(r, 400));
-      } catch (_) { /* transfer failed — try play anyway */ }
+      } catch (_) { /* transfer failed - try play anyway */ }
     }
 
     // Start playback
@@ -249,7 +249,7 @@ async function playOnSpotify(query) {
     });
 
     if (playRes.status === 204 || playRes.status === 200) {
-      // Transferring playback can leave the device at a very low volume — lift it
+      // Transferring playback can leave the device at a very low volume - lift it
       if (typeof device.volume_percent === 'number' && device.volume_percent < 40) {
         fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=75&device_id=${device.id}`, {
           method: 'PUT', headers: { Authorization: `Bearer ${token}` },
@@ -291,10 +291,10 @@ function removeVipSender(emailOrName) {
 
 function saveCalendarTokens(tokens) { saveTokens('calendar', tokens); }
 
-// ── Google Drive — removed pending ADA-CASA verification ─────────────────────
+// ── Google Drive - removed pending ADA-CASA verification ─────────────────────
 // Will be restored when Drive connector is re-enabled.
 
-function saveDriveTokens(_tokens) { /* Drive removed — pending ADA-CASA */ }
+function saveDriveTokens(_tokens) { /* Drive removed - pending ADA-CASA */ }
 async function getDriveToken() { return null; }
 async function searchDriveFiles() { return []; }
 async function openDriveFile() { return false; }
@@ -497,8 +497,8 @@ function _igOther(participants, igId, pageId) {
   return { id: them.id || null, name: them.username || them.name || 'Unknown' };
 }
 
-// Reels, photos, voice notes and story replies arrive with no text at all —
-// just an attachment — so each one is turned into something describable.
+// Reels, photos, voice notes and story replies arrive with no text at all - 
+// just an attachment - so each one is turned into something describable.
 const IG_MSG_FIELDS = 'message,from,created_time,attachments{image_data,video_data,file_url,name,mime_type},shares{link,name}';
 
 function _igAttachments(m) {
@@ -522,7 +522,7 @@ function _igAttachments(m) {
   return out;
 }
 
-// What to say when there are no words — "Sara sent a reel".
+// What to say when there are no words - "Sara sent a reel".
 function _igDescribe(attachments) {
   if (!attachments.length) return '';
   const a = attachments[0];
@@ -643,7 +643,7 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
-// "send a dm to sara" — find the conversation by name so the user never has to
+// "send a dm to sara" - find the conversation by name so the user never has to
 // know Instagram's internal ids.
 async function findInstagramContact(name) {
   const inbox = await getInstagramInbox(50);
@@ -685,7 +685,7 @@ async function getInstagramStats() {
     const until = Math.floor(Date.now() / 1000);
     const since = until - 30 * DAY;
     // Insights need their own permission and can be refused (a brand-new account
-    // has none yet), so each part is optional — the basics still come back.
+    // has none yet), so each part is optional - the basics still come back.
     // Graph answers an unknown or unsupported metric with an error for the
     // WHOLE call, so asking for three at once means one bad one loses all
     // three. Meta has also renamed these more than once - impressions became
@@ -817,7 +817,7 @@ async function getInstagramStats() {
       profileViews30: sumDaily('profile_views'),
       accountsEngaged: totalOf('accounts_engaged'),
       interactions,
-      // Share of the people reached who did something — the number creators watch.
+      // Share of the people reached who did something - the number creators watch.
       engagementRate: interactions && reach30 ? ((interactions / reach30) * 100).toFixed(1) : null,
       activity30: activity,
       audience: { countries: fCountry, cities: fCity, ages: fAge, genders: fGender, engagedCountries: eCountry, engagedAges: eAge },
@@ -893,7 +893,7 @@ async function getTikTokStats() {
     if (!user) return null;
 
     // Recent videos need the Display API's video.list, which TikTok grants
-    // separately — without it the counts above still show.
+    // separately - without it the counts above still show.
     const videoData = await fetch('https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,create_time', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1336,7 +1336,7 @@ async function getStripeStats() {
       yesterday: { revenue: revenueYesterday.toFixed(2) },
       series,
       currency,
-      totalCustomers: custData.url ? (custData.has_more ? '100+' : String(custData.data?.length || 0)) : '—',
+      totalCustomers: custData.url ? (custData.has_more ? '100+' : String(custData.data?.length || 0)) : ' - ',
       recentPayments: recent,
     };
   } catch (err) {
@@ -1412,7 +1412,7 @@ async function getAllAnalytics() {
 
 // A short spoken round-up for the morning greeting: followers, views and how
 // many people were on the site. Only connected services appear, and it stays
-// to a few sentences — this is a greeting, not a report.
+// to a few sentences - this is a greeting, not a report.
 function formatAnalyticsForBriefing(a) {
   const n = (v) => Number(v || 0).toLocaleString();
   const parts = [];
@@ -1530,21 +1530,21 @@ function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace
   }
   if (tiktok) {
     lines.push(`TikTok (${tiktok.username}): ${tiktok.followers.toLocaleString()} followers, ${tiktok.totalLikes.toLocaleString()} total likes, ${tiktok.videoCount} videos.`);
-    if (tiktok.recentVideos.length) lines.push(`Top recent video: "${tiktok.recentVideos[0].title}" — ${tiktok.recentVideos[0].views.toLocaleString()} views.`);
+    if (tiktok.recentVideos.length) lines.push(`Top recent video: "${tiktok.recentVideos[0].title}" - ${tiktok.recentVideos[0].views.toLocaleString()} views.`);
   }
   if (shopify) {
-    lines.push(`Shopify (${shopify.shopName}): Last 30 days — ${shopify.last30Days.paidOrders} paid orders, $${shopify.last30Days.revenue} revenue. ${shopify.totalCustomers.toLocaleString()} total customers.`);
+    lines.push(`Shopify (${shopify.shopName}): Last 30 days - ${shopify.last30Days.paidOrders} paid orders, $${shopify.last30Days.revenue} revenue. ${shopify.totalCustomers.toLocaleString()} total customers.`);
   }
   if (squarespace) {
-    lines.push(`Squarespace (${squarespace.siteName}): Last 30 days — ${squarespace.last30Days.orders} orders, ${squarespace.last30Days.currency} ${squarespace.last30Days.revenue} revenue.`);
+    lines.push(`Squarespace (${squarespace.siteName}): Last 30 days - ${squarespace.last30Days.orders} orders, ${squarespace.last30Days.currency} ${squarespace.last30Days.revenue} revenue.`);
   }
   if (stripe) {
-    lines.push(`Payments (Stripe): Last 30 days — ${stripe.last30Days.orders} payments, ${stripe.last30Days.currency} ${stripe.last30Days.revenue} revenue. Last 7 days — ${stripe.last7Days.orders} payments, ${stripe.last7Days.currency || stripe.last30Days.currency} ${stripe.last7Days.revenue}.`);
+    lines.push(`Payments (Stripe): Last 30 days - ${stripe.last30Days.orders} payments, ${stripe.last30Days.currency} ${stripe.last30Days.revenue} revenue. Last 7 days - ${stripe.last7Days.orders} payments, ${stripe.last7Days.currency || stripe.last30Days.currency} ${stripe.last7Days.revenue}.`);
   }
   if (googleAnalytics) {
     const ga = googleAnalytics;
     const avgMin = Math.floor(ga.last30Days.avgSessionSec / 60);
-    lines.push(`Website analytics (${ga.siteName}): Last 30 days — ${ga.last30Days.sessions.toLocaleString()} sessions, ${ga.last30Days.users.toLocaleString()} users, ${ga.last30Days.pageViews.toLocaleString()} page views. Avg session: ${avgMin}min. Bounce rate: ${ga.last30Days.bounceRate}%.`);
+    lines.push(`Website analytics (${ga.siteName}): Last 30 days - ${ga.last30Days.sessions.toLocaleString()} sessions, ${ga.last30Days.users.toLocaleString()} users, ${ga.last30Days.pageViews.toLocaleString()} page views. Avg session: ${avgMin}min. Bounce rate: ${ga.last30Days.bounceRate}%.`);
     if (ga.topPages.length) lines.push(`Top page: ${ga.topPages[0].path} (${ga.topPages[0].views.toLocaleString()} views).`);
   }
   return lines.length ? lines.join('\n') : null;
@@ -1739,7 +1739,7 @@ async function getOutlookSummary() {
   const who = [...new Set((important.length ? important : unread).map((m) => m.from))].slice(0, 3);
   let line = `${unread.length} unread email${unread.length === 1 ? '' : 's'}`;
   if (who.length) line += `, from ${who.join(', ')}`;
-  if (important.length) line += ` — ${important.length} worth a look`;
+  if (important.length) line += ` - ${important.length} worth a look`;
   return line + '.';
 }
 
@@ -1785,9 +1785,9 @@ async function getOutlookAccount() {
   }
 }
 
-// ── Email send — removed pending ADA-CASA verification ───────────────────────
+// ── Email send - removed pending ADA-CASA verification ───────────────────────
 
-// Outlook is the one mailbox Callisto can send from — Gmail still waits on
+// Outlook is the one mailbox Callisto can send from - Gmail still waits on
 // Google's CASA assessment, so it is named rather than failing vaguely.
 async function sendEmail(opts) {
   const outlook = await getOutlookToken();

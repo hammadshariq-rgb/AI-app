@@ -1,11 +1,11 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Callisto 3D Studio — model viewer + editor
+   Callisto 3D Studio - model viewer + editor
 
    Full-screen overlay that loads a .glb and lets people spin, zoom, select an
    area of the model and reshape / recolour it, then download the result.
 
    Input: mouse/trackpad and touch, plus a two-handed scheme separate from the
-   main page's gestures — the RIGHT hand steers (open palm moves the model,
+   main page's gestures - the RIGHT hand steers (open palm moves the model,
    pinch + up/down zooms, fist pauses) and the LEFT hand is the Callisto cursor
    (pinch to select an area, pinch a slider to drag it).
 
@@ -96,7 +96,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16"/></svg>
               <span>Download</span>
             </button>
-            <button class="mv-icon-btn" id="mvClose" aria-label="Close — keeps building in the background">
+            <button class="mv-icon-btn" id="mvClose" aria-label="Close - keeps building in the background">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
           </div>
@@ -113,7 +113,7 @@
             <div class="mv-ring-pct" id="mvRingPct">0%</div>
             <div class="mv-ring-label" id="mvRingLabel">Queued</div>
           </div>
-          <div class="mv-ring-note">You can close this — Callisto keeps building and lets you know when it's ready.</div>
+          <div class="mv-ring-note">You can close this - Callisto keeps building and lets you know when it's ready.</div>
         </div>
 
         <div class="mv-busy" id="mvBusy" hidden></div>
@@ -172,7 +172,7 @@
 
         <form class="mv-command" id="mvCommand" autocomplete="off">
           <svg class="mv-command-spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>
-          <input id="mvCmdInput" type="text" placeholder="Tell Callisto what to change — “make it black and silver”" aria-label="Tell Callisto what to change">
+          <input id="mvCmdInput" type="text" placeholder="Tell Callisto what to change - “make it black and silver”" aria-label="Tell Callisto what to change">
           <kbd class="mv-kbd">Ctrl Shift C</kbd>
           <button class="mv-btn mv-btn-ghost mv-btn-sm mv-hand-btn" id="mvHandBtn" type="button"
                   title="Control the model with your hands (Ctrl Shift G)" aria-pressed="false">
@@ -238,7 +238,7 @@
       commandHandler(text);
     });
 
-    // Hand control is the same toggle as Ctrl+Shift+G — the button just makes
+    // Hand control is the same toggle as Ctrl+Shift+G - the button just makes
     // it findable, since nobody discovers a shortcut on their own.
     const handBtn = root.querySelector('#mvHandBtn');
     handBtn?.addEventListener('click', () => {
@@ -252,7 +252,7 @@
     bindPointer();
   }
 
-  // A hand swap spins the model a quarter turn — the gesture layer calls this.
+  // A hand swap spins the model a quarter turn - the gesture layer calls this.
   function nudgeRotate() {
     if (!open) return;
     autoSpin = false;
@@ -361,7 +361,7 @@
   }
 
   // ── RIGHT hand: steer the model ───────────────────────────────────────────
-  // Open palm: the model follows the hand — move left/right to spin, up/down to
+  // Open palm: the model follows the hand - move left/right to spin, up/down to
   // tilt. Pinch (thumb + index) and move up/down to zoom. Make a fist to "let go"
   // so you can reposition your hand without moving the model.
   const steer = { x: 0, y: 0, has: false, mode: null, lostAt: 0, zoomY: 0, zoomBase: 0 };
@@ -480,7 +480,7 @@
     const fill = new THREE.DirectionalLight(0x8ec5ff, 0.6); fill.position.set(-4, 1, 3); scene.add(fill);
     rimLight = new THREE.DirectionalLight(0xff2d5c, 1.8); rimLight.position.set(-2, 2.5, -5); scene.add(rimLight);
 
-    // Brush preview — a soft crimson shell showing what the selection covers.
+    // Brush preview - a soft crimson shell showing what the selection covers.
     brushMesh = new THREE.Mesh(
       new THREE.SphereGeometry(1, 32, 20),
       new THREE.MeshBasicMaterial({ color: 0xff2d5c, transparent: true, opacity: 0.18, depthWrite: false })
@@ -697,7 +697,7 @@
 
   function smoothstep(a, b, x) { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
 
-  // Triangles that are mostly inside the selection — these get painted.
+  // Triangles that are mostly inside the selection - these get painted.
   function selectedTriangles(geom, I, W) {
     const n = geom.getAttribute('position').count;
     const weight = new Float32Array(n);
@@ -816,7 +816,7 @@
     if (edits.strength > 0) {
       const path = new Path2D();
       for (let k = 0; k < pts.length; k += 6) {
-        // Skip triangles that wrap across the texture edge — they'd smear a band
+        // Skip triangles that wrap across the texture edge - they'd smear a band
         const ax = pts[k], ay = pts[k + 1], bx = pts[k + 2], by = pts[k + 3], cx = pts[k + 4], cy = pts[k + 5];
         if (Math.abs(ax - bx) > W / 2 || Math.abs(ax - cx) > W / 2 || Math.abs(ay - by) > H / 2 || Math.abs(ay - cy) > H / 2) continue;
         path.moveTo(ax, ay); path.lineTo(bx, by); path.lineTo(cx, cy); path.closePath();

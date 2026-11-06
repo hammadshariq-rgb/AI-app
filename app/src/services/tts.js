@@ -3,7 +3,7 @@ const Store = require('electron-store');
 const { createStore } = require('../safe-store');
 const store = createStore();
 
-// OpenAI's voices each carry a fixed accent — fable is British, nova American, and
+// OpenAI's voices each carry a fixed accent - fable is British, nova American, and
 // there is no Australian at all. So we pick the closest base voice for each
 // gender/accent pair and steer the rest with an instruction, which only the
 // gpt-4o-mini-tts model honours. Base voices chosen to give the steering the least
@@ -24,7 +24,7 @@ function getVoiceConfig() {
   const entry = VOICE_MATRIX[key] || VOICE_MATRIX[`british-${gender}`] || VOICE_MATRIX['british-male'];
   return {
     voice: entry.voice,
-    instructions: `Speak with ${entry.accent}. Sound like a calm, articulate personal assistant — warm and natural, never robotic or exaggerated. Keep the accent consistent throughout.`,
+    instructions: `Speak with ${entry.accent}. Sound like a calm, articulate personal assistant - warm and natural, never robotic or exaggerated. Keep the accent consistent throughout.`,
   };
 }
 
@@ -79,7 +79,7 @@ async function synthesizeOnce(text) {
 // way a person would say it.
 const B = String.fromCharCode(92);
 function speakable(text) {
-  let t = String(text || '');
+  let t = String(text || '').replace(/[ \t]*—[ \t]*/g, ', ');
   t = t.split(B + B).join(B);
   // Display equations: shown, not read.
   t = t.replace(new RegExp(B + B + '\\[[\\s\\S]*?' + B + B + '\\]', 'g'), ' ');

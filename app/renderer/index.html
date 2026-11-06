@@ -33,7 +33,7 @@
       backdrop-filter: blur(12px) url(#nav-glass-filter) !important;
       -webkit-backdrop-filter: blur(12px) !important;
 
-      /* Liquid glass depth — ported from the LiquidButton shadow stack */
+      /* Liquid glass depth - ported from the LiquidButton shadow stack */
       box-shadow:
         0 0 8px rgba(0,0,0,0.06),
         0 2px 6px rgba(0,0,0,0.10),
@@ -66,7 +66,7 @@
         color 0.18s ease !important;
     }
 
-    /* ── HOVER — enlarge + brighter glass ── */
+    /* ── HOVER - enlarge + brighter glass ── */
     .lnav-tab:hover {
       transform: scale(1.04) translateZ(0) !important;
       background: rgba(255,255,255,0.09) !important;
@@ -84,7 +84,7 @@
         0 0 22px rgba(180,200,255,0.10) !important;
     }
 
-    /* ── ACTIVE — blue-tinted glass (no flat solid fill) ── */
+    /* ── ACTIVE - blue-tinted glass (no flat solid fill) ── */
     .lnav-tab.active {
       background: rgba(80,120,255,0.18) !important;
       border-color: rgba(120,160,255,0.28) !important;
@@ -125,7 +125,7 @@
       color: inherit !important;
     }
 
-    /* ── CHROME BUTTON — history items & quick commands ── */
+    /* ── CHROME BUTTON - history items & quick commands ── */
     @keyframes chrome-flow {
       0%   { background-position: 0% 50%; }
       50%  { background-position: 100% 50%; }
@@ -138,7 +138,7 @@
       100% { left: 120%; opacity: 0; }
     }
 
-    /* Background gradient animates directly on button — text stays visible */
+    /* Background gradient animates directly on button - text stays visible */
     .chrome-btn {
       position: relative !important;
       overflow: hidden !important;
@@ -158,7 +158,7 @@
                   border-color 0.2s, box-shadow 0.2s !important;
     }
 
-    /* Shimmer sweep — sits above bg, below text via z-index */
+    /* Shimmer sweep - sits above bg, below text via z-index */
     .chrome-btn::after {
       content: '' !important;
       position: absolute !important;
@@ -259,7 +259,7 @@
                   border-color 0.25s, box-shadow 0.25s !important;
       box-shadow: 0 2px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04) !important;
     }
-    /* Glow dot — top-left accent */
+    /* Glow dot - top-left accent */
     .history-item::before {
       content: '' !important;
       display: block !important;
@@ -903,7 +903,7 @@
     /* Put away: the picture goes, the panel and the readout stay. */
     .gp-cam-wrap.cam-hidden { aspect-ratio:auto; height:34px }
     .gp-cam-wrap.cam-hidden video, .gp-cam-wrap.cam-hidden canvas { display:none }
-    .gp-cam-wrap.cam-hidden::after { content:'Camera hidden — hands still working';
+    .gp-cam-wrap.cam-hidden::after { content:'Camera hidden - hands still working';
       position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
       font-size:10px; letter-spacing:.06em; color:rgba(150,175,225,0.75) }
     .gp-cam-wrap { position:relative; width:100%; aspect-ratio:4/3; background:#000; overflow:hidden; }
@@ -919,8 +919,8 @@
     body.light-mode .gp-label { color:rgba(20,160,80,0.9); }
     body.light-mode .gp-action { color:rgba(30,50,150,0.7); }
 
-    /* ── Callisto Hand Cursor — Precision Premium ── */
-    /* Transform-only, compositor-thread — zero layout reflow */
+    /* ── Callisto Hand Cursor - Precision Premium ── */
+    /* Transform-only, compositor-thread - zero layout reflow */
     #magicCursor {
       position: fixed; z-index: 9999; pointer-events: none;
       width: 36px; height: 36px; border-radius: 50%;
@@ -928,14 +928,14 @@
       transform: translate(-9999px, -9999px);
       will-change: transform;
     }
-    /* Outer pulsing ring — slow ambient animation */
+    /* Outer pulsing ring - slow ambient animation */
     #magicCursor .mc-ring {
       position: absolute; inset: 0; border-radius: 50%;
       border: 1.5px solid rgba(61,255,180,0.75);
       box-shadow: 0 0 12px rgba(61,255,180,0.7), 0 0 28px rgba(61,255,180,0.25);
       animation: mcRingPulse 2.4s ease-in-out infinite;
     }
-    /* Second ring — slightly smaller, offset phase */
+    /* Second ring - slightly smaller, offset phase */
     #magicCursor .mc-ring2 {
       position: absolute; inset: 6px; border-radius: 50%;
       border: 1px solid rgba(61,255,180,0.35);
@@ -951,7 +951,7 @@
       0%,100% { opacity: 0.8; transform: scale(1); }
       50%      { opacity: 0.4; transform: scale(1.08); }
     }
-    /* Pinch state — squish + bright flash */
+    /* Pinch state - squish + bright flash */
     #magicCursor.pinch .mc-ring {
       border-color: rgba(255,255,255,0.95);
       box-shadow: 0 0 20px rgba(61,255,180,1), 0 0 48px rgba(61,255,180,0.55);
@@ -1201,7 +1201,7 @@
     #cardFinBtn:hover { background: rgba(60,100,255,0.28) !important; border-color: rgba(100,160,255,0.50) !important; }
     #cardFinBtn.added { background: rgba(0,180,80,0.14) !important; border-color: rgba(0,200,100,0.30) !important; color: rgba(0,210,110,0.85) !important; }
 
-    /* ── FAVOURITES — gold border glow (matches theme-toggle button treatment) ── */
+    /* ── FAVOURITES - gold border glow (matches theme-toggle button treatment) ── */
     #lnavTabs .lnav-tab[data-section="favourites"] {
       border-color: rgba(255,200,50,0.55) !important;
       color: rgba(255,220,120,0.90) !important;
@@ -1504,10 +1504,10 @@
   <!-- Wave colour tint overlay (mix-blend-mode:hue recolours the glowing lines) -->
   <div id="shaderBgTint" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;mix-blend-mode:hue;opacity:0;transition:background 0.3s,opacity 0.3s;"></div>
 
-  <!-- Ambient color accents — fixed behind everything -->
+  <!-- Ambient color accents - fixed behind everything -->
   <div id="colorAccents"></div>
 
-  <!-- Action flash overlay — fades in/out when Callisto opens something -->
+  <!-- Action flash overlay - fades in/out when Callisto opens something -->
   <div id="actionFlash"></div>
 
   <div id="panel">
@@ -1518,7 +1518,7 @@
     <canvas id="hillSurface" style="display:none;"></canvas>
 
 
-    <!-- Splash — hidden by default; renderer.js shows it when ready -->
+    <!-- Splash - hidden by default; renderer.js shows it when ready -->
     <div id="splash" class="hidden">
       <div class="splash-ring"></div>
       <div id="splashName">CALLISTO AI</div>
@@ -1678,7 +1678,7 @@
           <p class="terms-note">By clicking agree, you confirm you are 13+ and accept the terms above.</p>
         </div>
 
-        <!-- Step 4: Payment — choose plan -->
+        <!-- Step 4: Payment - choose plan -->
         <div id="paymentStep" class="hidden">
           <div class="pay-header">
             <div class="pay-badge">ONE LAST STEP</div>
@@ -1698,7 +1698,7 @@
                 <span class="plan-price">US$25</span>
                 <span class="plan-per">/month</span>
               </div>
-              <div class="plan-per">or US$250 / year — save 17%</div>
+              <div class="plan-per">or US$250 / year - save 17%</div>
               <ul class="plan-features">
                 <li>✦ Unlimited conversations</li>
                 <li>✦ All connectors unlocked</li>
@@ -1739,7 +1739,7 @@
               <div class="interval-card" id="intervalMonthly">
                 <div class="interval-label">MONTHLY</div>
                 <div class="interval-price">US$25<span>/mo</span></div>
-                <div class="interval-note">Billed monthly — cancel anytime</div>
+                <div class="interval-note">Billed monthly - cancel anytime</div>
                 <button class="shiny-btn" id="payMonthly"><span>Subscribe Monthly →</span></button>
               </div>
 
@@ -1747,7 +1747,7 @@
                 <div class="interval-save-pill">SAVE $50</div>
                 <div class="interval-label">ANNUAL</div>
                 <div class="interval-price">US$250<span>/yr</span></div>
-                <div class="interval-note">Just $20.83/mo — best value</div>
+                <div class="interval-note">Just $20.83/mo - best value</div>
                 <button class="shiny-btn shiny-btn-gold" id="payAnnual"><span>Subscribe Annually →</span></button>
               </div>
 
@@ -1759,7 +1759,7 @@
             <div class="pay-spinner"></div>
             <p class="pay-wait-text">Waiting for payment confirmation...</p>
             <p class="pay-wait-sub">Complete payment in your browser, then return here.</p>
-            <button id="payCheckBtn">I'VE PAID — CHECK NOW</button>
+            <button id="payCheckBtn">I'VE PAID - CHECK NOW</button>
           </div>
 
           <div id="payError" class="setup-error hidden"></div>
@@ -1797,10 +1797,10 @@
       </div>
     </div>
 
-    <!-- ══ ONBOARDING — shown only on first-ever launch ══ -->
+    <!-- ══ ONBOARDING - shown only on first-ever launch ══ -->
     <div id="onboardView" class="hidden"></div>
 
-    <!-- Welcome / Enter screen — scroll-locked hero (first login only) -->
+    <!-- Welcome / Enter screen - scroll-locked hero (first login only) -->
     <div id="welcomeScreen" class="hidden">
       <canvas id="sphereCanvas"></canvas>
 
@@ -1825,7 +1825,7 @@
         </div>
       </div>
 
-      <!-- circular progress ring — fills as user scrolls through capabilities -->
+      <!-- circular progress ring - fills as user scrolls through capabilities -->
       <div id="welcomeProgress">
         <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="22" cy="22" r="18" stroke="rgba(0,200,255,0.12)" stroke-width="2.5"/>
@@ -1839,7 +1839,7 @@
         <span id="progressPct">0%</span>
       </div>
 
-      <!-- enter area — locked until user scrolls through -->
+      <!-- enter area - locked until user scrolls through -->
       <div id="welcomeContent">
         <h1 id="enterBtn" class="enter-locked">ENTER <span id="enterAiName">CALLISTO</span> AI</h1>
         <p id="enterSubtitle">An intelligent assistant designed for you alone.<br>Faster thinking. Instant action. Always at your command.</p>
@@ -1925,8 +1925,8 @@
             <div class="sidebar-widget" id="widgetQuickCmds">
               <div class="sw-title">🎙 QUICK COMMANDS</div>
               <!-- data-cmd fills the box; data-caret is where the cursor lands for the part the user types -->
-              <button class="sw-cmd chrome-btn" data-cmd="Callisto, I'm back">"Callisto, I'm back"<span class="sw-cmd-note">your whole daily brief — and anything finished overnight</span></button>
-              <button class="sw-cmd chrome-btn" data-cmd="Open " data-caret="5">"Open [file name]"<span class="sw-cmd-note">finds it on your computer — no need to say what kind of file</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Callisto, I'm back">"Callisto, I'm back"<span class="sw-cmd-note">your whole daily brief - and anything finished overnight</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Open " data-caret="5">"Open [file name]"<span class="sw-cmd-note">finds it on your computer - no need to say what kind of file</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Fix this code">"Fix this code"<span class="sw-cmd-note">while coding · screen assist or magic editor only</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Add a skill from GitHub">"Add a skill from GitHub"<span class="sw-cmd-note">or use the + button</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Open my account settings">"Open my account settings"<span class="sw-cmd-note">two-factor, devices, subscription, delete account</span></button>
@@ -1936,7 +1936,7 @@
               <button class="sw-cmd chrome-btn" data-cmd="Find me hooks for " data-caret="18">"Find me hooks for…"<span class="sw-cmd-note">opening lines for reels in your market</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Write me a pitch for " data-caret="21">"Write me a pitch for…"<span class="sw-cmd-note">ready to read out, in your voice</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="What's my profit margin on " data-caret="27">"What's my profit margin on…"<span class="sw-cmd-note">worked out, not guessed</span></button>
-              <button class="sw-cmd chrome-btn" data-cmd="Make it longer">"Make it longer"<span class="sw-cmd-note">after a video — up to 15 seconds</span></button>
+              <button class="sw-cmd chrome-btn" data-cmd="Make it longer">"Make it longer"<span class="sw-cmd-note">after a video - up to 15 seconds</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Open camera scanner">"Open camera scanner"<span class="sw-cmd-note">hold something up and Callisto looks at it</span></button>
               <button class="sw-cmd chrome-btn" data-cmd="Open my calendar">"Open my calendar"</button>
               <button class="sw-cmd chrome-btn" data-cmd="Show me my markets">"Show me my markets"</button>
@@ -1999,7 +1999,7 @@
                pending). Still fully hidden: drive. -->
           <div class="lnav-pane hidden" id="lnavPaneConnectors">
             <div class="connector-section">
-              <!-- Google Account — links browsing to a specific Google account -->
+              <!-- Google Account - links browsing to a specific Google account -->
               <div class="connector-row" id="googleAccountRow">
                 <div class="connector-icon google" style="background:rgba(66,133,244,0.15);color:#4285F4">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2064,7 +2064,7 @@
                 <div style="display:flex;align-items:center;justify-content:space-between">
                   <div>
                     <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;color:rgba(130,140,255,0.7)">CONNECTED TO</div>
-                    <div id="tvConnectedName" style="font-size:14px;font-weight:700;color:rgba(200,215,255,0.95);margin-top:2px">—</div>
+                    <div id="tvConnectedName" style="font-size:14px;font-weight:700;color:rgba(200,215,255,0.95);margin-top:2px"> - </div>
                   </div>
                   <button class="connector-btn" id="tvDisconnectBtn" style="border-color:rgba(255,100,100,0.3);color:rgba(255,120,120,0.8)">DISCONNECT</button>
                 </div>
@@ -2085,7 +2085,7 @@
             <!--
             <div class="connector-section">
               <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
-              <p class="connector-hint">Emails from these people will be read out in detail. Say their first name when emailing — Callisto will find their address automatically.</p>
+              <p class="connector-hint">Emails from these people will be read out in detail. Say their first name when emailing - Callisto will find their address automatically.</p>
               <div id="vipList"></div>
               <div class="vip-add-row">
                 <input id="vipInput" placeholder="name or email@example.com" autocomplete="off" />
@@ -2117,7 +2117,7 @@
               <!-- Personal accounts have no Instagram API at all, so say this
                    before they connect rather than leaving them with an empty
                    inbox and no idea why. -->
-              <p class="connector-note"><strong>Requires a Professional account.</strong> Instagram must be a Business or Creator account linked to a Facebook Page — <em>every</em> Instagram feature needs it: uploading posts and reels, followers and insights, and reading or sending DMs. None of them work on a personal account. Switching is free: Instagram → Settings → Account type → Switch to professional account.</p>
+              <p class="connector-note"><strong>Requires a Professional account.</strong> Instagram must be a Business or Creator account linked to a Facebook Page - <em>every</em> Instagram feature needs it: uploading posts and reels, followers and insights, and reading or sending DMs. None of them work on a personal account. Switching is free: Instagram → Settings → Account type → Switch to professional account.</p>
               <div class="connector-row" id="tiktokRow">
                 <div class="connector-icon tiktok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></div>
                 <div class="connector-info"><div class="connector-name">TIKTOK STUDIO</div><div class="connector-status" id="tiktokStatus">Not connected</div></div>
@@ -2171,23 +2171,23 @@
               <p class="connector-hint" style="margin-top:10px">Selected: <strong id="musicServiceSelected">None</strong></p>
             </div>
 
-            <!-- AI video, images and 3D are built in — nothing to connect, so
+            <!-- AI video, images and 3D are built in - nothing to connect, so
                  they have no row here. Just say what you want. -->
             <div class="connector-section">
-              <div class="connector-section-title">✨ BUILT IN — NOTHING TO CONNECT</div>
-              <p class="connector-hint">Included with your Callisto account, every day: <strong>5 videos</strong>, <strong>5 images</strong> and <strong>5 3D models</strong>. Just ask — <em>"make me a video of…"</em>, <em>"draw me…"</em>, <em>"create me a 3D model of…"</em>.</p>
+              <div class="connector-section-title">✨ BUILT IN - NOTHING TO CONNECT</div>
+              <p class="connector-hint">Included with your Callisto account, every day: <strong>5 videos</strong>, <strong>5 images</strong> and <strong>5 3D models</strong>. Just ask - <em>"make me a video of…"</em>, <em>"draw me…"</em>, <em>"create me a 3D model of…"</em>.</p>
             </div>
 
             <!-- ── Google Flow AI Video ── -->
             <div class="connector-section">
-              <div class="connector-section-title">🎥 AI VIDEO — GOOGLE FLOW</div>
-              <p class="connector-hint">Say <em>"Make me a video about X"</em> or <em>"Create a video of X"</em> — Callisto will open Google Flow with your prompt ready to go.</p>
+              <div class="connector-section-title">🎥 AI VIDEO - GOOGLE FLOW</div>
+              <p class="connector-hint">Say <em>"Make me a video about X"</em> or <em>"Create a video of X"</em> - Callisto will open Google Flow with your prompt ready to go.</p>
               <div class="connector-row" id="googleFlowRow">
                 <div class="connector-icon" style="background:linear-gradient(135deg,#1a2a4a,#0057e7);color:#60a5fa;font-size:16px;display:flex;align-items:center;justify-content:center">▶</div>
-                <div class="connector-info"><div class="connector-name">GOOGLE FLOW</div><div class="connector-status" id="googleFlowStatus">Ready — no setup needed</div></div>
+                <div class="connector-info"><div class="connector-name">GOOGLE FLOW</div><div class="connector-status" id="googleFlowStatus">Ready - no setup needed</div></div>
                 <button class="connector-btn" id="googleFlowBtn" onclick="window.jarvis.openInAppBrowser('https://flow.google.com/')">OPEN</button>
               </div>
-              <p class="connector-hint" style="margin-top:6px">Powered by <a href="#" id="googleFlowLink" style="color:rgba(96,165,250,0.8)">flow.google.com</a> — Google's AI video creation tool.</p>
+              <p class="connector-hint" style="margin-top:6px">Powered by <a href="#" id="googleFlowLink" style="color:rgba(96,165,250,0.8)">flow.google.com</a> - Google's AI video creation tool.</p>
             </div>
           </div>
 
@@ -2210,7 +2210,7 @@
             <div class="art-empty" id="artEmpty" hidden>
               <div class="art-empty-mark" aria-hidden="true"></div>
               <div class="art-empty-title">Nothing yet this week</div>
-              <div class="art-empty-text">Ask Callisto to “paint a dragon”, “make a 3D model of a helmet” or “make a video of a cat surfing” — they'll collect here.</div>
+              <div class="art-empty-text">Ask Callisto to “paint a dragon”, “make a 3D model of a helmet” or “make a video of a cat surfing” - they'll collect here.</div>
             </div>
           </div>
 
@@ -2218,7 +2218,7 @@
           <div class="lnav-pane hidden" id="lnavPaneHelp">
             <div class="help-head">
               <div class="help-title">Need a hand?</div>
-              <div class="help-sub">Questions, bugs, billing or feedback — email us and a real person replies, usually within one business day.</div>
+              <div class="help-sub">Questions, bugs, billing or feedback - email us and a real person replies, usually within one business day.</div>
             </div>
             <div class="help-card">
               <div class="help-label">Contact support</div>
@@ -2233,7 +2233,7 @@
               <ul>
                 <li>What you asked Callisto, word for word</li>
                 <li>What happened, and what you expected</li>
-                <li>Your computer — Windows or Mac</li>
+                <li>Your computer - Windows or Mac</li>
                 <li>A screenshot, if something looks wrong</li>
               </ul>
             </div>
@@ -2265,7 +2265,7 @@
                    way to tell whether a fix had arrived, and on a Mac it is
                    easy to keep opening an old copy from the disk image. -->
               <div id="appVersionLine" style="text-align:center;font-size:11px;letter-spacing:.04em;color:rgba(150,175,255,0.55);margin:2px 0 10px"></div>
-              <!-- Avatar — centred -->
+              <!-- Avatar - centred -->
               <div class="account-hero">
                 <div id="profileAvatar">👤</div>
                 <div id="profileName"></div>
@@ -2329,7 +2329,7 @@
                 </button>
               </div>
 
-              <!-- AI Status card — glass -->
+              <!-- AI Status card - glass -->
               <div class="profile-section account-ai-status">
                 <div class="profile-label">⚡ AI STATUS</div>
                 <div class="account-ai-grid">
@@ -2423,7 +2423,7 @@
                 </div>
                 <div id="profileCountryRow" class="profile-country-row">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  <span id="profileCountryLabel">—</span>
+                  <span id="profileCountryLabel"> - </span>
                 </div>
               </div>
 
@@ -2450,7 +2450,7 @@
           <!-- Puts the camera view away WITHOUT stopping hand control. The
                camera keeps running and your hands keep working; you just stop
                having to look at yourself. -->
-          <button id="gpHideCam" title="Hide the camera view — hand control keeps working" aria-label="Hide camera view">&#10005;</button>
+          <button id="gpHideCam" title="Hide the camera view - hand control keeps working" aria-label="Hide camera view">&#10005;</button>
           <video id="gestureCamPreview" autoplay playsinline muted></video>
           <canvas id="gestureOverlayCanvas"></canvas>
         </div>
@@ -2482,13 +2482,13 @@
 
         <!-- Naming and choosing what it does -->
         <div class="gs-save hidden" id="gsSave">
-          <input class="gs-input" id="gsName" maxlength="40" placeholder="Name it — e.g. Thumbs up">
+          <input class="gs-input" id="gsName" maxlength="40" placeholder="Name it - e.g. Thumbs up">
           <div class="gs-tabs">
             <button class="gs-tab gs-tab-on" data-mode="builtin">PICK AN ACTION</button>
             <button class="gs-tab" data-mode="prompt">OR SAY IT IN WORDS</button>
           </div>
           <select class="gs-select" id="gsAction"></select>
-          <input class="gs-input hidden" id="gsPrompt" maxlength="300" placeholder='Anything you could ask out loud — "open my markets and read them to me"'>
+          <input class="gs-input hidden" id="gsPrompt" maxlength="300" placeholder='Anything you could ask out loud - "open my markets and read them to me"'>
           <div class="gs-warn hidden" id="gsWarn"></div>
           <div class="gs-save-row">
             <button class="gs-btn gs-btn-go" id="gsSaveBtn">SAVE GESTURE</button>
@@ -2626,7 +2626,7 @@
 
         <div id="chat"></div>
 
-        <!-- Drop overlay — shown when user drags a file over the panel -->
+        <!-- Drop overlay - shown when user drags a file over the panel -->
         <div id="dropOverlay" class="hidden">
           <div class="drop-inner">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -2638,7 +2638,7 @@
 
         <div style="-webkit-app-region:no-drag; display:flex; flex-direction:column; align-items:center;">
           <div id="controls">
-            <!-- Queued files — float to the left of the + button, never push the chat -->
+            <!-- Queued files - float to the left of the + button, never push the chat -->
             <div id="attachPreview" class="hidden" aria-label="Attached files"></div>
             <!-- + attach button -->
             <div class="glow-btn-wrap" id="attachWrap">
@@ -2689,12 +2689,12 @@
 
               <!-- Left action buttons: + attach and trash clear -->
               <div style="position:absolute;left:10px;bottom:14px;display:flex;flex-direction:row;gap:6px;align-items:center">
-                <!-- + Attach file (typing mode — uses same attachInput as voice mode) -->
+                <!-- + Attach file (typing mode - uses same attachInput as voice mode) -->
                 <button id="typeFileBtn" title="Attach file"
                   style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,160,220,0.25);background:rgba(0,160,220,0.08);color:rgba(120,190,255,0.75);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,border-color 0.2s,color 0.2s;-webkit-app-region:no-drag">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
-                <!-- Trash — clear chat (typing mode — distinct ID from voice-mode clearBtn) -->
+                <!-- Trash - clear chat (typing mode - distinct ID from voice-mode clearBtn) -->
                 <button id="typeClearBtn" title="Clear chat"
                   style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(200,60,60,0.20);background:rgba(200,60,60,0.06);color:rgba(255,120,120,0.60);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,border-color 0.2s,color 0.2s;-webkit-app-region:no-drag">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -2706,12 +2706,12 @@
                 style="position:absolute;right:12px;bottom:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,160,220,0.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 10px rgba(0,180,255,0.3)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
               </button>
-              <!-- Stop button (shown while AI is responding — sits in same corner as send) -->
+              <!-- Stop button (shown while AI is responding - sits in same corner as send) -->
               <button id="stopResponseBtn" title="Stop response" style="display:none;position:absolute;right:12px;bottom:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(200,40,55,0.85);color:#fff;cursor:pointer;align-items:center;justify-content:center;transition:background 0.2s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;box-shadow:0 0 12px rgba(220,50,70,0.5)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
               </button>
             </div>
-            <!-- Shift to voice — below the input box -->
+            <!-- Shift to voice - below the input box -->
             <button id="typeVoiceBtn" class="connector-btn" style="margin-top:6px;font-size:10px;padding:5px 13px;letter-spacing:0.8px;width:100%;text-align:center">🎙 SHIFT TO VOICE</button>
           </div>
 
@@ -2795,9 +2795,9 @@
           <div class="conn-steps">
             <div class="conn-step"><span class="conn-step-num">1</span><span>Go to <strong>dashboard.stripe.com</strong></span></div>
             <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Developers → API Keys</strong></span></div>
-            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Create restricted key</strong> — not a secret key</span></div>
+            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Create restricted key</strong> - not a secret key</span></div>
             <div class="conn-step"><span class="conn-step-num">4</span><span>Set <strong>Charges</strong>, <strong>Customers</strong> and <strong>Balance</strong> to <strong>Read</strong>, everything else <em>None</em></span></div>
-            <div class="conn-step"><span class="conn-step-num">5</span><span>Copy the key — starts with <code style="color:rgba(140,180,255,0.8);font-size:10.5px">rk_live_</code></span></div>
+            <div class="conn-step"><span class="conn-step-num">5</span><span>Copy the key - starts with <code style="color:rgba(140,180,255,0.8);font-size:10.5px">rk_live_</code></span></div>
           </div>
           <div class="conn-field">
             <label>STRIPE RESTRICTED KEY</label>
@@ -2833,7 +2833,7 @@
           <div class="conn-steps">
             <div class="conn-step"><span class="conn-step-num">1</span><span>Go to your <strong>Squarespace dashboard</strong></span></div>
             <div class="conn-step"><span class="conn-step-num">2</span><span>Click <strong>Settings → Advanced → API Keys</strong></span></div>
-            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Generate Key</strong> — enable <em>Orders — Read</em> permission</span></div>
+            <div class="conn-step"><span class="conn-step-num">3</span><span>Click <strong>Generate Key</strong> - enable <em>Orders - Read</em> permission</span></div>
             <div class="conn-step"><span class="conn-step-num">4</span><span>Copy and paste the key below</span></div>
           </div>
           <div class="conn-field">
@@ -2853,7 +2853,7 @@
         </div>
       </div>
 
-      <!-- Google Analytics — property picker modal (shown after OAuth) -->
+      <!-- Google Analytics - property picker modal (shown after OAuth) -->
       <div id="analyticsPropertyModal" class="hidden" role="dialog" aria-modal="true">
         <div class="conn-box" id="analyticsPropertyBox">
           <button class="conn-close" id="analyticsPropertyCancel" aria-label="Close">✕</button>
@@ -2927,7 +2927,7 @@
       </div>
     </div>
 
-    <!-- Tasks — a day's to-do list, read back in the next day's briefing -->
+    <!-- Tasks - a day's to-do list, read back in the next day's briefing -->
     <div class="rp-header rp-header-tasks">
       <span class="rp-title">TASKS</span>
       <button class="rp-add-btn" id="tkAddBtn">+ ADD</button>
@@ -3094,18 +3094,18 @@
           <div class="mo-pnl-hero">
             <span class="mo-pnl-row-label">Profit / loss</span>
             <div class="mo-pnl-hero-line">
-              <span class="mo-pnl-row-val" id="moPnlPL">—</span>
-              <span class="mo-pnl-row-val mo-pnl-pill" id="moPnlReturn">—</span>
+              <span class="mo-pnl-row-val" id="moPnlPL"> - </span>
+              <span class="mo-pnl-row-val mo-pnl-pill" id="moPnlReturn"> - </span>
             </div>
           </div>
           <dl class="mo-pnl-stats">
             <div class="mo-pnl-stat">
               <dt class="mo-pnl-row-label">Invested</dt>
-              <dd class="mo-pnl-row-val" id="moPnlInvested">—</dd>
+              <dd class="mo-pnl-row-val" id="moPnlInvested"> - </dd>
             </div>
             <div class="mo-pnl-stat">
               <dt class="mo-pnl-row-label">Current value</dt>
-              <dd class="mo-pnl-row-val" id="moPnlCurVal">—</dd>
+              <dd class="mo-pnl-row-val" id="moPnlCurVal"> - </dd>
             </div>
           </dl>
         </div>
@@ -3231,13 +3231,13 @@
         <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Music control</li>
         <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Vision</li>
         <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Magic Edit</li>
-        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>3D Studio &mdash; 4 a day</li>
-        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>AI video &mdash; 5 a day</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>3D Studio - 4 a day</li>
+        <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>AI video - 5 a day</li>
         <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Post to socials</li>
         <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>Artifacts gallery</li>
       </ul>
 
-      <button type="button" class="paywall-cta" id="paywallBuy">Get Premium &mdash; US$25/mo</button>
+      <button type="button" class="paywall-cta" id="paywallBuy">Get Premium - US$25/mo</button>
       <button type="button" class="paywall-close" id="paywallClose">Maybe tomorrow</button>
       <div class="paywall-note">Checkout opens in your browser. Premium is added to the account you are signed in with.</div>
     </div>
@@ -3285,7 +3285,7 @@
     </div>
   </div>
 
-  <!-- ── EMAIL COMPOSE PANEL (stub — activates after Google verify) ── -->
+  <!-- ── EMAIL COMPOSE PANEL (stub - activates after Google verify) ── -->
   <div id="emailComposePanel" style="display:none;position:fixed;bottom:80px;right:24px;z-index:9999;width:380px;background:rgba(10,14,35,0.97);border:1px solid rgba(99,102,241,0.25);border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,0.6);overflow:hidden;animation:toastIn 0.25s ease">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);background:rgba(99,102,241,0.08)">
       <div style="display:flex;align-items:center;gap:8px">
@@ -3312,7 +3312,7 @@
         <div id="emailAttach" style="font-size:12px;color:rgba(150,200,255,0.7);background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.15);border-radius:7px;padding:6px 10px"></div>
       </div>
       <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.18);border-radius:8px;padding:8px 12px;font-size:11.5px;color:rgba(220,160,50,0.8);line-height:1.5">
-        ⚠ Email sending unlocks after Google verification. Your draft is ready — connect Gmail to send.
+        ⚠ Email sending unlocks after Google verification. Your draft is ready - connect Gmail to send.
       </div>
       <button style="width:100%;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:9px;color:rgba(150,170,255,0.6);font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:not-allowed;opacity:0.6">Send Email (Coming Soon)</button>
     </div>
@@ -3375,7 +3375,7 @@
           btn.innerHTML = hidden ? '&#128065;' : '&#10005;';
           btn.title = hidden
             ? 'Show the camera view again'
-            : 'Hide the camera view — hand control keeps working';
+            : 'Hide the camera view - hand control keeps working';
         });
       })();
       const overlayCanvas = document.getElementById('gestureOverlayCanvas');
@@ -3472,7 +3472,7 @@
       let _cursorFrame = 0;
       const HOVER_EVERY = 2;       // ~20fps hover updates (was 4 = 15fps)
 
-      // ── Smooth cursor loop — compositor thread at 60fps ──────────────────────
+      // ── Smooth cursor loop - compositor thread at 60fps ──────────────────────
       function cursorTick() {
         cursorRafId = requestAnimationFrame(cursorTick);
         if (!gestureEnabled || !lastLeftLm || !magicCursor) return;
@@ -3544,12 +3544,12 @@
           smoothY = euroY.filter(cursorY, nowMs);
         }
 
-        // ONE transform per frame — compositor-only, no layout hit
+        // ONE transform per frame - compositor-only, no layout hit
         magicCursor.style.transform = `translate(${smoothX - HALF_CURSOR}px, ${smoothY - HALF_CURSOR}px)`;
         _aimTrail.push({ t: nowMs, x: smoothX, y: smoothY });
         while (_aimTrail.length > 1 && nowMs - _aimTrail[0].t > AIM_BACK_MS) _aimTrail.shift();
 
-        // ── Hover injection — throttled ──────────────────────────────────────
+        // ── Hover injection - throttled ──────────────────────────────────────
         _cursorFrame++;
         if (_cursorFrame % HOVER_EVERY === 0) {
           const elUnder = document.elementFromPoint(smoothX, smoothY);
@@ -3597,8 +3597,8 @@
         // past 0.52 pressed once and then never re-armed - which is exactly
         // what "it stops detecting the click" looks like from the outside.
         const th = _pinchTh;
-        const apart   = pinchGap > th.open;    // open — ready to press again
-        const pinched = pinchGap < th.close;   // closed — fires
+        const apart   = pinchGap > th.open;    // open - ready to press again
+        const pinched = pinchGap < th.close;   // closed - fires
 
         // In the sketching studio a pinch over the CANVAS draws. Anywhere else
         // in the studio it presses as normal.
@@ -3756,7 +3756,7 @@
         if (apart) { triggerArmed = true; triggerFired = false; pressHeldSince = 0; magicCursor.classList.add('armed'); }
       }
 
-      // Called from onHandResults — just stores landmarks, cursor runs independently
+      // Called from onHandResults - just stores landmarks, cursor runs independently
       function updateCursorLandmarks(lm) {
         lastLeftLm = lm;
       }
@@ -3844,7 +3844,7 @@
         const span = Math.hypot(dx, dy);
         if (!span) return null;
         const ratio = (label === 'Left' ? -dx : dx) / span;
-        if (Math.abs(ratio) < 0.25) return null;   // edge-on — can't tell
+        if (Math.abs(ratio) < 0.25) return null;   // edge-on - can't tell
         return ratio > 0 ? 'palm' : 'back';
       }
 
@@ -3854,7 +3854,7 @@
         const now = Date.now();
         if (swap.facing === null) { swap.facing = f; swap.since = now; return; }
         if (f === swap.facing) { swap.since = now; return; }
-        // Facing changed — hold it briefly, then fire once.
+        // Facing changed - hold it briefly, then fire once.
         if (now - swap.since < SWAP_HOLD_MS) return;
         if (now - swap.lastFired < SWAP_COOLDOWN) { swap.facing = f; return; }
         swap.facing = f;
@@ -3863,37 +3863,37 @@
         doHandSwap();
       }
 
-      // One gesture, four meanings — whichever fits what the user is looking at.
+      // One gesture, four meanings - whichever fits what the user is looking at.
       function doHandSwap() {
         // A document open on screen is what the gesture most likely means.
-        if (window._docStudioNext && window._docStudioNext()) { showGesture('⇄', 'Swap — next page'); return; }
+        if (window._docStudioNext && window._docStudioNext()) { showGesture('⇄', 'Swap - next page'); return; }
         // The drawing canvas flips rather than spins: a drawing turned to an odd
         // angle is not something anyone asked for, but mirroring one is.
         if (window.CallistoDraw?.isOpen?.()) {
-          showGesture('⇄', 'Swap — flipping the drawing');
+          showGesture('⇄', 'Swap - flipping the drawing');
           window.CallistoDraw.flip?.('h');
           return;
         }
         // 1. A 3D model is open → spin it a quarter turn.
         if (window.CallistoModelViewer?.isOpen?.()) {
-          showGesture('↻', 'Swap — rotating the model');
+          showGesture('↻', 'Swap - rotating the model');
           window.CallistoModelViewer.nudgeRotate?.();
           return;
         }
         // 2. Markets expanded → step to the next holding.
         if (typeof window._marketsCycleNext === 'function' && window._marketsExpanded?.()) {
-          showGesture('⇄', 'Swap — next holding');
+          showGesture('⇄', 'Swap - next holding');
           window._marketsCycleNext();
           return;
         }
         // 3. Navigation open → close it.
         if (typeof window._navIsOpen === 'function' && window._navIsOpen()) {
-          showGesture('✕', 'Swap — closing navigation');
+          showGesture('✕', 'Swap - closing navigation');
           window._navClose?.();
           return;
         }
         // 4. Otherwise → next open app, like Alt+Tab.
-        showGesture('❐', 'Swap — next app');
+        showGesture('❐', 'Swap - next app');
         window.jarvis?.switchApp?.().catch?.(() => {});
       }
 
@@ -3939,7 +3939,7 @@
 
       const handState = {};
 
-      // ── One finger (index clearly highest, others below it) — hold 300ms → start listening ─
+      // ── One finger (index clearly highest, others below it) - hold 300ms → start listening ─
       function isOneFingerPoint(lm) {
         // Index must be clearly up
         if (!fingerUp(lm, 8, 6)) return false;
@@ -3972,7 +3972,7 @@
             && spread;
       }
 
-      // ── Wave: wrist x oscillates — track ONE history regardless of hand label ─
+      // ── Wave: wrist x oscillates - track ONE history regardless of hand label ─
       // Hand label can swap in MediaPipe; use a single shared history keyed by hand index
       // Arrays, because the next thing that happens to them is push(). These
       // were {} - truthy, so the "or make one" below never replaced them - and
@@ -4096,7 +4096,7 @@
       // ── Clap: intentional bring-together-from-far gesture ────────────────────
       // The old version required a final "very close" frame and wiped its history
       // the moment fewer than two hands were visible. But MediaPipe almost always
-      // loses one hand at the instant the palms meet — so the frames that prove the
+      // loses one hand at the instant the palms meet - so the frames that prove the
       // clap landed never arrived, and the reset erased the approach that led to it.
       // That is why clapping rarely registered.
       //
@@ -4161,7 +4161,7 @@
 
           if (steady && peak.d > CLAP_FAR_START && drop > CLAP_MIN_DROP && speed > CLAP_MIN_SPEED) {
             if (last.d < CLAP_NEAR) { clapSamples = []; clapArmedAt = 0; return true; }
-            // A real close is under way. Arm it — the contact frames may not survive tracking.
+            // A real close is under way. Arm it - the contact frames may not survive tracking.
             clapArmedAt = now;
           }
         }
@@ -4169,7 +4169,7 @@
         if (lms.length < 2 && clapArmedAt) {
           if (now - clapArmedAt < CLAP_LOST_GRACE) {
             clapSamples = []; clapArmedAt = 0;
-            return true;   // hands disappeared mid-clap — that is the clap
+            return true;   // hands disappeared mid-clap - that is the clap
           }
           clapArmedAt = 0;
         }
@@ -4183,11 +4183,11 @@
         setTimeout(() => gpIcon.classList.remove('flash'), 320);
       }
 
-      // ── Skeleton drawing — 2 draw calls per hand (down from 5) ─────────────
+      // ── Skeleton drawing - 2 draw calls per hand (down from 5) ─────────────
       const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
       const TIPS = [4, 8, 12, 16, 20];
       function drawHand(ctx, lm, W, H, isLeft) {
-        // Green everywhere, red inside the 3D and drawing studios — the two modes have
+        // Green everywhere, red inside the 3D and drawing studios - the two modes have
         // different controls, so the skeleton says which one you are in.
         const studio = !!window.CallistoModelViewer?.isOpen?.() || !!window.CallistoDraw?.isOpen?.();
         const col = studio
@@ -4211,7 +4211,7 @@
 
       // ── Actions ──────────────────────────────────────────────────────────────
       function doStartListening() {
-        // Do NOT focusWindow() — that steals focus from other apps user is using
+        // Do NOT focusWindow() - that steals focus from other apps user is using
         if (typeof startRecording === 'function' && !isRecording) { startRecording(); }
       }
       function doStopListening() {
@@ -4236,7 +4236,7 @@
         showGesture('👏', 'Clap');
       }
 
-      // ── Cached overlay context — set once, never reset dimensions ───────────
+      // ── Cached overlay context - set once, never reset dimensions ───────────
       let overlayCtx = null;
       let _canvasSized = false;
       const LOST_HAND_GRACE_MS = 220;
@@ -4285,9 +4285,9 @@
         }
 
         // Show "hand detected" so user knows detection is working
-        if (gpAction.textContent.startsWith('Show your hand')) gpAction.textContent = 'Hand detected — hold a gesture';
+        if (gpAction.textContent.startsWith('Show your hand')) gpAction.textContent = 'Hand detected - hold a gesture';
 
-        // Draw skeletons — left hand = green/cyan palette, right hand = blue/cyan palette.
+        // Draw skeletons - left hand = green/cyan palette, right hand = blue/cyan palette.
         // Skipped entirely when the preview panel is closed: gestures still work, but
         // we were repainting a canvas nobody could see on every single frame.
         if (!panel.classList.contains('hidden')) {
@@ -4296,7 +4296,7 @@
           if (lms[1]) { const h1Left = (hands[1]?.label === 'Left'); drawHand(ctx, lms[1], W, H, h1Left); }
         }
 
-        // ── 1. CLAP — highest priority, needs 2 hands ──────────────────────
+        // ── 1. CLAP - highest priority, needs 2 hands ──────────────────────
         if (clapLanded && canFire('clap') && !studioOpen) {
           doClapAction(); return;
         }
@@ -4347,7 +4347,7 @@
           if (votes.length >= 3 && Math.abs(lefts - rights) >= 2) {
             return lefts > rights ? 'Left' : 'Right';
           }
-          // Fallback: position (selfie mirror — higher x = LEFT hand)
+          // Fallback: position (selfie mirror - higher x = LEFT hand)
           return (lm && lm[0].x > 0.5) ? 'Left' : 'Right';
         }
 
@@ -4382,7 +4382,7 @@
         }
 
         // ── Hand swap ───────────────────────────────────────────────
-        // Turning the right hand over — palm to back of hand — means "next".
+        // Turning the right hand over - palm to back of hand - means "next".
         // What that means depends on what is on screen, so it is routed below.
         // Swaps and waves belong to the right hand, and only when the vote says
         // so: a guess from where the hand is in the frame is not enough.
@@ -4421,44 +4421,44 @@
           if (i !== gestureIdx) continue; // cursor hand is cursor-only
 
           // In conversation mode the mic is already open and stays open, so
-          // "point to speak" and "fist to stop" have nothing to do — and
+          // "point to speak" and "fist to stop" have nothing to do - and
           // would cut the user off mid-sentence. Everything else still works.
           const convo = !!window._convoMode;
 
-          // ── 2. ONE FINGER POINT — index only up, hold 300ms → start listening ─
+          // ── 2. ONE FINGER POINT - index only up, hold 300ms → start listening ─
           if (!convo && isOneFingerPoint(lm)) {
             if (!handState[i] || handState[i].g !== 'point') handState[i] = { g:'point', since: Date.now() };
             if (Date.now() - handState[i].since > 300 && canFire('snap')) {
-              showGesture('☝️', 'One finger — starting to listen');
+              showGesture('☝️', 'One finger - starting to listen');
               doStartListening();
             }
           } else if (handState[i]?.g === 'point') {
             handState[i] = null;
           }
 
-          // ── 3. FIST — all 4 fingers closed, hold 250ms → stop ──────────
+          // ── 3. FIST - all 4 fingers closed, hold 250ms → stop ──────────
           if (!convo && isFist(lm)) {
             if (!handState[i] || handState[i].g !== 'fist') handState[i] = { g:'fist', since: Date.now() };
             if (Date.now() - handState[i].since > 250 && canFire('fist')) {
-              showGesture('✊', 'Fist — stopped listening');
+              showGesture('✊', 'Fist - stopped listening');
               doStopListening();
             }
           } else if (handState[i]?.g === 'fist') {
             handState[i] = null;
           }
 
-          // ── 4. PEACE — index+middle up+spread, hold 350ms → toggle dark/light ─
+          // ── 4. PEACE - index+middle up+spread, hold 350ms → toggle dark/light ─
           if (isPeace(lm)) {
             if (!handState[i] || handState[i].g !== 'peace') handState[i] = { g:'peace', since: Date.now() };
             if (Date.now() - handState[i].since > 350 && canFire('peace')) {
-              showGesture('✌️', 'Two fingers — toggling theme');
+              showGesture('✌️', 'Two fingers - toggling theme');
               doToggleTheme();
             }
           } else if (handState[i]?.g === 'peace') {
             handState[i] = null;
           }
 
-          // ── 5a. SWIPE — one sweep sideways → the next window along ──────
+          // ── 5a. SWIPE - one sweep sideways → the next window along ──────
           // Checked before the wave, because a swipe is the clearer gesture
           // and should not be swallowed by a looser one.
           if (!wavingHand) { swipeHist[i] = []; swipeArmed[i] = null; waveHist[i] = []; }
@@ -4471,21 +4471,21 @@
               .catch(() => {});
           }
 
-          // ── 5. WAVE — wrist oscillation → scroll markets OR switch mode ─
+          // ── 5. WAVE - wrist oscillation → scroll markets OR switch mode ─
           else if (wavingHand && checkWave(lm, i) && canFire('wave')) {
             if (typeof marketsOverlayOpen !== 'undefined' && marketsOverlayOpen) {
               // Left hand wave scrolls between market cards
               const wh = waveHist[i] || [];
               const dir = wh.length >= 2 ? wh[wh.length-1] - wh[0] : 0;
               if (dir > 0) {
-                showGesture('👉', 'Markets — next');
+                showGesture('👉', 'Markets - next');
                 marketsGoTo(marketsIdx + 1);
               } else {
-                showGesture('👈', 'Markets — prev');
+                showGesture('👈', 'Markets - prev');
                 marketsGoTo(marketsIdx - 1);
               }
             } else {
-              showGesture('🤚', 'Wave — switching mode');
+              showGesture('🤚', 'Wave - switching mode');
               doSwitchMode();
             }
           }
@@ -4571,8 +4571,8 @@
           }
 
           // MediaPipe rescales its input to 256px internally, so feeding it 160x120
-          // threw away detail for no compute saving and made landmarks — especially
-          // two-hand ones — noticeably worse. 320x240 costs almost nothing and is
+          // threw away detail for no compute saving and made landmarks - especially
+          // two-hand ones - noticeably worse. 320x240 costs almost nothing and is
           // the single biggest accuracy win here.
           //
           // The buffer has to match the CAMERA's shape, not a fixed 4:3. Mac
@@ -4606,7 +4606,7 @@
 
           // MediaPipe's WASM inference runs on THIS thread, so every send blocks the
           // UI, the orb and the cursor. A fixed 33ms target meant that on a slower
-          // machine — where inference takes 40ms+ — we queued work faster than it
+          // machine - where inference takes 40ms+ - we queued work faster than it
           // could finish and the whole app stuttered.
           //
           // Instead, measure how long inference actually takes and leave roughly
@@ -4624,7 +4624,7 @@
 
           function loop() {
             if (!gestureEnabled) return;
-            rafId = requestAnimationFrame(loop); // schedule next frame first — never misses
+            rafId = requestAnimationFrame(loop); // schedule next frame first - never misses
 
             // Safety: if the model hangs, force-unlock
             if (_mpBusy && Date.now() - _mpBusySince > 700) {
@@ -4690,7 +4690,7 @@
         const hint = document.querySelector('#gesturePanel .gp-hint');
         if (!hint) return;
         hint.innerHTML = window._convoMode
-          ? 'LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on — you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
+          ? 'LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ✌️ theme · turn hand over = next<br><span style="opacity:.6">Conversation mode is on - you are already being heard, so point-to-speak and fist-to-stop are off.</span>'
           : 'LEFT: 🖱 Callisto Cursor · point to move, pinch to press · RIGHT: ☝️ speak · ✊ stop · ✌️ theme · turn hand over = next';
       }
       window._refreshGestureHint = refreshGestureHint;
@@ -4711,7 +4711,7 @@
           if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(true);
           cursorRafId = requestAnimationFrame(cursorTick); // start 60fps cursor loop
           startGesture();
-          // Greeting the first time the camera turns on in a session — no vision
+          // Greeting the first time the camera turns on in a session - no vision
           // call, just the title the user chose when they signed up.
           (async () => {
             try {
@@ -4728,14 +4728,14 @@
               ];
               const line = lines[Math.floor(Math.random() * lines.length)];
               const audio = await window.jarvis.speak(line);
-              // speak() hands back the audio — without this it was never played.
+              // speak() hands back the audio - without this it was never played.
               if (audio && typeof window.playAudioChunks === 'function') window.playAudioChunks([audio]);
             } catch(e) {}
           })();
         } else {
           toggleBtn.classList.remove('active');
           panel.classList.add('hidden');
-          // Restore normal window — clickable, not always on top
+          // Restore normal window - clickable, not always on top
           if (typeof window._setClickThroughMode === 'function') window._setClickThroughMode(false);
           if (window.jarvis && window.jarvis.setAlwaysOnTop) window.jarvis.setAlwaysOnTop(false);
           if (cursorRafId) { cancelAnimationFrame(cursorRafId); cursorRafId = null; }
@@ -4750,7 +4750,7 @@
     })();
 
     // Called from renderer.js when AI detects an email intent
-    // (gesture script loaded after page ready — see script tag above body close)
+    // (gesture script loaded after page ready - see script tag above body close)
     window.callistoOpenEmailCompose = function(to, subject, body, attachment){
       document.getElementById('emailTo').textContent = to || '';
       document.getElementById('emailSubject').textContent = subject || '';
@@ -4956,7 +4956,7 @@
   })();
   </script>
 
-  <!-- MediaPipe Hands (loaded async — only used when gesture mode is turned on) -->
+  <!-- MediaPipe Hands (loaded async - only used when gesture mode is turned on) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" integrity="sha384-oHwoZ9HyKv5ark5VOH+XWdbNfmhYtptAOBuV8plz6mAfXvTA6d8fULuYllWouEK2" crossorigin="anonymous" defer></script>
 
 </body>

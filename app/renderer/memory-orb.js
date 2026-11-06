@@ -57,6 +57,30 @@
   #memOrb .mo-foot{font-size:11px;color:rgba(150,175,225,.5)}
   @media (max-width:820px){#memOrb{flex-direction:column}#memOrb .mo-panel{width:auto;height:46%;border-left:0;border-top:1px solid rgba(110,160,255,.14)}}
   @media (prefers-reduced-motion:reduce){#memOrb{transition:none}}
+  #memOrb .mo-panel,#memOrb .mo-title,#memOrb .mo-panel input,#memOrb .mo-panel textarea,#memOrb .mo-panel button{font-family:'Roboto Flex','Plus Jakarta Sans','Segoe UI',system-ui,sans-serif}
+  #memOrb .mo-title{letter-spacing:.18em;text-transform:uppercase}
+  #memOrb .mo-title b{letter-spacing:-.01em;text-transform:none;font-weight:400;font-size:26px}
+  #memOrb .mo-head span{font-size:15px;letter-spacing:0;color:#eef4ff}
+  #memOrb .mo-btn{letter-spacing:0;font-size:13px}
+  #memOrb .mo-hint{font-size:12px;color:rgba(170,190,230,.62)}
+  .boh{display:inline-block;cursor:default}
+  .boh .boh-c{display:inline-block;white-space:pre;font-variation-settings:'wght' 400,'slnt' 0;transition:font-variation-settings .6s cubic-bezier(.34,1.56,.64,1)}
+  .boh:hover .boh-c{font-variation-settings:'wght' 900,'slnt' -10}
+  @media (prefers-reduced-motion:reduce){.boh .boh-c{transition:none}}
+  #memOrb .mo-biz{border:1px solid rgba(110,160,255,.16);border-radius:12px;background:rgba(255,255,255,.025)}
+  #memOrb .mo-biz summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:12px 14px}
+  #memOrb .mo-biz summary::-webkit-details-marker{display:none}
+  #memOrb .mo-biz summary .boh{font-size:15px;color:#eef4ff}
+  #memOrb .mo-biz summary small{font-size:11.5px;color:rgba(170,190,230,.6)}
+  #memOrb .mo-biz summary:focus-visible{outline:2px solid #3aa9ff;outline-offset:2px;border-radius:12px}
+  #memOrb .mo-biz[open] summary{border-bottom:1px solid rgba(110,160,255,.12)}
+  #memOrb .mo-biz-body{max-height:42vh;overflow-y:auto;padding:12px 14px 14px}
+  #memOrb #bizSection{display:block;margin:0;padding:0;border:0}
+  #memOrb #bizSection .profile-label,#memOrb #bizSection .biz-sub{display:none}
+  #memOrb .biz-fields label{font-size:12px;letter-spacing:0;color:rgba(190,208,240,.78);margin-bottom:4px;font-weight:500}
+  #memOrb .biz-fields textarea{field-sizing:content;min-height:40px;resize:none;font-size:13.5px;border-radius:10px;padding:9px 11px;background:rgba(255,255,255,.035);border-color:rgba(110,160,255,.2)}
+  #memOrb .biz-fields textarea:focus{border-color:#3aa9ff;box-shadow:0 0 0 3px rgba(58,169,255,.15);outline:none}
+  #memOrb #bizSave{padding:9px 16px;border-radius:10px;border:0;background:linear-gradient(135deg,#3aa9ff,#0f37b4);color:#fff;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0}
   `;
 
   // The app has window.jarvis; the website hands in its own adapter that talks
@@ -248,13 +272,17 @@ void main(){
     root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Memory');
     root.innerHTML = `
       <div class="mo-stage"><canvas class="mo-fx" aria-hidden="true"></canvas><canvas class="mo-globe"></canvas>
-        <div class="mo-title">MEMORY<b>What I know about you</b></div>
-        <div class="mo-empty">Nothing yet. Tell me things as we talk — or add them on the right — and they'll orbit here.</div>
+        <div class="mo-title">Memory<b class="boh" data-boh>What I know about you</b></div>
+        <div class="mo-empty">Nothing yet. Tell me things as we talk - or add them on the right - and they'll orbit here.</div>
       </div>
       <aside class="mo-panel">
-        <div class="mo-head"><span>MEMORY ORB</span><button class="mo-x" aria-label="Close">×</button></div>
-        <div class="mo-add"><input class="mo-new" maxlength="300" placeholder="e.g. My girlfriend is called Sara"><button class="mo-btn" disabled>ADD</button></div>
-        <div class="mo-hint">Names, your business, what you like, what's going on — anything worth remembering.</div>
+        <div class="mo-head"><span class="boh" data-boh>Memory orb</span><button class="mo-x" aria-label="Close">×</button></div>
+        <div class="mo-add"><input class="mo-new" maxlength="300" placeholder="e.g. My girlfriend is called Sara" aria-label="Add a memory"><button class="mo-btn" disabled>Add</button></div>
+        <div class="mo-hint">Names, what you like, what's going on: anything worth remembering.</div>
+        <details class="mo-biz">
+          <summary><span class="boh" data-boh>Your business</span><small>Filled in as you talk about it</small></summary>
+          <div class="mo-biz-body"></div>
+        </details>
         <input class="mo-search" placeholder="Search memories…">
         <div class="mo-kinds"></div>
         <div class="mo-list"></div>
@@ -262,6 +290,9 @@ void main(){
       </aside>`;
     document.body.appendChild(root);
     requestAnimationFrame(() => root.classList.add('open'));
+    const biz = document.getElementById('bizSection');
+    if (biz) { bizHome = biz.parentNode; bizNext = biz.nextSibling; root.querySelector('.mo-biz-body').appendChild(biz); }
+    boldOnHover(root);
 
     const canvas = root.querySelector('canvas.mo-globe'), stage = root.querySelector('.mo-stage');
     const draw = globe(canvas);
@@ -330,9 +361,34 @@ void main(){
     if (fx && fx.dispose) fx.dispose();
     fx = null;
     document.removeEventListener('keydown', onKey);
+    const biz = document.getElementById('bizSection');
+    if (biz && bizHome) bizHome.insertBefore(biz, bizNext && bizNext.parentNode === bizHome ? bizNext : null);
     const r = root; root = null; chips = []; hot = null;
     r.classList.remove('open');
     setTimeout(() => r.remove(), 280);
+  }
+
+  let bizHome = null, bizNext = null;
+
+  // Bold on hover: each letter thickens and leans in turn as the pointer
+  // arrives, and eases back when it leaves - the variable font's weight and
+  // slant axes, staggered 30ms a letter. Screen readers get the plain word.
+  function boldOnHover(scope) {
+    scope.querySelectorAll('[data-boh]').forEach((el) => {
+      if (el.dataset.bohDone) return;
+      const text = el.textContent;
+      el.dataset.bohDone = '1';
+      el.setAttribute('aria-label', text);
+      el.textContent = '';
+      [...text].forEach((ch, i) => {
+        const sp = document.createElement('span');
+        sp.className = 'boh-c';
+        sp.setAttribute('aria-hidden', 'true');
+        sp.style.transitionDelay = (i * 30) + 'ms';
+        sp.textContent = ch;
+        el.appendChild(sp);
+      });
+    });
   }
 
   window.CallistoMemoryOrb = { open, close };

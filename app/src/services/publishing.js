@@ -1,14 +1,14 @@
 // ── Publishing to the customer's own accounts ─────────────────────────────────
 // Uploads a video or photo to YouTube, Instagram or TikTok using the tokens the
 // customer connected in Callisto. Nothing is ever posted without the customer
-// confirming it first — the renderer shows a confirm card and only then calls
+// confirming it first - the renderer shows a confirm card and only then calls
 // publish().
 //
 // Each platform takes media differently:
-//   YouTube   — resumable upload of the bytes themselves.
-//   Instagram — fetches a public URL, so the file is parked on the licence
+//   YouTube - resumable upload of the bytes themselves.
+//   Instagram - fetches a public URL, so the file is parked on the licence
 //               server for an hour (server/media-host.js) and removed after.
-//   TikTok    — chunked upload of the bytes. Apps that TikTok hasn't audited can
+//   TikTok - chunked upload of the bytes. Apps that TikTok hasn't audited can
 //               only send to the user's TikTok inbox as a draft, so we fall back
 //               to that when a direct post is refused.
 
@@ -93,7 +93,7 @@ async function toYouTube({ buf, type }, { title, description, privacy }) {
   if (!start.ok) {
     const err = await start.text();
     if (/insufficient (authentication scopes|permission)/i.test(err) || start.status === 401) {
-      throw new Error('Reconnect YouTube in Connectors — the current connection doesn’t include permission to upload.');
+      throw new Error('Reconnect YouTube in Connectors - the current connection doesn’t include permission to upload.');
     }
     if (start.status === 403 && /quota|exceeded/i.test(err)) {
       throw new Error('YouTube’s daily upload quota for this app is used up. Try again tomorrow.');
@@ -110,8 +110,8 @@ async function toYouTube({ buf, type }, { title, description, privacy }) {
   const data = await put.json().catch(() => ({}));
   if (!put.ok || !data.id) throw new Error(data.error?.message || 'The upload didn’t finish.');
   const vis = privacy || 'private';
-  const note = vis === 'private' ? 'Uploaded as private — publish it when you’re ready.'
-    : vis === 'unlisted' ? 'Uploaded as unlisted — only people with the link can watch it.'
+  const note = vis === 'private' ? 'Uploaded as private - publish it when you’re ready.'
+    : vis === 'unlisted' ? 'Uploaded as unlisted - only people with the link can watch it.'
     : null;
   return { id: data.id, url: `https://youtu.be/${data.id}`, note };
 }
@@ -170,10 +170,10 @@ async function toInstagram(media, { description }, authToken) {
 
 // ── Facebook Page ─────────────────────────────────────────────────────────────
 // The same Meta login as Instagram, so connecting Instagram covers both. Only a
-// Page can be posted to — Meta closed posting to personal profiles years ago.
+// Page can be posted to - Meta closed posting to personal profiles years ago.
 async function toFacebook(media, { title, description }, authToken) {
   const token = await connectors.getInstagramToken();
-  if (!token) throw new Error('Facebook isn’t connected. Connect Instagram in Connectors — it covers your Facebook Page too.');
+  if (!token) throw new Error('Facebook isn’t connected. Connect Instagram in Connectors - it covers your Facebook Page too.');
 
   const pages = await fetch(`https://graph.facebook.com/v23.0/me/accounts?fields=id,name,access_token&access_token=${token}`).then((r) => r.json());
   const page = pages.data?.[0];
@@ -250,8 +250,8 @@ async function toTikTok(media, { title, privacy }) {
     id: init.data?.publish_id || null,
     url: 'https://www.tiktok.com/',
     note: draft
-      ? 'Sent to your TikTok drafts — open the TikTok app to add sounds and post it.'
-      : (privacy === 'public' ? null : 'Posted as private on TikTok — make it public in the app when you’re ready.'),
+      ? 'Sent to your TikTok drafts - open the TikTok app to add sounds and post it.'
+      : (privacy === 'public' ? null : 'Posted as private on TikTok - make it public in the app when you’re ready.'),
   };
 }
 

@@ -6,7 +6,7 @@ const _nodeFetch = require('node-fetch');
 // Wikipedia lookups behind most cards. Route every call through AbortController,
 // which aborts on real elapsed time instead.
 // Wikipedia's API policy rejects library default User-Agents and answers with an
-// HTML error page, which then fails JSON parsing — the silent cause of most
+// HTML error page, which then fails JSON parsing - the silent cause of most
 // missing cards. Identify the app on every request unless a caller overrides it.
 const DEFAULT_UA = 'CallistoDesktop/1.2 (+https://callistoai.net)';
 
@@ -19,7 +19,7 @@ function fetch(url, opts = {}) {
   return _nodeFetch(url, { ...rest, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
-// ── In-memory cache — avoid repeat fetches for the same query within 60s ─────
+// ── In-memory cache - avoid repeat fetches for the same query within 60s ─────
 const _cache = new Map();
 // A hit is remembered; a miss is not. Caching a null meant one slow request
 // poisoned the next forty-five seconds: asking the gold price while the
@@ -44,7 +44,7 @@ function _timedFetch(url, opts = {}, ms = 3000) {
   return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
-// Weather via wttr.in — free, no API key
+// Weather via wttr.in - free, no API key
 async function getWeather(location) {
   try {
     const res = await fetch(`https://wttr.in/${encodeURIComponent(location)}?format=j1`, { timeout: 1500 });
@@ -97,7 +97,7 @@ function _describe(desc, night) {
   return d.replace(/\bsunny\b/gi, 'clear');
 }
 
-// One short spoken line for the greeting — "It's 18 degrees and cloudy in
+// One short spoken line for the greeting - "It's 18 degrees and cloudy in
 // Winnipeg, feels like 15." Deliberately briefer than the full weather card.
 async function getWeatherGreeting(location, displayCity = null) {
   try {
@@ -369,7 +369,7 @@ async function getScienceCard(query) {
   }
 }
 
-// DuckDuckGo Instant Answers — free, no API key
+// DuckDuckGo Instant Answers - free, no API key
 async function ddgSearch(query) {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
@@ -437,7 +437,7 @@ async function getLatestNews(topic) {
   }
 }
 
-// Scrape Google for a general factual answer — handles current leaders, recent events, etc.
+// Scrape Google for a general factual answer - handles current leaders, recent events, etc.
 // Scraping Google stopped working: it answers a request like this with a page
 // of JavaScript that strips down to "Please click here if you are not
 // redirected" - 92KB of HTML carrying 182 characters of nothing. Every
@@ -680,7 +680,7 @@ async function legacyGoogleScrape(query) {
   } catch (e) { return null; }
 }
 
-// Main function — called before AI responds when real-time data is needed
+// Main function - called before AI responds when real-time data is needed
 async function fetchRealtimeContext(query) {
   return _cached(`rtx:${query}`, () => _fetchRealtimeContextInner(query), 45000);
 }
@@ -695,13 +695,13 @@ async function _fetchRealtimeContextInner(query) {
     if (weather) return weather;
   }
 
-  // Sports — ESPN with date-range search + detailed summary (scorers + MOTM)
+  // Sports - ESPN with date-range search + detailed summary (scorers + MOTM)
   if (SPORTS_REGEX.test(q)) {
     const card = await espnSportsSearch(query);
     if (card) {
       const isUpcoming = card.score1 === '–';
       let ctx = isUpcoming
-        ? `LIVE SPORTS DATA:\n${card.team1} vs ${card.team2} — match has NOT started yet.\nStatus: ${card.status}`
+        ? `LIVE SPORTS DATA:\n${card.team1} vs ${card.team2} - match has NOT started yet.\nStatus: ${card.status}`
         : `LIVE SPORTS DATA:\nFinal Score: ${card.team1} ${card.score1} - ${card.score2} ${card.team2}\nStatus: ${card.status}`;
       if (card.league) ctx += `\nCompetition: ${card.league}`;
       if (card.date) ctx += `\nDate: ${card.date}`;
@@ -718,7 +718,7 @@ async function _fetchRealtimeContextInner(query) {
     return `LIVE DATA: No match data found on ESPN for "${query}". Do NOT guess or invent any score, scorer, or result. Tell the user you could not find data and offer to open Google for them.`;
   }
 
-  // Current world affairs — presidents, prime ministers, leaders, elections, recent events
+  // Current world affairs - presidents, prime ministers, leaders, elections, recent events
   const worldAffairsRegex = /\b(president|prime minister|premier|chancellor|king|queen|emperor|leader|head of state|ceo|who is|who was|who leads|who runs|who won|who beat|elected|election|appointed|sworn in|resigned|died|passed away|killed|war|conflict|attack|invasion|treaty|sanction|protest|coup|crisis|disaster|earthquake|flood|hurricane|pandemic|outbreak|vaccine|law|bill|act|policy|ban|legalized|arrested|charged|convicted|sentenced|released|summit|deal|agreement|signed|launched|discovered|invented|broke|record|champion|title|won the|lost the|announced|released|dropped|debut)\b/i;
 
   if (worldAffairsRegex.test(q)) {
@@ -749,7 +749,7 @@ async function _fetchRealtimeContextInner(query) {
       + 'Google News search for the subject, saying out loud that you are opening it.';
   }
 
-  // General factual question — only fetch live data for questions that need it
+  // General factual question - only fetch live data for questions that need it
   // Skip for pure educational/historical questions that the AI already knows
   const needsLiveData = /\b(who is|who's|who was|currently|right now|at the moment|today|this year|this month|latest|recent|new|announced|launched|released|appointed|elected|won|beat|defeated|died|arrested|charged|sentenced)\b/i.test(q);
   if (!needsLiveData) return null;
@@ -764,7 +764,7 @@ async function _fetchRealtimeContextInner(query) {
     : null;
 }
 
-// (duplicate _timedFetch removed — defined at top of file)
+// (duplicate _timedFetch removed - defined at top of file)
 
 // Stock lookups go through the Callisto server first: it caches quotes and
 // reaches Yahoo reliably, while direct requests from some networks are slow
@@ -856,7 +856,7 @@ function formatMarketCap(n) {
   return `$${n.toLocaleString()}`;
 }
 
-// Company financial analytics card — revenue history + key metrics
+// Company financial analytics card - revenue history + key metrics
 const COMPANY_FINANCE_REGEX = /\b(revenue|revenues|earnings|profit|profits|income|financial(s| data| results| report)?|annual report|quarterly (results|earnings|revenue)|how much (does|did|has)|how many (customers|users)|market share|growth|sales figures?|turnover|ebitda|net income|gross profit|operating income|cash flow|fiscal year)\b/i;
 
 async function getCompanyFinanceCard(query) {
@@ -928,7 +928,7 @@ function formatVolume(n) {
   return String(n);
 }
 
-// Person card — photo + name + short bio from Wikipedia
+// Person card - photo + name + short bio from Wikipedia
 const PERSON_REGEX = /\b(who is|who('s| is) (the )?|tell me about|show me|photo of|picture of|biography of)\b.{2,60}?(minister|president|prime minister|pm|ceo|founder|king|queen|prince|princess|chancellor|senator|governor|mayor|general|admiral|director|secretary|actor|actress|singer|rapper|athlete|player|politician|leader|chef|scientist|inventor|philosopher|author|writer|poet|artist|painter|composer|conductor|director|cto|cfo|chairman|chairwoman|head of|lord|emperor|empress|prince|princess|duke|duchess|sultan|emir|ayatollah|pope|archbishop|cardinal|bishop|imam|rabbi|sheikh)/i;
 
 const PERSON_QUERY_REGEX = /^(who is|who('s| is) the |tell me about |show me |biography of |about )/i;
@@ -983,7 +983,7 @@ async function resolveWikiTitles(term, limit = 5) {
     const d = await r.json();
     (d?.query?.search || []).forEach(s => push(s.title));
 
-    // 2. "Did you mean" — this is what rescues typos like keanue → keanu
+    // 2. "Did you mean" - this is what rescues typos like keanue → keanu
     const suggestion = d?.query?.searchinfo?.suggestion;
     if (!titles.length && suggestion) {
       const r2 = await _timedFetch(
@@ -1058,7 +1058,7 @@ function _entitySubject(query) {
     .trim();
 }
 
-// Any question that names a thing and expects a description. Deliberately broad —
+// Any question that names a thing and expects a description. Deliberately broad - 
 // this is the net that catches insects, birds, vehicles, spacecraft, weapons,
 // equations, towns, influencers and everything else without a bespoke regex each.
 const ENTITY_INTENT_REGEX = /\b(who|what|which|where)\s+(is|are|was|were)\b|\b(who'?s|what'?s)\b|\btell me about\b|\bexplain\b|\bdescribe\b|\bshow me\b|\bdefine\b/i;
@@ -1078,7 +1078,7 @@ async function genericEntityCard(query) {
       .filter(p => p && !p.missing && (p.extract || '').length > 40);
     if (!pages.length) return null;
 
-    // Wikipedia's first hit is often a spin-off page — "Keanu Reeves (song)",
+    // Wikipedia's first hit is often a spin-off page - "Keanu Reeves (song)",
     // "MrBeast Burger", "Cristiano Ronaldo (disambiguation)". Rank by how well the
     // title matches what was asked before falling back to search order.
     const page = pages.slice().sort((a, b) => _scoreWikiCandidate(subject, b) - _scoreWikiCandidate(subject, a))[0];
@@ -1146,11 +1146,11 @@ async function getPersonCard(query) {
       const titles = await resolveWikiTitles(term, 8);
       if (!titles.length) continue;
 
-      // Fetch top 5 results in parallel — each title individually encoded (no | encoding issue)
+      // Fetch top 5 results in parallel - each title individually encoded (no | encoding issue)
       const pages = await Promise.all(titles.slice(0, 5).map(t => _fetchWikiPage(t).catch(() => null)));
 
       // Return first result that has a photo, isn't an office article, and looks like a person
-      // Rank rather than take the first hit — search order puts "Keanu Reeves
+      // Rank rather than take the first hit - search order puts "Keanu Reeves
       // filmography" and "Messi–Ronaldo rivalry" above the actual biography.
       const personPage = pages
         .filter(p =>
@@ -1428,7 +1428,7 @@ const _SPORTS_TERMS = /\b((?<!\b(?:high|credit|test|exam|sat|ielts|gre|my|your)\
 const SPORTS_REGEX = { test: (s) => _SPORTS_TERMS.test(s) && !/^\s*(?:remind|add|create|make|set|schedule|put|write|note|save|plan|book)\b/i.test(s) && !/\b(?:task|reminder|to-?do|calendar|meeting|appointment)\b/i.test(s) };
 
 
-// ESPN — search across all leagues, ±7 days of dates, international matches included
+// ESPN - search across all leagues, ±7 days of dates, international matches included
 async function espnSportsSearch(query) {
   const leagues = [
     // International / World Cup
@@ -1490,8 +1490,8 @@ async function espnSportsSearch(query) {
     const score1 = scheduled ? '–' : (home?.score ?? '0');
     const score2 = scheduled ? '–' : (away?.score ?? '0');
     const statusLabel = scheduled
-      ? `Upcoming — ${new Date(comps.date).toDateString()}`
-      : inProgress ? `LIVE — ${ev.status?.displayClock || ''}`
+      ? `Upcoming - ${new Date(comps.date).toDateString()}`
+      : inProgress ? `LIVE - ${ev.status?.displayClock || ''}`
       : 'Full Time';
     const scorers = [];
     (comps.details || []).forEach(d => {
@@ -1515,7 +1515,7 @@ async function espnSportsSearch(query) {
       status: statusLabel,
       scorers,
       headline: scheduled
-        ? `${home?.team?.displayName} vs ${away?.team?.displayName} — Upcoming`
+        ? `${home?.team?.displayName} vs ${away?.team?.displayName} - Upcoming`
         : `${home?.team?.displayName} ${score1} – ${score2} ${away?.team?.displayName}`,
       source: 'ESPN',
       sourceUrl: `https://www.espn.com/${sport}/game/_/gameId/${ev.id}`,
@@ -1572,7 +1572,7 @@ async function espnSportsSearch(query) {
   return null;
 }
 
-// Scrape Google search for a sports score — most up-to-date fallback
+// Scrape Google search for a sports score - most up-to-date fallback
 async function googleSportsScore(query) {
   try {
     const searchQ = encodeURIComponent(query + ' final score 2026');
@@ -1653,7 +1653,7 @@ async function googleMatchContext(query) {
   } catch (e) { return null; }
 }
 
-// Movie card — OMDB free API (no key needed for basic search) + TMDB fallback
+// Movie card - OMDB free API (no key needed for basic search) + TMDB fallback
 async function getMovieCard(query) {
   try {
     // Strip filler words to get the movie title
@@ -1663,7 +1663,7 @@ async function getMovieCard(query) {
       .trim();
     if (!title || title.length < 2) return null;
 
-    // OMDB free tier — 1000 req/day, no key needed for search endpoint
+    // OMDB free tier - 1000 req/day, no key needed for search endpoint
     const omdbUrl = `https://www.omdbapi.com/?apikey=trilogy&t=${encodeURIComponent(title)}&plot=short`;
     const omdbRes = await fetch(omdbUrl, { timeout: 3000 });
     const omdb = await omdbRes.json();
@@ -1712,7 +1712,7 @@ async function getMovieCard(query) {
   } catch (e) { return null; }
 }
 
-// Private companies — explicitly null so we never try to resolve them
+// Private companies - explicitly null so we never try to resolve them
 const PRIVATE_COMPANIES = new Set([
   'openai', 'open ai', 'stripe', 'klarna', 'revolut',
   'chime', 'databricks', 'canva', 'bytedance', 'tiktok', 'shein', 'cargill',
@@ -1772,7 +1772,7 @@ const STOCK_KEYWORDS = /\b(stock|share|shares|price|invest|market|nasdaq|nyse|cr
 async function fetchCardData(query) {
   return _cached(`card:${query}`, () => _fetchCardDataInner(query), 45000);
 }
-// A company or coin named as a whole word — "ada" is not in "canada", nor "sol" in "console".
+// A company or coin named as a whole word - "ada" is not in "canada", nor "sol" in "console".
 function _namedTicker(q) {
   for (const [name, ticker] of Object.entries(TICKER_MAP)) {
     if (ticker && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q)) return ticker;
@@ -1794,7 +1794,7 @@ async function _fetchCardDataInner(query) {
   const wantsStock = !(SHOPPING_INTENT.test(q) && !/\b(stock price|share price|shares|ticker|market cap)\b/i.test(q))
     && (EXPLICIT_STOCK.test(q) || (STOCK_KEYWORDS.test(q) && !!namedTicker));
   if (wantsStock) {
-    // Check if the user is asking about a known private company — return null immediately
+    // Check if the user is asking about a known private company - return null immediately
     for (const priv of PRIVATE_COMPANIES) {
       if (q.includes(priv)) return { type: 'private_company', name: priv.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') };
     }
@@ -1840,40 +1840,40 @@ async function _fetchCardDataInner(query) {
     if (symbol) return await getStockCard(symbol);
   }
 
-  // Sports scores — ESPN (World Cup + all leagues) then Google
+  // Sports scores - ESPN (World Cup + all leagues) then Google
   if (SPORTS_REGEX.test(q)) {
     const espn = await espnSportsSearch(query);
     if (espn) return espn;
     return await googleSportsScore(query);
   }
 
-  // Movie queries — show movie info card (explicit keywords)
+  // Movie queries - show movie info card (explicit keywords)
   if (/\b(movie|film|cinema|sequel|prequel|release date|coming out|when (is|does|will|does)|box office|cast|director|plot|trailer|watch)\b/i.test(q)) {
     const card = await getMovieCard(query);
     if (card) return card;
   }
 
-  // Movie queries — implicit: "tell me about fight club", "what is interstellar", bare title
+  // Movie queries - implicit: "tell me about fight club", "what is interstellar", bare title
   // Try OMDB/TMDB for any non-person, non-sports, non-stock query that could be a movie title
-  // "What is Japan?" is a country, not a film called Japan — only "what is X about" asks about a film.
+  // "What is Japan?" is a country, not a film called Japan - only "what is X about" asks about a film.
   if (/\b(tell me about|what(?:'s| is| was) .{1,40} about|about the|review of|synopsis of|story of|ending of|who made|who wrote|who starred)\b/i.test(q) &&!/\b(person|people|artist|band|group|politician|president|pm|ceo|founder|scientist|inventor|animal|country|city|food|dish|flag|battle|war|revolution)\b/i.test(q)) {
     const card = await getMovieCard(query);
     if (card) return card;
   }
 
-  // Places / business search — "best pizza in Lahore", "bowling alley in LA"
+  // Places / business search - "best pizza in Lahore", "bowling alley in LA"
   if (PLACES_SEARCH_REGEX.test(q)) {
     const card = await getPlacesCard(query);
     if (card) return card;
   }
 
-  // Company financial analytics — must run before person/image to prevent wrong Wikipedia cards
+  // Company financial analytics - must run before person/image to prevent wrong Wikipedia cards
   if (COMPANY_FINANCE_REGEX.test(q)) {
     const card = await getCompanyFinanceCard(query);
     if (card) return card;
   }
 
-  // Location / place / landmark — any query mentioning a place, even parks and local spots
+  // Location / place / landmark - any query mentioning a place, even parks and local spots
   const LOCATION_TRIGGER = /\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about|about|what('s| is)|where is|how big is|what does .{0,30} look like|info on|overview of|facts about)\b.{0,80}\b(park|garden|beach|mountain|lake|river|forest|valley|canyon|island|desert|waterfall|bridge|tower|castle|palace|cathedral|mosque|temple|church|stadium|square|plaza|street|avenue|boulevard|district|neighbourhood|neighborhood|quarter|area|city|country|capital|town|village|landmark|monument|bay|harbor|harbour|cliff|hill|peninsula|coast|shore|reserve|nature reserve|national park|botanical|zoo|museum|gallery|arena|amphitheatre)\b|\b(show me|pictures? of|photos? of|images? of|visit|travel to|explore|tell me about)\b/i;
   if (LOCATION_TRIGGER.test(q) && !COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q)) {
     const card = await getLocationCard(query);
@@ -1898,7 +1898,7 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
-  // Animal queries — show species photo + description card
+  // Animal queries - show species photo + description card
   // Also catches "show me a pangolin", "what does a quetzal look like", "tell me about a snow leopard" etc.
   const ANIMAL_INTENT_REGEX = /\b(show me a?n?|what (is|are|does) a?n?|tell me about a?n?|facts about a?n?|pictures? of a?n?|photos? of a?n?|how (big|fast|dangerous|smart|strong) is a?n?|describe a?n?|what does a?n? .{0,20} look like)\b/i;
   if (ANIMAL_REGEX.test(q) || (ANIMAL_INTENT_REGEX.test(q) && /\b(animal|bird|fish|insect|reptile|mammal|amphibian|creature|species|wildlife|predator|prey)\b/i.test(q))) {
@@ -1906,14 +1906,14 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
-  // Fashion / brand queries — show brand/logo card via Wikipedia
+  // Fashion / brand queries - show brand/logo card via Wikipedia
   if (FASHION_REGEX.test(q)) {
     const concept = extractConcept(query);
     const card = await wikiCard(concept);
     if (card) return card;
   }
 
-  // Fictional character queries — show character photo card.
+  // Fictional character queries - show character photo card.
   // Requires an explicit character signal: matching bare "who is" sent real people
   // here first and returned things like "Feastables" for "who is MrBeast".
   if (!COMPANY_FINANCE_REGEX.test(q) && CHARACTER_REGEX.test(q)) {
@@ -1921,7 +1921,7 @@ async function _fetchCardDataInner(query) {
     if (charCard) return charCard;
   }
 
-  // Person queries — show photo + bio card (exclude financial/location queries)
+  // Person queries - show photo + bio card (exclude financial/location queries)
   // Covers: who is/was, tell me about, show me, photo/picture/biography of, plus direct celebrity names
   if (!COMPANY_FINANCE_REGEX.test(q) && /\bwho is\b|\bwho('s| is) (the |a )?\b|\bwho was\b|\btell me about\b|\bshow me\b|\bbiography of\b|\bphoto of\b|\bpicture of\b|\bactor\b|\bactress\b|\bsinger\b|\brappper\b|\bmusician\b|\bpresident\b|\bprime minister\b|\bpolitician\b|\bfounder\b|\bceo\b|\bdirector\b|\bscientist\b|\binventor\b|\bhistorical figure\b|\bwho played\b|\bplayed by\b/i.test(q)) {
     const card = await getPersonCard(query);
@@ -1934,7 +1934,7 @@ async function _fetchCardDataInner(query) {
     if (card) return card;
   }
 
-  // Image — car, painting, place, artwork (exclude financial queries)
+  // Image - car, painting, place, artwork (exclude financial queries)
   if (!COMPANY_FINANCE_REGEX.test(q) && !PLACES_SEARCH_REGEX.test(q) && /car|vehicle|painting|artwork|portrait|photo|picture|image|what does|show me/i.test(q)) {
     const subject = query.replace(/show me|what does|photo of|picture of|image of/gi, '').trim();
     return await getImageCard(subject);
@@ -1989,7 +1989,7 @@ async function _fetchCardDataInner(query) {
   return null;
 }
 
-// ── Live news feed system — BBC RSS (free, no API key) ────────────────────────
+// ── Live news feed system - BBC RSS (free, no API key) ────────────────────────
 const NEWS_FEEDS = {
   world:        'https://feeds.bbci.co.uk/news/world/rss.xml',
   business:     'https://feeds.bbci.co.uk/news/business/rss.xml',
@@ -2007,7 +2007,7 @@ const NEWS_FEEDS = {
 };
 
 let _newsCache = { data: {}, ts: 0 };
-const NEWS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes — refresh frequently for fresh headlines
+const NEWS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes - refresh frequently for fresh headlines
 
 function _withTimeout(promise, ms) {
   return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
@@ -2032,7 +2032,7 @@ async function fetchNewsFeeds() {
     return _newsCache.data;
   }
   const entries = Object.entries(NEWS_FEEDS);
-  // Each feed has its own 3.5s timeout — the overall fetch never blocks longer than that
+  // Each feed has its own 3.5s timeout - the overall fetch never blocks longer than that
   const results = await Promise.all(entries.map(([, url]) => _fetchRSSFeed(url)));
   const data = {};
   entries.forEach(([cat], i) => { data[cat] = results[i]; });
@@ -2073,10 +2073,10 @@ async function getNewsContext(query) {
   if (!headlines.length) return null;
 
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  return `LIVE NEWS HEADLINES — ${today}:\n${headlines.join('\n')}\n\nUse these headlines to answer questions about current events. If the user asks about something covered here, reference it accurately.`;
+  return `LIVE NEWS HEADLINES - ${today}:\n${headlines.join('\n')}\n\nUse these headlines to answer questions about current events. If the user asks about something covered here, reference it accurately.`;
 }
 
-// ── Wikimedia Commons image search — richer image results ────────────────────
+// ── Wikimedia Commons image search - richer image results ────────────────────
 async function searchImages(query) {
   try {
     const res = await _timedFetch(

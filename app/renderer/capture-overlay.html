@@ -76,7 +76,7 @@
 </head>
 <body>
 
-<div id="hint">Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span></div>
+<div id="hint">Hold &amp; drag to circle anything - <span>release to identify · ESC to cancel</span></div>
 
 <!-- After circling, they can say what to do with it. Left empty it just
      identifies what is there, which is the old behaviour. -->
@@ -118,7 +118,7 @@
 const { ipcRenderer } = require('electron');
 
 // ═══════════════════════════════════════════════════════════
-//  CANVAS ELEMENTS — declared first so all functions can use them
+//  CANVAS ELEMENTS - declared first so all functions can use them
 // ═══════════════════════════════════════════════════════════
 const tubeCanvas  = document.getElementById('tubeCanvas');
 const tCtx        = tubeCanvas.getContext('2d');
@@ -135,7 +135,7 @@ resizeCanvases();
 window.addEventListener('resize', resizeCanvases);
 
 // ═══════════════════════════════════════════════════════════
-//  TUBE CURSOR TRAIL  (Canvas 2D — no CDN needed)
+//  TUBE CURSOR TRAIL  (Canvas 2D - no CDN needed)
 // ═══════════════════════════════════════════════════════════
 
 // Trail: array of {x, y, t, hue}
@@ -226,8 +226,8 @@ ipcRenderer.on('capture:mode', (_e, m) => {
   const hint = document.getElementById('hint');
   if (hint) {
     hint.innerHTML = assistMode
-      ? 'Screen assist is on — <span>circle what you mean, or just ask · press <b>Esc</b> to turn off screen assist</span>'
-      : 'Hold &amp; drag to circle anything — <span>release to identify · ESC to cancel</span>';
+      ? 'Screen assist is on - <span>circle what you mean, or just ask · press <b>Esc</b> to turn off screen assist</span>'
+      : 'Hold &amp; drag to circle anything - <span>release to identify · ESC to cancel</span>';
     // In assist mode the bar shows straight away: it is the "it's on" signal.
     if (assistMode) hint.style.display = '';
   }
@@ -271,7 +271,7 @@ function drawLasso() {
   lCtx.stroke();
   lCtx.restore();
 
-  // Core line — thin bright
+  // Core line - thin bright
   lCtx.save();
   lCtx.beginPath();
   lCtx.moveTo(path[0].x, path[0].y);
@@ -342,7 +342,7 @@ async function finishSelection() {
   if (assistMode) {
     ipcRenderer.send('capture:assist-area', bounds);
     const hint = document.getElementById('hint');
-    if (hint) hint.innerHTML = 'Got it — <span>now ask about what you circled · circle again to change it · <b>Esc</b> to turn off</span>';
+    if (hint) hint.innerHTML = 'Got it - <span>now ask about what you circled · circle again to change it · <b>Esc</b> to turn off</span>';
     return;
   }
 

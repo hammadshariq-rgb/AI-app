@@ -186,7 +186,7 @@
       esc(spec.title || 'chart') + '">' + parts.join('') + '</svg>' +
       legend +
       (spec.note ? '<div class="mc-note">' + esc(spec.note) + '</div>'
-                 : (measured ? '' : '<div class="mc-note">Worked out, not measured — check it before you rely on it.</div>')) +
+                 : (measured ? '' : '<div class="mc-note">Worked out, not measured - check it before you rely on it.</div>')) +
       '</div>';
   }
 

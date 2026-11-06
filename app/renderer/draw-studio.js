@@ -1,7 +1,7 @@
 // ── Drawing studio ────────────────────────────────────────────────────────────
 // A page Callisto draws on when you ask it to. "Draw me a box" puts a box on
 // the canvas; "add two lines making a triangle with a rocket on top" adds to
-// what is already there rather than starting again — so a picture is built up
+// what is already there rather than starting again - so a picture is built up
 // a sentence at a time.
 //
 // Everything is SVG, which buys three things: shapes stay crisp at any size,
@@ -175,7 +175,7 @@
         <svg class="ds-spark" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>
         <input id="dsInput" type="text" aria-label="Tell Callisto what to draw"
-               placeholder="Tell Callisto what to draw — “add a rocket on top”">
+               placeholder="Tell Callisto what to draw - “add a rocket on top”">
         <kbd class="ds-kbd" data-keys="Ctrl+Shift+C">Ctrl Shift C</kbd>
         <button class="ds-btn ds-btn-go ds-btn-sm" type="submit">Draw</button>
       </form>
@@ -889,7 +889,7 @@
     return new XMLSerializer().serializeToString(clone);
   }
 
-  // PNG, for anything that wants a real picture — downloads, and the video and
+  // PNG, for anything that wants a real picture - downloads, and the video and
   // image generators.
   function toPng(scale = 2) {
     return new Promise((resolve) => {
@@ -953,7 +953,7 @@
       commandHandler(text);
     });
 
-    // Clicking a shape selects it — works with the mouse and, because these are
+    // Clicking a shape selects it - works with the mouse and, because these are
     // ordinary DOM elements, with the Callisto cursor too.
     layer.addEventListener('click', (e) => {
       if (editingText) return;   // mid-edit: a redraw here closes the editor

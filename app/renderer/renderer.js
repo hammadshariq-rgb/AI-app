@@ -1,3 +1,18 @@
+// Same check as main.js: a request whose subject is only a swear word or
+// nothing at all is answered plainly, never announced or started.
+const _CREATIVE_FILLER = /\b(?:please|can|could|would|you|u|make|create|generate|build|render|design|draw|give|show|me|a|an|the|of|for|some|one|3d|three|d|model|models|mesh|sculpt|image|images|picture|pic|photo|video|clip|animation|poster|logo|that|this|it|now|quick|quickly|just|real|realistic|cool|nice|big|small)\b/gi;
+const _CREATIVE_JUNK = /^(?:fuck\w*|f\W*ck\w*|shit\w*|bitch\w*|cunt\w*|dick\w*|cock\w*|puss(?:y|ies)|ass(?:hole)?s?|arse\w*|bastard\w*|slut\w*|whore\w*|wank\w*|twat\w*|prick\w*|bollocks|crap|damn|hell|piss\w*|fag\w*|retard\w*|nigg\w*|porn\w*|nude\w*|naked|boob\w*|tits?|penis\w*|vagina\w*|sex\w*|xxx|lol|lmao|idk|nothing|anything|something|stuff|whatever|bruh|asdf\w*|test(?:ing)?)$/i;
+function _junkCreative(text) {
+  const rest = String(text || '').toLowerCase()
+    // Disguised spellings: f*ck, f_ck, sh!t, b!tch.
+    .replace(/f[^a-z\s]+c?k/g, 'fuck').replace(/sh[^a-z\s]+t/g, 'shit').replace(/b[^a-z\s]+tch/g, 'bitch')
+    .replace(_CREATIVE_FILLER, ' ').replace(/[^a-z\s]/g, ' ').trim();
+  if (!rest) return true;
+  return rest.split(/\s+/).every((w) => w.length < 2 || _CREATIVE_JUNK.test(w));
+}
+const _JUNK_REPLY = "I can't make that one. Tell me what you'd like it to be of and I'll make it.";
+window._junkCreative = _junkCreative;
+
 function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
@@ -35,7 +50,7 @@ function updateOnlineState() {
   if (navigator.onLine) {
     offlineBanner.classList.add('hidden');
   } else {
-    offlineBannerText.textContent = 'No internet connection — I can\'t respond until it\'s back';
+    offlineBannerText.textContent = 'No internet connection - I can\'t respond until it\'s back';
     offlineBanner.classList.remove('hidden');
   }
 }
@@ -46,7 +61,7 @@ updateOnlineState(); // run once on load
 // Move #mainPanel to body so no ancestor overflow/stacking context clips its hit region
 ;(function() { const mp = document.getElementById('mainPanel'); if (mp) document.body.appendChild(mp); })();
 
-// ── Click-through toggle — only active when gesture/magic-cursor mode is ON.
+// ── Click-through toggle - only active when gesture/magic-cursor mode is ON.
 //    When gestures are off the window stays fully clickable (normal app).
 //    When on: overlay passes clicks to apps behind it EXCEPT when mouse is over
 //    a real Callisto UI element (buttons, panels, etc).
@@ -210,7 +225,7 @@ const orb = document.getElementById('orb');
 const orbLabel = document.getElementById('orbLabel');
 
 // ═══════════════════════════════════════════════════════════════
-//  THEME TOGGLE — light / dark mode
+//  THEME TOGGLE - light / dark mode
 // ═══════════════════════════════════════════════════════════════
 (function initTheme() {
   const btn        = document.getElementById('themeToggleBtn');
@@ -218,7 +233,7 @@ const orbLabel = document.getElementById('orbLabel');
   const sunIcon    = document.getElementById('themeSunIcon');
   const waveCanvas = document.getElementById('waveCanvas');
 
-  // ── WebGL wave renderer (Threads shader — raw WebGL, no OGL) ──
+  // ── WebGL wave renderer (Threads shader - raw WebGL, no OGL) ──
   const VS = `
     attribute vec2 position;
     void main() { gl_Position = vec4(position, 0.0, 1.0); }
@@ -315,7 +330,7 @@ const orbLabel = document.getElementById('orbLabel');
     const uDist = gl.getUniformLocation(prog, 'uDistance');
     const uMou  = gl.getUniformLocation(prog, 'uMouse');
 
-    // Cyan — same accent colour as dark mode (#00c8ff)
+    // Cyan - same accent colour as dark mode (#00c8ff)
     let _waveColor = [0.0, 0.784, 1.0];
     gl.uniform3fv(uCol,  _waveColor);
     gl.uniform1f(uAmp,   1.6);
@@ -385,7 +400,7 @@ const orbLabel = document.getElementById('orbLabel');
     applyTheme(!document.body.classList.contains('light-mode'));
   });
 
-  // Restore saved preference — poll until canvas has real dimensions then start wave
+  // Restore saved preference - poll until canvas has real dimensions then start wave
   const _savedLight = localStorage.getItem('theme') === 'light';
   if (_savedLight) {
     document.body.classList.add('light-mode');
@@ -637,7 +652,7 @@ function buildFavCardHTML(fav) {
   const label = FAV_LABELS[fav.type] || 'GENERAL';
   const added = new Date(fav.addedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  let liveText = '—';
+  let liveText = ' - ';
   let liveClass = '';
   let detailHTML = `<strong>QUERY:</strong> ${fav.query}<br><strong>ADDED:</strong> ${added}`;
 
@@ -646,7 +661,7 @@ function buildFavCardHTML(fav) {
     liveText  = `${d.currency} ${d.price}`;
     liveClass = d.dir;
     const arrow = d.dir === 'up' ? '▲' : '▼';
-    detailHTML = `<strong>TICKER:</strong> ${fav.ticker || '—'}<br><strong>PRICE:</strong> ${d.currency} ${d.price}<br><strong>CHANGE:</strong> ${arrow} ${d.change} (${d.pct}%)<br><strong>UPDATED:</strong> ${new Date(fav.lastUpdated).toLocaleTimeString()}`;
+    detailHTML = `<strong>TICKER:</strong> ${fav.ticker || ' - '}<br><strong>PRICE:</strong> ${d.currency} ${d.price}<br><strong>CHANGE:</strong> ${arrow} ${d.change} (${d.pct}%)<br><strong>UPDATED:</strong> ${new Date(fav.lastUpdated).toLocaleTimeString()}`;
   }
 
   return `
@@ -781,7 +796,7 @@ function buildFavBubble() {
   });
 }
 
-// favLauncher removed — favourites accessible via sidebar nav tab
+// favLauncher removed - favourites accessible via sidebar nav tab
 
 document.getElementById('favouritesClose')?.addEventListener('click', () => {
   historySidebar.classList.add('hidden');
@@ -917,7 +932,7 @@ function showTeachBubble(res) {
 }
 
 // Markdown that is still being written. The tail of a stream is usually
-// half-finished — a "##" with its heading not typed yet, an opened "**" — and
+// half-finished - a "##" with its heading not typed yet, an opened "**" - and
 // showing those raw for a moment is exactly the mess this is meant to avoid.
 function _streamSafeMarkdown(md) {
   let s = String(md || '');
@@ -962,7 +977,7 @@ function _renderChatMarkdown(src) {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const inline = (s) => esc(s)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // [label](https://…) — only http(s); the URL is already HTML-escaped
+    // [label](https://…) - only http(s); the URL is already HTML-escaped
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"]+)\)/g, '<a href="$2" class="msg-link">$1</a>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
@@ -1018,6 +1033,9 @@ function _renderChatMarkdown(src) {
 }
 
 function addMessage(role, text) {
+  // No em dashes on screen: the model is told not to use them, and anything
+  // that slips through becomes a comma.
+  if (role === 'assistant' && typeof text === 'string') text = text.replace(/[ \t]*—[ \t]*/g, ', ');
   // Everything Callisto says goes in the conversation, however it got said. Its
   // own shortcuts (the TV, numbers, weather) showed a bubble but never told the
   // history, so the next question arrived with no idea what came before.
@@ -1054,7 +1072,7 @@ function addMessage(role, text) {
   div.appendChild(textSpan);
 
   if (role === 'assistant') {
-    // Copy button — inside the bubble, bottom-right, original position
+    // Copy button - inside the bubble, bottom-right, original position
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy-btn';
     copyBtn.title = 'Copy';
@@ -1071,7 +1089,7 @@ function addMessage(role, text) {
   row.appendChild(div);
 
   if (role === 'assistant') {
-    // Stop button — outside bubble to the right, only shown while AI is responding
+    // Stop button - outside bubble to the right, only shown while AI is responding
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
     const stopInlineBtn = document.createElement('button');
@@ -1462,7 +1480,7 @@ window.finAddStock = async function(stock) {
   finRender();
 };
 
-// Load saved portfolio — deferred so it never blocks the splash screen
+// Load saved portfolio - deferred so it never blocks the splash screen
 async function finLoad() {
   const saved = await window.jarvis.financePortfolio().catch(() => []);
   // saved is now an array of full stock objects (with cached chart data)
@@ -1470,7 +1488,7 @@ async function finLoad() {
   finPortfolio = saved.filter(s => s && s.symbol);
   if (finPortfolio.length) finRender();
 
-  // Refresh prices in background — replace cached data with live data
+  // Refresh prices in background - replace cached data with live data
   const symbols = finPortfolio.map(s => s.symbol);
   if (symbols.length) {
     const fresh = await Promise.all(
@@ -1492,7 +1510,7 @@ async function finLoad() {
   }, 30000);
 }
 
-// ===================== MARKETS OVERLAY — coverflow + P&L =====================
+// ===================== MARKETS OVERLAY - coverflow + P&L =====================
 window.marketsOverlayOpen = false;
 let marketsIdx = 0;
 
@@ -1769,7 +1787,7 @@ function moPnlRecalc() {
   if (!s || !buyPrice || !shares || isNaN(buyPrice) || isNaN(shares) || buyPrice <= 0 || shares <= 0) {
     ['moPnlInvested','moPnlCurVal','moPnlPL','moPnlReturn'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.textContent = '—'; el.className = 'mo-pnl-row-val' + (id === 'moPnlReturn' ? ' mo-pnl-pill' : ''); }
+      if (el) { el.textContent = ' - '; el.className = 'mo-pnl-row-val' + (id === 'moPnlReturn' ? ' mo-pnl-pill' : ''); }
     });
     document.getElementById('moPnlAiTip').textContent = '';
     document.getElementById('moPnlAiTip').className = 'mo-pnl-ai-tip';
@@ -1796,7 +1814,7 @@ function moPnlRecalc() {
   const tipEl = document.getElementById('moPnlAiTip');
   if (Math.abs(pl) > 0.005) {
     const adj = pl >= 0 ? 'up' : 'down';
-    tipEl.textContent = `You are ${adj} ${fmt(Math.abs(pl))} on ${s.symbol} — a ${Math.abs(ret).toFixed(1)}% ${pl >= 0 ? 'gain' : 'loss'} on your position.`;
+    tipEl.textContent = `You are ${adj} ${fmt(Math.abs(pl))} on ${s.symbol} - a ${Math.abs(ret).toFixed(1)}% ${pl >= 0 ? 'gain' : 'loss'} on your position.`;
     tipEl.className = 'mo-pnl-ai-tip has-tip';
   } else {
     tipEl.textContent = ''; tipEl.className = 'mo-pnl-ai-tip';
@@ -1809,7 +1827,7 @@ window.showMarketsOverlay = async function showMarketsOverlay() {
     await finLoad().catch(() => {});
   }
   if (!finPortfolio.length) {
-    // Still empty — show overlay with empty state message
+    // Still empty - show overlay with empty state message
     const overlay = document.getElementById('marketsOverlay');
     if (overlay) {
       overlay.classList.add('mo-open');
@@ -1918,9 +1936,9 @@ function marketsSummaryText() {
   return `${finPortfolio.length} holdings, ${shape}. ${overall}.${leaders}`;
 }
 
-// Command interception — "show my markets", "open portfolio", etc.
+// Command interception - "show my markets", "open portfolio", etc.
 window._checkMarketsOverlay = async function(text) {
-  // Any mention of the user's own markets opens the cards — "show me my markets",
+  // Any mention of the user's own markets opens the cards - "show me my markets",
   // "how's my portfolio", "what are my stocks at", "check my holdings".
   // "Show me Apple stock" names a company and belongs to the single-stock card,
   // so it deliberately doesn't match: this needs my/our, or "the markets".
@@ -1929,7 +1947,7 @@ window._checkMarketsOverlay = async function(text) {
   await showMarketsOverlay();
   window._hudWantsWindow = true;   // asked from another app: bring Callisto up to show them
   // Asking for an overview is a question, and questions get an answer in the
-  // chat. Asking to see the markets just opens them — then Callisto reads the
+  // chat. Asking to see the markets just opens them - then Callisto reads the
   // numbers aloud while they're on screen, without cluttering the chat.
   const wantsWritten = /(overview|summary|rundown|breakdown|how.*(doing|looking)|what.*(up|down)|tell me about)/i.test(text);
   const summary = marketsSummaryText();
@@ -1966,7 +1984,7 @@ window._checkMarketsOverlay = async function(text) {
     } else {
       banner.style.display = 'none';
       if (statusEl) statusEl.textContent = tvDevices.length
-        ? `${tvDevices.length} device${tvDevices.length > 1 ? 's' : ''} found — tap to connect`
+        ? `${tvDevices.length} device${tvDevices.length > 1 ? 's' : ''} found - tap to connect`
         : (tvScanning ? 'Scanning your network…' : 'Not connected');
     }
     if (!tvScanning) tvRenderDevices(tvDevices);   // the connected TV leaves the list; a disconnected one returns
@@ -1984,7 +2002,7 @@ window._checkMarketsOverlay = async function(text) {
     return res;
   }
 
-  // What to tell someone once their TV is connected — each kind of TV needs
+  // What to tell someone once their TV is connected - each kind of TV needs
   // something different from them (or nothing at all).
   function tvConnectedMessage(dev, res) {
     const name = res.name || dev.name;
@@ -1999,14 +2017,14 @@ window._checkMarketsOverlay = async function(text) {
     if ((res.method || '').includes('ADB')) {
       return `📺 Connected to **${name}** with full control.${tryThis}`;
     }
-    return `📺 Connected to **${name}**. I'm setting up full control in the background — if your TV asks to allow debugging, choose **Allow**.${tryThis}`;
+    return `📺 Connected to **${name}**. I'm setting up full control in the background - if your TV asks to allow debugging, choose **Allow**.${tryThis}`;
   }
 
   // ── Render device list ───────────────────────────────────────────────────
   function tvRenderDevices(all) {
     const list = getEl('tvDeviceList');
     if (!list) return;
-    // One row per TV, and the connected TV only in "Connected to" — never twice.
+    // One row per TV, and the connected TV only in "Connected to" - never twice.
     const same = (a, b) => !!a && !!b && (a.host === b.host || (a.name === b.name && (a.kind || 'cast') === (b.kind || 'cast')));
     const devs = [];
     for (const d of all || []) if (!same(d, tvConnected) && !devs.some((x) => same(x, d))) devs.push(d);
@@ -2068,7 +2086,7 @@ window._checkMarketsOverlay = async function(text) {
     } catch (_) {
       tvDevices = [];
     } finally {
-      // ALWAYS reset scan state — even if discover threw or hung
+      // ALWAYS reset scan state - even if discover threw or hung
       tvScanning = false;
       if (scanBtn) { scanBtn.textContent = 'RESCAN'; scanBtn.disabled = false; }
     }
@@ -2126,7 +2144,7 @@ window._checkMarketsOverlay = async function(text) {
     if (!status.connected) { tvConnected = null; tvUpdateUI(); }
   });
 
-  // ── Wire scan/disconnect buttons via onclick — no duplicate-listener risk ──
+  // ── Wire scan/disconnect buttons via onclick - no duplicate-listener risk ──
   // Use a polling interval: buttons live inside a connector panel that may not
   // be in the DOM yet. Poll until found, assign onclick (idempotent), then stop.
   function wireBtn(id, fn) {
@@ -2139,7 +2157,7 @@ window._checkMarketsOverlay = async function(text) {
     let done = true;
     done = wireBtn('tvScanBtn',        () => { if (!tvScanning) tvScan(); }) && done;
     done = wireBtn('tvDisconnectBtn',  tvDisconn) && done;
-    // Manual IP connect (only present after a failed scan — okay if not found)
+    // Manual IP connect (only present after a failed scan - okay if not found)
     wireBtn('tvManualConnectBtn', async () => {
       const input = document.getElementById('tvManualIp');
       const ip = (input?.value || '').trim();
@@ -2223,11 +2241,11 @@ window._checkMarketsOverlay = async function(text) {
   window.jarvis.onTvAdbStatus?.((s) => {
     if (s.phase === 'prompt' && !_tvPromptShown) {
       _tvPromptShown = true;
-      addMessage('assistant', '📺 Look at your TV — it\'s asking to **allow debugging** from this computer ("Allow network debugging?" or "Allow USB debugging?"). Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
+      addMessage('assistant', '📺 Look at your TV - it\'s asking to **allow debugging** from this computer ("Allow network debugging?" or "Allow USB debugging?"). Choose **Allow**, and tick **"Always allow from this computer"** so it doesn\'t ask again. That lets me play exact videos on it.');
       say('Please accept the prompt on your TV, and tick always allow.');
     } else if (s.phase === 'ready') {
       _tvPromptShown = false;
-      addMessage('assistant', `📺 Full control of **${tvConnected?.name || 'your TV'}** is set up — I can now play specific videos on it.`);
+      addMessage('assistant', `📺 Full control of **${tvConnected?.name || 'your TV'}** is set up - I can now play specific videos on it.`);
     }
   });
 
@@ -2287,7 +2305,7 @@ window._checkMarketsOverlay = async function(text) {
     }
 
     // A file stored on the TV: "play X from my usb / downloads / media player"
-    // Saying USB or media player means the TV's own storage — never YouTube.
+    // Saying USB or media player means the TV's own storage - never YouTube.
     // The spellings cover what the mic hears: "u s b", "usb drive", "pen drive".
     const STORAGE = '(?:usb(?:\\s+(?:drive|stick))?|u\\s?s\\s?b|pen\\s?drive|flash(?:\\s+drive)?|thumb\\s?drive|hard\\s+(?:drive|disk)|external\\s+(?:drive|disk)|drive|storage|downloads?|media(?:\\s+(?:player|centre|center))?|files|memory|gallery)';
     const fm = t.match(new RegExp(`\\b(?:play|open|watch|put\\s+on|start)\\s+(.+?)\\s+(?:from|off|on|in)\\s+(?:my\\s+|the\\s+)?(?:tv'?s\\s+)?${STORAGE}\\b`, 'i'))
@@ -2309,11 +2327,11 @@ window._checkMarketsOverlay = async function(text) {
   window._parseTvRequest = parseTvRequest;   // exposed for testing from devtools
 
   // The remote: "mute the TV", "pause my TV", "turn the TV off", "turn the volume
-  // up on the TV". Only commands that name the TV — a bare "mute" or "pause" is for
+  // up on the TV". Only commands that name the TV - a bare "mute" or "pause" is for
   // this computer, and "how do I mute my TV?" is a question for the AI.
   function parseTvRemote(raw) {
     let t = String(raw || '').replace(/["“”]/g, '').replace(/[’‘]/g, "'").replace(/[\s.!?,;:]+$/, '').trim();
-    // "TV", "TVs", "TV's" all name the TV — "increase my TVs volume to 80".
+    // "TV", "TVs", "TV's" all name the TV - "increase my TVs volume to 80".
     if (!/\b(?:tv|television)(?:'?s)?\b/i.test(t)) return null;
     if (/^(?:how|what|why|when|where|which|who|is|are|was|does|do|did|should|would|will|can\s+i|could\s+i)\b/i.test(t)) return null;
     t = t.replace(/^(?:ok(?:ay)?\s+|hey\s+)?(?:(?:please|can\s+you|could\s+you|would\s+you|just)\s+)+/i, '')
@@ -2348,7 +2366,7 @@ window._checkMarketsOverlay = async function(text) {
   window._parseTvRemote = parseTvRemote;
 
   // Said while watching, without naming the TV: "pause", "skip the ad", "louder".
-  // These only go to the TV when the TV is the thing actually playing — otherwise
+  // These only go to the TV when the TV is the thing actually playing - otherwise
   // they belong to this computer.
   function parseBareMediaCommand(raw) {
     const t = String(raw || '').toLowerCase().replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '')
@@ -2367,7 +2385,7 @@ window._checkMarketsOverlay = async function(text) {
 
   // ── "Who's watching?" ────────────────────────────────────────────────────
   // When Netflix or Prime opens on its profile screen, Callisto asks who's
-  // watching and the user's next words answer it — no "on my TV" needed. Netflix
+  // watching and the user's next words answer it - no "on my TV" needed. Netflix
   // hides its screen from Callisto, so the first time a name is used it asks where
   // that profile sits, and remembers. The last profile used is chosen next time.
   let tvProfileAsk = null;   // { app, query, needsPosition, profileName, until }
@@ -2498,7 +2516,7 @@ window._checkMarketsOverlay = async function(text) {
     let last = null;
     try { last = JSON.parse(localStorage.getItem('tv_last_device') || 'null'); } catch (_) {}
     if (!last || !last.host) return false;
-    addMessage('assistant', `📺 Your TV isn't answering — trying to switch it on…`);
+    addMessage('assistant', `📺 Your TV isn't answering - trying to switch it on…`);
     const w = await window.jarvis.tvWake(last.host, last.name).catch(() => null);
     return !!(w && w.ok) && await tvReconnectLast();
   }
@@ -2506,7 +2524,7 @@ window._checkMarketsOverlay = async function(text) {
   window._checkTvCast = async function(text) {
     let t = text.trim();
 
-    // Answering "who's watching?" — while that question is open, the reply goes to the TV.
+    // Answering "who's watching?" - while that question is open, the reply goes to the TV.
     if (tvProfileAsk && Date.now() < tvProfileAsk.until && tvConnected) {
       const reply = parseProfileReply(t, Date.now() - tvProfileAsk.askedAt < 90 * 1000);
       if (reply) return answerProfileQuestion(reply);
@@ -2559,7 +2577,7 @@ window._checkMarketsOverlay = async function(text) {
       const woke = known && !(remote && remote.key === 'power_off') && await tvWakeUp();
       if (!woke) {
         addMessage('assistant', known
-          ? '📺 I couldn\'t reach your TV. If it\'s switched off, turn it on with the remote — or turn on **network standby** (Wake on LAN) in the TV\'s settings so I can switch it on myself. It also needs to be on the same Wi-Fi as this computer.'
+          ? '📺 I couldn\'t reach your TV. If it\'s switched off, turn it on with the remote - or turn on **network standby** (Wake on LAN) in the TV\'s settings so I can switch it on myself. It also needs to be on the same Wi-Fi as this computer.'
           : '📺 No TV connected yet. Open **Connectors → TV Cast** and scan for your TV first.');
         return true;
       }
@@ -2613,7 +2631,7 @@ window._checkMarketsOverlay = async function(text) {
       say(`Playing ${query} on YouTube on your TV.`);
       try {
         const res = await window.jarvis.tvCastYouTube(query);
-        if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there. Once full control is set up I'll be able to play it directly.`);
+        if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV - search for **${res.title}** there. Once full control is set up I'll be able to play it directly.`);
         else if (res && res.ok) addMessage('assistant', `▶ Now playing **${res.title}** on your TV.`);
         else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
       } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
@@ -2647,7 +2665,7 @@ window._checkMarketsOverlay = async function(text) {
         say(`Playing ${song} on your TV.`);
         try {
           const res = await window.jarvis.tvCastYouTube(song + ' official audio');
-          if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV — search for **${res.title}** there.`);
+          if (res && res.ok && res.partial) addMessage('assistant', `📺 I opened YouTube on your TV - search for **${res.title}** there.`);
           else if (res && res.ok) addMessage('assistant', `🎵 Now playing **${res.title}** on your TV.`);
           else addMessage('assistant', `⚠️ TV: ${(res && res.error) || 'cast failed'}`);
         } catch(e) { addMessage('assistant', `⚠️ TV error: ${e.message}`); }
@@ -2700,8 +2718,8 @@ function _hudAfterHandled(assistantCountBefore) {
   }, 1500);
 }
 
-// Reads the date and time out of a phrase — "on Friday at 3pm", "tomorrow",
-// "July 15", "the 20th at 9:30" — and hands back what's left as the title.
+// Reads the date and time out of a phrase - "on Friday at 3pm", "tomorrow",
+// "July 15", "the 20th at 9:30" - and hands back what's left as the title.
 // No date means the next time that hour comes round (or tomorrow at 10am).
 function parseWhen(phrase) {
   const now = new Date();
@@ -2825,7 +2843,7 @@ window._checkQuickLaunch = async function(text) {
   const t = text.trim().replace(/\s+on\s+(?:my\s+|the\s+|this\s+)?(?:laptop|computer|pc|mac|macbook|desktop)\b/i, '').trim();
 
   // ── Spotify: "play X on spotify" ─────────────────────────────────────────
-  // Skip if TV command — let _checkTvCast handle it
+  // Skip if TV command - let _checkTvCast handle it
   const isTV = /\bon\s+(?:the\s+|my\s+)?(?:tv|television|screen|chromecast)\b/i.test(t);
 
   // ── YouTube channel stats: "how many subs", "my channel stats", etc. ──────
@@ -2869,7 +2887,7 @@ window._checkQuickLaunch = async function(text) {
         // One bubble, with a paragraph for each part.
         addMessage('assistant', [done && done.spoken, ...b.parts.map((part) => part.text)].filter(Boolean).join('\n\n'));
         // The work itself goes in the chat underneath, where it can be read
-        // and copied — not read aloud, which would take all morning.
+        // and copied - not read aloud, which would take all morning.
         for (const job of (done && done.jobs) || []) {
           if (job.transcript) addMessage('assistant', job.transcript);
         }
@@ -2920,7 +2938,7 @@ window._checkQuickLaunch = async function(text) {
     || /(?:youtube|channel)\s+(?:stats?|analytic|sub|view|revenue|earning)/i.test(t)
     || /(?:how(?:'s|\s+is|\s+are)?|what(?:'s| is)?)\s+(?:my\s+)?(?:channel|youtube)/i.test(t);
   // Only for the user's own channel ("my views", "how's my channel") or an
-  // explicit "channel stats" — "explain how YouTube makes money" is a question.
+  // explicit "channel stats" - "explain how YouTube makes money" is a question.
   const aboutOwnChannel = /\bmy\b/i.test(t) || /\b(?:channel|youtube)\s+(?:stats?|analytics?)\b/i.test(t);
   if (ytStatsM && aboutOwnChannel && !/\bplay\b|\bopen\b|\bsearch\b/i.test(t)) {
     (async () => {
@@ -2941,7 +2959,7 @@ window._checkQuickLaunch = async function(text) {
           replyText += `\n💰 Est. revenue (30d): **$${parseFloat(yt.revenue30).toFixed(2)}**`;
         }
         if (latestVideo) {
-          replyText += `\n\n📹 Latest: **${latestVideo.title}** — ${fmtN(latestVideo.views)} views`;
+          replyText += `\n\n📹 Latest: **${latestVideo.title}** - ${fmtN(latestVideo.views)} views`;
         }
         addMessage('assistant', replyText);
         const spoken = `Your channel ${yt.channelName} has ${fmtN(yt.subscribers)} subscribers and ${fmtN(yt.totalViews)} total views.${latestVideo ? ` Your latest video "${latestVideo.title}" has ${fmtN(latestVideo.views)} views.` : ''}`;
@@ -2998,7 +3016,7 @@ window._checkQuickLaunch = async function(text) {
   // first, so "open my calendar" launched the system Calendar app instead
   // of showing the one inside Callisto, which is what was meant.
   const APP_OPEN_RE = /(?:^|\s)(?:open|launch|start|load)\s+(?:up\s+)?(?:my\s+|the\s+)?(whatsapp|telegram|discord|signal|skype|snapchat|messenger|slack|zoom|facetime|chrome|safari|firefox|spotify|notes|calculator|photos|settings|maps|files|finder|mail|music|clock|weather|reminders|contacts|news|appstore|app store|store)\s*$/i;
-  // Voice gives "Open WhatsApp." — ignore closing punctuation and quotes
+  // Voice gives "Open WhatsApp." - ignore closing punctuation and quotes
   const tOpen = t.replace(/["“”]/g, '').replace(/[\s.!?,;:]+$/, '');
   // A file or folder ("open my budget file", "open resume.pdf") is found and opened
   // by the main process, not launched as an app.
@@ -3068,7 +3086,7 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Google Calendar: "show my calendar" → full overlay ───────────────────
-  // Seeing the calendar only — "add X to my calendar" adds, and "what's on my
+  // Seeing the calendar only - "add X to my calendar" adds, and "what's on my
   // calendar" reads the events out (both below).
   const changesCalendar = /\b(?:add|put|schedule|create|set\s+up|book|remove|delete|cancel|move|reschedule)\b/i.test(t);
   if (!changesCalendar && !/what(?:'s|\s+is)\s+on\s+my\s+calendar/i.test(t)
@@ -3138,7 +3156,7 @@ window._checkQuickLaunch = async function(text) {
         const pad = (n) => String(n).padStart(2, '0');
         const result = await window.jarvis.calendarAdd({
           title,
-          // Local date, not UTC — an evening event mustn't slip to the next day.
+          // Local date, not UTC - an evening event mustn't slip to the next day.
           date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
           time: start.toTimeString().slice(0, 5),
           duration: 60,
@@ -3164,6 +3182,7 @@ window._checkQuickLaunch = async function(text) {
   // proper studio; the picture did not. Now it is the same stage, the same
   // ring, and the same place to come back to.
   async function runImageGeneration(prompt) {
+    if (_junkCreative(prompt)) { addMessage('assistant', _JUNK_REPLY); say(_JUNK_REPLY); return true; }
     const studio = window.CallistoImageStudio;
     const title = String(prompt || 'image').slice(0, 60);
     if (studio) {
@@ -3235,7 +3254,7 @@ window._checkQuickLaunch = async function(text) {
       }, 60);
     }
     addMessage('assistant', repo
-      ? 'Pulling that one up — press Add skill to confirm.'
+      ? 'Pulling that one up - press Add skill to confirm.'
       : 'Paste the GitHub address of the skill you want and I will follow it from then on.');
     return true;
   };
@@ -3323,20 +3342,20 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // Account and security: two-factor, devices, the subscription, deleting the
-  // account. Any of these opens the one screen that does all of it — none of
+  // account. Any of these opens the one screen that does all of it - none of
   // them is ever done straight from a sentence, because each needs the
   // password or a confirmation that a voice command cannot give.
   if (/\b(?:account (?:settings|security)|my account|security settings|two[- ]?factor|2fa|two[- ]?step|authenticator|backup codes?|sign(?:ed)? in devices|devices? signed in|sign out (?:everywhere|of (?:all|every))|log ?out (?:everywhere|of all)|(?:end|cancel|stop|manage) (?:my )?(?:subscription|premium|plan|membership)|delete (?:my )?account|close my account|remove my account|change (?:my )?password|reset (?:my )?password|forgot (?:my )?password)\b/i.test(t)
       && window.CallistoAccount) {
     if (/\b(?:forgot|reset) (?:my )?password\b/i.test(t)) {
       window.CallistoAccount.forgot(profile && profile.email);
-      addMessage('assistant', 'I have opened password reset — I will email you a link.');
+      addMessage('assistant', 'I have opened password reset - I will email you a link.');
     } else {
       window.CallistoAccount.open();
       addMessage('assistant', /delete|close my account|remove my account/i.test(t)
-        ? 'Account settings are open. Deleting is at the bottom — it asks for your password first, and cancels any subscription before anything is removed.'
+        ? 'Account settings are open. Deleting is at the bottom - it asks for your password first, and cancels any subscription before anything is removed.'
         : /subscription|premium|plan|membership/i.test(t)
-          ? 'Account settings are open — your subscription is in there. Ending it keeps premium until the period you paid for runs out.'
+          ? 'Account settings are open - your subscription is in there. Ending it keeps premium until the period you paid for runs out.'
           : 'Account settings are open.');
     }
     return true;
@@ -3361,7 +3380,7 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Stock price in-app: "Amazon stock", "AMZN price", "Tesla stock price" ──
-  // Always show stock cards inside the app — never open Google or Amazon website
+  // Always show stock cards inside the app - never open Google or Amazon website
   const stockIntM = t.match(/\b([A-Z]{1,5})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
                  || t.match(/^(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:price\s+of\s+|stock\s+price\s+(?:of|for)\s+)?([A-Za-z\s]{3,30})\s+stock(?:\s+price)?\s*[\?\.]?$/i)
                  || t.match(/^(?:show|open|check)\s+(.+?)\s+(?:stock|share|price)\s*[\?\.]?$/i)
@@ -3439,7 +3458,7 @@ window._checkQuickLaunch = async function(text) {
     }
   }
 
-  // "find me X on ebay" — the optional "me"/"us" is dropped so it doesn't end up
+  // "find me X on ebay" - the optional "me"/"us" is dropped so it doesn't end up
   // in the search query (it used to search for "me used batman action figures").
   const ebayM = t.match(/(?:show|find|search|look up|get)\s+(?:me\s+|us\s+)?(.+?)\s+on\s+ebay/i)
              || t.match(/search\s+ebay\s+(?:for\s+)?(.+)/i)
@@ -3509,7 +3528,7 @@ window._checkQuickLaunch = async function(text) {
     addMessage('assistant', `📍 Finding **${placeType}** near you…`);
     (async () => {
       try {
-        // 1. Get user location — GPS first, IP-based fallback
+        // 1. Get user location - GPS first, IP-based fallback
         let lat = null, lng = null;
         try {
           const pos = await new Promise((res, rej) =>
@@ -3517,7 +3536,7 @@ window._checkQuickLaunch = async function(text) {
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch (_) {
-          // GPS denied/unavailable — cascade through multiple IP-geolocation services
+          // GPS denied/unavailable - cascade through multiple IP-geolocation services
           // ip-api.com has best global accuracy (especially South Asia / Pakistan)
           const GEO_SERVICES = [
             async () => {
@@ -3637,13 +3656,13 @@ window._checkQuickLaunch = async function(text) {
 
   // ── Location / city lookup: "where is X" / "where's X" / "location of X" ──
   // ── Location lookup: "where is X" / "where's X" ─────────────────────────────
-  // Same pattern as wiki — let AI answer (full text + voice), fetch card in background.
+  // Same pattern as wiki - let AI answer (full text + voice), fetch card in background.
   const whereM = t.match(/^where(?:'s|\s+is|\s+was)?\s+(.+?)(?:\s+located|\s+situated|\s+found)?\s*[\?\.]?\s*$/i)
               || t.match(/^(?:location|capital|geography)\s+of\s+(.+?)[\?\.]?\s*$/i);
   if (whereM) {
     const place = whereM[1].trim();
     if (!/weather|stock|price|who|what/i.test(place)) {
-      // Fetch location card in background — AI handles voice + bubble
+      // Fetch location card in background - AI handles voice + bubble
       (async () => {
         try {
           const url2 = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place)}`;
@@ -3677,12 +3696,12 @@ window._checkQuickLaunch = async function(text) {
   }
 
   // ── Wikipedia entity card: persons, animals, objects, places, theories, planets, etc. ──
-  // Fires for ANY factual entity question. Returns false — AI handles voice+bubble,
+  // Fires for ANY factual entity question. Returns false - AI handles voice+bubble,
   // we just fetch the Wikipedia card in the background to show alongside the AI reply.
   const wikiM =
-    // "who is / who was" — people
+    // "who is / who was" - people
     t.match(/^(?:who\s+(?:is|was|are|were))\s+(.+?)[\?\.]?\s*$/i) ||
-    // "what is / what are / what's" — things, animals, concepts
+    // "what is / what are / what's" - things, animals, concepts
     t.match(/^(?:what(?:'s|\s+(?:is|are|was|were)))\s+(?:a\s+|an\s+|the\s+)?(.+?)[\?\.]?\s*$/i) ||
     // "tell me about / info on / info about"
     t.match(/^(?:tell\s+me\s+about|give\s+me\s+info(?:rmation)?\s+(?:on|about)|info(?:rmation)?\s+(?:on|about))\s+(.+?)[\?\.]?\s*$/i) ||
@@ -3697,7 +3716,7 @@ window._checkQuickLaunch = async function(text) {
     if (/\b(?:stock|share\s+price|market|crypto|bitcoin|ticker)\b/i.test(subject)) return false;
     if (/^(?:you|your|my|our|this|that|it)\b/i.test(subject)) return false;
     if (/\d[\+\-\*\/]\d/.test(subject)) return false; // math expressions
-    // Fetch Wikipedia card data in the background — does NOT block or intercept the AI
+    // Fetch Wikipedia card data in the background - does NOT block or intercept the AI
     (async () => {
       try {
         const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`;
@@ -3705,7 +3724,7 @@ window._checkQuickLaunch = async function(text) {
           fetch(url),
           new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
         ]);
-        if (!res.ok) return; // silent — AI already answering
+        if (!res.ok) return; // silent - AI already answering
         const data = await res.json();
         if (!data || data.type === 'disambiguation') return;
         const cardType = data.type === 'standard' ? _wikiCardType(data) : 'person';
@@ -3721,7 +3740,7 @@ window._checkQuickLaunch = async function(text) {
           sourceUrl: data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
         };
         try { _showCardSynced(wikiCard); } catch (e) { console.error('[wiki card]', e); }
-      } catch (_) { /* silent — AI is answering anyway */ }
+      } catch (_) { /* silent - AI is answering anyway */ }
     })();
     return false; // let the AI respond with full text + voice
   }
@@ -3869,7 +3888,7 @@ const WeatherWidget = (function() {
       async () => {
         const d = await fetch('https://freeipapi.com/api/json').then(r => r.json());
         const lat = d.latitude, lon = d.longitude;
-        // IP APIs sometimes return suburbs — cross-check with Nominatim at city level
+        // IP APIs sometimes return suburbs - cross-check with Nominatim at city level
         const city = await resolveCity(lat, lon) || d.cityName;
         return { lat, lon, city, country: d.countryCode };
       },
@@ -3930,7 +3949,7 @@ const WeatherWidget = (function() {
               { headers: { 'Accept-Language': 'en' } }
             ).then(r => r.json());
             const a = nom.address || {};
-            const city    = window._cityFromAddress(nom) || '—';
+            const city    = window._cityFromAddress(nom) || ' - ';
             const country = (a.country_code || '').toUpperCase();
             resolve({ lat, lon, city, country });
           } catch { reject(); }
@@ -4020,7 +4039,7 @@ const NewsFlash = (() => {
 
   function headlines() { return _headlines; }
 
-  // Wait for the first batch of headlines — they arrive from the main process a
+  // Wait for the first batch of headlines - they arrive from the main process a
   // moment after launch, usually after the greeting has already been spoken.
   function ready(timeoutMs = 6000) {
     if (_headlines.length) return Promise.resolve(_headlines);
@@ -4153,7 +4172,7 @@ if (window.jarvis && window.jarvis.onModelProgress) {
         : pct < 50 ? 'Sculpting the shape' : 'Painting the details';
       V.setProgress(jobKey, pct, label);
     } else if (V.isOpen() && V.info().taskId === job.sourceTaskId) {
-      V.setBusy(`Repainting ${job.title} — ${pct}%`);
+      V.setBusy(`Repainting ${job.title} - ${pct}%`);
     }
   });
 }
@@ -4194,7 +4213,7 @@ async function _repaintOpenModel(text) {
   const jobKey = `paint-${Date.now()}`;
   const title = info.title;
   _modelJobs.set(jobKey, { kind: 'repaint', title, sourceTaskId: info.taskId });
-  V.setBusy(`Repainting ${title} — this takes about a minute`);
+  V.setBusy(`Repainting ${title} - this takes about a minute`);
   say('Repainting it now.');
 
   const style = `${info.prompt || title}. ${text}`.slice(0, 600);
@@ -4284,7 +4303,7 @@ async function runShoppingSearch(store, query) {
   if (!query) return;
 
   // Amazon, AliExpress and Temu have no product feed to preview, so open their
-  // own search straight away — and if the site can't be reached, Google it.
+  // own search straight away - and if the site can't be reached, Google it.
   if (store === 'amazon' || store === 'aliexpress' || store === 'temu') {
     addMessage('assistant', `${meta.emoji} Opening **${meta.name}** results for **${query}**…`);
     say(`Here's ${query} on ${meta.name}.`);
@@ -4490,7 +4509,7 @@ function wireCallCard() {
 
 // Live updates pushed from the main process while a call is running.
 
-// "2h", "Tue", "14:05" — whichever reads best for how old the message is.
+// "2h", "Tue", "14:05" - whichever reads best for how old the message is.
 // A reel, photo or voice note inside a bubble: show it, and let it open in
 // Instagram proper. Videos can't be played from the CDN link, so they get
 // their thumbnail with a play badge.
@@ -4670,7 +4689,7 @@ function showCard(card) {
 
       if (favBtn) {
         favBtn.addEventListener('click', () => {
-          const title  = `${card.symbol} — ${card.name}`;
+          const title  = `${card.symbol} - ${card.name}`;
           const query  = `${card.symbol} stock price`;
           const url    = card.sourceUrl || `https://finance.yahoo.com/quote/${card.symbol}`;
           const id     = addFavourite(title, query, url, 'stock');
@@ -4698,7 +4717,7 @@ function showCard(card) {
             finBtn.disabled = true;
           } catch (err) {
             console.error('finAddStock failed:', err);
-            finBtn.textContent = '⚠ ERROR — TRY AGAIN';
+            finBtn.textContent = '⚠ ERROR - TRY AGAIN';
           }
         });
       }
@@ -4708,7 +4727,7 @@ function showCard(card) {
       <div class="card-private-co">
         <div class="pco-label">PRIVATE COMPANY</div>
         <div class="pco-name">${esc(card.name)}</div>
-        <div class="pco-msg">${esc(card.name)} is a privately held company and is not listed on any public stock exchange — no live price data is available.</div>
+        <div class="pco-msg">${esc(card.name)} is a privately held company and is not listed on any public stock exchange - no live price data is available.</div>
         <div class="pco-tip">Valuation estimates for private companies are based on funding rounds and are not publicly traded.</div>
       </div>`;
   } else if (card.type === 'company_finance') {
@@ -4769,7 +4788,7 @@ function showCard(card) {
           favBtn.textContent = '✓ IN FAVOURITES'; favBtn.classList.add('added'); favBtn.disabled = true;
         }
         favBtn.addEventListener('click', () => {
-          const title = `${card.symbol} — ${card.name}`;
+          const title = `${card.symbol} - ${card.name}`;
           const query = `${card.symbol} financials`;
           const url   = card.sourceUrl || `https://finance.yahoo.com/quote/${card.symbol}/financials`;
           addFavourite(title, query, url, 'stock');
@@ -5073,7 +5092,7 @@ function showCard(card) {
       }
     }, 50);
   } else if (card.type === 'wiki_card') {
-    // Wikipedia image card — generic visual for any topic (person, animal, place, game, brand, etc.)
+    // Wikipedia image card - generic visual for any topic (person, animal, place, game, brand, etc.)
     const categoryLabel = card.category || 'VISUAL RESULT';
     const sourceName = card.source || 'Wikipedia';
     cardContent.innerHTML = `
@@ -5183,7 +5202,7 @@ function showCard(card) {
       if (img && card.sourceUrl) { img.style.cursor = 'pointer'; img.addEventListener('click', () => window.jarvis.openUrl(card.sourceUrl)); }
     }, 50);
   } else if (card.type === 'analytics') {
-    // Open the analytics panel with fresh data — scroll to top so website card is first
+    // Open the analytics panel with fresh data - scroll to top so website card is first
     cardPanel.classList.add('hidden');
     const ap = document.getElementById('analyticsPanel');
     ap.classList.remove('hidden');
@@ -5203,7 +5222,7 @@ function showCard(card) {
         <div class="dm-avatar">${esc((t.name || '?').replace(/^@/, '').charAt(0).toUpperCase())}</div>
         <div class="dm-row-main">
           <div class="dm-row-top"><span class="dm-name">${esc(t.name)}</span><span class="dm-time">${esc(dmWhen(t.lastAt))}</span></div>
-          <div class="dm-preview">${t.lastFromMe ? '<span class="dm-you">You:</span> ' : ''}${t.lastKind && t.lastKind !== 'text' ? `<span class="dm-kind">${esc(dmKindLabel(t.lastKind))}</span> ` : ''}${esc(t.lastMessage || '—')}</div>
+          <div class="dm-preview">${t.lastFromMe ? '<span class="dm-you">You:</span> ' : ''}${t.lastKind && t.lastKind !== 'text' ? `<span class="dm-kind">${esc(dmKindLabel(t.lastKind))}</span> ` : ''}${esc(t.lastMessage || ' - ')}</div>
         </div>
         ${t.unread ? `<span class="dm-badge">${t.unread}</span>` : ''}
       </div>`).join('');
@@ -5283,7 +5302,7 @@ function showCard(card) {
     setTimeout(() => {
       const note = document.getElementById('dmSendNote');
       const btn = document.getElementById('dmConfirm');
-      document.getElementById('dmCancel')?.addEventListener('click', () => { showCard(null); addMessage('assistant', 'Cancelled — nothing was sent.'); });
+      document.getElementById('dmCancel')?.addEventListener('click', () => { showCard(null); addMessage('assistant', 'Cancelled - nothing was sent.'); });
       btn?.addEventListener('click', async () => {
         const text = (document.getElementById('dmDraft')?.innerText || '').trim();
         if (!text) { note.textContent = '⚠ Nothing to send.'; return; }
@@ -5334,9 +5353,9 @@ function showCard(card) {
         out.hidden = false;
         out.textContent = '…';
         const res = await window.jarvis.runCommand(card.command, card.folder).catch((e) => ({ ok: false, error: e.message }));
-        out.textContent = res.output || res.error || (res.ok ? 'Done — no output.' : 'Failed.');
+        out.textContent = res.output || res.error || (res.ok ? 'Done - no output.' : 'Failed.');
         out.classList.toggle('cmd-failed', !res.ok);
-        runBtn.textContent = res.ok ? '✓ RAN' : '⚠ FAILED — RUN AGAIN';
+        runBtn.textContent = res.ok ? '✓ RAN' : '⚠ FAILED - RUN AGAIN';
         runBtn.disabled = !!res.ok;
         addMessage('assistant', res.ok
           ? `✅ Ran \`${card.command}\`${res.output ? `\n\n\`\`\`\n${String(res.output).slice(-1200)}\n\`\`\`` : ''}`
@@ -5379,7 +5398,7 @@ function showCard(card) {
     </div>`;
 
   } else if (card.type === 'answer' || card.type === 'wiki') {
-    // ── Magic cursor capture result — academic answers, identifications, etc. ──
+    // ── Magic cursor capture result - academic answers, identifications, etc. ──
     const catIcon = { math: '🧮', science: '🔬', finance: '📈', code: '💻', text: '📄',
                       people: '🧑', food: '🍽️', place: '📍', product: '🛍️', animal: '🐾', general: '🔍' };
     const icon = catIcon[card.category] || catIcon.general;
@@ -5410,7 +5429,7 @@ function showCard(card) {
       </div>`;
   }
 
-  // Wiki-style cards embed their own source footer — hide the external one
+  // Wiki-style cards embed their own source footer - hide the external one
   const inlineSourceTypes = ['wiki_card', 'person', 'animal', 'character', 'answer', 'wiki'];
   if (inlineSourceTypes.includes(card.type)) {
     cardSource.textContent = '';
@@ -5488,7 +5507,7 @@ document.querySelectorAll('#lnavTabs .lnav-tab').forEach(tab => {
   tab.addEventListener('click', () => openLeftNavSection(tab.dataset.section));
 });
 
-// Help pane — support email and useful links
+// Help pane - support email and useful links
 (function wireHelpPane() {
   const SUPPORT_EMAIL = 'support@callistoai.net';
   const open = (url) => window.jarvis?.openUrl?.(url);
@@ -5686,7 +5705,7 @@ clearBtn.addEventListener('click', async () => { debugFlash('CLEARING...');
   _sessionMsgCount = 0;
   cardPanel.classList.add('hidden');
   orbContainer.classList.remove('compact');
-  // orb returns to full size — no message
+  // orb returns to full size - no message
 });
 
 if (fileBtn) fileBtn.addEventListener('click', async () => {
@@ -5695,11 +5714,11 @@ if (fileBtn) fileBtn.addEventListener('click', async () => {
   if (result.content) {
     await sendToJarvis(`I just opened the file: ${result.path}\n\nHere is its content:\n${result.content}\n\nPlease give me a summary.`);
   } else {
-    addMessage('assistant', `Opened ${result.path} — I can't read this file type directly, but it's open for you.`);
+    addMessage('assistant', `Opened ${result.path} - I can't read this file type directly, but it's open for you.`);
   }
 });
 
-// ── Typing-mode file + clear buttons (distinct IDs — duplicate clearBtn bug fix) ──
+// ── Typing-mode file + clear buttons (distinct IDs - duplicate clearBtn bug fix) ──
 const typeFileBtn  = document.getElementById('typeFileBtn');
 const typeClearBtn = document.getElementById('typeClearBtn');
 if (typeFileBtn)  typeFileBtn.addEventListener('click', () => { if (window._openAttachPicker) window._openAttachPicker(); else if (attachInput) attachInput.click(); });
@@ -5716,13 +5735,13 @@ function triggerActionFlash() {
 // Fire flash immediately when main process starts an action (before app opens)
 window.jarvis.onActionFired(() => triggerActionFlash());
 
-// Ctrl+S background voice trigger — press to start, press again to stop & send
+// Ctrl+S background voice trigger - press to start, press again to stop & send
 window.jarvis.onVoiceTrigger(() => {
   if (isRecording) stopRecording();
   else startRecording();
 });
 
-// Ctrl+Shift+C HUD voice trigger — mic runs in hidden app, card appears in HUD overlay
+// Ctrl+Shift+C HUD voice trigger - mic runs in hidden app, card appears in HUD overlay
 // Track whether the CURRENT recording was started by HUD (Ctrl+Shift+C) so that
 // quick-launch commands can also forward their response to the HUD overlay.
 window._hudVoiceActive = false;
@@ -5730,7 +5749,7 @@ if (window.jarvis.onHudVoiceTrigger) {
   window.jarvis.onHudVoiceTrigger(() => {
     if (isRecording) {
       // Stop and answer. _hudVoiceActive stays on until the answer has gone to the
-      // small card — clearing it here sent app-handled answers nowhere.
+      // small card - clearing it here sent app-handled answers nowhere.
       window._hudVoiceActive = true;
       window.jarvis.hudMicState?.(false);
       stopRecording();
@@ -5741,7 +5760,7 @@ if (window.jarvis.onHudVoiceTrigger) {
   });
 }
 
-// Ctrl+Shift+Y capture result — add as a chat bubble if the main window is open
+// Ctrl+Shift+Y capture result - add as a chat bubble if the main window is open
 if (window.jarvis.onHudResponse) {
   window.jarvis.onHudResponse(({ text, card, background }) => {
     if (!text) return;
@@ -5831,13 +5850,13 @@ if (window.jarvis.onHudResponse) {
         .forEach((el) => { el.textContent = 'Update'; });
     } catch (_) {}
     const sub = document.getElementById('updateRowVersion');
-    if (sub) sub.textContent = 'The restart did not go through. Try again, or quit Callisto from the tray and reopen it — the update installs on the way out.';
+    if (sub) sub.textContent = 'The restart did not go through. Try again, or quit Callisto from the tray and reopen it - the update installs on the way out.';
     addMessage('assistant', 'That update would not restart on its own. Quitting Callisto from the tray and opening it again will install it.');
   });
 })();
 
 
-// Ctrl+Space — Clipboard AI: auto-fill the input with clipboard text and a prompt
+// Ctrl+Space - Clipboard AI: auto-fill the input with clipboard text and a prompt
 window.jarvis.onClipboardAI(({ text }) => {
   const preview = text.length > 120 ? text.slice(0, 120) + '…' : text;
   const prompt = `Summarise and explain this:\n\n${text}`;
@@ -5851,7 +5870,7 @@ window.jarvis.onClipboardAI(({ text }) => {
 
 // Assist mode worked something out from the screen while you were in another
 // app. The card over that app is gone in a few seconds, so the same answer
-// lands in here too — somewhere it can be read properly and copied from.
+// lands in here too - somewhere it can be read properly and copied from.
 // The screen it was looking at, under the answer. Without it the answer
 // arrives in here with nothing to say which screen it was about, which is no
 // use at all once you have moved on to something else.
@@ -5976,7 +5995,7 @@ function openPlusMenu() {
     </button>
     <button class="pm-item" data-act="skill">
       <span class="pm-ico">✦</span>
-      <span><b>Add a skill</b><i>From GitHub — teaches Callisto a way of working</i></span>
+      <span><b>Add a skill</b><i>From GitHub - teaches Callisto a way of working</i></span>
     </button>
     <button class="pm-item" data-act="manage">
       <span class="pm-ico">⚙</span>
@@ -6055,15 +6074,15 @@ function processFiles(files) {
         const result = ev.target.result;
         attachment = { name: file.name, kind: 'image', mimeType: file.type, dataUrl: result, base64: result.split(',')[1] };
       } else if (isPdf) {
-        // PDFs: send as image (screenshot) — tell user we read it as an image
+        // PDFs: send as image (screenshot) - tell user we read it as an image
         // For now store as unsupported with a note
-        attachment = { name: file.name, kind: 'text', content: `[PDF file attached: ${file.name}. Note: PDF text extraction is not available — please take a screenshot of the relevant pages and attach that instead, or copy-paste the text.]` };
+        attachment = { name: file.name, kind: 'text', content: `[PDF file attached: ${file.name}. Note: PDF text extraction is not available - please take a screenshot of the relevant pages and attach that instead, or copy-paste the text.]` };
       } else if (isDoc) {
-        attachment = { name: file.name, kind: 'text', content: `[Word document attached: ${file.name}. Note: .docx reading is not available — please copy and paste the text content directly into the chat.]` };
+        attachment = { name: file.name, kind: 'text', content: `[Word document attached: ${file.name}. Note: .docx reading is not available - please copy and paste the text content directly into the chat.]` };
       } else if (isText) {
         attachment = { name: file.name, kind: 'text', content: ev.target.result };
       } else {
-        attachment = { name: file.name, kind: 'text', content: `[File attached: ${file.name} — file type not supported for reading. Please copy-paste the content or take a screenshot.]` };
+        attachment = { name: file.name, kind: 'text', content: `[File attached: ${file.name} - file type not supported for reading. Please copy-paste the content or take a screenshot.]` };
       }
       pendingAttachments.push(attachment);
       renderAttachPreview();
@@ -6193,12 +6212,12 @@ function renderSpreadsheetCard(msgEl, sheet) {
   const openBtn = card.querySelector('.sheet-open');
   openBtn.addEventListener('click', async () => {
     const r = await window.jarvis.sheetOpen(sheet.path);
-    if (!r?.ok) openBtn.textContent = r?.error === 'missing' ? 'File was moved or deleted' : 'No app to open .xlsx — try Show in folder';
+    if (!r?.ok) openBtn.textContent = r?.error === 'missing' ? 'File was moved or deleted' : 'No app to open .xlsx - try Show in folder';
   });
   card.querySelector('.sheet-reveal').addEventListener('click', () => window.jarvis.sheetReveal(sheet.path));
 
   // The AI's ideas for taking it further. Tapping one asks for that change to
-  // this spreadsheet — phrased so it edits rather than starts a new one.
+  // this spreadsheet - phrased so it edits rather than starts a new one.
   const ideas = (sheet.suggestions || []).filter(Boolean);
   if (ideas.length) {
     const wrap = document.createElement('div');
@@ -6222,7 +6241,7 @@ function renderSpreadsheetCard(msgEl, sheet) {
 }
 
 // Names people often mistype or the mic mishears, put right before anything is
-// routed — "play don 2 on netfix" must reach Netflix, not Spotify.
+// routed - "play don 2 on netfix" must reach Netflix, not Spotify.
 function normaliseCommand(text) {
   return String(text || '')
     .replace(/\bnet\s?(?:flix|fix|flex|flx|flicks|flick)\b/gi, 'Netflix')
@@ -6231,7 +6250,7 @@ function normaliseCommand(text) {
     .replace(/\bwhats\s?app\b/gi, 'WhatsApp')
     .replace(/\binsta\s?gram\b/gi, 'Instagram')
     .replace(/\bprime\s+vid(?:eo|ioe|oe)\b/gi, 'Prime Video')
-    // The mic drops letters from "USB" — "on my ub", "from my u s b".
+    // The mic drops letters from "USB" - "on my ub", "from my u s b".
     .replace(/\b(on|from|in|off)\s+(my\s+|the\s+)?(?:u\s?s\s?b|ub|usp|yusb|usb'?s)\b/gi, (m, p, own) => `${p} ${own || ''}USB`.replace(/\s+/g, ' '))
     .replace(/\b(?:on|to)\s+(?:the\s+|my\s+)?(?:t\.?v\.?|tele|telly)(?=[\s.!?,]|$)/gi, (m) => m.replace(/t\.?v\.?|tele|telly/i, 'TV'));
 }
@@ -6409,7 +6428,7 @@ async function sendToJarvis(rawText) {
   }
   // How many answers were showing, so a Ctrl+Shift+C request can find the new one.
   const _asstBefore = chat.querySelectorAll('.msg-row.assistant .msg-text').length;
-  // Check Google Flow video creation (must run before HiggsField — takes "make me a video about X")
+  // Check Google Flow video creation (must run before HiggsField - takes "make me a video about X")
   if (!_multi && typeof window._checkGoogleFlow === 'function') {
     const handled = await window._checkGoogleFlow(text);
     if (handled) return _hudAfterHandled(_asstBefore);
@@ -6424,7 +6443,7 @@ async function sendToJarvis(rawText) {
     const handled = await window._checkMarketsOverlay(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
-  // Check TV cast commands — runs before quick-launch so "play X on YouTube on TV" → TV, not local browser
+  // Check TV cast commands - runs before quick-launch so "play X on YouTube on TV" → TV, not local browser
   if (!_multi && typeof window._checkTvCast === 'function') {
     const handled = await window._checkTvCast(text);
     if (handled) return _hudAfterHandled(_asstBefore);
@@ -6434,7 +6453,7 @@ async function sendToJarvis(rawText) {
     const handled = await window._checkQuickLaunch(text);
     if (handled) return _hudAfterHandled(_asstBefore);
   }
-  // Check creative (painting / 3D model) — may short-circuit the AI call
+  // Check creative (painting / 3D model) - may short-circuit the AI call
   if (!_multi && typeof window._checkCreative === 'function') {
     const handled = await window._checkCreative(text);
     if (handled) return _hudAfterHandled(_asstBefore);
@@ -6465,7 +6484,7 @@ async function sendToJarvis(rawText) {
   chat.appendChild(thinkingRow);
   chat.scrollTop = chat.scrollHeight;
 
-  // Capture HUD mode BEFORE the async chat call — _maybeForwardToHud clears it afterwards
+  // Capture HUD mode BEFORE the async chat call - _maybeForwardToHud clears it afterwards
   const _wasHudRequest = !!window._hudVoiceActive;
   window._hudVoiceActive = false;   // the main process sends this reply to the small card
 
@@ -6477,7 +6496,7 @@ async function sendToJarvis(rawText) {
     // land under their newer one.
     if (_myTurn != null && _replyGate && _replyGate.turn !== _myTurn) return;
   } catch (err) {
-    // IPC-level throw (e.g. main process crashed) — classify and show
+    // IPC-level throw (e.g. main process crashed) - classify and show
     const msg = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
     let friendly = 'Something went wrong. Please try again.';
     if (msg.includes('Premature close') || msg.includes('ECONNRESET') || msg.includes('timed out') || msg.includes('AbortError')) {
@@ -6492,19 +6511,19 @@ async function sendToJarvis(rawText) {
   }
   if (!res || res.error) {
     if (res?.error === 'login_required') {
-      addMessage('assistant', 'Session expired — please log in again.');
+      addMessage('assistant', 'Session expired - please log in again.');
     } else if (res?.error === 'daily_limit_reached') {
       // Not an apology: there is nothing wrong, they have used today's fifteen.
       addMessage('assistant', res.userMsg || "You've used your 15 free messages for today.");
       // Someone with no account cannot buy anything, so showing them prices
       // first and a sign-in wall second is the wrong way round.
       if (!profile || !profile.email) {
-        showSignUpPrompt('Make an account and your free messages reset each day — or go Premium for unlimited.');
+        showSignUpPrompt('Make an account and your free messages reset each day - or go Premium for unlimited.');
       } else {
         showPaywall({ limit: res.limit || 15, reason: 'limit' });
       }
     } else if (res?.userMsg) {
-      // Structured error from classifyAIError — message already spoken via TTS in main.js
+      // Structured error from classifyAIError - message already spoken via TTS in main.js
       addMessage('assistant', res.userMsg);
     }
     document.getElementById('_thinkingRow')?.remove();
@@ -6517,18 +6536,18 @@ async function sendToJarvis(rawText) {
 
   { const _l = history[history.length - 1];
     if (!(_l && _l.role === 'assistant' && _l.content === res.text)) history.push({ role: 'assistant', content: res.text }); }
-  // Don't render a blank bubble — if there's a card it'll display the data visually.
+  // Don't render a blank bubble - if there's a card it'll display the data visually.
   // If the reply was already streaming into a bubble, finalise that one instead.
   const msgEl = _finishReplyGate(res.text);
   showStopBtn(false); setState('idle');
   // How something works gets a labelled diagram under the answer, drawn after.
   if (msgEl && res.text && !res.card) window.CallistoDiagram?.attach(msgEl, text, res.text);
 
-  // Spreadsheet — preview, open in Excel, and the AI's ideas as one-tap follow-ups
+  // Spreadsheet - preview, open in Excel, and the AI's ideas as one-tap follow-ups
   if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
 
-  // Document creation — show Save options
-  // A chart that came back with the answer — market size, a comparison,
+  // Document creation - show Save options
+  // A chart that came back with the answer - market size, a comparison,
   // a projection. Drawn into the message it belongs to.
   if (res.chart && msgEl) {
     try {
@@ -6568,7 +6587,7 @@ async function sendToJarvis(rawText) {
         wordBtn.textContent = '✓ Saved & Opened';
         wordBtn.classList.add('done');
       } catch (e) {
-        wordBtn.textContent = 'Error — try again';
+        wordBtn.textContent = 'Error - try again';
         wordBtn.disabled = false;
       }
     });
@@ -6578,7 +6597,7 @@ async function sendToJarvis(rawText) {
       try {
         const result = await window.jarvis.openGoogleDoc({ title: res.docTitle, sections: docSections });
         if (result && result.error) {
-          gDocBtn.textContent = 'Error — try again';
+          gDocBtn.textContent = 'Error - try again';
           gDocBtn.disabled = false;
           const hint = document.createElement('div');
           hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
@@ -6599,7 +6618,7 @@ async function sendToJarvis(rawText) {
         }
         gDocBtn.classList.add('done');
       } catch (e) {
-        gDocBtn.textContent = 'Error — try again';
+        gDocBtn.textContent = 'Error - try again';
         gDocBtn.disabled = false;
       }
     });
@@ -6608,7 +6627,7 @@ async function sendToJarvis(rawText) {
     msgEl.appendChild(docRow);
   }
 
-  // Slides creation — show Open in Google Slides button
+  // Slides creation - show Open in Google Slides button
   if (res.slidesTitle && (res.slidesData || res.slidesContent) && msgEl) {
     const slidesData = res.slidesData || [];
     const slidesRow = document.createElement('div');
@@ -6622,7 +6641,7 @@ async function sendToJarvis(rawText) {
       try {
         const result = await window.jarvis.savePresentation({ title: res.slidesTitle, slides: slidesData });
         if (result && result.error) {
-          slidesBtn.textContent = 'Error — try again';
+          slidesBtn.textContent = 'Error - try again';
           slidesBtn.disabled = false;
           const hint = document.createElement('div');
           hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
@@ -6639,7 +6658,7 @@ async function sendToJarvis(rawText) {
         slidesBtn.textContent = '✓ Presentation Created & Opened';
         slidesBtn.classList.add('done');
       } catch (e) {
-        slidesBtn.textContent = 'Error — try again';
+        slidesBtn.textContent = 'Error - try again';
         slidesBtn.disabled = false;
       }
     });
@@ -6675,7 +6694,7 @@ async function sendToJarvis(rawText) {
           sendBtn.disabled = false;
         }
       } catch (e) {
-        sendLabel.textContent = 'Error — please try again';
+        sendLabel.textContent = 'Error - please try again';
         sendBtn.disabled = false;
       }
     });
@@ -6716,7 +6735,7 @@ async function sendToJarvis(rawText) {
   // asking whether to do the thing it has already done.
   if (!res.calendarEvent) _offerCalendarEvent(text);
 
-  // Show card if returned — but NOT when this request came via Ctrl+Shift+C
+  // Show card if returned - but NOT when this request came via Ctrl+Shift+C
   // (HUD mode): in that case the card should appear only in the floating HUD
   // overlay on top of the user's other app, not here in the main Callisto window.
   // Remember the newest image so "post that on Instagram" knows what to post
@@ -6739,7 +6758,7 @@ async function sendToJarvis(rawText) {
   }
 }
 
-// Sentence audio arrives from main process mid-stream — play immediately without waiting for full response
+// Sentence audio arrives from main process mid-stream - play immediately without waiting for full response
 window.jarvis.onSentenceAudio(({ audio }) => {
   _openReplyGate();          // voice starting → show the bubble and any card with it
   playAudioChunks([audio]);
@@ -6852,7 +6871,7 @@ if (window.jarvis.onSentenceText) {
       _paintStreamingText(g.el, g.text);
       if (typeof scrollToBottom === 'function') scrollToBottom();
     } else if (g.open && !g.el) {
-      // Gate opened by voice before any text arrived — show the bubble now
+      // Gate opened by voice before any text arrived - show the bubble now
       document.getElementById('_thinkingRow')?.remove();
       g.el = addMessage('assistant', g.text);
     } else {
@@ -6947,7 +6966,7 @@ if (window.jarvis.onSentenceText) {
         say(`That one is already ${last.seconds} seconds, which is as long as the generator goes.`);
         return true;
       }
-      return window._checkHiggsfield(`${last.prompt} — ${next} second version`, attachments);
+      return window._checkHiggsfield(`${last.prompt} - ${next} second version`, attachments);
     }
 
     if (!HIGGS_RE.test(text)) return false;
@@ -6970,6 +6989,7 @@ if (window.jarvis.onSentenceText) {
     if (img) imageBase64 = img.dataUrl || img.data || img.base64 || null;
     // Same experience as 3D models: a centred studio card with a progress ring.
     // Closing it doesn't stop the render; a "Video ready" notice brings it back.
+    if (!imageBase64 && _junkCreative(text)) { addMessage('assistant', _JUNK_REPLY); say(_JUNK_REPLY); return true; }
     const VV = window.CallistoVideoViewer;
     const title = text
       .replace(/\b(?:please|can you|could you|create|make|generate|me|a|an|the|video|of|using|with|on|in|via)\b/gi, ' ')
@@ -6981,7 +7001,7 @@ if (window.jarvis.onSentenceText) {
     // generators only offer a few fixed lengths, so this is a wish: what it
     // actually comes back as is reported once it is known.
     const wantSecs = _videoSeconds(text);
-    addMessage('assistant', `🎬 Making your video — this usually takes 1–3 minutes.`);
+    addMessage('assistant', `🎬 Making your video - this usually takes 1–3 minutes.`);
     if (VV) VV.showLoading({ title, jobKey });
 
     let res;
@@ -7033,7 +7053,7 @@ if (window.jarvis.onSentenceText) {
       // rather than letting them count the seconds and wonder.
       const got = res.seconds || null;
       say(got && wantSecs && got < wantSecs
-        ? `Your video is ready — ${got} seconds, the longest the generator does.`
+        ? `Your video is ready - ${got} seconds, the longest the generator does.`
         : 'Your video is ready.');
       if (onScreen) {
         VV.open(video.url, { title });
@@ -7104,7 +7124,7 @@ if (window.jarvis.onSentenceText) {
   // ── Show generated image in the browser sidebar ──────────────────────────────
   function showPaintingInSidebar(imageUrl, subject) {
     // Build a simple HTML page with the image centred
-    const htmlPage = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;font-family:-apple-system,sans-serif}img{max-width:100%;max-height:80vh;border-radius:12px;box-shadow:0 0 60px rgba(0,0,0,0.8)}p{color:rgba(200,220,255,0.7);font-size:12px;letter-spacing:2px;text-transform:uppercase}</style></head><body><img src="${imageUrl}" alt="${subject}"/><p>✨ AI Painting — ${subject}</p></body></html>`)}`;
+    const htmlPage = `data:text/html,${encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#09090f;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;font-family:-apple-system,sans-serif}img{max-width:100%;max-height:80vh;border-radius:12px;box-shadow:0 0 60px rgba(0,0,0,0.8)}p{color:rgba(200,220,255,0.7);font-size:12px;letter-spacing:2px;text-transform:uppercase}</style></head><body><img src="${imageUrl}" alt="${subject}"/><p>✨ AI Painting - ${subject}</p></body></html>`)}`;
     if (typeof window.openBrowserPanel === 'function') {
       window.openBrowserPanel(htmlPage, subject, '🎨');
     }
@@ -7138,7 +7158,7 @@ if (window.jarvis.onSentenceText) {
       } else {
         addMessage('assistant', r.error || 'Could not open the 3D studio.');
       }
-      return true; // handled — skip normal AI call
+      return true; // handled - skip normal AI call
     }
 
     // "Draw", "sketch" and "paint" mean the drawing canvas, which Callisto opens
@@ -7231,7 +7251,7 @@ if (window.jarvis.onSentenceText) {
     _meActive = true;
     _meRetries = 0;
     if (mePreview) mePreview.textContent = selectedText.length > 120 ? selectedText.slice(0, 120) + '…' : selectedText;
-    setMeState('listening', `Listening — press ${keys('Ctrl+Shift+E')} again when you're done…`);
+    setMeState('listening', `Listening - press ${keys('Ctrl+Shift+E')} again when you're done…`);
     bar.classList.remove('hidden');
     // Auto-start voice recording
     if (typeof startRecording === 'function') startRecording('magic-edit');
@@ -7250,16 +7270,16 @@ if (window.jarvis.onSentenceText) {
   window._magicEditRetry = function () {
     if (!_meActive) return false;
     if (_meRetries++ >= 2) {
-      setMeState('error', 'Didn\'t catch that — closing.');
+      setMeState('error', 'Didn\'t catch that - closing.');
       setTimeout(closeMagicEdit, 1800);
       return true;
     }
-    setMeState('listening', 'Didn\'t catch that — say it again…');
+    setMeState('listening', 'Didn\'t catch that - say it again…');
     if (typeof startRecording === 'function') startRecording();
     return true;
   };
 
-  // Ctrl+Shift+E pressed again — stop listening and send what was said.
+  // Ctrl+Shift+E pressed again - stop listening and send what was said.
   function finishListening() {
     if (!_meActive) return;
     setMeState('thinking', 'Editing with AI…');
@@ -7270,7 +7290,7 @@ if (window.jarvis.onSentenceText) {
 
   // Called from voice pipeline when recording is done (magic-edit mode)
   // "Is this any good?" is a question about the selection, not an instruction to
-  // change it — answer it and leave their text alone. "Rephrase this" edits.
+  // change it - answer it and leave their text alone. "Rephrase this" edits.
   function _meIsQuestion(t) {
     const s = String(t || '').trim().toLowerCase().replace(/[.!]+$/, '');
     if (/^(?:please\s+)?(?:can|could|would)\s+you\s+(?:make|rewrite|rephrase|fix|change|shorten|lengthen|translate|correct|improve|tidy|clean)/.test(s)) return false;
@@ -7280,7 +7300,7 @@ if (window.jarvis.onSentenceText) {
   }
 
   // Answer about the selection: spoken, and on the card over whatever app they're
-  // in — the same place a Ctrl+Shift+C answer appears. Nothing is pasted.
+  // in - the same place a Ctrl+Shift+C answer appears. Nothing is pasted.
   async function _meAnswerQuestion(question) {
     setMeState('thinking', 'Reading it…');
     const looksLikeCode = /[;{}()=><]|\bfunction\b|\bconst\b|\bdef\b|\bclass\b|\bimport\b|^\s{2,}\S/m.test(_meText);
@@ -7295,7 +7315,7 @@ if (window.jarvis.onSentenceText) {
       window.jarvis.hudForward?.(answer, null);   // show it over their app either way
       const audio = await window.jarvis.speak(answer.slice(0, 600));
       if (audio) playAudioChunks([audio]);
-      setMeState('done', '✓ Answered — your text is untouched.');
+      setMeState('done', '✓ Answered - your text is untouched.');
       setTimeout(closeMagicEdit, 2600);
     } catch (_) {
       setMeState('error', 'Something went wrong.');
@@ -7312,22 +7332,22 @@ if (window.jarvis.onSentenceText) {
       const res = await window.jarvis.magicEdit(_meText, instruction);
       if (res.pasteFailed) {
         // The rewrite worked; typing it back did not. Say which, because
-        // "edit failed" sends someone looking for the wrong problem — and
+        // "edit failed" sends someone looking for the wrong problem - and
         // the text is sitting on their clipboard either way.
         setMeState('error', res.error);
         const audio = await window.jarvis.speak('I could not type it back in, but it is on your clipboard.').catch(() => null);
         if (audio) playAudioChunks([audio]);
-        addMessage('assistant', `I rewrote it but could not type it back into that window. It is on your clipboard — press ${keys('Ctrl+V')} where you want it.\n\n\`\`\`\n${String(res.editedText || '').slice(0, 1500)}\n\`\`\``);
+        addMessage('assistant', `I rewrote it but could not type it back into that window. It is on your clipboard - press ${keys('Ctrl+V')} where you want it.\n\n\`\`\`\n${String(res.editedText || '').slice(0, 1500)}\n\`\`\``);
         setTimeout(closeMagicEdit, 4000);
       } else if (res.error) {
-        setMeState('error', 'Edit failed — ' + res.error);
+        setMeState('error', 'Edit failed - ' + res.error);
         setTimeout(closeMagicEdit, 3000);
       } else {
         // Say what actually changed, not just that something did.
-        const said = res.summary ? `Done. ${res.summary}` : 'Done — pasted the edit back.';
+        const said = res.summary ? `Done. ${res.summary}` : 'Done - pasted the edit back.';
         const audio = await window.jarvis.speak(said);
         if (audio) playAudioChunks([audio]);
-        setMeState('done', '✓ ' + (res.summary || 'Edited — pasting back…'));
+        setMeState('done', '✓ ' + (res.summary || 'Edited - pasting back…'));
         setTimeout(closeMagicEdit, res.summary ? 3200 : 1800);
         // A code edit goes into the chat in full: what it now says, and why
         // it was wrong. The card over the editor is gone in three seconds,
@@ -7416,11 +7436,11 @@ if (window.jarvis.onSentenceText) {
     return null;
   }
 
-  // ── Places detection — legacy stub (places now handled by _checkQuickLaunch + sidebar card) ──
+  // ── Places detection - legacy stub (places now handled by _checkQuickLaunch + sidebar card) ──
   const PLACES_KEYWORDS = /\b(nearest|near me|nearby|close to me|around me|near here|closest)\b/i;
   const PLACES_TYPES = /\b(restaurant|café|cafe|coffee|sushi|pizza|burger|shawarma|kebab|biryani|noodles|ramen|tacos|food|indian|chinese|italian|thai|mexican|bbq|steak|seafood|bakery|dessert|ice cream|paddle court|tennis|cricket|badminton|gym|pool|pharmacy|hospital|atm|bank|hotel|park|cinema|mall|barber|salon|petrol|gas station|supermarket|grocery)\b/i;
 
-  // fetchAndShowPlaces — legacy stub (all places logic now in _checkQuickLaunch → sidebar card)
+  // fetchAndShowPlaces - legacy stub (all places logic now in _checkQuickLaunch → sidebar card)
   async function fetchAndShowPlaces(placeType /*, userText */) {
     // No-op: _checkQuickLaunch intercepts "near me" commands before this runs
     console.log('[fetchAndShowPlaces] stub called for:', placeType);
@@ -7433,7 +7453,7 @@ if (window.jarvis.onSentenceText) {
     return { placeType, query: text };
   }
 
-  // Hook into sendToJarvis — intercept after message is sent
+  // Hook into sendToJarvis - intercept after message is sent
   const _origSend = window._browserPanelHooked;
   if (!_origSend) {
     window.openBrowserPanel = openBrowserPanel;
@@ -7497,7 +7517,7 @@ if (window.jarvis.onSentenceText) {
     showToast(text);
     // Play the spoken audio
     if (audio) playAudioChunks([audio]);
-    // Pulse the orb briefly — use 'speaking' not 'thinking'
+    // Pulse the orb briefly - use 'speaking' not 'thinking'
     setState('speaking');
     setTimeout(() => setState('idle'), 4000);
     // Refresh reminders panel so triggered item shows as done
@@ -7511,7 +7531,7 @@ if (window.jarvis.onSentenceText) {
 // downloading, which is not the user's business, and twice when ready. It is
 // said once now, briefly, and then waits in Account.
 
-// Queue and play audio chunks in order — each starts as soon as the previous ends
+// Queue and play audio chunks in order - each starts as soon as the previous ends
 // This lets us play sentence 1 while sentence 2 is still being synthesized
 let audioQueue = [];
 let audioPlaying = false;
@@ -7726,7 +7746,7 @@ nameNext.addEventListener('click', async () => {
   if (!name) { setupName.focus(); return; }
   pendingAssistantName = name;
   if (profile && profile.email) {
-    // Coming from post-signup name step — save and proceed
+    // Coming from post-signup name step - save and proceed
     profile.name = name;
     await window.jarvis.setProfile(profile);
     await checkSubscriptionAndEnter(name, profile.email);
@@ -7861,7 +7881,7 @@ window.jarvis.onSubscriptionActivated(async () => {
   }
 });
 
-// ── Google OAuth success — use a flag to prevent onActivated from
+// ── Google OAuth success - use a flag to prevent onActivated from
 //    interrupting the flow, and deduplicate listeners with a single handler ──
 let _googleAuthInProgress = false;
 let _googleSuccessRegistered = false;
@@ -7998,7 +8018,7 @@ function showPaymentStep() {
 // Resolves with the entered name (or falls back to googleName if skipped).
 function promptUserCallName(googleName) {
   return new Promise((resolve) => {
-    // Reuse the setup box — inject a temporary step
+    // Reuse the setup box - inject a temporary step
     const box = document.getElementById('setupBox');
     const existing = document.getElementById('callNamePrompt');
     if (existing) { resolve(googleName); return; }
@@ -8089,32 +8109,32 @@ async function checkSubscriptionAndEnter(name, email) {
     return;
   }
   // Signed up with a password and not yet confirmed: the emailed code first.
-  // Every way in — signup, sign-in, app start — passes through here, so this
+  // Every way in - signup, sign-in, app start - passes through here, so this
   // is the one place it is asked. 'Later' carries on; the AI stays shut and
   // they are asked again next time.
   if (result.user && result.user.emailVerified === false && window.CallistoAccount) {
     await window.CallistoAccount.askEmailCode(result.user.email || email);
   }
   if (result.active) {
-    // Subscribed — go straight to the app
+    // Subscribed - go straight to the app
     setupView.classList.add('hidden');
     await showSplash(name);
     await enterMain();
   } else {
-    // Authenticated but not yet subscribed — show payment screen
+    // Authenticated but not yet subscribed - show payment screen
     setupView.classList.remove('hidden');
     showTermsOrPayment();
   }
 }
 
-// Plan selection — Get Premium → show billing interval picker
+// Plan selection - Get Premium → show billing interval picker
 document.getElementById('choosePremium').addEventListener('click', () => {
   planCards.classList.add('hidden');
   billingInterval.classList.remove('hidden');
   payError.classList.add('hidden');
 });
 
-// Plan selection — Try for Free → enter as free user
+// Plan selection - Try for Free → enter as free user
 document.getElementById('chooseFree').addEventListener('click', async () => {
   // Mark as free tier and enter the app
   profile.tier = 'free';
@@ -8173,13 +8193,13 @@ async function showSplash(name) {
 function initWelcomeScroll() {
   const CAPS = [
     { emoji: '⬡', title: 'VOICE COMMAND',     sub: 'Speak to any tab, AI responds by voice',     kbd: keys('Ctrl+Shift+C'), colorA: '#00c8ff', colorB: '#003a5c' },
-    { emoji: '◉', title: 'SCREEN ASSIST',      sub: 'Ask about your screen — circle to narrow it', kbd: keys('Alt+Shift+C'), colorA: '#8b5cf6', colorB: '#2d1b69' },
+    { emoji: '◉', title: 'SCREEN ASSIST',      sub: 'Ask about your screen - circle to narrow it', kbd: keys('Alt+Shift+C'), colorA: '#8b5cf6', colorB: '#2d1b69' },
     { emoji: '◎', title: 'PLACES NEARBY',      sub: 'Real-time local discovery around you',       kbd: null,           colorA: '#00e5b0', colorB: '#00382e' },
     { emoji: '✦', title: 'IMAGE CREATION',     sub: 'Generate stunning visuals from words',       kbd: null,           colorA: '#f472b6', colorB: '#5c1840' },
     { emoji: '◈', title: 'CALENDAR & EMAIL',   sub: 'Your schedule, fully automated',             kbd: null,           colorA: '#60a5fa', colorB: '#1e3a5c' },
     { emoji: '◇', title: 'FILE INTELLIGENCE',  sub: 'Google Drive, Docs & Sheets, unified',       kbd: null,           colorA: '#34d399', colorB: '#064e3b' },
     { emoji: '◆', title: 'PERSISTENT MEMORY',  sub: 'I remember everything that matters',         kbd: null,           colorA: '#fbbf24', colorB: '#4c2a00' },
-    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible — never leave your flow',    kbd: keys('Ctrl+Shift+J'), colorA: '#a78bfa', colorB: '#2e1065' },
+    { emoji: '⟁', title: 'ALWAYS ON TOP',      sub: 'I stay visible - never leave your flow',    kbd: keys('Ctrl+Shift+J'), colorA: '#a78bfa', colorB: '#2e1065' },
     { emoji: '⊕', title: 'WEB SEARCH',         sub: 'Real-time information, instantly',            kbd: null,           colorA: '#38bdf8', colorB: '#0c2a40' },
     { emoji: '⟐', title: 'FINANCE TRACKER',    sub: 'Stocks and portfolio at a glance',           kbd: null,           colorA: '#4ade80', colorB: '#052e16' },
     { emoji: '◑', title: 'CONTACT CALLING',    sub: 'Call anyone on any platform',                kbd: null,           colorA: '#fb923c', colorB: '#431407' },
@@ -8191,7 +8211,7 @@ function initWelcomeScroll() {
     { emoji: '☑', title: 'TASKS & REMINDERS',  sub: 'Your day, read back to you each morning',    kbd: null,           colorA: '#2dd4bf', colorB: '#042f2e' },
   ];
 
-  const ROW_H = 116;  // matches .cap-row height — bigger icons need a taller row
+  const ROW_H = 116;  // matches .cap-row height - bigger icons need a taller row
   const N = CAPS.length;
   const UNLOCK_THRESHOLD = N; // must scroll through all items at least once
 
@@ -8348,7 +8368,7 @@ function initWelcomeScroll() {
     e.preventDefault();
     e.stopPropagation();
     snapTarget = null;
-    velocity += e.deltaY * 0.028; // gentler wheel — the drum was outrunning the reader
+    velocity += e.deltaY * 0.028; // gentler wheel - the drum was outrunning the reader
     velocity = clamp(velocity, -14, 14);
   }, { passive: false });
 
@@ -8411,7 +8431,7 @@ async function enterMain(skipWelcome = false, returningUser = false) {
   const hasSeenWelcome = localStorage.getItem(welcomeKey);
 
   if (!skipWelcome && !hasSeenWelcome) {
-    // First-ever login — show scroll-locked welcome hero
+    // First-ever login - show scroll-locked welcome hero
     welcomeScreen.classList.remove('hidden');
     // Keep the reminders, tasks, calendar and portfolio out of sight until the
     // introduction is over; they were showing through behind the hero.
@@ -8458,7 +8478,7 @@ async function enterMain(skipWelcome = false, returningUser = false) {
       }, 2600);
     }, { once: true });
   } else {
-    // Returning user — go straight to main view
+    // Returning user - go straight to main view
     welcomeScreen.classList.add('hidden');
     mainView.classList.remove('hidden');
     fixLayout();
@@ -8646,21 +8666,21 @@ function _showDailyAnnouncement(addressAs, briefing) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ONBOARDING  — shown once, on first-ever launch after subscription confirmed
+//  ONBOARDING - shown once, on first-ever launch after subscription confirmed
 // ══════════════════════════════════════════════════════════════════════════════
 const OB_KEY = 'callisto_onboard_v1';
 
 const ONBOARD_STEPS = [
-  // 0 — Welcome
+  // 0 - Welcome
   {
     icon: '◆',
     tag: 'WELCOME',
     h: 'Meet Callisto AI',
-    sub: 'Your personal AI that works everywhere — in your app, on your desktop, and in any app you use. Let\'s get you set up in 30 seconds.',
+    sub: 'Your personal AI that works everywhere - in your app, on your desktop, and in any app you use. Let\'s get you set up in 30 seconds.',
     render: () => '',
     validate: () => true,
   },
-  // 1 — Name + title
+  // 1 - Name + title
   {
     icon: '👤',
     tag: 'PERSONALISE',
@@ -8668,7 +8688,7 @@ const ONBOARD_STEPS = [
     sub: 'This is how I\'ll greet you every time we talk.',
     render: () => `
       <input class="ob-input" id="obName" placeholder="Your first name" maxlength="40" autocomplete="off"/>
-      <input class="ob-input" id="obTitle" placeholder="How I address you — e.g. sir, boss, your name (optional)" maxlength="40" autocomplete="off"/>
+      <input class="ob-input" id="obTitle" placeholder="How I address you - e.g. sir, boss, your name (optional)" maxlength="40" autocomplete="off"/>
     `,
     validate: () => {
       const n = document.getElementById('obName')?.value.trim();
@@ -8682,19 +8702,19 @@ const ONBOARD_STEPS = [
       profile.title = title;
     },
   },
-  // 2 — Shortcuts tutorial
+  // 2 - Shortcuts tutorial
   {
     icon: '⌨️',
     tag: 'SHORTCUTS',
     h: 'Your power shortcuts',
-    sub: 'These work system-wide — even when the app is minimised.',
+    sub: 'These work system-wide - even when the app is minimised.',
     render: () => `
       <div class="ob-shortcuts">
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🎤</span>
           <div class="ob-shortcut-info">
             <div class="ob-shortcut-name">Voice to any tab</div>
-            <div class="ob-shortcut-desc">Speak to Callisto from any app — AI responds by voice</div>
+            <div class="ob-shortcut-desc">Speak to Callisto from any app - AI responds by voice</div>
           </div>
           <span class="ob-kbd">${keys('Ctrl+Shift+C')}</span>
         </div>
@@ -8702,14 +8722,14 @@ const ONBOARD_STEPS = [
           <span class="ob-shortcut-icon">✏️</span>
           <div class="ob-shortcut-info">
             <div class="ob-shortcut-name">Edit text on other tabs</div>
-            <div class="ob-shortcut-desc">Select text anywhere, press shortcut, speak your edit — AI rewrites it</div>
+            <div class="ob-shortcut-desc">Select text anywhere, press shortcut, speak your edit - AI rewrites it</div>
           </div>
           <span class="ob-kbd">${keys('Ctrl+Shift+E')}</span>
         </div>
         <div class="ob-shortcut">
           <span class="ob-shortcut-icon">🔮</span>
           <div class="ob-shortcut-info">
-            <div class="ob-shortcut-name">Screen assist — ask about your screen</div>
+            <div class="ob-shortcut-name">Screen assist - ask about your screen</div>
             <div class="ob-shortcut-desc">Press it, say your question, press again. Circle part of the screen to narrow it down</div>
           </div>
           <span class="ob-kbd">${keys('Alt+Shift+C')}</span>
@@ -8726,7 +8746,7 @@ const ONBOARD_STEPS = [
           <span class="ob-shortcut-icon">📋</span>
           <div class="ob-shortcut-info">
             <div class="ob-shortcut-name">Clipboard AI</div>
-            <div class="ob-shortcut-desc">Copy any text, press this — AI analyses it instantly</div>
+            <div class="ob-shortcut-desc">Copy any text, press this - AI analyses it instantly</div>
           </div>
           <span class="ob-kbd">${keys('Ctrl+Space')}</span>
         </div>
@@ -8734,19 +8754,19 @@ const ONBOARD_STEPS = [
           <span class="ob-shortcut-icon">🤚</span>
           <div class="ob-shortcut-info">
             <div class="ob-shortcut-name">Hand gesture control</div>
-            <div class="ob-shortcut-desc">Toggle camera hand-gesture reader — control Callisto with your hand</div>
+            <div class="ob-shortcut-desc">Toggle camera hand-gesture reader - control Callisto with your hand</div>
           </div>
           <span class="ob-kbd">${keys('Ctrl+Shift+G')}</span>
         </div>
       </div>`,
     validate: () => true,
   },
-  // 3 — Connect apps
+  // 3 - Connect apps
   {
     icon: '🔗',
     tag: 'CONNECT',
     h: 'Connect your apps',
-    sub: 'Optional — connect now or later from the Connectors panel.',
+    sub: 'Optional - connect now or later from the Connectors panel.',
     render: () => `
       <div class="ob-connectors">
         <div class="ob-connector" id="obGoogleBtn">
@@ -8817,7 +8837,7 @@ const ONBOARD_STEPS = [
     },
     validate: () => true,
   },
-  // 4 — Done
+  // 4 - Done
   {
     icon: '🚀',
     tag: "YOU'RE ALL SET",
@@ -9147,14 +9167,14 @@ function initSpikySphere() {
 }
 
 // ===================== CONNECTORS PANEL =====================
-const connectorsBtn = { addEventListener: () => {} }; // dock button removed — handled by rail
+const connectorsBtn = { addEventListener: () => {} }; // dock button removed - handled by rail
 const connectorsPanel = document.getElementById('lnavPaneConnectors');
 const connectorsClose = document.getElementById('connectorsClose');
 
 async function renderConnectors() {
   const status = await window.jarvis.connectorStatus();
 
-  // Gmail row (hidden — pending verification)
+  // Gmail row (hidden - pending verification)
   const gmailStatus = document.getElementById('gmailStatus');
   const gmailBtn = document.getElementById('gmailBtn');
   if (gmailStatus && gmailBtn) {
@@ -9235,7 +9255,7 @@ async function renderConnectors() {
   }
 
 
-  // VIP list (hidden — shown when email connectors are live)
+  // VIP list (hidden - shown when email connectors are live)
   const vipList = document.getElementById('vipList');
   if (vipList) {
     const vips = await window.jarvis.connectorGetVip();
@@ -9281,7 +9301,7 @@ function renderMusicService(status) {
   const spotifyBtn = document.getElementById('spotifyBtn');
   if (spotifyStatus && spotifyBtn) {
     if (status?.spotify) {
-      spotifyStatus.textContent = 'Connected — background playback enabled';
+      spotifyStatus.textContent = 'Connected - background playback enabled';
       spotifyStatus.className = 'connector-status connected';
       spotifyBtn.textContent = 'DISCONNECT';
       spotifyBtn.className = 'connector-btn disconnect';
@@ -9300,7 +9320,7 @@ function renderMusicService(status) {
   const selectedEl = document.getElementById('musicServiceSelected');
   if (selectedEl) selectedEl.textContent = saved
     ? saved.charAt(0).toUpperCase() + saved.slice(1)
-    : 'None — will use YouTube';
+    : 'None - will use YouTube';
 
   document.querySelectorAll('.music-service-row').forEach(row => {
     const svc = row.dataset.service;
@@ -9325,7 +9345,7 @@ function renderAnalyticsConnectors(status) {
       // there was no way back to that choice - so a second site could only be
       // reached by disconnecting Google Analytics altogether.
       if (key === 'analytics') {
-        statusEl.textContent = 'Connected — tap to change website';
+        statusEl.textContent = 'Connected - tap to change website';
         statusEl.style.cursor = 'pointer';
         statusEl.title = 'Choose which Google Analytics property Callisto reports on';
         statusEl.onclick = async () => {
@@ -9389,7 +9409,7 @@ function renderAnalyticsConnectors(status) {
 // ── Analytics dashboard ──────────────────────────────────────────────────────
 
 function fmtNum(n) {
-  if (!n && n !== 0) return '—';
+  if (!n && n !== 0) return ' - ';
   const num = parseInt(n);
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -9411,11 +9431,11 @@ function renderAnalyticsDashboard(data) {
     document.head.appendChild(lnk);
   }
 
-  // ── WEBSITE ANALYTICS — always first, unified card across all platforms ──
+  // ── WEBSITE ANALYTICS - always first, unified card across all platforms ──
   const hasWebsite = googleAnalytics || squarespace || shopify || stripe;
   if (hasWebsite) {
     // Aggregate visitors, sales, products from all connected website sources
-    let visitors = '—', sales = '—', products = '—', siteName = '', platform = '';
+    let visitors = ' - ', sales = ' - ', products = ' - ', siteName = '', platform = '';
 
     if (googleAnalytics) {
       visitors = fmtNum(googleAnalytics.last30Days.users);
@@ -9435,18 +9455,18 @@ function renderAnalyticsDashboard(data) {
     if (squarespace) {
       siteName = squarespace.siteName || siteName;
       platform = platform ? platform + ' · Squarespace' : 'Squarespace';
-      if (sales === '—') sales = squarespace.last30Days.currency + ' ' + squarespace.last30Days.revenue;
-      if (products === '—') products = fmtNum(squarespace.last30Days.orders) + ' orders';
+      if (sales === ' - ') sales = squarespace.last30Days.currency + ' ' + squarespace.last30Days.revenue;
+      if (products === ' - ') products = fmtNum(squarespace.last30Days.orders) + ' orders';
     }
-    if (stripe && sales === '—') {
+    if (stripe && sales === ' - ') {
       platform = platform ? platform + ' · Stripe' : 'Stripe';
       sales = stripe.last30Days.currency + ' ' + stripe.last30Days.revenue;
       products = fmtNum(stripe.last30Days.orders) + ' payments';
     }
 
     // Bounce rate / session for GA
-    const bounceRate = googleAnalytics ? googleAnalytics.last30Days.bounceRate + '%' : '—';
-    const pageViews  = googleAnalytics ? fmtNum(googleAnalytics.last30Days.pageViews) : '—';
+    const bounceRate = googleAnalytics ? googleAnalytics.last30Days.bounceRate + '%' : ' - ';
+    const pageViews  = googleAnalytics ? fmtNum(googleAnalytics.last30Days.pageViews) : ' - ';
 
     // Top pages / recent orders
     let listHtml = '';
@@ -9459,7 +9479,7 @@ function renderAnalyticsDashboard(data) {
       listHtml = `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${
         squarespace.recentOrders.slice(0,3).map(o => {
           const date = new Date(o.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-          return `<div class="apc-recent-item">#${o.orderNumber} — ${o.total}<span>${date}</span></div>`;
+          return `<div class="apc-recent-item">#${o.orderNumber} - ${o.total}<span>${date}</span></div>`;
         }).join('')}</div>`;
     } else if (stripe?.recentPayments?.length) {
       listHtml = `<div class="apc-recent"><div class="apc-recent-title">RECENT PAYMENTS</div>${
@@ -9649,7 +9669,7 @@ function renderAnalyticsDashboard(data) {
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.last30Days.paidOrders)}</div><div class="apc-stat-label">ORDERS (30D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val apc-stat-green">$${shopify.last30Days.revenue}</div><div class="apc-stat-label">REVENUE (30D)</div></div>
           <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.totalCustomers)}</div><div class="apc-stat-label">CUSTOMERS</div></div>
-          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.productCount || '—')}</div><div class="apc-stat-label">PRODUCTS</div></div>
+          <div class="apc-stat"><div class="apc-stat-val">${fmtNum(shopify.productCount || ' - ')}</div><div class="apc-stat-label">PRODUCTS</div></div>
         </div>
         ${recentHtml ? `<div class="apc-recent"><div class="apc-recent-title">RECENT ORDERS</div>${recentHtml}</div>` : ''}
       </div>`);
@@ -9811,7 +9831,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Sign in with your <strong>Google account</strong>',
       'Click <strong>Allow</strong> to grant email read access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('gmail'),
@@ -9822,7 +9842,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Sign in with your <strong>Google account</strong>',
       'Click <strong>Allow</strong> to grant calendar access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('calendar'),
@@ -9833,7 +9853,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Sign in with your <strong>Google account</strong>',
       'Click <strong>Allow</strong> to grant Drive read access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('drive'),
@@ -9844,7 +9864,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Log into your <strong>Spotify account</strong>',
       'Click <strong>Agree</strong> to allow playback control',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Spotify Sign-In →',
     action: () => window.jarvis.connectorConnect('spotify'),
@@ -9855,7 +9875,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Sign in with the <strong>Google account</strong> linked to your YouTube channel',
       'Click <strong>Allow</strong> to grant YouTube analytics access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('youtube'),
@@ -9867,13 +9887,13 @@ const CONNECT_STEPS = {
       'Log into <strong>Facebook</strong> (Instagram uses Facebook login)',
       'Select the <strong>Facebook Page</strong> linked to your Instagram',
       'Click <strong>Allow</strong> to grant Instagram access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Facebook Sign-In →',
     action: () => window.jarvis.connectorConnect('instagram'),
   },
   // One Meta login covers the Page and the Instagram account, so this is the
-  // same sign-in — connecting either lights up both rows.
+  // same sign-in - connecting either lights up both rows.
   facebook: {
     icon: 'f', title: 'CONNECT FACEBOOK PAGE', subtitle: 'A Facebook Page you manage',
     steps: [
@@ -9881,7 +9901,7 @@ const CONNECT_STEPS = {
       'Log into <strong>Facebook</strong>',
       'Select the <strong>Page</strong> you want Callisto to post to',
       'Click <strong>Allow</strong> to grant posting and insights access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
       'This also connects <strong>Instagram</strong>, if that account is linked to the Page',
     ],
     continueLabel: 'Open Facebook Sign-In →',
@@ -9893,7 +9913,7 @@ const CONNECT_STEPS = {
       'A browser window will open',
       'Log into your <strong>TikTok account</strong>',
       'Click <strong>Authorize</strong> to allow access',
-      'The tab will close — you\'re connected',
+      'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open TikTok Sign-In →',
     action: () => window.jarvis.connectorConnect('tiktok'),
@@ -9904,7 +9924,7 @@ const CONNECT_STEPS = {
       'Make sure <strong>Google Analytics</strong> is set up on your website (any website builder works)',
       'A browser window will open',
       'Sign in with the <strong>Google account</strong> that owns your Analytics property',
-      'Click <strong>Allow</strong> — the tab will close and you\'re connected',
+      'Click <strong>Allow</strong> - the tab will close and you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
     action: () => window.jarvis.connectorConnect('analytics'),
@@ -9915,7 +9935,7 @@ const CONNECT_STEPS = {
       'Log into your <strong>Shopify Admin</strong> at yourstore.myshopify.com/admin',
       'Go to <strong>Settings</strong> <span class="step-arrow">›</span> <strong>Apps and sales channels</strong> <span class="step-arrow">›</span> <strong>Develop apps</strong>',
       'Click <strong>Create an app</strong>, give it any name (e.g. Callisto)',
-      'Click <strong>Configure Admin API scopes</strong> — enable <em>read_orders</em> and <em>read_customers</em>',
+      'Click <strong>Configure Admin API scopes</strong> - enable <em>read_orders</em> and <em>read_customers</em>',
       'Click <strong>Install app</strong> then copy the <strong>Admin API access token</strong>',
       'Paste the token and your store URL in the next screen',
     ],
@@ -9928,7 +9948,7 @@ const CONNECT_STEPS = {
       'Log into your <strong>Squarespace</strong> account',
       'Go to <strong>Settings</strong> <span class="step-arrow">›</span> <strong>Advanced</strong> <span class="step-arrow">›</span> <strong>API Keys</strong>',
       'Click <strong>Generate Key</strong>',
-      'Under permissions, enable <em>Orders — Read</em>',
+      'Under permissions, enable <em>Orders - Read</em>',
       'Copy the generated key and paste it in the next screen',
     ],
     continueLabel: 'I Have My Key →',
@@ -9945,7 +9965,7 @@ const CONNECT_STEPS = {
     steps: [
       'You will be taken to the <strong>Stripe sign-in page</strong>',
       'Sign in and choose the account you want Callisto to read',
-      'Callisto asks for <strong>read-only</strong> access — it can see your takings and can never move money',
+      'Callisto asks for <strong>read-only</strong> access - it can see your takings and can never move money',
       'You can revoke it any time from Stripe → Settings → Connected apps',
     ],
     footNote: 'No keys to copy. If the Stripe page does not open, you can paste a read-only restricted key instead.',
@@ -10060,12 +10080,12 @@ document.getElementById('stripeModalConnect')?.addEventListener('click', async (
   // money, so it is refused rather than quietly accepted.
   if (key.startsWith('sk_')) {
     errEl.innerHTML = 'That is a <strong>secret</strong> key. It can take payments and issue refunds, so Callisto will not store it. ' +
-      'Create a <strong>restricted</strong> key with read access instead — it starts with rk_.';
+      'Create a <strong>restricted</strong> key with read access instead - it starts with rk_.';
     errEl.classList.remove('hidden');
     return;
   }
   if (!key.startsWith('rk_')) {
-    errEl.textContent = "Doesn't look right — a restricted key starts with rk_live_ or rk_test_.";
+    errEl.textContent = "Doesn't look right - a restricted key starts with rk_live_ or rk_test_.";
     errEl.classList.remove('hidden');
     return;
   }
@@ -10079,7 +10099,7 @@ document.getElementById('stripeModalConnect')?.addEventListener('click', async (
     const name = result.accountName ? ` (${result.accountName})` : '';
     addMessage('assistant', `Stripe${name} connected! Ask me "how much revenue did I make this month?" or "show me my recent payments".`);
   } else {
-    errEl.textContent = result.error || 'Connection failed — check your secret key.';
+    errEl.textContent = result.error || 'Connection failed - check your secret key.';
     errEl.classList.remove('hidden');
   }
 });
@@ -10116,12 +10136,12 @@ document.getElementById('squarespaceModalConnect')?.addEventListener('click', as
     renderConnectors();
     addMessage('assistant', "Squarespace connected! Ask me \"how many orders did I get this month?\" or \"what's my revenue?\"");
   } else {
-    errEl.textContent = result.error || 'Connection failed — check your API key.';
+    errEl.textContent = result.error || 'Connection failed - check your API key.';
     errEl.classList.remove('hidden');
   }
 });
 
-// ── Google Analytics — property picker ───────────────────────────────────────
+// ── Google Analytics - property picker ───────────────────────────────────────
 let _analyticsProperties = [];
 let _selectedPropertyId  = null;
 
@@ -10196,7 +10216,7 @@ document.getElementById('shopifyModalConnect')?.addEventListener('click', async 
   const errEl = document.getElementById('shopifyModalError');
   errEl.classList.add('hidden');
   if (!shop || !token) { errEl.textContent = 'Please fill in both fields.'; errEl.classList.remove('hidden'); return; }
-  if (!token.startsWith('shpat_')) { errEl.textContent = 'Token should start with shpat_ — make sure you copied the Admin API access token, not a password.'; errEl.classList.remove('hidden'); return; }
+  if (!token.startsWith('shpat_')) { errEl.textContent = 'Token should start with shpat_ - make sure you copied the Admin API access token, not a password.'; errEl.classList.remove('hidden'); return; }
   const btn = document.getElementById('shopifyModalConnect');
   btn.disabled = true;
   btn.querySelector('span').textContent = 'Connecting...';
@@ -10256,7 +10276,7 @@ const LANGUAGES = [
   'Zulu',
 ];
 
-const languageBtn = { addEventListener: () => {} }; // dock button removed — handled by rail
+const languageBtn = { addEventListener: () => {} }; // dock button removed - handled by rail
 const languageSearch = document.getElementById('languageSearch');
 const languageListEl = document.getElementById('languageList');
 
@@ -10314,7 +10334,7 @@ window.jarvis.onAnalyticsShowPropertyPicker && window.jarvis.onAnalyticsShowProp
 });
 
 // ===================== SETTINGS PANE =====================
-const profileBtn = { addEventListener: () => {} }; // dock button removed — handled by rail
+const profileBtn = { addEventListener: () => {} }; // dock button removed - handled by rail
 const profilePanel = null;
 const profileClose = null;
 
@@ -10372,7 +10392,7 @@ async function loadSettingsPane() {
   const subEl = document.getElementById('profileSub');
   const upgradeBox = document.getElementById('profileUpgrade');
   if (isActive) {
-    subEl.textContent = '✓ ACTIVE — US$25/month';
+    subEl.textContent = '✓ ACTIVE - US$25/month';
     subEl.className = 'profile-value profile-sub-active';
     upgradeBox?.classList.add('hidden');
   } else {
@@ -10392,7 +10412,7 @@ async function loadSettingsPane() {
     }
   }
 
-  // profileHistoryList removed from account pane — history lives in Chat History tab
+  // profileHistoryList removed from account pane - history lives in Chat History tab
 
   // Location toggle
   const locToggle = document.getElementById('locationToggleBtn');
@@ -10411,7 +10431,7 @@ async function loadSettingsPane() {
 
   const locCountryLabel = document.getElementById('profileCountryLabel');
   if (locCountryLabel) {
-    locCountryLabel.textContent = localStorage.getItem('userCountry') || '—';
+    locCountryLabel.textContent = localStorage.getItem('userCountry') || ' - ';
   }
 }
 
@@ -10600,7 +10620,7 @@ voiceVolumeSlider.addEventListener('input', () => {
     });
   });
 
-  // Preview — speaks a line in whatever voice+accent is currently selected
+  // Preview - speaks a line in whatever voice+accent is currently selected
   const previewBtn = document.getElementById('profileVoicePreview');
   const previewStatus = document.getElementById('profileVoicePreviewStatus');
   if (previewBtn) {
@@ -10620,7 +10640,7 @@ voiceVolumeSlider.addEventListener('input', () => {
 })();
 
 window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }) => {
-  // Don't interrupt Google OAuth — it has its own entry flow
+  // Don't interrupt Google OAuth - it has its own entry flow
   if (_googleAuthInProgress) return;
 
   profile = storedProfile;
@@ -10631,7 +10651,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
   cardPanel.classList.add('hidden');
   historySidebar.classList.add('hidden');
 
-  // Show splash IMMEDIATELY — user sees animation while auth check runs in background
+  // Show splash IMMEDIATELY - user sees animation while auth check runs in background
   const splashName = storedProfile?.name || name || 'Callisto';
   const splashPromise = showSplash(splashName);
 
@@ -10675,7 +10695,7 @@ window.jarvis.onActivated(async ({ name, profile: storedProfile, returningUser }
     return;
   }
 
-  // Token valid — check subscription before entering
+  // Token valid - check subscription before entering
   const displayName = storedProfile?.name || authResult.user?.name || 'Callisto';
   profile = {
     name:        displayName,
@@ -10767,7 +10787,7 @@ function convoBanner(on) {
 
 // Each turn behaves like a Ctrl+Shift+C question: the "Listening…" pill while
 // the mic is live, and the answer on the card over whatever app or website the
-// person is in — they're rarely looking at Callisto while talking to it.
+// person is in - they're rarely looking at Callisto while talking to it.
 function convoListen() {
   convoVadReset();
   startRecording().then(() => window.jarvis.hudMicState?.(isRecording, true));
@@ -10809,7 +10829,7 @@ window._runGesturePrompt = function (text) {
 
 // ── Screen awareness ─────────────────────────────────────────────
 // Every watched frame is a paid call, so the badge says plainly that the screen
-// is being read and how many frames have gone out — nobody should be surprised
+// is being read and how many frames have gone out - nobody should be surprised
 // by either the privacy or the bill.
 function screenWatchBadge(on, frames = 0, seconds = 5) {
   let el = document.getElementById('screenWatchBadge');
@@ -10866,7 +10886,7 @@ function screenSuggest(sug) {
     const make = SCREEN_ACTION_PROMPTS[sug.action];
     if (make) { addMessage('user', make(sug.detail || '')); sendToJarvis(make(sug.detail || '')); }
   });
-  // Hovering means they are reading it — don't snatch it away.
+  // Hovering means they are reading it - don't snatch it away.
   el.addEventListener('mouseenter', () => { clearTimeout(timer); el.querySelector('.sw-sug-bar')?.classList.add('sw-paused'); });
 }
 
@@ -10924,7 +10944,7 @@ window.jarvis.onAssistState?.(({ on, reason }) => {
   if (!on) window._assistEndedAt = Date.now();
   if (on) {
     convoStart();
-    addMessage('assistant', `👀 Assist mode is on — I am watching your screen and listening. Say what you need, or just carry on and I will offer things as they come up. ${keys('Alt+Shift+C')} again to stop.`);
+    addMessage('assistant', `👀 Assist mode is on - I am watching your screen and listening. Say what you need, or just carry on and I will offer things as they come up. ${keys('Alt+Shift+C')} again to stop.`);
   } else {
     convoStop(reason === 'spoken');
     addMessage('assistant', reason === 'daily'
@@ -11013,7 +11033,7 @@ const waveCtx = waveformCanvas ? waveformCanvas.getContext('2d') : null;
     requestAnimationFrame(tickParticles);
     // Draw particles first (under waveform bars)
     // We use a separate offscreen approach: draw on main canvas only when waveform is idle
-    if (waveformRaf) return; // waveform is active — it handles its own clear/draw cycle
+    if (waveformRaf) return; // waveform is active - it handles its own clear/draw cycle
 
     const ctx = waveCtx;
     ctx.clearRect(0, 0, W, H);
@@ -11183,7 +11203,7 @@ async function stopRecording() {
   const sampleRate = audioContext.sampleRate;
   const capturedChunks = pcmChunks.splice(0);
 
-  // Stopped because the computer slept/woke — throw the audio away, don't send it.
+  // Stopped because the computer slept/woke - throw the audio away, don't send it.
   if (window._discardRecording) {
     window._discardRecording = false;
     setState('idle');
@@ -11204,7 +11224,7 @@ async function stopRecording() {
       // Mid-edit, keep the editor open and listen again instead of dumping the user out.
       if (typeof window._magicEditRetry === 'function' && window._magicEditRetry()) { setState('idle'); return; }
       if (!window._convoMode) {
-        addMessage('assistant', 'I didn\'t catch that — please check your microphone and try again.');
+        addMessage('assistant', 'I didn\'t catch that - please check your microphone and try again.');
         _maybeForwardToHud('I didn\'t catch that. Check your microphone and try again.', null);
       }
       setState('idle');
@@ -11298,7 +11318,7 @@ async function stopRecording() {
     }
   } catch (err) {
     const raw = (err.message || '').replace(/^Error invoking remote method '[^']+': /, '');
-    // 401 = expired JWT — show friendly message and force re-login
+    // 401 = expired JWT - show friendly message and force re-login
     if (raw.includes('STT 401') || raw.includes('401')) {
       // Ask the server before throwing the session away. A 401 from one
       // endpoint does not prove the sign-in is dead, and signing the user out
@@ -11416,7 +11436,7 @@ micBtn.addEventListener('click', () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
   });
 
-  // Focus/hover styles — cyan theme to match new input
+  // Focus/hover styles - cyan theme to match new input
   userInput.addEventListener('focus', () => { if (typeBoxBorder) { typeBoxBorder.style.borderColor = 'rgba(0,180,255,0.5)'; typeBoxBorder.style.boxShadow = '0 0 12px rgba(0,180,255,0.15)'; } });
   userInput.addEventListener('blur',  () => { if (typeBoxBorder) { typeBoxBorder.style.borderColor = 'rgba(0,160,220,0.25)'; typeBoxBorder.style.boxShadow = 'none'; } });
   typeSendBtn?.addEventListener('mouseenter', () => { typeSendBtn.style.background = 'rgba(0,190,255,0.95)'; typeSendBtn.style.transform = 'scale(1.08)'; typeSendBtn.style.boxShadow = '0 0 16px rgba(0,200,255,0.5)'; });
@@ -11446,7 +11466,7 @@ micBtn.addEventListener('click', () => {
     const rgb = hexToRgb01(hex);
     const [r255, g255, b255] = [Math.round(rgb[0]*255), Math.round(rgb[1]*255), Math.round(rgb[2]*255)];
 
-    // 1. Orb sphere CSS — radial gradient + glow
+    // 1. Orb sphere CSS - radial gradient + glow
     const orbEl = document.getElementById('orb');
     if (orbEl) {
       orbEl.style.background = `radial-gradient(circle at 35% 30%,
@@ -11475,10 +11495,10 @@ micBtn.addEventListener('click', () => {
       }
     `;
 
-    // 3. Orb keyframe / ring colour only — wave handled separately by wave picker
+    // 3. Orb keyframe / ring colour only - wave handled separately by wave picker
     window._shaderLineColor = rgb;
 
-    // 4. Dot surface — secondary dot particles
+    // 4. Dot surface - secondary dot particles
     if (window._dotSurface) window._dotSurface.setColor(rgb, 0.72);
 
     // 4. Hills / light-mode wave
@@ -11487,7 +11507,7 @@ micBtn.addEventListener('click', () => {
     // 5. WebGL background wave (light mode)
     if (window._wave) window._wave.setColor(rgb);
 
-    // 6. Waveform bars — expose color for draw loop
+    // 6. Waveform bars - expose color for draw loop
     window._waveformColor = [r255, g255, b255];
 
     // save preference
@@ -11495,7 +11515,7 @@ micBtn.addEventListener('click', () => {
   }
 
   function resetOrbColor() {
-    // Remove inline styles — CSS defaults take over
+    // Remove inline styles - CSS defaults take over
     const orbEl = document.getElementById('orb');
     if (orbEl) { orbEl.style.background = ''; orbEl.style.boxShadow = ''; }
     document.documentElement.style.removeProperty('--orb-ring-color');
@@ -11522,7 +11542,7 @@ micBtn.addEventListener('click', () => {
   // Reset button
   document.getElementById('orbColorReset')?.addEventListener('click', resetOrbColor);
 
-  // Load saved colour on startup — retry until all WebGL contexts are ready
+  // Load saved colour on startup - retry until all WebGL contexts are ready
   const saved = localStorage.getItem('orbColor');
   if (saved) {
     document.querySelectorAll('.orb-swatch').forEach(s => {
@@ -11639,7 +11659,7 @@ micBtn.addEventListener('click', () => {
 
   document.addEventListener('mousemove', (e) => {
     const rect = orbEl.getBoundingClientRect();
-    if (!rect.width || !rect.height) return; // orb not yet visible — skip to avoid NaN
+    if (!rect.width || !rect.height) return; // orb not yet visible - skip to avoid NaN
     // Reset if NaN leaked in from an earlier hidden state
     if (!isFinite(tx)) { tx = 0; txTarget = 0; }
     if (!isFinite(ty)) { ty = 0; tyTarget = 0; }
@@ -11655,7 +11675,7 @@ micBtn.addEventListener('click', () => {
   });
 })();
 
-// ===================== SWEEP BEAM — connector rows (staggered) =====================
+// ===================== SWEEP BEAM - connector rows (staggered) =====================
 (function initConnectorBeams() {
   const rows = document.querySelectorAll('.connector-row');
   // Spread delays evenly across the 2s animation cycle so beams fire at different times
@@ -11896,7 +11916,7 @@ micBtn.addEventListener('click', () => {
   // and the toast jumps straight to it.
   window.jarvis.onArtifactReady?.((d) => {
     const word = { model: '3D model', image: 'image', video: 'video' }[d?.kind] || 'creation';
-    addMessage('assistant', `✨ Your ${word} is ready${d?.title ? ` — “${d.title}”` : ''}. It's in Artifacts.`);
+    addMessage('assistant', `✨ Your ${word} is ready${d?.title ? ` - “${d.title}”` : ''}. It's in Artifacts.`);
     artifactToast(`Your ${word} is ready`, d?.id);
   });
 
@@ -12158,19 +12178,19 @@ window.jarvis.onVideoEdited?.((item) => { window._lastVideo = item; });
 })();
 
 // A Google connector was approved on a different Google account than the one
-// linked in Connectors — it wasn't saved; tell the customer how to fix it.
+// linked in Connectors - it wasn't saved; tell the customer how to fix it.
 if (window.jarvis.onConnectorWrongAccount) {
   window.jarvis.onConnectorWrongAccount(({ service, expected, got }) => {
     const names = { youtube: 'YouTube', calendar: 'Google Calendar', drive: 'Google Drive', analytics: 'Google Analytics' };
     const name = names[service] || 'That connector';
     addMessage('assistant',
-      `${name} wasn't connected — it was approved on **${got}**, but your linked Google account is **${expected}**. ` +
+      `${name} wasn't connected - it was approved on **${got}**, but your linked Google account is **${expected}**. ` +
       `Connect again and choose ${expected}. To use a different account everywhere, change the Google account in Connectors first.`);
   });
 }
 
 // Mac: the customer declined (or macOS blocked) permission to control other apps.
-// Without it, "open Spotify" and "play …" silently do nothing — explain and link
+// Without it, "open Spotify" and "play …" silently do nothing - explain and link
 // straight to the right settings page.
 if (window.jarvis.onMacNeedsAutomation) {
   window.jarvis.onMacNeedsAutomation(() => {
@@ -12265,11 +12285,11 @@ if (window.jarvis.onMacNeedsAutomation) {
         nameIn.value = '';
         promptIn.value = '';
         warnEl.classList.add('hidden');
-        // Held badly, or too close to one they already have — say so now,
+        // Held badly, or too close to one they already have - say so now,
         // rather than letting two gestures fight each other later.
         const clash = G().clashesWith(result.sig);
         if (clash) warn(`That looks a lot like "${clash.name}". Callisto may confuse the two.`);
-        else if (result.spread > G().MATCH_THRESHOLD * 0.7) warn('Your hand moved a fair bit. This may not fire reliably — consider recording again.');
+        else if (result.spread > G().MATCH_THRESHOLD * 0.7) warn('Your hand moved a fair bit. This may not fire reliably - consider recording again.');
         showPane('save');
         nameIn.focus();
       }
@@ -12326,7 +12346,7 @@ if (window.jarvis.onMacNeedsAutomation) {
 })();
 
 // ── Drawing studio wiring ─────────────────────────────────────────────────────
-// The canvas lives in draw-studio.js; this connects it to Callisto — incoming
+// The canvas lives in draw-studio.js; this connects it to Callisto - incoming
 // shapes from the AI, the state report that lets the next request build on what
 // is already drawn, and the hand-offs to the 3D and video generators.
 (function () {
@@ -12381,7 +12401,7 @@ if (window.jarvis.onMacNeedsAutomation) {
   });
 
   // Typing in the canvas's own box goes through the normal chat path, so every
-  // skill — and conversation mode — works there too.
+  // skill - and conversation mode - works there too.
   D().onCommand((text) => {
     addMessage('user', text);
     sendToJarvis(text);
@@ -12487,7 +12507,7 @@ if (window.jarvis.onMacNeedsAutomation) {
 
 // ── Asking about your numbers ─────────────────────────────────────────────────
 // "How much did I make this week", "show my revenue", "open Stripe", "how's
-// Instagram doing" — each says the headline out loud, puts it in the chat, and
+// Instagram doing" - each says the headline out loud, puts it in the chat, and
 // opens the expandable panel so the detail is there without asking twice.
 (function () {
   const PLATFORMS = [
@@ -13160,8 +13180,8 @@ function _setPaywallPlan(plan) {
   const cta = document.getElementById('paywallBuy');
   if (cta) {
     cta.textContent = annual
-      ? 'Get Yearly — US$250/yr'
-      : 'Get Premium — US$25/mo';
+      ? 'Get Yearly - US$250/yr'
+      : 'Get Premium - US$25/mo';
   }
 }
 
