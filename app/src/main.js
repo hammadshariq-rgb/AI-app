@@ -45,6 +45,7 @@ const connectors = require('./services/connectors');
 const shopping = require('./services/shopping');
 const modeling = require('./services/modeling');
 const video = require('./services/video');
+const macComms = require('./services/mac-comms');
 const publishing = require('./services/publishing');
 const calendar = require('./services/calendar');
 
@@ -178,6 +179,30 @@ function _junkCreative(text) {
   return rest.split(/\s+/).every((w) => w.length < 2 || _CREATIVE_JUNK.test(w));
 }
 const _JUNK_REPLY = "I can't make that one. Tell me what you'd like it to be of and I'll make it.";
+
+// ── Knowing itself ───────────────────────────────────────────────────────────
+// Asked "what version are you", "what can you do", "is my Gmail connected" or
+// "can you call people", Callisto used to guess. This is the truth about
+// itself, built fresh for every message: version, computer, what is connected
+// and what it can and cannot do here.
+function _selfNote() {
+  try {
+    const names = { gmail: 'Gmail', outlook: 'Outlook', spotify: 'Spotify', calendar: 'Google Calendar', youtube: 'YouTube',
+      instagram: 'Instagram', tiktok: 'TikTok', shopify: 'Shopify', squarespace: 'Squarespace', analytics: 'Google Analytics', stripe: 'Stripe' };
+    const st = connectors.getConnectorStatus() || {};
+    const on = Object.keys(names).filter((k) => st[k]).map((k) => names[k]);
+    const off = Object.keys(names).filter((k) => !st[k]).map((k) => names[k]);
+    const os = process.platform === 'darwin' ? 'a Mac' : process.platform === 'win32' ? 'Windows' : process.platform;
+    const mem = (store.get('memories') || []).length;
+    return '\n\nABOUT YOURSELF (this is accurate; use it whenever they ask what you are, what you can do, your version or what is connected, and never contradict it):\n'
+      + '- You are Callisto, made by Shariquen: the Callisto desktop app, version ' + app.getVersion() + ', running on ' + os + '. There is also a website version at callistoai.net with fewer features (nothing that needs their computer).\n'
+      + '- Connected right now: ' + (on.join(', ') || 'nothing yet') + '. Not connected: ' + off.join(', ') + '. Anything not connected is added in Connectors.\n'
+      + '- What you can do here: talk and answer anything; voice with Ctrl+Shift+C; screen assist with Alt+Shift+C (you see their screen and guide them step by step through any app or website); the camera look ("open my camera"); pictures, AI videos and 3D models; documents, spreadsheets and slides; calendar, reminders and tasks; music; opening apps, files and websites; Instagram DMs (read and send, with their approval); their analytics; coding tasks in a project folder; Magic Edit with Ctrl+Shift+E; the memory orb and their business profile.'
+      + (process.platform === 'darwin' ? ' On this Mac also: iMessages and texts, FaceTime, and phone calls through their iPhone, each confirmed on a card first.' : '') + '\n'
+      + '- What you cannot do: read or send WhatsApp messages' + (process.platform === 'darwin' ? '' : ', make phone calls or send texts (that is on the Mac version only)') + ', see anything you have not been given access to, or act without their approval where a card asks for it. Never claim to have done something you did not do.\n'
+      + '- You remember this whole conversation, including what you showed on cards. You keep ' + mem + ' long-term facts about them in the memory orb.';
+  } catch (_) { return ''; }
+}
 
 // The full analytics - every country, source, device and post - kept for half
 // an hour after it was fetched, so a follow-up like "where were they from" is
@@ -3584,7 +3609,9 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     && /\?\s*$/.test(String(_lastAssistant.content || '').trim())
     && String(message || '').trim().length < 40);
 
-  const trimmedHistory = needsAction ? history.slice(-5) : trimForSpeed(history, 14, 7000);
+  // Actions get the conversation as well: "book the second one" needs the list
+  // that came before it. A little longer than before, still trimmed for speed.
+  const trimmedHistory = needsAction ? trimForSpeed(history, 12, 5000) : trimForSpeed(history, 20, 9000);
   // While the screen is being watched, what the user is looking at is part of
   // the conversation - "combine these two PDFs" needs no screenshot, because
   // Callisto already knows what is on screen.
@@ -3616,7 +3643,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   } catch (_) {}
 
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _selfNote() + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index - ensures playback order matches text order
@@ -4024,6 +4051,46 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   // Sending - Instagram really sends, so it's confirmed on a card first.
   // WhatsApp only ever types the message into the chat for the user to send.
+  // Texts, iMessages, FaceTime and calls through the Mac's own apps. The
+  // person is found in Contacts and the card asks for a press; nothing goes
+  // out from here.
+  if (finalAction?.type === 'text_contact' || finalAction?.type === 'call_contact') {
+    const p = finalAction.payload || {};
+    const isText = finalAction.type === 'text_contact';
+    if (process.platform !== 'darwin') {
+      const spoken = isText ? 'Texting through Messages works in Callisto on a Mac. On Windows I can open WhatsApp or Instagram for you instead.' : 'Calling works in Callisto on a Mac, through FaceTime or your iPhone. It is not available on Windows.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: false };
+    }
+    const raw = String(p.to || '').trim();
+    const isAddress = /^[+\d][\d\s()-]{5,}$/.test(raw) || /@/.test(raw);
+    let people = [];
+    if (!isAddress) {
+      const found = await macComms.findContacts(raw);
+      if (!found.ok) { _sendTTS(_e.sender, found.error); return { text: found.error, audio: null, hasAction: false }; }
+      people = found.people;
+      if (!people.length) {
+        const spoken = 'I can\'t find ' + raw + ' in your Contacts. Say their number, or the name as it is saved.';
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, hasAction: false };
+      }
+    }
+    const options = isAddress ? [{ name: raw, value: raw.replace(/[\s()-]/g, ''), label: '' }]
+      : people.flatMap((pp) => [...pp.phones.map((ph) => ({ name: pp.name, value: ph.value, label: ph.label })),
+        ...((isText || p.kind !== 'phone') ? pp.emails.map((em) => ({ name: pp.name, value: em, label: 'email' })) : [])]);
+    if (!options.length) {
+      const spoken = (people[0] && people[0].name) + ' has no number saved in Contacts.';
+      _sendTTS(_e.sender, spoken);
+      return { text: spoken, audio: null, hasAction: false };
+    }
+    const who = options[0].name;
+    const spoken = isText ? 'Ready to send to ' + who + '. Check it and press Send.'
+      : 'Ready to ' + (p.kind === 'facetime' ? 'FaceTime' : p.kind === 'facetime_audio' ? 'audio FaceTime' : 'call') + ' ' + who + '. Press Call.';
+    _sendTTS(_e.sender, spoken);
+    return { text: spoken, audio: null, hasAction: false,
+      card: { type: isText ? 'mac-text' : 'mac-call', to: who, options: options.slice(0, 8), message: p.message || '', service: p.service || 'auto', kind: p.kind || 'phone' } };
+  }
+
   if (finalAction?.type === 'send_message') {
     const p = finalAction.payload || {};
     // Only refuse when the person actually asked for somewhere else. "Send a
@@ -6676,6 +6743,10 @@ function startDmWatcher() {
   _dmTimer = setInterval(_dmTick, DM_POLL_MS);
   setTimeout(_dmTick, 15000);   // once shortly after start, then on the timer
 }
+
+// Only ever called by a press on the card.
+ipcMain.handle('mac:sendText', (_e, { to, text, service }) => macComms.sendText(to, text, service));
+ipcMain.handle('mac:call', (_e, { to, kind }) => macComms.call(to, kind));
 
 ipcMain.handle('instagram:accounts', async () => {
   try { return await connectors.listInstagramAccounts(); } catch (e) { return { ok: false, error: e.message }; }

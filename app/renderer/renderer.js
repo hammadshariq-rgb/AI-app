@@ -1043,6 +1043,9 @@ function addMessage(role, text) {
     const _last = history[history.length - 1];
     if (!(_last && _last.role === 'assistant' && _last.content === text)) history.push({ role: 'assistant', content: text });
   }
+  // What a card showed is kept in the conversation for Callisto, but never
+  // drawn in a bubble (a reopened chat would otherwise show it as text).
+  if (role === 'assistant' && typeof text === 'string') text = text.replace(/\n*\[Shown to them on an? [^\n]* card:\n[\s\S]*?\]\s*$/, '');
   if (typeof _scheduleChatSave === 'function') _scheduleChatSave();
   // Row wrapper (flex row, aligns avatar + bubble)
   const row = document.createElement('div');
@@ -4545,8 +4548,43 @@ function dmWhen(iso) {
   return t.toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
+// ── What was on screen is part of the conversation ─────────────────────────
+// "Find me the nearest restaurant" puts a list on a card; "book the second
+// one" a moment later meant nothing, because the list never reached the
+// conversation - only the sentence before it did. Every card is now written
+// into the conversation as plain text (names, addresses, prices, links,
+// numbers), so a follow-up can refer to anything that was shown.
+function _cardSummary(card) {
+  const keep = ['title', 'name', 'label', 'subtitle', 'summary', 'description', 'address', 'location', 'price', 'rating', 'phone',
+    'url', 'link', 'date', 'time', 'start', 'end', 'status', 'value', 'text', 'answer', 'platform', 'to', 'message', 'source'];
+  const out = [];
+  const walk = (v, depth, prefix) => {
+    if (out.join(' ').length > 1600 || depth > 3 || v == null) return;
+    if (Array.isArray(v)) { v.slice(0, 10).forEach((x, i) => walk(x, depth + 1, prefix + (i + 1) + '. ')); return; }
+    if (typeof v === 'object') {
+      const bits = keep.filter((k) => v[k] != null && typeof v[k] !== 'object' && String(v[k]).trim()).map((k) => k + ': ' + String(v[k]).replace(/\s+/g, ' ').slice(0, 160));
+      if (bits.length) out.push(prefix + bits.join(', '));
+      for (const k of Object.keys(v)) if (v[k] && typeof v[k] === 'object') walk(v[k], depth + 1, prefix);
+      return;
+    }
+  };
+  walk(card, 0, '');
+  return out.join('\n').slice(0, 1800);
+}
+function _rememberCard(card) {
+  try {
+    const sum = _cardSummary(card);
+    if (!sum) return;
+    const note = '[Shown to them on a ' + (card.type || 'result') + ' card:\n' + sum + ']';
+    const last = history[history.length - 1];
+    if (last && last.role === 'assistant') { if (!String(last.content).includes(note)) last.content = String(last.content || '') + '\n\n' + note; }
+    else history.push({ role: 'assistant', content: note });
+  } catch (_) {}
+}
+
 function showCard(card) {
   if (!card) { cardPanel.classList.add('hidden'); return; }
+  _rememberCard(card);
   cardPanel.classList.remove('hidden');
 
   // Sources for a piece of research. Shown here rather than in a browser tab:
@@ -5284,6 +5322,46 @@ function showCard(card) {
       cardContent.querySelectorAll('[data-dm-open]').forEach((el) => {
         el.style.cursor = 'pointer';
         el.addEventListener('click', () => window.jarvis.openUrl(el.dataset.dmOpen));
+      });
+    }, 50);
+  } else if (card.type === 'mac-text' || card.type === 'mac-call') {
+    // A text or a call from the Mac. Nothing happens until Send or Call.
+    const isText = card.type === 'mac-text';
+    const opts = (card.options || []).map((o, i) => '<option value="' + i + '">' + esc(o.name + (o.label ? ' (' + o.label + ')' : '') + ' ' + o.value) + '</option>').join('');
+    const kindLabel = card.kind === 'facetime' ? 'FACETIME VIDEO' : card.kind === 'facetime_audio' ? 'FACETIME AUDIO' : 'PHONE CALL (THROUGH YOUR IPHONE)';
+    cardContent.innerHTML = `
+      <div class="card-dm">
+        <div class="dm-head">${isText ? 'SEND WITH MESSAGES' : esc(kindLabel)}</div>
+        <div class="dm-to">To <select id="macTo" class="mac-to">${opts}</select></div>
+        ${isText ? '<div class="dm-draft" id="dmDraft" contenteditable="true">' + esc(card.message || '') + '</div>' : ''}
+        <div class="dm-actions">
+          <button class="dm-send" id="macGo">${isText ? 'SEND' : 'CALL'}</button>
+          <button class="dm-cancel" id="macCancel">CANCEL</button>
+        </div>
+        <div class="dm-note" id="macNote">${isText ? 'Sent as an iMessage, or as a text through your iPhone if they are not on iMessage.' : 'Your Mac starts the call. A phone call rings through your iPhone.'}</div>
+      </div>`;
+    setTimeout(() => {
+      const note = document.getElementById('macNote');
+      const btn = document.getElementById('macGo');
+      document.getElementById('macCancel')?.addEventListener('click', () => { showCard(null); addMessage('assistant', isText ? 'Cancelled, nothing was sent.' : 'Cancelled, no call made.'); });
+      btn?.addEventListener('click', async () => {
+        const o = (card.options || [])[+document.getElementById('macTo').value] || {};
+        btn.disabled = true;
+        let r;
+        if (isText) {
+          const text = (document.getElementById('dmDraft')?.innerText || '').trim();
+          if (!text) { note.textContent = 'Nothing to send.'; btn.disabled = false; return; }
+          btn.textContent = 'SENDING…';
+          r = await window.jarvis.macSendText(o.value, text, card.service === 'sms' ? 'sms' : 'auto').catch((e) => ({ ok: false, error: e.message }));
+          if (r && r.ok) { btn.textContent = 'SENT'; note.textContent = 'Sent to ' + o.name + '.'; addMessage('assistant', 'Sent to ' + o.name + ': "' + text + '"'); return; }
+        } else {
+          btn.textContent = 'CALLING…';
+          r = await window.jarvis.macCall(o.value, card.kind).catch((e) => ({ ok: false, error: e.message }));
+          if (r && r.ok) { btn.textContent = 'CALLING'; note.textContent = 'Calling ' + o.name + '.'; addMessage('assistant', 'Calling ' + o.name + '.'); return; }
+        }
+        btn.disabled = false; btn.textContent = isText ? 'SEND' : 'CALL';
+        note.textContent = (r && r.error) || 'That did not work.';
+        note.classList.add('dm-note-bad');
       });
     }, 50);
   } else if (card.type === 'dm-send') {

@@ -290,6 +290,37 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'text_contact',
+      description: 'Send an iMessage or a text through the Mac\'s Messages app. Use for "text Mum I am on my way", "message Ahmed on iMessage saying yes", "send Sara a text". Name the person as they said it; Callisto finds them in Contacts and shows the message for approval before anything is sent. Not for Instagram (send_message) or WhatsApp.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'The person as they named them ("Mum", "Ahmed Khan") or a phone number or email' },
+          message: { type: 'string', description: 'Exactly what to say, in their own words' },
+          service: { type: 'string', enum: ['imessage', 'sms', 'auto'], description: 'sms only if they said text message or SMS; otherwise auto' },
+        },
+        required: ['to', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'call_contact',
+      description: 'Call someone from the Mac: a FaceTime video call, a FaceTime audio call, or a normal phone call through their iPhone. Use for "call Dad", "FaceTime Sara", "audio FaceTime Ahmed", "ring my mum". Callisto finds them in Contacts and asks for a press before calling.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'The person as they named them, or a number' },
+          kind: { type: 'string', enum: ['phone', 'facetime', 'facetime_audio'], description: 'facetime for FaceTime or video, facetime_audio for an audio FaceTime, phone for a call or ring' },
+        },
+        required: ['to'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'run_command',
       description:
         "Propose a terminal command for the user's own project - git (status, add, commit, push, pull, branch, log, diff), npm/yarn/pnpm, build and test commands, and deploy tools like netlify, vercel or railway. Use when they ask to commit, push, deploy, install a package, run tests or build. Callisto shows the exact command and folder on a card and runs it only when the user presses Run, so proposing one is safe. One command per call; propose the next one after seeing the output. Never propose anything that deletes work or rewrites history unless the user asked for exactly that.",
@@ -1240,11 +1271,11 @@ CURRENT EVENTS & NEWS (CRITICAL):
   * Each step starts with a bold heading on its own line: **Step 1: Expand the numerator**
   * One short sentence saying what is done and why.
   * Every equation or line of working on its own line as display maths:
-    \[ \frac{x^2-2x+1}{x} = x - 2 + \frac{1}{x} \]
-  * Inline symbols in a sentence as \( x \neq 0 \).
-  * Chemical equations the same way: \[ \text{CH}_4 + 2\text{O}_2 \rightarrow \text{CO}_2 + 2\text{H}_2\text{O} \]
-  * Break-even: \[ \text{Break-even units} = \frac{\text{Fixed costs}}{\text{Price} - \text{Variable cost}} \]
-  * End with **Final answer** on its own line, then the result boxed: \[ \boxed{x = 4} \]
+    \\[ \\frac{x^2-2x+1}{x} = x - 2 + \\frac{1}{x} \\]
+  * Inline symbols in a sentence as \\( x \\neq 0 \\).
+  * Chemical equations the same way: \\[ \\text{CH}_4 + 2\\text{O}_2 \\rightarrow \\text{CO}_2 + 2\\text{H}_2\\text{O} \\]
+  * Break-even: \\[ \\text{Break-even units} = \\frac{\\text{Fixed costs}}{\\text{Price} - \\text{Variable cost}} \\]
+  * End with **Final answer** on its own line, then the result boxed: \\[ \\boxed{x = 4} \\]
   The voice skips the equations and reads only the sentences, so the sentences
   alone must still make sense out loud, and the final answer must also be said
   in words in the last sentence. Write each value to six decimal places before
@@ -1533,7 +1564,7 @@ REPLY STYLE:
 };
 
 // Keywords that suggest the user wants to perform an action
-const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|messages?|chat|dms?|inbox|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|reply|respond|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|presentation|powerpoint|slide ?deck|deck|slides|build (?:me )?a|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
+const ACTION_KEYWORDS = /\b(open|launch|start|show|find|search|play|put on|queue|listen|close|create|delete|send|call|phone|ring|video.?call|voice.?call|facetime|imessage|sms|messages?|chat|dms?|inbox|go to|navigate|website|site|url|google|youtube|reddit|whatsapp|instagram|discord|telegram|spotify|apple music|youtube music|deezer|tidal|amazon music|post|posting|upload|publish|share|reply|respond|tiktok|tik tok|chrome|folder|file|app|window|browser|skype|signal|viber|zoom|teams|generate|draw|make|design|image|picture|photo|illustration|artwork|logo|paint|sketch|schedule|calendar|add (?:an? )?event|add.?event|clear.?schedule|what.?s on my|upcoming|my schedule|my events|today.?s events|this week|add to calendar|book|appointment|meeting|task|tasks|to.?do|to.?do list|my list|on my list|check.?list|remind me|set.?a.?reminder|reminder|don.?t let me forget|alert me|notify me|heads.?up|give me a heads.?up|document|write.?a.?doc|draft.?a|report|word.?file|google.?doc|presentation|powerpoint|slide ?deck|deck|slides|build (?:me )?a|volume|mute|unmute|set.?volume|turn.?(?:up|down)|shut.?down|restart|reboot|turn.?off|briefing|morning.?briefing|my.?day|remember|forget|note.?that|make.?a.?note|put (?:that|it|this) up|send (?:that|it|this) out|chuck (?:it|that|this)|stick (?:it|that|this)|do it|do that|go ahead|another one|one more|same again|try again|bigger|smaller)\b/i;
 
 // A document/slides deck is only made when the user actually asks for one.
 const DOC_INTENT = /\b(create|make|write|draft|generate|build|prepare|produce|put together|turn (?:this|it) into|export|save (?:this|it) as|put (?:this|it|that|these|those) in(?:to)?|set up|design)\b[^.?!\n]{0,60}\b(document|doc|docx|word file|word doc|report|pdf|write-?up|slides?|slide ?deck|deck|presentation|powerpoint|ppt|spreadsheet|excel|xlsx|workbook|sheet|tracker|ledger|budget|invoice|timesheet|gradebook|grade book)\b|\bgoogle (doc|slides|sheets?)\b|\bas a (document|doc|pdf|report|spreadsheet|sheet)\b|\b(add|remove|delete|rename|change|update|sort)\b[^.?!\n]{0,40}\b(column|row|sheet|tab|spreadsheet)\b/i;
@@ -1608,6 +1639,7 @@ const FAST_PATH_TOOLS = new Set([
   // for the quick answer AND then waited for the full model to say the same
   // thing, so the simplest requests were among the slowest.
   'add_event', 'get_events', 'clear_schedule', 'close_app',
+  'text_contact', 'call_contact',
 ]);
 
 // Requests the quick router must not be asked about at all.
@@ -1644,9 +1676,12 @@ const HEAVY_INTENT = new RegExp([
 ].join('|'), 'i');
 
 // Tools offered for this message - document/slide creation only when requested.
+// Messages and calls through the Mac's own apps exist only on a Mac.
+const MAC_ONLY = ['text_contact', 'call_contact'];
 function toolsFor(message) {
-  if (DOC_INTENT.test(String(message || ''))) return TOOLS;
-  return TOOLS.filter(t => !['create_document', 'create_slides', 'create_spreadsheet'].includes(t.function?.name));
+  const all = process.platform === 'darwin' ? TOOLS : TOOLS.filter(t => !MAC_ONLY.includes(t.function?.name));
+  if (DOC_INTENT.test(String(message || ''))) return all;
+  return all.filter(t => !['create_document', 'create_slides', 'create_spreadsheet'].includes(t.function?.name));
 }
 
 const MESSAGING_APPS = /^(whatsapp|instagram|discord|telegram|messenger|snapchat|signal|skype|slack|twitter|x|facebook|viber|line|teams|zoom)$/i;
@@ -1846,6 +1881,8 @@ function mapToolCall(fnName, args) {
       else if (fnName === 'open_chat')     return { type: 'open_chat',     arg: `${args.platform}|${args.contact || ''}|${args.message || ''}` };
       else if (fnName === 'read_messages') return { type: 'read_messages', payload: { from: args.from || '' } };
       else if (fnName === 'send_message')  return { type: 'send_message',  payload: { platform: args.platform, to: args.to || '', message: args.message || '' } };
+      else if (fnName === 'text_contact')  return { type: 'text_contact',  payload: { to: args.to || '', message: args.message || '', service: args.service || 'auto' } };
+      else if (fnName === 'call_contact')  return { type: 'call_contact',  payload: { to: args.to || '', kind: args.kind || 'phone' } };
       else if (fnName === 'play_music')    return { type: 'play_music',    arg: `${args.service || ''}|${args.query}` };
       else if (fnName === 'notify')        return { type: 'notify',        arg: args.message };
       else if (fnName === 'generate_image') return { type: 'generate_image', arg: args.prompt, size: args.size || '1024x1024' };
@@ -1937,7 +1974,9 @@ async function respond({ message, history = [], assistantName, memories = [], re
   // Spreadsheets, documents and slides are built by a tool, however they're phrased.
   const isDocWork = DOC_INTENT.test(message);
   const intent = afterSecondThoughts(message);
-  const needsTools = isDocWork || VIDEO_EDIT.test(intent) || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
+  // "Text Mum I am late", "call Dad", "FaceTime Sara": a person to reach.
+  const reachSomeone = /^\s*(?:text|txt|imessage|sms|message|facetime|call|ring|phone)\s+(?!this\b|that\b|it\b|the\b|me\b|back\b)[\w+]/i.test(intent);
+  const needsTools = reachSomeone || isDocWork || VIDEO_EDIT.test(intent) || asksAboutOwnData(intent) || ((ACTION_KEYWORDS.test(intent) || LIVE_KEYWORDS.test(intent)) && !isKnowledgeQuestion(intent));
 
   // Fast path: action queries with no context get a minimal prompt and trimmed
   // history for speed. Creative and file work skips it - see HEAVY_INTENT: for
@@ -1946,7 +1985,7 @@ async function respond({ message, history = [], assistantName, memories = [], re
   if (fast && needsTools && !realtimeContext && !isDocWork && !HEAVY_INTENT.test(message) && !VIDEO_EDIT.test(message)) {
     const fastMessages = [
       { role: 'system', content: FAST_SYSTEM_PROMPT(assistantName) },
-      ...history.slice(-5).map((h) => ({ role: h.role, content: h.content })),
+      ...history.slice(-12).map((h) => ({ role: h.role, content: h.content })),
       { role: 'user', content: message },
     ];
     // The router only has to pick the right tool, which the mini does as well

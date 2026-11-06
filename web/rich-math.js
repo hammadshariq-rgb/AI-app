@@ -83,6 +83,13 @@
   function prep(text) {
     const B = String.fromCharCode(92);
     let t = String(text == null ? '' : text).split(B + B).join(B);
+    // Equations that arrive without their backslash delimiters - "[ 6\text{CO}_2
+    // + ... ]" or "( x \neq 0 )" - were shown as raw code. When the brackets
+    // hold real LaTeX (a backslash command, or a ^ / _ with braces), they are
+    // the maths delimiters and are restored as such.
+    const LATEX = /\\[a-zA-Z]+|[\^_]\{/;
+    t = t.replace(/(^|[^\\a-zA-Z0-9\]])\[\s([^\[\]\n]{2,400}?)\s\](?!\()/g, (m, pre, body) => (LATEX.test(body) ? pre + B + '[ ' + body + ' ' + B + ']' : m));
+    t = t.replace(/(^|[\s(,:;])\(\s([^()\n]{1,200}?)\s\)/g, (m, pre, body) => (LATEX.test(body) ? pre + B + '( ' + body + ' ' + B + ')' : m));
     const open = B + '[', close = B + ']';
     let out = '', i = 0;
     for (;;) {

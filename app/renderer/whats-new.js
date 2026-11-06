@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.38': [
+      { icon: '📱', title: 'Texts, FaceTime and calls on Mac', text: 'Say text Mum, FaceTime Sara or call Dad. Callisto finds them in Contacts and asks before sending or calling.' },
+      { icon: '📐', title: 'Equations drawn properly', text: 'Maths, physics and chemistry equations now always appear as real equations, never as code.' },
+      { icon: '💬', title: 'Remembers the conversation', text: 'Follow-ups work: find a restaurant, then say book the second one, and Callisto knows which you mean.' },
+      { icon: '👀', title: 'A guide for anything', text: 'Screen assist walks you through any app or website, step by step, from what is on your screen.' },
+      { icon: '🧠', title: 'Knows itself', text: 'Ask what Callisto can do, which version it is or what is connected, and get the real answer.' }
+    ],
     '1.9.37': [
       { icon: '✨', title: 'A cleaner look', text: 'New update cards, and clean line icons in place of emoji across the app.' },
       { icon: '📸', title: 'A better camera look', text: 'A new camera card with a countdown ring and Retake. Ask about the photo by typing, the mic or Ctrl+Shift+C, and open More for the details.' },

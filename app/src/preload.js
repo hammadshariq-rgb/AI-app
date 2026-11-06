@@ -131,6 +131,8 @@ contextBridge.exposeInMainWorld('jarvis', {
 
   // Holding something up for Callisto to look at.
   cameraLook: (imageBase64, question) => ipcRenderer.invoke('camera:look', { imageBase64, question }),
+  macSendText: (to, text, service) => ipcRenderer.invoke('mac:sendText', { to, text, service }),
+  macCall: (to, kind) => ipcRenderer.invoke('mac:call', { to, kind }),
 
   // Moving between the windows that are open, and closing one.
   switchApp: (dir)  => ipcRenderer.invoke('apps:switch', dir),

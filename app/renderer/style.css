@@ -10579,3 +10579,7 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 #updateToast .ut-btn.primary:hover{filter:brightness(1.08)}
 #updateToast button:focus-visible{outline:2px solid #3aa9ff;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){#updateToast .ut-corner,#updateToast .update-toast-dot{animation:none}#updateToast.update-toast{transition:none}}
+
+/* The "To" picker on the Messages and call cards */
+.mac-to{max-width:100%;padding:5px 9px;border-radius:8px;border:1px solid rgba(110,160,255,.28);background:rgba(255,255,255,.06);color:#e6eeff;font:inherit;font-size:13px}
+.mac-to option{background:#0b1226;color:#e6eeff}
