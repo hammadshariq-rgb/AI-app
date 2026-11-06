@@ -10544,3 +10544,38 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 /* The business form now lives in the memory orb (memory-orb.js moves it in
    when the orb opens); it is no longer shown in Account. */
 .profile-section#bizSection{display:none}
+
+/* ── Update ready: the same glass card as the camera and What's new ────────── */
+#updateToast.update-toast{position:fixed;left:24px;bottom:46px;z-index:9500;width:min(380px,calc(100vw - 48px));display:block;padding:0;
+  background:none;border:0;box-shadow:none;border-radius:0;opacity:0;transform:translateY(10px);transition:opacity .28s ease,transform .28s ease;
+  font-family:'Roboto Flex','Plus Jakarta Sans','Segoe UI',system-ui,sans-serif;-webkit-app-region:no-drag}
+#updateToast.update-toast.in{opacity:1;transform:none}
+#updateToast.update-toast.hidden{display:none}
+#updateToast .ut-tray{position:absolute;left:12px;right:12px;bottom:-30px;top:calc(100% - 26px);border-radius:0 0 22px 22px;z-index:0;
+  background:linear-gradient(90deg,#3d5cff,#35c9ff);box-shadow:0 30px 60px -12px rgba(58,169,255,.7)}
+#updateToast .ut-tray span{position:absolute;left:0;right:0;bottom:7px;text-align:center;font-size:12px;font-weight:600;color:#06102a}
+#updateToast .ut-corner{position:absolute;z-index:3;width:30px;height:30px;pointer-events:none;border:0 solid #3aa9ff;
+  filter:drop-shadow(0 0 5px #3aa9ff) drop-shadow(0 0 10px #3aa9ff);animation:utPulse 2.4s ease-in-out infinite}
+#updateToast .ut-corner.tl{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px;border-top-left-radius:18px}
+#updateToast .ut-corner.tr{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px;border-top-right-radius:18px;animation-delay:.3s}
+#updateToast .ut-corner.bl{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px;border-bottom-left-radius:18px;animation-delay:.6s}
+#updateToast .ut-corner.br{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px;border-bottom-right-radius:18px;animation-delay:.9s}
+@keyframes utPulse{0%,100%{opacity:.55}50%{opacity:1}}
+#updateToast .ut-glass{position:relative;z-index:2;border-radius:16px;padding:16px;background:rgba(14,22,44,.8);
+  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+#updateToast .ut-top{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:rgba(190,206,240,.72);margin-bottom:8px}
+#updateToast .ut-state{display:flex;align-items:center;gap:7px}
+#updateToast .update-toast-dot{width:8px;height:8px;border-radius:50%;background:#3ddc97;box-shadow:none;animation:utBlink 1.6s ease-in-out infinite}
+@keyframes utBlink{0%,100%{opacity:1}50%{opacity:.4}}
+#updateToast .ut-ver{padding:2px 9px;border-radius:99px;background:rgba(58,169,255,.14);border:1px solid rgba(58,169,255,.3);color:#cfe4ff;font-weight:500;font-variant-numeric:tabular-nums}
+#updateToast .ut-ver:empty{display:none}
+#updateToast .ut-title{font-size:17px;font-weight:600;color:#f1f5ff;margin:0}
+#updateToast .ut-sub{margin-top:3px;font-size:13px;line-height:1.45;color:rgba(200,214,242,.72)}
+#updateToast .ut-row{margin-top:12px;display:grid;grid-template-columns:1fr auto;gap:8px}
+#updateToast .ut-btn{height:40px;padding:0 16px;border-radius:12px;cursor:pointer;font:inherit;font-size:13.5px;font-weight:600;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e2ebff;position:static;width:auto}
+#updateToast .ut-btn:hover{background:rgba(255,255,255,.12)}
+#updateToast .ut-btn.primary{border-color:transparent;background:linear-gradient(135deg,#3aa9ff,#2f4dff);color:#fff}
+#updateToast .ut-btn.primary:hover{filter:brightness(1.08)}
+#updateToast button:focus-visible{outline:2px solid #3aa9ff;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){#updateToast .ut-corner,#updateToast .update-toast-dot{animation:none}#updateToast.update-toast{transition:none}}

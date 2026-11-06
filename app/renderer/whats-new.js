@@ -13,6 +13,7 @@
 
   var NOTES = {
     '1.9.37': [
+      { icon: '✨', title: 'A cleaner look', text: 'New update cards, and clean line icons in place of emoji across the app.' },
       { icon: '📸', title: 'A better camera look', text: 'A new camera card with a countdown ring and Retake. Ask about the photo by typing, the mic or Ctrl+Shift+C, and open More for the details.' },
       { icon: '🧠', title: 'Your business, in the memory orb', text: 'Your business details now sit under Add a memory, and Callisto fills them in by itself as you talk about your work.' },
       { icon: '📐', title: 'Diagrams that earn their place', text: 'Diagrams now come for how things are made or how they work, in a cleaner textbook style, and also show on the side card.' },
@@ -134,20 +135,60 @@
     return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
 
+  // The same card as the camera look: frosted glass in Callisto's blues,
+  // camera-focus corners pulsing in turn, a glow tray underneath. Each change
+  // gets a line icon in its own tile instead of an emoji.
   function styles() {
     if (document.getElementById('whatsNewCss')) return;
     var s = document.createElement('style');
     s.id = 'whatsNewCss';
-    s.textContent =
-      '#whatsNew{position:fixed;inset:0;z-index:9990;display:flex;align-items:center;justify-content:center;padding:20px;' +
-        'background:rgba(4,7,15,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}' +
-      '#whatsNew .conn-box{position:relative;display:block;width:min(480px,100%);max-height:calc(100vh - 40px);overflow-y:auto}' +
-      '#whatsNew .conn-prop-list{max-height:none;overflow:visible}' +
-      '#whatsNew .conn-prop-item{align-items:flex-start;cursor:default}' +
-      '#whatsNew .wn-ico{flex:none;font-size:17px;line-height:1.35}' +
-      '#whatsNew .wn-t{display:block;font-size:13px;font-weight:650;color:#eaf1ff}' +
-      '#whatsNew .wn-d{display:block;font-size:12px;line-height:1.5;margin-top:2px;color:rgba(175,197,238,.78)}';
+    s.textContent = [
+      '#whatsNew{position:fixed;inset:0;z-index:9990;display:flex;align-items:center;justify-content:center;padding:24px;',
+      '  background:rgba(3,6,16,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);',
+      "  font-family:'Roboto Flex','Plus Jakarta Sans','Segoe UI',system-ui,sans-serif}",
+      '#whatsNew .wn-wrap{position:relative;width:min(520px,100%);margin-bottom:34px;animation:wnIn .35s ease-out}',
+      '@keyframes wnIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}',
+      '#whatsNew .wn-tray{position:absolute;left:14px;right:14px;bottom:-34px;top:calc(100% - 30px);border-radius:0 0 26px 26px;z-index:0;',
+      '  background:linear-gradient(90deg,#3d5cff,#35c9ff);box-shadow:0 36px 80px -14px rgba(58,169,255,.75)}',
+      '#whatsNew .wn-tray span{position:absolute;left:0;right:0;bottom:8px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:600;color:#06102a}',
+      '#whatsNew .wn-corner{position:absolute;z-index:3;width:40px;height:40px;pointer-events:none;border:0 solid #3aa9ff;',
+      '  filter:drop-shadow(0 0 6px #3aa9ff) drop-shadow(0 0 12px #3aa9ff);animation:wnPulse 2.4s ease-in-out infinite}',
+      '#whatsNew .wn-corner.tl{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px;border-top-left-radius:22px}',
+      '#whatsNew .wn-corner.tr{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px;border-top-right-radius:22px;animation-delay:.3s}',
+      '#whatsNew .wn-corner.bl{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px;border-bottom-left-radius:22px;animation-delay:.6s}',
+      '#whatsNew .wn-corner.br{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px;border-bottom-right-radius:22px;animation-delay:.9s}',
+      '@keyframes wnPulse{0%,100%{opacity:.55}50%{opacity:1}}',
+      '#whatsNew .wn-glass{position:relative;z-index:2;max-height:calc(100vh - 110px);overflow-y:auto;border-radius:20px;padding:22px;',
+      '  background:rgba(14,22,44,.74);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 70px rgba(0,0,0,.55)}',
+      '#whatsNew .wn-top{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:rgba(190,206,240,.72);margin-bottom:12px}',
+      '#whatsNew .wn-state{display:flex;align-items:center;gap:8px}',
+      '#whatsNew .wn-dot{width:9px;height:9px;border-radius:50%;background:#3ddc97;animation:wnBlink 1.6s ease-in-out infinite}',
+      '@keyframes wnBlink{0%,100%{opacity:1}50%{opacity:.4}}',
+      '#whatsNew .wn-ver{padding:3px 10px;border-radius:99px;background:rgba(58,169,255,.14);border:1px solid rgba(58,169,255,.3);color:#cfe4ff;font-variant-numeric:tabular-nums}',
+      '#whatsNew h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.01em;color:#f1f5ff}',
+      '#whatsNew .wn-sub{margin:4px 0 16px;font-size:14px;color:rgba(190,206,240,.7)}',
+      '#whatsNew .wn-list{display:grid;gap:8px}',
+      '#whatsNew .wn-item{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}',
+      '#whatsNew .wn-tile{flex:none;width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;',
+      '  color:#bfe0ff;background:linear-gradient(135deg,rgba(58,169,255,.22),rgba(47,77,255,.18));border:1px solid rgba(58,169,255,.28)}',
+      '#whatsNew .wn-t{display:block;font-size:14.5px;font-weight:600;color:#eef3ff}',
+      '#whatsNew .wn-d{display:block;margin-top:3px;font-size:13.5px;line-height:1.5;color:rgba(200,214,242,.78)}',
+      '#whatsNew .wn-row{margin-top:16px;display:flex;justify-content:flex-end}',
+      '#whatsNew .wn-btn{height:44px;padding:0 22px;border-radius:14px;border:0;cursor:pointer;font:inherit;font-size:14.5px;font-weight:600;color:#fff;',
+      '  background:linear-gradient(135deg,#3aa9ff,#2f4dff)}',
+      '#whatsNew .wn-btn:hover{filter:brightness(1.08)}',
+      '#whatsNew .wn-x{position:absolute;top:16px;right:16px;z-index:4;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.14);',
+      '  background:rgba(255,255,255,.05);color:#cfe0ff;cursor:pointer;font-size:14px}',
+      '#whatsNew button:focus-visible{outline:2px solid #3aa9ff;outline-offset:2px}',
+      '@media (prefers-reduced-motion:reduce){#whatsNew .wn-corner,#whatsNew .wn-dot,#whatsNew .wn-wrap{animation:none}}',
+    ].join('');
     document.head.appendChild(s);
+  }
+
+  var SPARK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
+  function icon(e) {
+    var I = window.CallistoIcons;
+    return (I && I.svg(e, 18)) || '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg>';
   }
 
   function show(version, notes) {
@@ -158,25 +199,29 @@
     el.setAttribute('aria-modal', 'true');
     el.setAttribute('aria-label', "What's new");
     el.innerHTML =
-      '<div class="conn-box">' +
-        '<button class="conn-close" aria-label="Close">✕</button>' +
-        '<div class="conn-header">' +
-          '<div class="conn-icon-wrap" style="background:linear-gradient(135deg,#3aa9ff,#0f37b4);color:#fff;font-size:18px">✦</div>' +
-          '<div class="conn-titles"><div class="conn-title">What\'s new</div>' +
-          '<div class="conn-sub">Callisto has updated to version ' + esc(version) + '</div></div>' +
+      '<div class="wn-wrap">' +
+        '<div class="wn-tray" aria-hidden="true"><span>' + SPARK + 'Updated and ready to go</span></div>' +
+        '<i class="wn-corner tl"></i><i class="wn-corner tr"></i><i class="wn-corner bl"></i><i class="wn-corner br"></i>' +
+        '<div class="wn-glass">' +
+          '<button class="wn-x" aria-label="Close">✕</button>' +
+          '<div class="wn-top"><span class="wn-state"><span class="wn-dot"></span>Updated</span></div>' +
+          '<h2>What\'s new</h2>' +
+          '<p class="wn-sub">Callisto is now on <span class="wn-ver">v' + esc(version) + '</span></p>' +
+          '<div class="wn-list">' + notes.map(function (n) {
+            return '<div class="wn-item"><span class="wn-tile">' + icon(n.icon) + '</span>' +
+              '<span><span class="wn-t">' + esc(n.title) + '</span><span class="wn-d">' + esc(n.text) + '</span></span></div>';
+          }).join('') + '</div>' +
+          '<div class="wn-row"><button class="wn-btn">Got it</button></div>' +
         '</div>' +
-        '<div class="conn-divider"></div>' +
-        '<div class="conn-prop-list">' + notes.map(function (n) {
-          return '<div class="conn-prop-item"><span class="wn-ico" aria-hidden="true">' + esc(n.icon) + '</span>' +
-            '<span><span class="wn-t">' + esc(n.title) + '</span><span class="wn-d">' + esc(n.text) + '</span></span></div>';
-        }).join('') + '</div>' +
       '</div>';
     document.body.appendChild(el);
     function close() { el.remove(); document.removeEventListener('keydown', onKey); }
     function onKey(e) { if (e.key === 'Escape') close(); }
-    el.querySelector('.conn-close').addEventListener('click', close);
+    el.querySelector('.wn-x').addEventListener('click', close);
+    el.querySelector('.wn-btn').addEventListener('click', close);
     el.addEventListener('click', function (e) { if (e.target === el) close(); });
     document.addEventListener('keydown', onKey);
+    el.querySelector('.wn-btn').focus();
   }
 
   // Past sign-in and any email code, so it isn't buried behind them.

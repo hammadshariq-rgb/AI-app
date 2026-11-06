@@ -3189,10 +3189,17 @@
   <script src="news-stage.js"></script>
   <!-- Five seconds, bottom left, then it goes and waits in Account. -->
   <div id="updateToast" class="update-toast hidden" role="status">
-    <span class="update-toast-dot"></span>
-    <span class="update-toast-text">Update ready <strong id="updateToastVersion"></strong></span>
-    <button type="button" class="gleam gleam-sm" id="updateToastBtn"><span>Update</span></button>
-    <button type="button" class="update-toast-close" id="updateToastClose" aria-label="Dismiss update notice">✕</button>
+    <div class="ut-tray" aria-hidden="true"><span>Reopens by itself in a few seconds</span></div>
+    <i class="ut-corner tl"></i><i class="ut-corner tr"></i><i class="ut-corner bl"></i><i class="ut-corner br"></i>
+    <div class="ut-glass">
+      <div class="ut-top"><span class="ut-state"><span class="update-toast-dot"></span>Downloaded</span><strong id="updateToastVersion" class="ut-ver"></strong></div>
+      <div class="ut-title update-toast-text">A new Callisto is ready</div>
+      <div class="ut-sub">Restart to install it. What changed shows straight after.</div>
+      <div class="ut-row">
+        <button type="button" class="ut-btn primary" id="updateToastBtn"><span>Restart now</span></button>
+        <button type="button" class="ut-btn update-toast-close" id="updateToastClose" aria-label="Dismiss update notice">Later</button>
+      </div>
+    </div>
   </div>
 
   <!-- Get Premium. Opened when the day's free messages run out, and from the
@@ -3246,6 +3253,7 @@
   <script src="renderer.js?v=76"></script>
   <script src="tour.js"></script>
   <script src="work-resume.js?v=1"></script>
+  <script src="icons.js?v=1"></script>
   <script src="whats-new.js?v=1"></script>
   <script src="particles.js?v=4"></script>
   <script src="hills.js?v=4"></script>
