@@ -16,7 +16,7 @@ permissions:
 env:
   EP_DRAFT: 'true'
   # Installers and update files live in their own public repository, so this
-  # one can be private. RELEASES_TOKEN is a fine-grained token with Contents
+  # one can be private. RELEASE_TOKENS is a fine-grained token with Contents
   # read and write on that repository only.
   RELEASE_REPO: hammadshariq-rgb/callisto-releases
 
@@ -44,7 +44,7 @@ jobs:
       # draft - Windows could not update to 1.9.30 until they were moved by hand.
       - name: Create the draft release
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKENS }}
           TAG: ${{ steps.get.outputs.tag }}
           VERSION: ${{ steps.get.outputs.version }}
         run: |
@@ -100,7 +100,7 @@ jobs:
         working-directory: app
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKENS }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -194,7 +194,7 @@ jobs:
         # an empty CSC_LINK still looks configured to electron-builder, which then
         # tries to read a certificate from an empty path and fails.
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKENS }}
           APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
           APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
@@ -362,7 +362,7 @@ jobs:
     steps:
       - name: Publish the release
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKENS }}
           TAG: ${{ needs.version.outputs.tag }}
           REPO: ${{ env.RELEASE_REPO }}
         run: |
@@ -383,7 +383,7 @@ jobs:
       - name: Copy the release to the old repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASES_GH: ${{ secrets.RELEASES_TOKEN }}
+          RELEASES_GH: ${{ secrets.RELEASE_TOKENS }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
           mkdir -p mirror
