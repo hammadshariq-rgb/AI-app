@@ -22,6 +22,10 @@
     '\\b(?:the )?(?:process|stages|steps) of\\b', '\\blife ?cycle\\b', '\\b(?:water|carbon|nitrogen|krebs|calvin|cell|business|product) cycle\\b',
     '\\b(?:structure|parts|layers|anatomy) of\\b', '\\bcircuit\\b', '\\bfood (?:chain|web)\\b',
     '\\b(?:photosynthesis|respiration|digestion|mitosis|meiosis|osmosis|diffusion|transcription|translation|supply chain)\\b',
+    // comparisons, what something is made of, and how it is built
+    '\\b(?:differ|differs|difference|differences|different from|compared? (?:to|with)|comparison|compare|vs\\.?|versus)\\b',
+    '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
+    '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
     // or a picture asked for by name
     '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
   ].join('|'), 'i');

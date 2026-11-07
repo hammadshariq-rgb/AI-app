@@ -31,7 +31,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (profile) => ipcRenderer.invoke('profile:set', profile),
   getMemories: () => ipcRenderer.invoke('memory:get'),
-  clearMemories: () => ipcRenderer.invoke('memory:clear'),
   addMemory: (fact) => ipcRenderer.invoke('memory:add', fact),
   removeMemory: (fact) => ipcRenderer.invoke('memory:remove', fact),
   saveSession: (s) => ipcRenderer.invoke('session:save', s),
@@ -39,10 +38,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   deleteSession: (id) => ipcRenderer.invoke('session:delete', id),
   getVoiceSpeed: () => ipcRenderer.invoke('voice:getSpeed'),
   setVoiceSpeed: (s) => ipcRenderer.invoke('voice:setSpeed', s),
-  getContacts: () => ipcRenderer.invoke('contacts:get'),
-  addContact: (c) => ipcRenderer.invoke('contacts:add', c),
-  deleteContact: (id) => ipcRenderer.invoke('contacts:delete', id),
-  callContact: (phone, platform) => ipcRenderer.invoke('contacts:call', { phone, platform }),
   openUrl: (url) => ipcRenderer.invoke('jarvis:openUrl', url),
   openApp: (name) => ipcRenderer.invoke('jarvis:openApp', name),
   openInAppBrowser: (url) => ipcRenderer.invoke('jarvis:openInAppBrowser', url),
@@ -60,23 +55,15 @@ contextBridge.exposeInMainWorld('jarvis', {
   connectorConnect: (service) => ipcRenderer.invoke('connector:connect', service),
   connectorDisconnect: (service) => ipcRenderer.invoke('connector:disconnect', service),
   // Direct messages
-  dmInbox:  (platform)                   => ipcRenderer.invoke('dm:inbox', platform),
   dmThread: (platform, id)               => ipcRenderer.invoke('dm:thread', { platform, id }),
   dmSend:   (platform, to, text, contactId) => ipcRenderer.invoke('dm:send', { platform, to, text, contactId }),
-  dmDescribe: (url)                      => ipcRenderer.invoke('dm:describe', url),
   switchApp: ()                          => ipcRenderer.invoke('window:switchApp'),
   // Circling with something said: the AI acts on the real files, not the picture
   onCaptureAct: (cb) => ipcRenderer.on('capture:act', (_e, d) => cb(d)),
   // Drawing studio
   onDrawApply:  (cb) => ipcRenderer.on('draw:apply', (_e, d) => cb(d)),
   drawState:    (st) => ipcRenderer.send('draw:state', st),
-  drawOpen:     ()   => ipcRenderer.invoke('draw:open'),
   // Continuous screen awareness (conversation mode)
-  screenWatchStart: ()        => ipcRenderer.invoke('screen:watchStart'),
-  screenWatchStop:  ()        => ipcRenderer.invoke('screen:watchStop'),
-  screenWatchStats: ()        => ipcRenderer.invoke('screen:watchStats'),
-  screenSetInterval: (s)      => ipcRenderer.invoke('screen:setInterval', s),
-  screenGrab: ()              => ipcRenderer.invoke('screen:grab'),
   onScreenWatched: (cb)       => ipcRenderer.on('screen:watched', (_e, d) => cb(d)),
   onScreenSuggest: (cb)       => ipcRenderer.on('screen:suggest', (_e, d) => cb(d)),
   // Custom hand gestures the customer recorded
@@ -89,10 +76,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onArtifactOpen:     (cb) => ipcRenderer.on('artifacts:open', (_e, id) => cb(id)),
   connectorStatsBriefing: () => ipcRenderer.invoke('connector:statsBriefing'),
   // Outlook
-  outlookInbox:   ()    => ipcRenderer.invoke('outlook:inbox'),
-  outlookAccount: ()    => ipcRenderer.invoke('outlook:account'),
-  outlookMarkRead:(id)  => ipcRenderer.invoke('outlook:markRead', id),
-  outlookSend:    (msg) => ipcRenderer.invoke('outlook:send', msg),
   connectorGetVip: () => ipcRenderer.invoke('connector:getVip'),
   connectorAddVip: (v) => ipcRenderer.invoke('connector:addVip', v),
   connectorRemoveVip: (v) => ipcRenderer.invoke('connector:removeVip', v),
@@ -100,8 +83,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onConnectorWrongAccount: (cb) => ipcRenderer.on('connector:wrongAccount', (_e, d) => cb(d)),
   onMacNeedsAutomation: (cb) => ipcRenderer.on('mac:needsAutomation', () => cb()),
   openMacPrivacySettings: (pane) => ipcRenderer.invoke('mac:openPrivacySettings', pane),
-  onPowerSleep: (cb) => ipcRenderer.on('power:sleep', () => cb()),
-  onPowerWake:  (cb) => ipcRenderer.on('power:wake', () => cb()),
   getMusicService: () => ipcRenderer.sendSync('music:getService'),
   setMusicService: (s) => ipcRenderer.sendSync('music:setService', s),
   getLanguage: () => ipcRenderer.sendSync('language:get'),
@@ -112,8 +93,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
   onSentenceAudio: (cb) => ipcRenderer.on('jarvis:sentence-audio', (_e, d) => cb(d)),
   onSentenceText: (cb) => ipcRenderer.on('jarvis:sentence-text', (_e, d) => cb(d)),
-  driveSearch: (query) => ipcRenderer.invoke('drive:search', query),
-  driveOpen: (fileId, mimeType, webViewLink) => ipcRenderer.invoke('drive:open', { fileId, mimeType, webViewLink }),
   analyticsGet: (platform, opts) => ipcRenderer.invoke('analytics:get', platform || 'all', opts || null),
   // What is already known, with no network call behind it.
   analyticsCached: () => ipcRenderer.invoke('analytics:cached'),
@@ -122,8 +101,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   // The window's own buttons, and which platform is drawing them.
   platform:     process.platform,
   winClose:     () => ipcRenderer.invoke('window:close'),
-  winMinimise:  () => ipcRenderer.invoke('window:minimise'),
-  winMaximise:  () => ipcRenderer.invoke('window:maximise'),
   // Click-through driven by the system cursor rather than by events the
   // window stops receiving the moment it is told to ignore the mouse.
   watchCursor:  (on) => ipcRenderer.invoke('app:watchCursor', !!on),
@@ -136,8 +113,6 @@ contextBridge.exposeInMainWorld('jarvis', {
 
   // Moving between the windows that are open, and closing one.
   switchApp: (dir)  => ipcRenderer.invoke('apps:switch', dir),
-  listApps:  ()     => ipcRenderer.invoke('apps:list'),
-  closeApp:  (name) => ipcRenderer.invoke('apps:close', name),
 
   fileRoots:  ()      => ipcRenderer.invoke('files:roots'),
   fileBrowse: (dir)   => ipcRenderer.invoke('files:browse', dir || null),
@@ -153,7 +128,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   filesOpenMany: (names) => ipcRenderer.invoke('files:openMany', names),
   urlOpenMany: (urls) => ipcRenderer.invoke('url:openMany', urls),
   workRestore: () => ipcRenderer.invoke('work:restore'),
-  marketingNote: (numbers) => ipcRenderer.invoke('marketing:note', numbers),
   weatherGreeting: () => ipcRenderer.invoke('weather:greeting'),
   onTasksChanged: (cb) => ipcRenderer.on('jarvis:tasks-changed', () => cb()),
   onCalendarAddLocal: (cb) => ipcRenderer.on('calendar:add-local', (_e, d) => cb(d)),
@@ -176,7 +150,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   onAnalyticsShowPropertyPicker: (cb) => ipcRenderer.on('analytics:showPropertyPicker', (_e, d) => cb(d)),
   // Auto-updater
   installUpdate: () => ipcRenderer.send('update:install'),
-  onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, d) => cb(d)),
   onUpdateReady: (cb) => ipcRenderer.on('update:ready', (_e, d) => cb(d)),
   onUpdateFailed: (cb) => ipcRenderer.on('update:failed', () => cb()),
   sendEmail: (opts) => ipcRenderer.invoke('email:send', opts),
@@ -184,8 +157,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   sheetOpen: (p) => ipcRenderer.invoke('sheet:open', p),
   sheetReveal: (p) => ipcRenderer.invoke('sheet:reveal', p),
   openGoogleDoc: (d) => ipcRenderer.invoke('jarvis:openGoogleDoc', d),
-  addCalendarEvent: (d) => ipcRenderer.invoke('jarvis:addCalendarEvent', d),
-  openGoogleSlides: (d) => ipcRenderer.invoke('jarvis:openGoogleSlides', d),
   savePresentation: (d) => ipcRenderer.invoke('jarvis:savePresentation', d),
   docSave: (d) => ipcRenderer.invoke('doc:save', d),
   onClipboardAI: (cb) => ipcRenderer.on('jarvis:clipboard-ai', (_e, d) => cb(d)),
@@ -218,7 +189,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   watchStart: (question) => ipcRenderer.invoke('screen:watch-start', { question }),
   watchStop: () => ipcRenderer.invoke('screen:watch-stop'),
   watchState: () => ipcRenderer.invoke('screen:watch-state'),
-  readScreenOnce: (question) => ipcRenderer.invoke('screen:read-once', { question }),
   // A question asked out loud while assist mode is watching: answered
   // against the screen rather than in the dark.
   assistAsk: (question) => ipcRenderer.invoke('assist:ask', { question }),
@@ -236,7 +206,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   skillsList:      ()     => ipcRenderer.invoke('skills:list'),
   skillsInstall:   (url)  => ipcRenderer.invoke('skills:install', url),
   skillsRemove:    (id)   => ipcRenderer.invoke('skills:remove', id),
-  onSkillsChanged: (cb)   => ipcRenderer.on('skills:changed', () => cb()),
   onAccountOpen:   (cb)   => ipcRenderer.on('account:open', () => cb()),
   // Crash reports: errors in this window go to the main process, which
   // decides whether to send them. The on/off switch for the person.
@@ -245,14 +214,9 @@ contextBridge.exposeInMainWorld('jarvis', {
     stack: String((info && info.stack) || '').slice(0, 4000),
     source: String((info && info.source) || '').slice(0, 300),
   }),
-  crashReportsEnabled: () => ipcRenderer.invoke('crash:enabled'),
-  setCrashReports: (on) => ipcRenderer.invoke('crash:setEnabled', !!on),
 
   // Long jobs that carry on after the conversation ends.
-  longTaskStart:   (d)    => ipcRenderer.invoke('longtask:start', d),
-  longTaskList:    ()     => ipcRenderer.invoke('longtask:list'),
   longTaskCollect: ()     => ipcRenderer.invoke('longtask:collect'),
-  onLongTaskProgress: (cb) => ipcRenderer.on('longtask:progress', (_e, d) => cb(d)),
   artifactsRemove: (id) => ipcRenderer.invoke('artifacts:remove', id),
   artifactsSave:   (id) => ipcRenderer.invoke('artifacts:save', { id }),
   onModelProgress: (cb) => ipcRenderer.on('model:progress', (_e, d) => cb(d)),
@@ -262,7 +226,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   saveVideo:     (url, suggestedName) => ipcRenderer.invoke('media:saveVideo', { url, suggestedName }),
   // Publishing (only ever called after the customer confirms)
   publishRun:     (job)  => ipcRenderer.invoke('publish:run', job),
-  publishTargets: ()     => ipcRenderer.invoke('publish:targets'),
   publishPickFile:(kind) => ipcRenderer.invoke('publish:pickFile', kind),
   filePath:       (file) => filePathOf(file),
   setLatestMedia: (kind, item) => ipcRenderer.invoke('media:setLatest', { kind, item }),
@@ -272,13 +235,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   shopSearch:    (store, query, limit) => ipcRenderer.invoke('shop:search', { store, query, limit }),
   shopOpen:      (url, fallbackUrl)    => ipcRenderer.invoke('shop:open', { url, fallbackUrl }),
   runCommand:    (command, folder)     => ipcRenderer.invoke('command:run', { command, folder }),
-  commandIsSafe: (cmd)                 => ipcRenderer.invoke('command:isSafe', cmd),
 
   // Working through a job on its own
   taskStart:     (goal, folder)        => ipcRenderer.invoke('task:start', { goal, folder }),
   taskResume:    (opts)                => ipcRenderer.invoke('task:resume', opts || {}),
-  taskStop:      ()                    => ipcRenderer.invoke('task:stop'),
-  taskState:     ()                    => ipcRenderer.invoke('task:state'),
   onTaskStep:    (cb) => ipcRenderer.on('task:step', (_e, d) => cb(d)),
   onTaskNeedsYou:(cb) => ipcRenderer.on('task:needs-you', (_e, d) => cb(d)),
   onTaskDone:    (cb) => ipcRenderer.on('task:done', (_e, d) => cb(d)),
@@ -289,15 +249,12 @@ contextBridge.exposeInMainWorld('jarvis', {
   procSave:      (name)                => ipcRenderer.invoke('proc:save', { name }),
   procCancel:    ()                    => ipcRenderer.invoke('proc:cancel'),
   procList:      ()                    => ipcRenderer.invoke('proc:list'),
-  procGet:       (name)                => ipcRenderer.invoke('proc:get', { name }),
-  procForget:    (name)                => ipcRenderer.invoke('proc:forget', { name }),
   procRun:       (name, extra)         => ipcRenderer.invoke('proc:run', { name, extra }),
   pickProjectFolder: ()                => ipcRenderer.invoke('command:pickFolder'),
   getProjectFolder:  ()                => ipcRenderer.invoke('command:getFolder'),
   setProjectFolder:  (folder)          => ipcRenderer.invoke('command:setFolder', folder),
   // AI phone calling - the assistant dials a business and negotiates on the user's behalf
   // Quit app (used by gesture - clap = clear + quit)
-  quitApp:       () => ipcRenderer.invoke('app:quit'),
   appVersion:    () => ipcRenderer.invoke('app:version'),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
   setClickThrough:  (flag) => ipcRenderer.invoke('app:setClickThrough', flag),
@@ -305,8 +262,6 @@ contextBridge.exposeInMainWorld('jarvis', {
   setUserLocation:  (loc)  => ipcRenderer.invoke('app:setUserLocation', loc),
   focusWindow:   () => ipcRenderer.invoke('app:focusWindow'),
   // HiggsField
-  higgsSaveKey:  (key)    => ipcRenderer.invoke('higgsfield:saveKey', key),
-  higgsGetKey:   ()       => ipcRenderer.invoke('higgsfield:getKey'),
   higgsGenerate: (opts)   => ipcRenderer.invoke('higgsfield:generate', opts),
   // Creative: painting + 3D
   generateImage: (prompt, size)    => ipcRenderer.invoke('creative:genimage', { prompt, size }),
@@ -315,12 +270,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   openBlender:   (subject)          => ipcRenderer.invoke('creative:blender', { subject }),
 
   // Spotify: renderer-side flow (fetch calls happen in renderer, main just provides token + OS actions)
-  spotifyGetToken:  ()    => ipcRenderer.invoke('jarvis:spotifyGetToken'),
-  spotifyLaunch:    ()    => ipcRenderer.invoke('jarvis:spotifyLaunch'),
-  spotifySuppress:  ()    => ipcRenderer.invoke('jarvis:spotifySuppress'),
-  spotifyOpenUri:   (uri) => ipcRenderer.invoke('jarvis:spotifyOpenUri', uri),
   // Legacy combined handler (kept for old builds still calling spotify:play)
-  spotifyPlay: (query) => ipcRenderer.invoke('jarvis:spotifyPlay', { query }),
 
   // TV Cast (Chromecast)
   tvDiscover:     ()                  => ipcRenderer.invoke('tv:discover'),
@@ -328,19 +278,13 @@ contextBridge.exposeInMainWorld('jarvis', {
   tvDisconnect:   ()                  => ipcRenderer.invoke('tv:disconnect'),
   tvStatus:       ()                  => ipcRenderer.invoke('tv:status'),
   tvCastYouTube:  (query)             => ipcRenderer.invoke('tv:cast-youtube', { query }),
-  tvCastMedia:    (opts)              => ipcRenderer.invoke('tv:cast-media', opts),
   tvOpenUrl:      (url, title)        => ipcRenderer.invoke('tv:open-url', { url, title }),
   tvVolume:       (level)             => ipcRenderer.invoke('tv:volume', { level }),
-  tvMute:         ()                  => ipcRenderer.invoke('tv:mute'),
-  tvStop:         ()                  => ipcRenderer.invoke('tv:stop'),
   tvDo:           (cmd)               => ipcRenderer.invoke('tv:do', cmd),
   tvWake:         (host, name)        => ipcRenderer.invoke('tv:wake', { host, name }),
   tvDiagnoseYouTube: ()               => ipcRenderer.invoke('tv:diagnoseYouTube'),
   tvPlaying:      ()                  => ipcRenderer.invoke('tv:playing'),
-  tvVideos:       ()                  => ipcRenderer.invoke('tv:videos'),
-  tvInstallAdb:   ()                  => ipcRenderer.invoke('tv:install-adb'),
   onTvDevicesUpdate: (cb)             => ipcRenderer.on('tv:devices-update', (_e, d) => cb(d)),
   onTvStatusUpdate:  (cb)             => ipcRenderer.on('tv:status-update',  (_e, d) => cb(d)),
-  onTvAdbProgress:   (cb)             => ipcRenderer.on('tv:adb-progress',   (_e, d) => cb(d)),
   onTvAdbStatus:     (cb)             => ipcRenderer.on('tv:adb-status',     (_e, d) => cb(d)),
 });

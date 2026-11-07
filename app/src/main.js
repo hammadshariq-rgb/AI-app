@@ -406,8 +406,6 @@ ipcMain.on('crash:report', (_e, info) => {
   if (!info || typeof info !== 'object') return;
   crash.report({ message: info.message, stack: info.stack, source: info.source });
 });
-ipcMain.handle('crash:setEnabled', (_e, on) => { store.set('crashReports', !!on); return { ok: true, restartNeeded: true }; });
-ipcMain.handle('crash:enabled', () => store.get('crashReports') !== false);
 
 // Same thing auth:logout does, for the places that now need it: deleting the
 // account, or signing out everywhere including this device.
@@ -767,7 +765,6 @@ function bindShortcut(name, candidates, handler) {
   console.warn('[shortcut] nothing could be bound for ' + name + ' - tried ' + candidates.join(', '));
   return null;
 }
-ipcMain.handle('shortcuts:bound', () => BOUND_KEYS);
 
 // The combination that actually bound, written the way the keyboard shows it,
 // so a Mac is never told to press Cmd+Shift+E when what works is Option+Shift+E.
@@ -2016,9 +2013,7 @@ ipcMain.handle('auth:logout', () => {
   return true;
 });
 
-ipcMain.handle('auth:getToken', () => loadAuthToken() || null);
 
-ipcMain.handle('app:quit', () => { app.quit(); });
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:setAlwaysOnTop', (_e, flag) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setAlwaysOnTop(!!flag); });
 // Toggle click-through: pass false when user hovers a Callisto element, true otherwise
@@ -2130,7 +2125,6 @@ ipcMain.handle('higgsfield:saveKey', (_e, key) => {
   store.set('higgsfield_api_key', key);
   return { ok: true };
 });
-ipcMain.handle('higgsfield:getKey', () => store.get('higgsfield_api_key') || null);
 // Runs on the license server with Callisto's own Higgsfield account (daily limits
 // apply there), so customers no longer paste a key.
 ipcMain.handle('higgsfield:generate', async (_e, { prompt, imageBase64, imageUrl, seconds }) => {
@@ -5101,7 +5095,6 @@ ipcMain.handle('work:restore', async () => {
   } catch (_) {}
   return out;
 });
-ipcMain.handle('memory:clear', () => { store.delete('memories'); return true; });
 // The memory orb: adding and removing one fact by hand.
 ipcMain.handle('memory:add', (_e, fact) => {
   const f = String(fact || '').replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -5121,7 +5114,6 @@ ipcMain.handle('memory:remove', (_e, fact) => {
 });
 
 // Contacts
-ipcMain.handle('contacts:get', () => store.get('contacts') || []);
 ipcMain.handle('contacts:add', (_e, contact) => {
   const contacts = store.get('contacts') || [];
   contact.id = Date.now();
@@ -5495,7 +5487,6 @@ function isSafeCommand(cmd) {
   if (c.length > 300) return false;
   return SAFE_COMMANDS.some((re) => re.test(c));
 }
-ipcMain.handle('command:isSafe', (_e, cmd) => isSafeCommand(cmd));
 
 // ── Working through a job on its own ─────────────────────────────────────────
 // Callisto takes a goal and works at it a step at a time: ask the server what
@@ -5838,7 +5829,6 @@ ipcMain.handle('proc:list', () => Object.values(_procAll())
   .map((p) => ({ name: p.name, steps: (p.steps || []).length, runs: p.runs || 0, savedAt: p.savedAt }))
   .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)));
 
-ipcMain.handle('proc:get', (_e, { name } = {}) => _procAll()[_procKey(name)] || null);
 
 ipcMain.handle('proc:forget', (_e, { name } = {}) => {
   const all = _procAll();
@@ -6599,7 +6589,6 @@ ipcMain.handle('places:nearby', async (_e, { query, lat, lng, city }) => {
   }
 });
 
-ipcMain.handle('drive:search', async (_e, query) => connectors.searchDriveFiles(query));
 
 // ── Finance portfolio IPC ─────────────────────────────────────────────────────
 ipcMain.handle('finance:getStock', async (_e, symbol) => realtime.getStockCard(symbol).catch(() => null));
@@ -6826,7 +6815,6 @@ ipcMain.handle('instagram:use', async (_e, igId) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-ipcMain.handle('drive:open', async (_e, { fileId, mimeType, webViewLink }) => connectors.openDriveFile(fileId, mimeType, webViewLink));
 
 // Auto-updater: quit and install immediately when user confirms
 ipcMain.on('update:install', () => {
@@ -7046,7 +7034,6 @@ async function describeInstagramMedia(url) {
     return text || null;
   } catch (_) { return null; }
 }
-ipcMain.handle('dm:describe', (_e, url) => describeInstagramMedia(url));
 
 // The renderer tells us what is on the drawing canvas after every change, so the
 // next request can be placed relative to what is already drawn.
@@ -7254,7 +7241,6 @@ ipcMain.handle('screen:watch-state', () => ({
 }));
 
 // One look, no session - for "what is on my screen?"
-ipcMain.handle('screen:read-once', async (_e, { question } = {}) => _readScreenOnce(question));
 
 // A question asked out loud while assist mode is watching. This is the whole
 // point of the mode and it was not wired up: the transcript went to ordinary
@@ -8166,6 +8152,10 @@ const TEACH_Q = new RegExp([
   '\\b(?:the )?(?:process|stages|steps) of\\b', '\\blife ?cycle\\b', '\\b(?:water|carbon|nitrogen|krebs|calvin|cell|business|product) cycle\\b',
   '\\b(?:structure|parts|layers|anatomy) of\\b', '\\bcircuit\\b', '\\bfood (?:chain|web)\\b',
   '\\b(?:photosynthesis|respiration|digestion|mitosis|meiosis|osmosis|diffusion|transcription|translation|supply chain)\\b',
+  // comparisons, what something is made of, and how it is built
+  '\\b(?:differ|differs|difference|differences|different from|compared? (?:to|with)|comparison|compare|vs\\.?|versus)\\b',
+  '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
+  '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
   // or a picture asked for by name
   '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
 ].join('|'), 'i');
@@ -8552,10 +8542,6 @@ async function _statsRoundUp() {
   return text;
 }
 // ── Outlook mail ──────────────────────────────────────────────────
-ipcMain.handle('outlook:inbox', () => connectors.getOutlookInbox(20));
-ipcMain.handle('outlook:account', () => connectors.getOutlookAccount());
-ipcMain.handle('outlook:markRead', (_e, id) => connectors.markOutlookRead(id));
-ipcMain.handle('outlook:send', (_e, msg) => connectors.sendOutlookEmail(msg || {}));
 
 ipcMain.handle('connector:statsBriefing', async () => {
   const today = new Date().toDateString();
@@ -8657,7 +8643,6 @@ ipcMain.handle('camera:look', async (_e, { imageBase64, question }) => {
 });
 
 // ── The windows that are open ────────────────────────────────────────────────
-ipcMain.handle('apps:list', () => commands.listOpenApps().catch(() => []));
 ipcMain.handle('apps:switch', (_e, dir) =>
   commands.switchApp(dir === 'prev' ? 'prev' : 'next').catch((err) => ({ ok: false, error: err.message })));
 ipcMain.handle('apps:close', (_e, name) =>
@@ -8723,7 +8708,6 @@ ipcMain.handle('files:read', (_e, filePath) => {
 ipcMain.handle('connector:getVip', () => connectors.getVipSenders());
 ipcMain.handle('connector:addVip', (_e, v) => connectors.addVipSender(v));
 ipcMain.handle('connector:removeVip', (_e, v) => connectors.removeVipSender(v));
-ipcMain.handle('connector:getUpdate', () => connectors.getEmailUpdate());
 
 ipcMain.on('music:getService', (e) => { e.returnValue = store.get('music.service') || null; });
 ipcMain.on('music:setService', (e, s) => { store.set('music.service', s); e.returnValue = true; });
@@ -8867,7 +8851,6 @@ ipcMain.handle('tv:do', async (_e, cmd) => {
   try { return await tvCast.run(cmd); }
   catch (err) { return { ok: false, message: err.message }; }
 });
-ipcMain.handle('tv:videos', () => tvCast.localVideos().map((f) => f.name));
 
 // Is the TV playing something right now? Lets a bare "pause" or "skip the ad"
 // go to the TV only when the TV is what's playing.

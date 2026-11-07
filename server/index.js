@@ -3229,29 +3229,6 @@ async function learnBusinessFrom(userId, text) {
   await users.update(userId, { 'prefs.business': { ...current, ...changes, updatedAt: Date.now() } });
 }
 
-// The day's marketing note for the daily update: one observation from their own
-// numbers and one thing to do today. Fixed prompt, one small job, so like
-// /ai/learn it doesn't count against the daily messages.
-const MARKETING_NOTE_PROMPT = 'You are a senior growth marketer giving a founder or creator their daily marketing feedback. Using only the numbers and facts provided, write two or three short spoken sentences: one specific observation about what is or is not working, then one concrete action they can finish today. No greeting, no lists, no markdown, no invented figures, no promises of results. If you were given neither numbers nor anything about a business or audience, reply with the single word NONE.';
-app.post('/ai/marketing-note', authMiddleware, aiLimiter, async (req, res) => {
-  try {
-    const numbers = String((req.body && req.body.numbers) || '').slice(0, 2000);
-    const known = Array.isArray(req.body && req.body.known) ? req.body.known.slice(-40).map((k) => String(k).slice(0, 300)) : [];
-    const r = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      max_tokens: 130,
-      temperature: 0.5,
-      messages: [
-        { role: 'system', content: MARKETING_NOTE_PROMPT },
-        { role: 'user', content: 'Their numbers:\n' + (numbers || '(none)') + '\n\nWhat is known about them:\n' + (known.join('\n') || '(nothing)') },
-      ],
-    });
-    const note = String((r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
-    res.json({ note: /^none\b/i.test(note) ? '' : note });
-  } catch (err) {
-    res.status(500).json({ error: 'Could not write that just now.' });
-  }
-});
 
 // Reading something out on the website when Callisto wrote it itself, like the
 // daily update. Same voice as every other reply.
