@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.39': [
+      { icon: '👀', title: 'Screen assist stays out of the way', text: 'No more dark layer over your screen, and every click goes straight to your apps. Press Alt+Shift+S when you want to circle something.' },
+      { icon: '🔄', title: 'The update button is back', text: 'The update ready button looks the way it did before.' }
+    ],
     '1.9.38': [
       { icon: '📱', title: 'Texts, FaceTime and calls on Mac', text: 'Say text Mum, FaceTime Sara or call Dad. Callisto finds them in Contacts and asks before sending or calling.' },
       { icon: '📐', title: 'Equations drawn properly', text: 'Maths, physics and chemistry equations now always appear as real equations, never as code.' },

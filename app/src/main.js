@@ -875,9 +875,18 @@ function sendToHud(channel, data) {
 // press is as quick as the rest.
 let _captureReady = null;
 
+// One pixel short of the screen on Windows. A see-through window that covers
+// the display EXACTLY is treated by Windows as a full-screen app, and it stops
+// drawing it as see-through - which is the dark sheet over everything people
+// saw in screen assist. One pixel less and it stays clear.
+function _captureSize() {
+  const { width, height } = screen.getPrimaryDisplay().size;
+  return { width, height: process.platform === 'win32' ? height - 1 : height };
+}
+
 function buildCaptureWindow() {
   if (captureWindow && !captureWindow.isDestroyed()) return _captureReady;
-  const { width, height } = screen.getPrimaryDisplay().size;
+  const { width, height } = _captureSize();
   captureWindow = new BrowserWindow({
     width,
     height,
@@ -922,7 +931,7 @@ async function openCaptureOverlay(opts = {}) {
   const ready = buildCaptureWindow();
   // Fit the current display, in case they changed screen or resolution since.
   try {
-    const { width, height } = screen.getPrimaryDisplay().size;
+    const { width, height } = _captureSize();
     const [cw, ch] = captureWindow.getSize();
     if (cw !== width || ch !== height) { captureWindow.setBounds({ x: 0, y: 0, width, height }); }
   } catch (_) {}
@@ -938,6 +947,16 @@ async function openCaptureOverlay(opts = {}) {
   _screenShot = null;
   captureWindow.webContents.send('capture:reset');
   captureWindow.webContents.send('capture:mode', { assist: !!opts.assist });
+  if (opts.assist) {
+    // Screen assist runs for minutes while they work, so the layer must never
+    // be in the way: every click goes straight through to their own apps, it
+    // never takes focus, and nothing covers the screen. Alt+Shift+S catches
+    // the mouse for one circle and lets go again.
+    captureWindow.setIgnoreMouseEvents(true, { forward: true });
+    captureWindow.showInactive();
+    return;
+  }
+  captureWindow.setIgnoreMouseEvents(false);
   captureWindow.show();
   captureWindow.focus();
 
@@ -961,8 +980,28 @@ function closeCaptureOverlay() {
 
 // Circled while screen assist is on: the question that follows is about this
 // part only. Escape takes the circle away again and the whole screen counts.
+function _assistPassive() {
+  try {
+    if (!captureWindow || captureWindow.isDestroyed()) return;
+    captureWindow.setIgnoreMouseEvents(true, { forward: true });
+    captureWindow.webContents.send('capture:passive');
+  } catch (_) {}
+}
+// Alt+Shift+S during screen assist: a fresh picture of the screen, then the
+// layer takes the mouse for one circle.
+async function _assistCircle() {
+  if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
+  try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
+  if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
+  captureWindow.setIgnoreMouseEvents(false);
+  captureWindow.showInactive();
+  captureWindow.focus();
+  captureWindow.webContents.send('capture:circle-now');
+}
+
 ipcMain.on('capture:assist-area', async (_e, bounds) => {
   if (!ASSIST.on) return;
+  _assistPassive();
   try {
     const crop = await _cropCapture(bounds);
     if (!crop || !ASSIST.on) return;
@@ -974,7 +1013,7 @@ ipcMain.on('capture:assist-area', async (_e, bounds) => {
 
 // IPC: overlay signals it's done (after identification request sent)
 ipcMain.on('capture:done', () => closeCaptureOverlay());
-ipcMain.on('capture:cancel', () => { if (ASSIST.on) return void stopAssist('escape'); closeCaptureOverlay(); });
+ipcMain.on('capture:cancel', () => { if (ASSIST.on) return void _assistPassive(); closeCaptureOverlay(); });
 ipcMain.on('capture:hide', () => closeCaptureOverlay());
 
 // The whole screen, taken just BEFORE the overlay appears.
@@ -7894,6 +7933,7 @@ async function _doAssistAction(action) {
 }
 
 function stopAssist(reason) {
+  try { globalShortcut.unregister('Alt+Shift+S'); } catch (_) {}
   if (!ASSIST.on) return { ok: false };
   ASSIST.on = false;
   closeCaptureOverlay();
@@ -8075,6 +8115,7 @@ function startAssist() {
   // Moving the mouse does nothing; pressing and circling picks out an area.
   // The notice goes up again once that layer is showing, above it, because on
   // the first press the layer is still being built and used to cover it.
+  try { globalShortcut.register('Alt+Shift+S', _assistCircle); } catch (_) {}
   openCaptureOverlay({ assist: true }).then(() => {
     if (!ASSIST.on) return;
     try { if (hudWindow && !hudWindow.isDestroyed()) hudWindow.setAlwaysOnTop(true, 'screen-saver', 2); } catch (_) {}
