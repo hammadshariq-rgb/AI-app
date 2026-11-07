@@ -63,6 +63,7 @@ async function load(){
    +'<div class="grid">'
    +'<div class="card"><h2>Sign-ups, last 30 days</h2><div class="bars">'+d.signupsByDay.map(function(x){return '<i title="'+x.day+': '+x.n+'" style="height:'+(x.n/max*100)+'%"></i>'}).join('')+'</div><div class="axis"><span>'+d.signupsByDay[0].day.slice(5)+'</span><span>today</span></div></div>'
    +'<div class="card"><h2>Used today</h2><div class="wrap"><table><tr><th>Feature</th><th class="n">Uses</th><th class="n">People</th></tr>'+(d.usageToday.length?d.usageToday.map(function(u){return '<tr><td>'+esc(u.feature)+'</td><td class="n">'+u.uses+'</td><td class="n">'+u.people+'</td></tr>'}).join(''):'<tr><td colspan="3">Nothing yet today.</td></tr>')+'</table></div></div>'
+   +'<div class="card" style="grid-column:1/-1"><h2>Success, last 7 days</h2><div class="wrap"><table><tr><th>Feature</th><th class="n">Tried</th><th class="n">Worked</th><th class="n">Failed</th><th class="n">Limited</th><th>Success</th></tr>'+((d.success||[]).length?d.success.map(function(f){var r=f.rate==null?'-':f.rate+'%';var c=f.rate==null?'#8d9bbd':f.rate>=95?'#3ddc97':f.rate>=85?'#ffcf5c':'#ff7b72';return '<tr><td>'+esc(f.feature)+'</td><td class="n">'+f.tried+'</td><td class="n">'+f.ok+'</td><td class="n">'+f.failed+'</td><td class="n">'+f.limited+'</td><td><span style="display:inline-flex;align-items:center;gap:8px"><i style="display:inline-block;width:90px;height:7px;border-radius:9px;background:#1f2a44;overflow:hidden"><b style="display:block;height:100%;width:'+(f.rate||0)+'%;background:'+c+'"></b></i><b style="color:'+c+'">'+r+'</b></span></td></tr>'}).join(''):'<tr><td colspan="6">Nothing counted yet. Numbers appear as people use Callisto.</td></tr>')+'</table></div><p class="sub" style="margin:10px 0 0;font-size:12px">Worked means the AI answered without an error. Limited means a daily limit stopped it, which is not a failure.</p></div>'
    +'<div class="card"><h2>Downloads by version</h2><div class="wrap"><table><tr><th>Version</th><th class="n">Windows</th><th class="n">Mac</th></tr>'+d.downloads.versions.map(function(v){return '<tr><td>'+esc(v.tag)+'</td><td class="n">'+v.win+'</td><td class="n">'+v.mac+'</td></tr>'}).join('')+'</table></div><p class="sub" style="margin:10px 0 0;font-size:12px">Windows counts include automatic updates.</p></div>'
    +'<div class="card" style="grid-column:1/-1"><h2>Accounts, newest first</h2><div class="wrap"><table><tr><th>Email</th><th>Name</th><th>Plan</th><th>Signed up</th><th>Last active</th></tr>'+d.latest.map(function(u){return '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name)+'</td><td>'+plan(u)+'</td><td>'+day(u.createdAt)+'</td><td>'+ago(u.lastActiveAt)+'</td></tr>'}).join('')+'</table></div></div>'
    +'</div>';
@@ -156,6 +157,7 @@ function mountAdminDashboard(app, { limiter, secretMatches }) {
         signupsByDay,
         usageToday: usage.map((u) => ({ feature: u._id, uses: u.uses, people: u.people })),
         downloads: await downloads(),
+        success: await require('./feature-stats').summary(7).catch(() => []),
         latest: rows.slice(0, 100),
       });
     } catch (err) {

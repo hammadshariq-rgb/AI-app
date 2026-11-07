@@ -474,6 +474,8 @@ app.use(require('compression')({
 }));
 
 app.use(express.json({ limit: '50mb' }));
+// Tally of every AI feature used - tried, worked, failed - for /admin.
+require('./feature-stats').mountFeatureStats(app, { authMiddleware });
 
 // The floor, under everything below. Specific routes add their own tighter
 // limits on top; this is what catches a route nobody thought about, and a
