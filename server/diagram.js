@@ -64,6 +64,21 @@ const STYLE = [
   '  white step number at the panel top-left corner, and a plain ink arrow to the',
   '  next stage. 3-6 stages. The material or condition for a stage ("75 C",',
   '  "pigment + wax") goes as a 12px note under it.',
+  '- A COMPANY\'S OR MARKET\'S NUMBERS (revenue growth, profit, share price,',
+  '  subscribers) are a "chart": bars for one value per year or quarter, a line',
+  '  for a trend, several series for a comparison. Use ONLY figures stated in the',
+  '  explanation, with the real years and the currency and unit in the axis',
+  '  label ("Revenue (US$ bn)"). Never invent or estimate a missing year; leave',
+  '  it out. If the explanation gives no figures, return no chart.',
+  '- ECONOMICS GRAPHS (monetary policy, AD/AS, the money market, supply and',
+  '  demand shifts, Phillips curve, PPF) are a "chart", so they are drawn exactly:',
+  '  axes 0-10 labelled as the textbook does ("Price level" / "Real GDP",',
+  '  "Interest rate" / "Quantity of money"); each curve a straight line given by its',
+  '  two end points and named as the textbook names it ("AD1", "AD2", "AS", "Ms");',
+  '  the original curve solid and the shifted one with dash true. WORK OUT every',
+  '  equilibrium by solving where the two lines cross, to two decimals, and put a',
+  '  marker exactly there labelled "E1" or "E2". Shifts go the way the theory says:',
+  '  expansionary policy moves AD right, a rise in money supply moves Ms right.',
   '- A COMPARISON ("how do petrol and diesel engines differ", "X vs Y") puts the',
   '  things side by side in matching panels, the SAME rows in the same order in',
   '  each (how it ignites, fuel, efficiency, typical use), so the differences line',
@@ -138,6 +153,46 @@ function checkChart(c) {
     if (!out.series.length) return null;
     for (const m of (Array.isArray(c.markers) ? c.markers : []).slice(0, 6)) {
       if (m && num(m.x) !== null && num(m.y) !== null) out.markers.push({ x: m.x, y: m.y, label: txt(m.label, 60) });
+    }
+    // The model's arithmetic can slip: an equilibrium or a break-even point
+    // marked a little off where the lines actually cross. Every crossing of two
+    // straight lines is worked out here, and a marker near one is moved onto it.
+    const straight = out.series.filter((s) => s.points.length === 2);
+    const crossings = [];
+    for (let i = 0; i < straight.length; i++) {
+      for (let j = i + 1; j < straight.length; j++) {
+        const [[x1, y1], [x2, y2]] = straight[i].points, [[x3, y3], [x4, y4]] = straight[j].points;
+        if (x2 === x1 || x4 === x3) continue;
+        const m1 = (y2 - y1) / (x2 - x1), m2 = (y4 - y3) / (x4 - x3);
+        if (Math.abs(m1 - m2) < 1e-9) continue;
+        const x = (y3 - y1 + m1 * x1 - m2 * x3) / (m1 - m2);
+        const y = y1 + m1 * (x - x1);
+        if (x >= out.x.min && x <= out.x.max && y >= out.y.min && y <= out.y.max) {
+          crossings.push({ x, y, names: (straight[i].name + ' ' + straight[j].name).toUpperCase() });
+        }
+      }
+    }
+    const spanX = out.x.max - out.x.min, spanY = out.y.max - out.y.min;
+    // "E2" belongs on the crossing that involves "AD2": a digit in the label
+    // that appears in one of the two lines' names is a strong hint.
+    const hint = (label, names) => {
+      const digits = (String(label).match(/\d/g) || []);
+      return digits.some((dg) => new RegExp('[A-Z]' + dg + '\\b').test(names)) ? 0.3 : 0;
+    };
+    const used = new Set();
+    for (const m of out.markers) {
+      let best = null, bestScore = Infinity, bestD = Infinity;
+      crossings.forEach((p, k) => {
+        if (used.has(k)) return;
+        const d = Math.hypot((p.x - m.x) / spanX, (p.y - m.y) / spanY);
+        const score = d - hint(m.label, p.names);
+        if (score < bestScore) { bestScore = score; best = k; bestD = d; }
+      });
+      if (best !== null && bestD < 0.3) {
+        used.add(best);
+        m.x = Math.round(crossings[best].x * 100) / 100;
+        m.y = Math.round(crossings[best].y * 100) / 100;
+      }
     }
   } else {
     for (const b of (Array.isArray(c.bars) ? c.bars : []).slice(0, 20)) {

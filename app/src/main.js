@@ -45,6 +45,7 @@ const connectors = require('./services/connectors');
 const shopping = require('./services/shopping');
 const modeling = require('./services/modeling');
 const video = require('./services/video');
+const webSearch = require('./services/web-search');
 const macComms = require('./services/mac-comms');
 const publishing = require('./services/publishing');
 const calendar = require('./services/calendar');
@@ -209,10 +210,15 @@ function _selfNote() {
 // answered from the real numbers instead of "I don't have that".
 let _analyticsDetail = { at: 0, text: '' };
 const ANALYTICS_WORDS = /\b(analytics|visitors?|traffic|views?|followers?|reach|audience|countr(?:y|ies)|cit(?:y|ies)|engagement|impressions|bounce|sessions?|page ?views|insights|subscribers?|likes|shares|saves|demographics?|referr\w*|sources?|devices?|stats|statistics)\b/i;
+function asksOwn(message) {
+  return /\b(?:my|our|mine|ours)\b/i.test(String(message || ''));
+}
 async function _analyticsNote(message) {
   try {
     const fresh = _analyticsDetail.text && Date.now() - _analyticsDetail.at < 30 * 60 * 1000;
-    if (!fresh && ANALYTICS_WORDS.test(String(message || ''))) {
+    // Only their own accounts: "Apple's revenue" is a question about Apple,
+    // and loading their Stripe takings for it is what mixed the two up.
+    if (!fresh && ANALYTICS_WORDS.test(String(message || '')) && asksOwn(message)) {
       // Through the few-minute cache the dashboard uses, so asking twice is instant.
       const names = Object.keys(STAT_FETCHERS);
       const fetchAll = Promise.all(names.map((p) => _statFor(p, false).catch(() => null)))
@@ -3704,7 +3710,20 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     }
   } catch (_) {}
 
-  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _selfNote() + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_answeringQuestion && !_aboutMessages };
+  // Callisto's own knowledge stops at its training date. A question about
+  // anything current (a company, a launch, an IPO, a result) is searched on
+  // the web first, and the answer is written from what was found.
+  let _webNote = '';
+  if (webSearch.needsWeb(message)) {
+    try {
+      const r = await Promise.race([
+        fetch(`${_serverBase()}/ai/web-search`, { method: 'POST', headers: { ..._authHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify({ query: message }) }).then((x) => x.json()),
+        new Promise((res) => setTimeout(() => res(null), 13000)),
+      ]);
+      if (r && r.note) _webNote = '\n\n' + r.note;
+    } catch (_) {}
+  }
+  const aiParams = { message, history: trimmedHistory, assistantName: getAssistantName(), memories, realtimeContext: (combinedContext || '') + _webNote + _selfNote() + _businessNote() + (await _analyticsNote(message)) + _screenNote + _circleNote + _skillNote, language, attachments, userName, userTitle, userLocation, fast: needsAction && !combinedContext && !_webNote && !_answeringQuestion && !_aboutMessages };
   let streamedAudio = false;
   const sentencePending = [];
   // Buffer to hold audio keyed by sentence index - ensures playback order matches text order
@@ -8156,6 +8175,9 @@ const TEACH_Q = new RegExp([
   '\\b(?:differ|differs|difference|differences|different from|compared? (?:to|with)|comparison|compare|vs\\.?|versus)\\b',
   '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
   '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
+  // a company's figures over time, and economics on axes
+  '\\b(?:revenue|revenues|sales|profit|profits|earnings|income|margin|margins|growth|market share|valuation|market cap|share price|stock price|financial position|financials|balance sheet|cash flow|debt|subscribers|users)\\b.{0,40}\\b(?:of|for|at|in|over|since|by year|per year|each year|trend|history|growth|compare|vs)\\b|\\b(?:how (?:has|have|is|did))\\b.{0,50}\\b(?:revenue|sales|profit|earnings|growth|share price|stock|valuation)\\b',
+  '\\b(?:monetary policy|fiscal policy|interest rates?|inflation|money supply|money market|aggregate (?:demand|supply)|ad[ -]?as|phillips curve|lorenz curve|laffer curve|production possibilit(?:y|ies)|ppf|ppc|elasticity|price (?:ceiling|floor)|tax incidence|deadweight loss|consumer surplus|producer surplus|exchange rate|gdp|business cycle|is[ -]?lm)\\b',
   // or a picture asked for by name
   '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
 ].join('|'), 'i');

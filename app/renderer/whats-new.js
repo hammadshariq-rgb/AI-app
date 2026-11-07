@@ -12,6 +12,11 @@
   'use strict';
 
   var NOTES = {
+    '1.9.41': [
+      { icon: '🌐', title: 'Up to date with the world', text: 'Ask about anything recent, from a launch to an IPO, and Callisto searches the web first and tells you where it found it.' },
+      { icon: '📈', title: 'Graphs', text: 'Company revenue and growth, share prices, and economics like monetary policy or AD-AS, drawn exactly to scale.' },
+      { icon: '🔗', title: 'Your accounts stay yours', text: 'Asking about another company\'s revenue no longer shows your own Stripe figures.' }
+    ],
     '1.9.40': [
       { icon: '📐', title: 'Diagrams for comparisons too', text: 'Ask how two things differ, what something is made of or how it works, and get an accurate side-by-side or labelled diagram.' },
       { icon: '🛠️', title: 'Steadier voice and updates', text: 'Fixed an error when the microphone stopped mid-animation, and Windows updates no longer get stuck on a slow security check.' }

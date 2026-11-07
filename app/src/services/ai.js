@@ -471,7 +471,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'get_analytics',
-      description: 'Get business analytics and social media statistics for the user. Use when the user asks about their sales, revenue, orders, YouTube views, subscribers, Instagram followers, TikTok stats, or any platform metrics.',
+      description: 'Get the USER\'S OWN business analytics and social media statistics from their connected accounts. Use ONLY when they ask about their own numbers: "my revenue", "our sales", "my followers", "how is my YouTube doing". NEVER for another company, person or brand: "Apple\'s revenue", "Tesla\'s sales", "xyz company revenue growth" are questions about that company - answer them from the live web results, never from the user\'s Stripe, Shopify or analytics.',
       parameters: {
         type: 'object',
         properties: {
@@ -1982,7 +1982,9 @@ async function respond({ message, history = [], assistantName, memories = [], re
   // history for speed. Creative and file work skips it - see HEAVY_INTENT: for
   // those the quick call could only be thrown away, and paying for a round trip
   // before the real one started was pure added wait.
-  if (fast && needsTools && !realtimeContext && !isDocWork && !HEAVY_INTENT.test(message) && !VIDEO_EDIT.test(message)) {
+  // The caller decides "fast" (it knows whether live data came with this
+  // turn); the standing notes about Callisto itself do not count against it.
+  if (fast && needsTools && !isDocWork && !HEAVY_INTENT.test(message) && !VIDEO_EDIT.test(message)) {
     const fastMessages = [
       { role: 'system', content: FAST_SYSTEM_PROMPT(assistantName) },
       ...history.slice(-12).map((h) => ({ role: h.role, content: h.content })),

@@ -166,6 +166,17 @@ const { createGuard, REFUSAL } = require('./content-guard');
 // so it can't depend on the older fetch the main client ships with.
 const { makeDiagram } = require('./diagram');
 const drawDiagram = makeDiagram(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
+// Searching the web for anything current (web-search.js).
+const webSearch = require('./web-search');
+const webLookup = webSearch.makeLookup(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
+// Never lets a slow search hold up the answer: after 12 seconds it answers without it.
+async function webNoteFor(text) {
+  if (!webSearch.needsWeb(text)) return '';
+  try {
+    const found = await Promise.race([webLookup(text), new Promise((r) => setTimeout(() => r(null), 12000))]);
+    return found ? 'LIVE WEB RESULTS (searched just now for this question). Your own knowledge stops at your training date; for anything current, these results win. Answer from them, give the dates, say plainly if something has not happened or is only a rumour, and name the source briefly:\n' + found : '';
+  } catch (err) { console.warn('[web-search]', err.message); return ''; }
+}
 const contentGuard = createGuard(new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch }));
 
 // Validate required env vars on startup
@@ -2983,7 +2994,9 @@ app.post('/web/chat', optionalAuth, checkGuestOrUserLimit, aiLimiter, contentGua
     const bizMsg = bizLines.length
       ? { role: 'system', content: 'THEIR BUSINESS (what they have told you; use these exact figures in any business answer):\n' + bizLines.join('\n') }
       : null;
-    const extras = [memoryMsg, bizMsg, stockMsg].filter(Boolean);
+    const _webNote = await webNoteFor(lastUser && lastUser.content);
+    const webMsg = _webNote ? { role: 'system', content: _webNote } : null;
+    const extras = [memoryMsg, bizMsg, stockMsg, webMsg].filter(Boolean);
     const withContext = extras.length
       ? [...base.slice(0, -1), ...extras, base[base.length - 1]]
       : base;
@@ -4189,6 +4202,11 @@ app.get('/ai/spotify-search', authMiddleware, aiLimiter, async (req, res) => {
 // Netflix's TV app can't search by name — it only opens a title by its id. Find
 // that id with a web search so "play Red Notice on Netflix" can start it.
 const _streamIdCache = new Map();
+app.post('/ai/web-search', authMiddleware, aiLimiter, async (req, res) => {
+  const q = String((req.body && req.body.query) || '').slice(0, 400);
+  res.json({ note: await webNoteFor(q) });
+});
+
 app.post('/ai/stream-lookup', authMiddleware, aiLimiter, async (req, res) => {
   const service = String(req.body?.service || '').toLowerCase();
   const title = String(req.body?.title || '').trim().slice(0, 120);

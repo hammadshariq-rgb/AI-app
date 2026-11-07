@@ -26,6 +26,9 @@
     '\\b(?:differ|differs|difference|differences|different from|compared? (?:to|with)|comparison|compare|vs\\.?|versus)\\b',
     '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
     '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
+    // a company's figures over time, and economics on axes
+    '\\b(?:revenue|revenues|sales|profit|profits|earnings|income|margin|margins|growth|market share|valuation|market cap|share price|stock price|financial position|financials|balance sheet|cash flow|debt|subscribers|users)\\b.{0,40}\\b(?:of|for|at|in|over|since|by year|per year|each year|trend|history|growth|compare|vs)\\b|\\b(?:how (?:has|have|is|did))\\b.{0,50}\\b(?:revenue|sales|profit|earnings|growth|share price|stock|valuation)\\b',
+    '\\b(?:monetary policy|fiscal policy|interest rates?|inflation|money supply|money market|aggregate (?:demand|supply)|ad[ -]?as|phillips curve|lorenz curve|laffer curve|production possibilit(?:y|ies)|ppf|ppc|elasticity|price (?:ceiling|floor)|tax incidence|deadweight loss|consumer surplus|producer surplus|exchange rate|gdp|business cycle|is[ -]?lm)\\b',
     // or a picture asked for by name
     '\\b(?:diagram|draw|illustrate|label(?:led)?|visuali[sz]e|flow ?chart|chart|plot|graph|break[- ]?even|supply and demand)\\b',
   ].join('|'), 'i');
@@ -145,6 +148,7 @@
     const q = String(question || '').trim();
     if (!q || NOT_TEACH.test(q)) return false;
     if (STEP_MATHS.test(q) && !ASKED_PICTURE.test(q)) return false;
+    if (/^\s*(?:what\s+(?:is|are)|define|meaning of)\s+(?:an?\s+|the\s+)?[a-z]+(?:\s+[a-z]+)?\s*\??\s*$/i.test(q) && !ASKED_PICTURE.test(q)) return false;
     // A short reply to a how/why question is not worth a picture either.
     return TEACH.test(q) && String(answer || '').length > 140;
   }
