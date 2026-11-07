@@ -11147,6 +11147,9 @@ function startWaveformDraw() {
   const W = waveformCanvas.width, H = waveformCanvas.height;
   const barCount = 36;
   function draw() {
+    // The microphone can stop between frames, which clears the analyser. It
+    // used to throw here on every frame after that (thousands of errors).
+    if (!analyserNode) { cancelAnimationFrame(waveformRaf); waveformRaf = null; return; }
     waveformRaf = requestAnimationFrame(draw);
     analyserNode.getByteFrequencyData(dataArr);
     // export peak amplitude for the orb shader

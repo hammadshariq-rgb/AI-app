@@ -1558,6 +1558,34 @@ app.whenReady().then(async () => {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
+    // The updater checks the new installer is signed by us before running it,
+    // through PowerShell with a 20-second limit. On a PC whose antivirus is
+    // still scanning the 270 MB installer that limit runs out, the check
+    // "fails to run", and the update is refused - the "Command failed: set
+    // PSModulePath=..." errors in Sentry. If the built-in check cannot run,
+    // the same check runs again here: PowerShell called directly, two minutes
+    // to finish. An installer that is not validly signed by us is still refused.
+    if (process.platform === 'win32') {
+      const builtIn = autoUpdater.verifyUpdateCodeSignature;
+      autoUpdater.verifyUpdateCodeSignature = async (publisherNames, file) => {
+        try { return await builtIn(publisherNames, file); } catch (err) {
+          console.warn('[UPDATE] built-in signature check could not run, checking again:', err && err.message);
+        }
+        return new Promise((resolve) => {
+          const lit = String(file).replace(/'/g, "''");
+          require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
+            "$s = Get-AuthenticodeSignature -LiteralPath '" + lit + "'; [string]$s.Status + '|' + $s.SignerCertificate.Subject"],
+          { timeout: 120000, windowsHide: true }, (error, stdout) => {
+            if (error) return resolve('Could not check the update\'s signature: ' + error.message);
+            const [status, subject = ''] = String(stdout).trim().split('|');
+            if (status !== 'Valid') return resolve('Update signature is ' + status);
+            const ok = (publisherNames || []).some((n) => subject.includes('CN=' + n) || subject.includes(n));
+            resolve(ok ? null : 'Update is signed by someone else: ' + subject);
+          });
+        });
+      };
+    }
+
     autoUpdater.on('update-available', (info) => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('update:available', { version: info.version });

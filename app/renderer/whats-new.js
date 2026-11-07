@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.40': [
+      { icon: '🛠️', title: 'Steadier voice and updates', text: 'Fixed an error when the microphone stopped mid-animation, and Windows updates no longer get stuck on a slow security check.' }
+    ],
     '1.9.39': [
       { icon: '👀', title: 'Screen assist stays out of the way', text: 'No more dark layer over your screen, and every click goes straight to your apps. Press Alt+Shift+S when you want to circle something.' },
       { icon: '🔄', title: 'The update button is back', text: 'The update ready button looks the way it did before.' }
