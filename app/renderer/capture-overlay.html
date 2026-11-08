@@ -226,11 +226,12 @@ ipcRenderer.on('capture:mode', (_e, m) => {
   const hint = document.getElementById('hint');
   if (hint) {
     hint.innerHTML = assistMode
-      ? 'Screen assist is on - <span>just ask, or press <b>Alt+Shift+S</b> to circle something · <b>Alt+Shift+C</b> turns it off</span>'
+      ? 'Screen assist is on - <span>just ask, or press <b>' + (process.platform === 'darwin' ? 'Option' : 'Alt') + '+Shift+S</b> to circle something · <b>' + (process.platform === 'darwin' ? 'Option' : 'Alt') + '+Shift+C</b> turns it off</span>'
       : 'Hold &amp; drag to circle anything - <span>release to identify · ESC to cancel</span>';
     // In assist mode the layer lets every click through to their apps, so no
     // crosshair: it is their normal screen until they ask to circle.
     document.body.style.cursor = assistMode ? 'default' : '';
+    document.documentElement.style.cursor = assistMode ? 'default' : '';
     if (assistMode) armed = false;
     // In assist mode the bar shows straight away: it is the "it's on" signal.
     if (assistMode) hint.style.display = '';
@@ -433,6 +434,7 @@ ipcRenderer.on('capture:reset', () => {
 ipcRenderer.on('capture:circle-now', () => {
   armed = true;
   document.body.style.cursor = 'crosshair';
+  document.documentElement.style.cursor = 'crosshair';
   const hint = document.getElementById('hint');
   if (hint) { hint.innerHTML = 'Circle what you mean - <span>hold and drag · <b>Esc</b> to cancel</span>'; hint.style.display = ''; }
 });
@@ -440,6 +442,7 @@ ipcRenderer.on('capture:circle-now', () => {
 ipcRenderer.on('capture:passive', () => {
   armed = false;
   document.body.style.cursor = 'default';
+  document.documentElement.style.cursor = 'default';
 });
 
 // The screen has been captured: show the prompt and start accepting a circle.

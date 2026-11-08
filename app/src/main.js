@@ -988,15 +988,14 @@ function _assistPassive() {
     if (!captureWindow || captureWindow.isDestroyed()) return;
     captureWindow.setIgnoreMouseEvents(true, { forward: true });
     captureWindow.webContents.send('capture:passive');
+    if (hudWindow && !hudWindow.isDestroyed()) hudWindow.moveTop();
     // On a Mac the layer goes away again after the circle, cursor and all.
-    if (process.platform === 'darwin') captureWindow.hide();
   } catch (_) {}
 }
 // Alt+Shift+S during screen assist: a fresh picture of the screen, then the
 // layer takes the mouse for one circle.
 async function _assistCircle() {
   if (!ASSIST.on) return;
-  if (process.platform === 'darwin') { try { await openCaptureOverlay({ assist: true }); } catch (_) {} }
   if (!captureWindow || captureWindow.isDestroyed()) return;
   try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
   if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
@@ -7099,12 +7098,12 @@ function screenWatchIntervalMs() {
 // in screen assist. The windows are made invisible for the moment of the grab
 // instead. The small checks for change (320 wide) leave them alone, or the card
 // would blink every few seconds.
-async function grabScreen(maxWidth = 1280) {
+async function grabScreen(maxWidth = 1280, { keepCards } = {}) {
   if (maxWidth <= 400) return _grabScreen(maxWidth);
   // In screen assist the floating cards and the empty circle layer stay put:
   // fading them for every look made each card vanish and come back. Only the
   // main window, which would cover what they are asking about, steps aside.
-  const ours = (ASSIST.on ? [overlayWindow] : [overlayWindow, hudWindow, captureWindow])
+  const ours = (keepCards && ASSIST.on ? [overlayWindow] : [overlayWindow, hudWindow, captureWindow])
     .filter((w) => w && !w.isDestroyed() && w.isVisible());
   ours.forEach((w) => { try { w.setOpacity(0); } catch (_) {} });
   if (ours.length) await new Promise((r) => setTimeout(r, 60));
@@ -7184,7 +7183,7 @@ async function _readScreenOnce(question, { mode, width, frame } = {}) {
   // message" - and then kept 1600 anyway for the small print. A second is a
   // long time to sit waiting for an answer about your own screen, and the
   // same note says the reading does not change, so the second is given back.
-  const shot = frame || await grabScreen(width || 1280);
+  const shot = frame || await grabScreen(width || 1280, { keepCards: mode === 'watch' });
   if (!shot) return { error: 'I could not capture the screen.' };
   try {
     // It has to know what day it is, or "tomorrow at 5" cannot become a date.
@@ -8146,27 +8145,27 @@ function startAssist() {
   // only, so it appears over whatever they are working in and never inside
   // Callisto itself.
   ASSIST.announced = true;
-  // The notice itself goes up once the circle layer is showing (below), so
-  // it is shown once, on top, for five seconds.
+  // Shown straight away, once, for five seconds; the layer that opens a
+  // moment later is put underneath it.
+  sendToHud('hud:card', {
+    type: 'info',
+    text: 'Screen assist is on. Say what you need, then press ' + (process.platform === 'darwin' ? 'Option' : 'Alt') + '+Shift+C again.',
+    ttl: 5000,
+    force: true,
+  });
+  sendToHud('hud:listening', { sustained: true, label: 'Watching your screen · listening' });
   _tellOverlayAssist({ on: true });
-  // Moving the mouse does nothing; pressing and circling picks out an area.
-  // The notice goes up again once that layer is showing, above it, because on
-  // the first press the layer is still being built and used to cover it.
+  // Clicks go straight through the layer; Alt+Shift+S (Option on a Mac) circles.
   try { globalShortcut.register('Alt+Shift+S', _assistCircle); } catch (_) {}
-  // On a Mac the layer brings a crosshair cursor with it, so it only opens
-  // when Option+Shift+S asks for a circle.
-  (process.platform === 'darwin' ? Promise.resolve() : openCaptureOverlay({ assist: true })).then(() => {
+  openCaptureOverlay({ assist: true }).then(() => {
     if (!ASSIST.on) return;
-    // The circle layer is shown after the notice, at the same level, so on
-    // Windows it landed on top of the card and hid it. Lift the card window
-    // above it, then show the notice once, now that nothing can cover it.
+    // The layer opens after the notice at the same level; keep the cards above it.
     try {
       if (hudWindow && !hudWindow.isDestroyed()) {
         hudWindow.setAlwaysOnTop(true, 'screen-saver', 2);
         hudWindow.moveTop();
       }
     } catch (_) {}
-    sendToHud('hud:listening', { sustained: true, ttl: 5000, label: 'Screen assist is on and listening' });
   }).catch(() => {});
   return { ok: true };
 }

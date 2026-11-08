@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.44': [
+      { icon: '👀', title: 'Screen assist back to normal', text: 'The "screen assist is on" card and the top bar are back, Callisto sees your screen clearly again, and cards no longer blink while it watches.' }
+    ],
     '1.9.43': [
       { icon: '👀', title: 'Screen assist cards stay put', text: 'The notice, the Esc hint and answers no longer blink off and on while Callisto looks at your screen.' },
       { icon: '📈', title: 'Graphs behind the story', text: 'Ask why a company went public or how it grew, and you get a graph of the revenue or valuation that led there.' },
