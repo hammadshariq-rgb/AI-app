@@ -815,7 +815,9 @@ function createHudWindow() {
     },
   });
   hudWindow.loadFile(path.join(__dirname, '..', 'renderer', 'hud.html'));
-  hudWindow.setIgnoreMouseEvents(false);
+  // Clicks and file drops go through to the app underneath; the page turns
+  // the mouse back on only while the pointer is over a card.
+  hudWindow.setIgnoreMouseEvents(true, { forward: true });
   // Mac: setVisibleOnAllWorkspaces makes the HUD float above every Space and full-screen app
   if (process.platform === 'darwin') {
     hudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -1044,7 +1046,8 @@ function hideAssistBar() {
 let _macMainWasShown = false;
 async function _assistCircle() {
   if (!ASSIST.on) return;
-  if (process.platform === 'darwin') rememberFrontApp();
+  // Must be known BEFORE the layer takes focus, or it reads Callisto itself.
+  if (process.platform === 'darwin') { try { await rememberFrontApp(); } catch (_) {} }
   const ready = buildCaptureWindow();
   if (ready) await ready;
   if (!captureWindow || captureWindow.isDestroyed()) return;
@@ -1078,10 +1081,14 @@ function _assistPassive() {
     if (ASSIST.on) showAssistBar(ASSIST.circled);
     if (process.platform === 'darwin') {
       // Back where they were: the main window returns behind, then their app comes forward.
-      if (_macMainWasShown && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.showInactive();
-      _macMainWasShown = false;
       _restoreFocusNext = true;
-      restoreFrontApp().catch(() => {});
+      restoreFrontApp().then((ok) => {
+        // The main window comes back only behind their app, never over it.
+        if (_macMainWasShown && overlayWindow && !overlayWindow.isDestroyed()) {
+          if (ok) setTimeout(() => { try { overlayWindow.showInactive(); restoreFrontApp(); } catch (_) {} }, 50);
+        }
+        _macMainWasShown = false;
+      }).catch(() => {});
     }
   } catch (_) {}
 }
@@ -7363,8 +7370,11 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   // "Hey Callisto, ..." is them addressing it; the rest is the question.
   const q = String(question || '').trim()
     .replace(/^(?:hey|hi|hello|ok(?:ay)?|yo)?[,\s]*(?:callisto|calisto|kallisto)[,.!?:\s]*/i, '').trim();
-  if (!q || /^(?:hey|hi|hello|you there|are you there|can you hear me)[?.!\s]*$/i.test(q)) {
-    const hi = 'I am here and I can see your screen. What do you need?';
+  // Only when nothing usable was heard does the card ask them anything:
+  // a bare "hey Callisto" just keeps listening quietly.
+  if (/^(?:hey|hi|hello|you there|are you there)[?.!\s]*$/i.test(q)) return { ok: true, text: '' };
+  if (!q || /^can you hear me[?.!\s]*$/i.test(q)) {
+    const hi = q ? 'Yes, I can hear you. Go ahead.' : 'I did not catch that. Check your microphone and say it again.';
     sendToHud('hud:card', { type: 'info', text: hi, ttl: 5000, force: true });
     _sendTTS(e.sender, hi);
     return { ok: true, text: hi };
@@ -7556,7 +7566,9 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     + 'point at something - "question 2", "this error", "the second one" - find it '
     + 'on screen and work from that. Do not say you cannot see it unless the screen '
     + 'genuinely does not show it. Set action to null unless there is something to '
-    + 'press.',
+    + 'press. Give a complete, well explained answer with the useful details, '
+    + 'laid out clearly in short paragraphs or steps. Never ask them a question back '
+    + 'or ask them to clarify: take the most sensible reading and answer it.',
     { frame: ASSIST.circled ? ASSIST.frame : null }
   );
   if (!out.ok || !out.text) {
@@ -7596,19 +7608,22 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
 let _frontAppAtStart = null;
 
 function rememberFrontApp() {
+  const prev = _frontAppAtStart;
   _frontAppAtStart = null;
   const { execFile } = require('child_process');
   try {
     if (process.platform === 'darwin') {
-      execFile('osascript', ['-e',
+      return new Promise((resolve) => execFile('osascript', ['-e',
         'tell application "System Events" to get name of first application process whose frontmost is true'],
         { timeout: 2500 }, (err, stdout) => {
           const name = String(stdout || '').trim();
-          if (!err && name && name !== 'Electron' && !/callisto/i.test(name)) {
+          if (!err && name && name !== 'Electron' && !/callisto|your own personal ai/i.test(name)) {
             _frontAppAtStart = { kind: 'mac', name };
+          } else if (prev && prev.kind === 'mac') {
+            _frontAppAtStart = prev;   // we were briefly in front: keep the app they came from
           }
-        });
-      return;
+          resolve();
+        }));
     }
     if (process.platform === 'win32') {
       execFile('powershell.exe', ['-NonInteractive', '-NoProfile', '-Command',
@@ -7900,6 +7915,13 @@ function askHud({ title, description, buttonText, doneLabel, tone, icon, seconds
   return true;
 }
 
+ipcMain.on('hud:mouse', (_e, over) => {
+  try {
+    if (!hudWindow || hudWindow.isDestroyed()) return;
+    if (over) hudWindow.setIgnoreMouseEvents(false);
+    else hudWindow.setIgnoreMouseEvents(true, { forward: true });
+  } catch (_) {}
+});
 ipcMain.on('hud:prompt-answer', async (_e, { id, yes } = {}) => {
   const entry = _hudPending.get(id);
   _hudPending.delete(id);
@@ -8294,7 +8316,7 @@ const TEACH_Q = new RegExp([
 const TEACH_STEP_MATHS = /\b(?:solve|calculate|evaluate|simplify|differentiate|integrate|work out|prove|show that)\b/i;
 async function _teachDiagram(question, answer) {
   const _q = String(question || '');
-  if (!TEACH_Q.test(_q) || (TEACH_STEP_MATHS.test(_q) && !/\b(?:chart|plot|graph|diagram|draw)\b/i.test(_q)) || String(answer || '').length < 140) return;
+  if (!TEACH_Q.test(_q) || (TEACH_STEP_MATHS.test(_q) && !/\b(?:chart|plot|graph|diagram|draw)\b/i.test(_q)) || String(answer || '').length < 60) return;
   sendToHud('hud:diagram-wait', {});
   try {
     const res = await ai.serverFetch('diagram', { question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }, { timeout: 60000, retries: 0 });

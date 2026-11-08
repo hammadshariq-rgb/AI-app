@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.49': [
+      { icon: '🖱️', title: 'You stay where you are', text: 'After circling on a Mac you stay in the app you were using, every time, not just the first.' },
+      { icon: '📎', title: 'Uploads work again', text: 'The answer card no longer blocks clicks or file uploads in other apps while Callisto is open.' },
+      { icon: '📐', title: 'Diagrams on the card', text: 'The floating card shows "Generating diagram" while a picture is drawn for questions that need one.' },
+      { icon: '💬', title: 'Straight answers', text: 'Screen assist answers in full and no longer asks you questions back.' }
+    ],
     '1.9.48': [
       { icon: '🖱️', title: 'Circle over any app on Mac', text: 'Option+Shift+S now opens the circle right over Chrome or a full-screen app, instead of jumping back to Callisto or the desktop.' }
     ],

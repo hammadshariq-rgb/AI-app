@@ -248,6 +248,9 @@
        moment anything was said. */
     #listening.held{border-color:rgba(61,92,255,0.6);}
     body.listening #stack{bottom:80px;}
+    .diagram-pending{margin:0 0 10px;padding:22px 12px;border:1px dashed rgba(120,150,255,.35);border-radius:10px;text-align:center;font-size:12px;letter-spacing:.3px;color:rgba(170,195,255,.85);animation:dpulse 1.4s ease-in-out infinite}
+    @keyframes dpulse{0%,100%{opacity:.5}50%{opacity:1}}
+    @media (prefers-reduced-motion:reduce){.diagram-pending{animation:none}}
   </style>
 </head>
 <body>
@@ -272,6 +275,17 @@
 <script>
 const { ipcRenderer } = require('electron');
 const stack = document.getElementById('stack');
+// The window lets clicks and file drops through to the app below, except
+// while the pointer is over a card or pill.
+(function () {
+  let over = false;
+  const set = (v) => { if (v !== over) { over = v; ipcRenderer.send('hud:mouse', v); } };
+  document.addEventListener('mousemove', (e) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    set(!!(el && el !== document.body && el !== document.documentElement && el !== stack));
+  });
+  document.addEventListener('mouseleave', () => set(false));
+})();
 const listenEl = document.getElementById('listening');
 
 // A single voice turn shows the bars for a few seconds. Assist mode is a
@@ -314,14 +328,23 @@ ipcRenderer.on('hud:diagram-wait', () => {
   const card = document.querySelector('.hud-card');
   if (!card) return;
   card.classList.add('held', 'awaiting');
-  setTimeout(() => { if (card.classList.contains('awaiting')) card.classList.remove('held', 'awaiting'); }, 60000);
+  const desc = card.querySelector('.card-desc');
+  if (desc && !card.querySelector('.diagram-pending')) {
+    const p = document.createElement('div');
+    p.className = 'diagram-pending';
+    p.textContent = 'Generating diagram…';
+    desc.insertBefore(p, desc.firstChild);
+  }
+  setTimeout(() => { if (card.classList.contains('awaiting')) { card.classList.remove('held', 'awaiting'); card.querySelectorAll('.diagram-pending').forEach((n) => n.remove()); } }, 60000);
 });
 ipcRenderer.on('hud:diagram-none', () => {
   document.querySelectorAll('.hud-card.awaiting').forEach((c) => c.classList.remove('held', 'awaiting'));
+  document.querySelectorAll('.diagram-pending').forEach((n) => n.remove());
 });
 ipcRenderer.on('hud:diagram', (_e, d) => {
   const card = document.querySelector('.hud-card.awaiting') || document.querySelector('.hud-card.worked') || document.querySelector('.hud-card');
   if (card) card.classList.remove('awaiting');
+  document.querySelectorAll('.diagram-pending').forEach((n) => n.remove());
   if (card && card.querySelector('.teach-diagram')) return;   // one picture per card
   const desc = card && card.querySelector('.card-desc');
   const svg = window.CallistoDiagram && d ? window.CallistoDiagram.visual(d) : null;
