@@ -784,6 +784,10 @@ function keyLabel(name, fallback) {
 }
 
 // ── HUD overlay window - always-on-top transparent card overlay ─────────────
+function _hudBounds() {
+  const wa = screen.getPrimaryDisplay().workArea;
+  return { x: wa.x + wa.width - 470, y: wa.y, width: 460, height: wa.height };
+}
 function createHudWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   hudWindow = new BrowserWindow({
@@ -823,9 +827,11 @@ function createHudWindow() {
 function ensureHud() {
   if (!hudWindow || hudWindow.isDestroyed()) createHudWindow();
   if (!hudWindow.isVisible()) {
+    try { hudWindow.setBounds(_hudBounds()); } catch (_) {}
     hudWindow.showInactive();
     // Re-apply Mac always-on-top each time we show (macOS resets this after hide)
     if (process.platform === 'darwin') {
+      try { hudWindow.setBounds(_hudBounds()); } catch (_) {}
       hudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       hudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     }

@@ -13,7 +13,8 @@
 
   var NOTES = {
     '1.9.44': [
-      { icon: '👀', title: 'Screen assist back to normal', text: 'The "screen assist is on" card and the top bar are back, Callisto sees your screen clearly again, and cards no longer blink while it watches.' }
+      { icon: '👀', title: 'Screen assist back to normal', text: 'The "screen assist is on" card and the top bar are back, Callisto sees your screen clearly again, and cards no longer blink while it watches.' },
+      { icon: '📍', title: 'Cards in the corner on Mac', text: 'Callisto\'s floating cards now sit in the bottom right of your Mac screen, the same as on Windows.' }
     ],
     '1.9.43': [
       { icon: '👀', title: 'Screen assist cards stay put', text: 'The notice, the Esc hint and answers no longer blink off and on while Callisto looks at your screen.' },
