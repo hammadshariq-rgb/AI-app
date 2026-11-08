@@ -7097,7 +7097,11 @@ function screenWatchIntervalMs() {
 // would blink every few seconds.
 async function grabScreen(maxWidth = 1280) {
   if (maxWidth <= 400) return _grabScreen(maxWidth);
-  const ours = [overlayWindow, hudWindow, captureWindow].filter((w) => w && !w.isDestroyed() && w.isVisible());
+  // In screen assist the floating cards and the empty circle layer stay put:
+  // fading them for every look made each card vanish and come back. Only the
+  // main window, which would cover what they are asking about, steps aside.
+  const ours = (ASSIST.on ? [overlayWindow] : [overlayWindow, hudWindow, captureWindow])
+    .filter((w) => w && !w.isDestroyed() && w.isVisible());
   ours.forEach((w) => { try { w.setOpacity(0); } catch (_) {} });
   if (ours.length) await new Promise((r) => setTimeout(r, 60));
   try { return await _grabScreen(maxWidth); }
@@ -7452,6 +7456,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
   const out = await _readScreenOnce(
     (ASSIST.circled ? 'They circled one part of their screen; the picture shows only that part. ' : '')
     + 'They asked this out loud while you were watching their screen: "' + q + '"\n'
+    + 'Small dark floating cards in a corner are your own notices; ignore them.\n'
     + 'Answer it about what is actually on the screen in front of them. If they '
     + 'point at something - "question 2", "this error", "the second one" - find it '
     + 'on screen and work from that. Do not say you cannot see it unless the screen '
@@ -8137,9 +8142,8 @@ function startAssist() {
   // only, so it appears over whatever they are working in and never inside
   // Callisto itself.
   ASSIST.announced = true;
-  // One notice, shown once for five seconds. A separate card plus the bars
-  // used to take turns, which looked like it was flickering.
-  sendToHud('hud:listening', { sustained: true, ttl: 5000, label: 'Screen assist is on and listening' });
+  // The notice itself goes up once the circle layer is showing (below), so
+  // it is shown once, on top, for five seconds.
   _tellOverlayAssist({ on: true });
   // Moving the mouse does nothing; pressing and circling picks out an area.
   // The notice goes up again once that layer is showing, above it, because on
@@ -8147,7 +8151,16 @@ function startAssist() {
   try { globalShortcut.register('Alt+Shift+S', _assistCircle); } catch (_) {}
   openCaptureOverlay({ assist: true }).then(() => {
     if (!ASSIST.on) return;
-    try { if (hudWindow && !hudWindow.isDestroyed()) hudWindow.setAlwaysOnTop(true, 'screen-saver', 2); } catch (_) {}
+    // The circle layer is shown after the notice, at the same level, so on
+    // Windows it landed on top of the card and hid it. Lift the card window
+    // above it, then show the notice once, now that nothing can cover it.
+    try {
+      if (hudWindow && !hudWindow.isDestroyed()) {
+        hudWindow.setAlwaysOnTop(true, 'screen-saver', 2);
+        hudWindow.moveTop();
+      }
+    } catch (_) {}
+    sendToHud('hud:listening', { sustained: true, ttl: 5000, label: 'Screen assist is on and listening' });
   }).catch(() => {});
   return { ok: true };
 }

@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.43': [
+      { icon: '👀', title: 'Screen assist cards stay put', text: 'The notice, the Esc hint and answers no longer blink off and on while Callisto looks at your screen.' }
+    ],
     '1.9.42': [
       { icon: '👀', title: 'Calmer screen assist', text: 'The "screen assist is on" notice now shows once for five seconds instead of flickering, and answers stay up for seven.' }
     ],
