@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.46': [
+      { icon: '🖱️', title: 'Circling works on Mac', text: 'Option+Shift+S keeps the cursor for as long as you need to circle, and puts you back in your app afterwards.' },
+      { icon: '💬', title: 'Talk to screen assist normally', text: 'Say "Hey Callisto" and ask anything, about your screen or not. It also takes a fresh look at your screen for every question.' }
+    ],
     '1.9.45': [
       { icon: '👀', title: 'Circle only when you ask', text: 'Screen assist no longer turns on the magic cursor by itself. Press Alt+Shift+S (Option+Shift+S on a Mac) to circle, and you stay in the app you were using.' }
     ],

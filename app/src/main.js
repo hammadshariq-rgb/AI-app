@@ -918,7 +918,7 @@ function buildCaptureWindow() {
     focusable: true,
     hasShadow: false,
     show: false,
-    ...(process.platform === 'darwin' ? { type: 'panel', acceptFirstMouse: true } : {}),
+    ...(process.platform === 'darwin' ? { acceptFirstMouse: true } : {}),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -1001,12 +1001,21 @@ function _assistPassive() {
     captureWindow.setBounds(_captureStrip());
     captureWindow.webContents.send('capture:passive');
     if (hudWindow && !hudWindow.isDestroyed()) hudWindow.moveTop();
+    if (process.platform === 'darwin') {
+      // Back where they were: the main window returns behind, then their app comes forward.
+      if (_macMainWasShown && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.showInactive();
+      _macMainWasShown = false;
+      _restoreFocusNext = true;
+      restoreFrontApp().catch(() => {});
+    }
   } catch (_) {}
 }
 // Alt+Shift+S during screen assist: a fresh picture of the screen, then the
 // layer takes the mouse for one circle.
+let _macMainWasShown = false;
 async function _assistCircle() {
   if (!ASSIST.on) return;
+  if (process.platform === 'darwin') rememberFrontApp();
   if (!captureWindow || captureWindow.isDestroyed()) return;
   try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
   if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
@@ -1014,10 +1023,11 @@ async function _assistCircle() {
   captureWindow.setIgnoreMouseEvents(false);
   captureWindow.showInactive();
   if (process.platform === 'darwin') {
+    _macMainWasShown = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible());
+    if (_macMainWasShown) overlayWindow.hide();
     try { globalShortcut.register('Escape', () => _assistPassive()); } catch (_) {}
-  } else {
-    captureWindow.focus();
   }
+  captureWindow.focus();
   captureWindow.webContents.send('capture:circle-now');
 }
 
@@ -7293,8 +7303,15 @@ ipcMain.handle('screen:watch-state', () => ({
 // that could not see question 2. It reads the screen WITH the question, speaks
 // the answer, and puts it on the card over whatever app they are in.
 ipcMain.handle('assist:ask', async (e, { question } = {}) => {
-  const q = String(question || '').trim();
-  if (!q) return { ok: false };
+  // "Hey Callisto, ..." is them addressing it; the rest is the question.
+  const q = String(question || '').trim()
+    .replace(/^(?:hey|hi|hello|ok(?:ay)?|yo)?[,\s]*(?:callisto|calisto|kallisto)[,.!?:\s]*/i, '').trim();
+  if (!q || /^(?:hey|hi|hello|you there|are you there|can you hear me)[?.!\s]*$/i.test(q)) {
+    const hi = 'I am here and I can see your screen. What do you need?';
+    sendToHud('hud:card', { type: 'info', text: hi, ttl: 5000, force: true });
+    _sendTTS(e.sender, hi);
+    return { ok: true, text: hi };
+  }
 
   // "Write an email here for me" means write it INTO the draft they are in,
   // not describe it on a card they then have to retype.
@@ -7328,7 +7345,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       + 'said, and match its tone and language. Reply with ONLY the words to '
       + 'insert: no preamble, no "here is", no quotation marks around it, no '
       + 'markdown. Set action to null.',
-      { frame: ASSIST.frame }
+      { frame: ASSIST.circled ? ASSIST.frame : null }
     );
     if (written.ok && written.text) {
       const body = String(written.text).trim().replace(/^["'`]|["'`]$/g, '');
@@ -7381,7 +7398,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       + '\n'
       + 'This overrides the two-or-three-sentence rule: the [CODE] section may be '
       + 'as long as the code needs. Set action to null.',
-      { frame: ASSIST.frame }
+      { frame: ASSIST.circled ? ASSIST.frame : null }
     );
     const raw = fixed.ok ? String(fixed.text || '') : '';
     if (raw && raw.indexOf('[NOTCODE]') < 0) {
@@ -7442,7 +7459,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       + '\n'
       + 'This overrides the two-or-three-sentence rule: give as many steps as it '
       + 'actually takes. Set action to null.',
-      { frame: ASSIST.frame }
+      { frame: ASSIST.circled ? ASSIST.frame : null }
     );
     if (taught.ok && taught.text) {
       const sec = _sections(String(taught.text), ['SUMMARY', 'STEPS', 'WATCH']);
@@ -7476,12 +7493,14 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     (ASSIST.circled ? 'They circled one part of their screen; the picture shows only that part. ' : '')
     + 'They asked this out loud while you were watching their screen: "' + q + '"\n'
     + 'Small dark floating cards in a corner are your own notices; ignore them.\n'
-    + 'Answer it about what is actually on the screen in front of them. If they '
+    + 'If it is about the screen, answer it about what is actually on the screen in front of them. '
+    + 'If it is not about the screen at all - a general question, a chat, a fact, advice - just answer it '
+    + 'like a normal assistant would, using the screen only if it helps. Never refuse because it is not about the screen. If they '
     + 'point at something - "question 2", "this error", "the second one" - find it '
     + 'on screen and work from that. Do not say you cannot see it unless the screen '
     + 'genuinely does not show it. Set action to null unless there is something to '
     + 'press.',
-    { frame: ASSIST.frame }
+    { frame: ASSIST.circled ? ASSIST.frame : null }
   );
   if (!out.ok || !out.text) {
     const why = out.error || 'I could not read the screen just then.';
