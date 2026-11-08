@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.47': [
+      { icon: '🖱️', title: 'Circling that holds', text: 'Alt+Shift+S (Option+Shift+S on a Mac) now opens the same circle as the magic cursor: hold, drag round anything, let go and it is done.' },
+      { icon: '📐', title: 'Diagrams on the side card', text: 'Answers on the floating card wait for their diagram instead of closing before it arrives.' }
+    ],
     '1.9.46': [
       { icon: '🖱️', title: 'Circling works on Mac', text: 'Option+Shift+S keeps the cursor for as long as you need to circle, and puts you back in your app afterwards.' },
       { icon: '💬', title: 'Talk to screen assist normally', text: 'Say "Hey Callisto" and ask anything, about your screen or not. It also takes a fresh look at your screen for every question.' }

@@ -993,14 +993,80 @@ function closeCaptureOverlay() {
 
 // Circled while screen assist is on: the question that follows is about this
 // part only. Escape takes the circle away again and the whole screen counts.
-function _assistPassive() {
+// The bar along the top while screen assist is on. Its own small window that
+// never takes the mouse, so the circle layer never has to switch in and out of
+// letting clicks through - switching back was unreliable and let the circle
+// go after a couple of seconds.
+let assistBar = null;
+function _assistBarText(circled) {
+  const k = process.platform === 'darwin' ? 'Option' : 'Alt';
+  return circled
+    ? 'Got it - <span>now ask about what you circled · <b>' + k + '+Shift+S</b> to circle again</span>'
+    : 'Screen assist is on - <span>just ask, or press <b>' + k + '+Shift+S</b> to circle something · <b>' + k + '+Shift+C</b> turns it off</span>';
+}
+function showAssistBar(circled) {
+  const html = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:transparent;overflow:hidden;cursor:default}'
+    + '#b{position:fixed;top:24px;left:50%;transform:translateX(-50%);background:rgba(6,9,24,.88);border:1px solid rgba(94,114,228,.45);'
+    + 'border-radius:12px;color:rgba(190,215,255,.92);font:600 13px/1 Inter,system-ui,-apple-system,sans-serif;letter-spacing:.4px;padding:10px 22px;'
+    + 'white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.5)}#b span{color:rgba(130,160,255,.7);font-weight:400}</style>'
+    + '<div id="b">' + _assistBarText(circled) + '</div>';
   try {
-    if (!captureWindow || captureWindow.isDestroyed()) return;
-    try { if (globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape'); } catch (_) {}
-    captureWindow.setIgnoreMouseEvents(true, { forward: true });
-    captureWindow.setBounds(_captureStrip());
-    captureWindow.webContents.send('capture:passive');
-    if (hudWindow && !hudWindow.isDestroyed()) hudWindow.moveTop();
+    const wa = screen.getPrimaryDisplay().workArea;
+    if (!assistBar || assistBar.isDestroyed()) {
+      assistBar = new BrowserWindow({
+        x: wa.x, y: wa.y, width: wa.width, height: 80, frame: false, transparent: true, backgroundColor: '#00000000',
+        resizable: false, alwaysOnTop: true, skipTaskbar: true, focusable: false, hasShadow: false, show: false,
+      });
+      assistBar.setIgnoreMouseEvents(true);
+      assistBar.setAlwaysOnTop(true, 'screen-saver', 1);
+      if (process.platform === 'darwin') assistBar.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      assistBar.on('closed', () => { assistBar = null; });
+    }
+    assistBar.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: 80 });
+    assistBar.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+      .then(() => { if (ASSIST.on && assistBar && !assistBar.isDestroyed()) assistBar.showInactive(); })
+      .catch(() => {});
+  } catch (_) {}
+}
+function hideAssistBar() {
+  try { if (assistBar && !assistBar.isDestroyed()) assistBar.hide(); } catch (_) {}
+}
+
+// Alt+Shift+S (Option on a Mac): the circle layer opens exactly the way the
+// magic cursor (Ctrl+Shift+Y) does - full screen, taking the mouse - and closes
+// again once they have circled or pressed Esc.
+let _macMainWasShown = false;
+async function _assistCircle() {
+  if (!ASSIST.on) return;
+  if (process.platform === 'darwin') rememberFrontApp();
+  const ready = buildCaptureWindow();
+  if (ready) await ready;
+  if (!captureWindow || captureWindow.isDestroyed()) return;
+  hideAssistBar();
+  await new Promise((r) => setTimeout(r, 60));
+  try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
+  if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
+  captureWindow.webContents.send('capture:reset');
+  captureWindow.webContents.send('capture:mode', { assist: true });
+  captureWindow.setBounds(_captureFull());
+  captureWindow.setIgnoreMouseEvents(false);
+  if (process.platform === 'darwin') {
+    _macMainWasShown = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible());
+    if (_macMainWasShown) overlayWindow.hide();
+    try { globalShortcut.register('Escape', () => _assistPassive()); } catch (_) {}
+  }
+  captureWindow.show();
+  captureWindow.focus();
+  captureWindow.webContents.send('capture:circle-now');
+}
+function _assistPassive() {
+  try { if (globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape'); } catch (_) {}
+  try {
+    if (captureWindow && !captureWindow.isDestroyed()) {
+      captureWindow.webContents.send('capture:passive');
+      captureWindow.hide();
+    }
+    if (ASSIST.on) showAssistBar(ASSIST.circled);
     if (process.platform === 'darwin') {
       // Back where they were: the main window returns behind, then their app comes forward.
       if (_macMainWasShown && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.showInactive();
@@ -1009,26 +1075,6 @@ function _assistPassive() {
       restoreFrontApp().catch(() => {});
     }
   } catch (_) {}
-}
-// Alt+Shift+S during screen assist: a fresh picture of the screen, then the
-// layer takes the mouse for one circle.
-let _macMainWasShown = false;
-async function _assistCircle() {
-  if (!ASSIST.on) return;
-  if (process.platform === 'darwin') rememberFrontApp();
-  if (!captureWindow || captureWindow.isDestroyed()) return;
-  try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
-  if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
-  captureWindow.setBounds(_captureFull());
-  captureWindow.setIgnoreMouseEvents(false);
-  captureWindow.showInactive();
-  if (process.platform === 'darwin') {
-    _macMainWasShown = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible());
-    if (_macMainWasShown) overlayWindow.hide();
-    try { globalShortcut.register('Escape', () => _assistPassive()); } catch (_) {}
-  }
-  captureWindow.focus();
-  captureWindow.webContents.send('capture:circle-now');
 }
 
 ipcMain.on('capture:assist-area', async (_e, bounds) => {
@@ -1039,6 +1085,7 @@ ipcMain.on('capture:assist-area', async (_e, bounds) => {
     if (!crop || !ASSIST.on) return;
     ASSIST.frame = crop;
     ASSIST.circled = true;
+    showAssistBar(true);
     try { ASSIST.thumb = require('electron').nativeImage.createFromDataURL(crop).resize({ width: 560 }).toDataURL(); } catch (_) {}
   } catch (_) {}
 });
@@ -4999,6 +5046,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       ? { type: finalCard.type || 'wiki', text: finalText, card: finalCard, title: finalCard.title }
       : { type: 'info', text: finalText };
     sendToHud('hud:card', cardPayload);
+    _teachDiagram(message, finalText);
   }
 
   return { text: finalText, audio: null, card: finalCard, hasAction: didTakeAction, emailDraft };
@@ -8017,6 +8065,7 @@ function stopAssist(reason) {
   if (!ASSIST.on) return { ok: false };
   ASSIST.on = false;
   closeCaptureOverlay();
+  hideAssistBar();
   if (ASSIST.timer) clearInterval(ASSIST.timer);
   ASSIST.timer = null;
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.webContents.send('hud:prompt-close');
@@ -8193,7 +8242,8 @@ function startAssist() {
   _tellOverlayAssist({ on: true });
   // Clicks go straight through the layer; Alt+Shift+S (Option on a Mac) circles.
   try { globalShortcut.register('Alt+Shift+S', _assistCircle); } catch (_) {}
-  openCaptureOverlay({ assist: true }).then(() => {
+  showAssistBar(false);
+  Promise.resolve(buildCaptureWindow()).then(() => {
     if (!ASSIST.on) return;
     // The layer opens after the notice at the same level; keep the cards above it.
     try {
@@ -8236,13 +8286,14 @@ const TEACH_STEP_MATHS = /\b(?:solve|calculate|evaluate|simplify|differentiate|i
 async function _teachDiagram(question, answer) {
   const _q = String(question || '');
   if (!TEACH_Q.test(_q) || (TEACH_STEP_MATHS.test(_q) && !/\b(?:chart|plot|graph|diagram|draw)\b/i.test(_q)) || String(answer || '').length < 140) return;
+  sendToHud('hud:diagram-wait', {});
   try {
     const res = await ai.serverFetch('diagram', { question: String(question).slice(0, 1500), answer: String(answer).slice(0, 5000) }, { timeout: 60000, retries: 0 });
     const d = await res.json();
-    if (!d || !(d.svg || d.chart)) return;
+    if (!d || !(d.svg || d.chart)) return void sendToHud('hud:diagram-none', {});
     sendToHud('hud:diagram', d);
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('assist:diagram', d);
-  } catch (_) {}
+  } catch (_) { sendToHud('hud:diagram-none', {}); }
 }
 
 // Fills the screen, or puts it back. Some Macs open the window small, and the

@@ -308,8 +308,21 @@ ipcRenderer.on('hud:listening-stop', () => {
 });
 // A diagram that finished after the answer: under the newest worked card, and
 // the card waits longer now there is more on it.
+// A diagram is being drawn for the newest card: keep that card up until it
+// arrives (or a minute passes), instead of closing it first.
+ipcRenderer.on('hud:diagram-wait', () => {
+  const card = document.querySelector('.hud-card');
+  if (!card) return;
+  card.classList.add('held', 'awaiting');
+  setTimeout(() => { if (card.classList.contains('awaiting')) card.classList.remove('held', 'awaiting'); }, 60000);
+});
+ipcRenderer.on('hud:diagram-none', () => {
+  document.querySelectorAll('.hud-card.awaiting').forEach((c) => c.classList.remove('held', 'awaiting'));
+});
 ipcRenderer.on('hud:diagram', (_e, d) => {
-  const card = document.querySelector('.hud-card.worked') || document.querySelector('.hud-card');
+  const card = document.querySelector('.hud-card.awaiting') || document.querySelector('.hud-card.worked') || document.querySelector('.hud-card');
+  if (card) card.classList.remove('awaiting');
+  if (card && card.querySelector('.teach-diagram')) return;   // one picture per card
   const desc = card && card.querySelector('.card-desc');
   const svg = window.CallistoDiagram && d ? window.CallistoDiagram.visual(d) : null;
   if (!desc || !svg) return;
