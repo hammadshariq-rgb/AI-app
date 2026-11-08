@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.48': [
+      { icon: '🖱️', title: 'Circle over any app on Mac', text: 'Option+Shift+S now opens the circle right over Chrome or a full-screen app, instead of jumping back to Callisto or the desktop.' }
+    ],
     '1.9.47': [
       { icon: '🖱️', title: 'Circling that holds', text: 'Alt+Shift+S (Option+Shift+S on a Mac) now opens the same circle as the magic cursor: hold, drag round anything, let go and it is done.' },
       { icon: '📐', title: 'Diagrams on the side card', text: 'Answers on the floating card wait for their diagram instead of closing before it arrives.' }

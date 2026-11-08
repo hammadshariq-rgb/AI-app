@@ -926,6 +926,12 @@ function buildCaptureWindow() {
     },
   });
   captureWindow.setIgnoreMouseEvents(false);
+  // Mac: without this the layer lives only in Callisto's own Space, so opening
+  // it over Chrome (or any full-screen app) jumps back to Callisto or the desktop.
+  if (process.platform === 'darwin') {
+    captureWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    captureWindow.setAlwaysOnTop(true, 'screen-saver', 3);
+  }
   // Closing it would put the 2.5 seconds back. The window outlives each use.
   captureWindow.on('close', (e) => {
     if (!isQuitting) { e.preventDefault(); captureWindow.hide(); }
@@ -1053,6 +1059,9 @@ async function _assistCircle() {
   if (process.platform === 'darwin') {
     _macMainWasShown = !!(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible());
     if (_macMainWasShown) overlayWindow.hide();
+    // Re-stated every time: macOS can drop it after a hide, and then show() pulls the user to Callisto's Space.
+    captureWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    captureWindow.setAlwaysOnTop(true, 'screen-saver', 3);
     try { globalShortcut.register('Escape', () => _assistPassive()); } catch (_) {}
   }
   captureWindow.show();
