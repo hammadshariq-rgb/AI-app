@@ -1712,6 +1712,9 @@ app.whenReady().then(async () => {
     // the indicator has to stay up rather than time itself out after twelve
     // seconds. Without this flag the overlay's own mic-state message landed
     // after startAssist and quietly downgraded it back to a short one.
+    // Assist mode shows its notice once, from startAssist. The microphone
+    // restarting under it used to resend this and make the notice flicker.
+    if (ASSIST.on) return;
     sendToHud(on ? 'hud:listening' : 'hud:listening-stop', {
       sustained: !!ASSIST.on,
       label: ASSIST.on ? '👀 Watching your screen · listening' : 'Listening…',
@@ -7422,7 +7425,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
       const sec = _sections(String(taught.text), ['SUMMARY', 'STEPS', 'WATCH']);
       if (sec.STEPS) {
         const summary = sec.SUMMARY || 'Here is how to do it';
-        sendToHud('hud:card', { type: 'info', text: (summary + '\n\n' + sec.STEPS).slice(0, 1200) });
+        sendToHud('hud:card', { type: 'info', text: (summary + '\n\n' + sec.STEPS).slice(0, 1200), ttl: 7000 });
         // Spoken: the first couple of steps, then let them read the rest. Eight
         // numbered steps read aloud is not teaching, it is noise.
         const spoken = sec.STEPS.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -7463,7 +7466,7 @@ ipcMain.handle('assist:ask', async (e, { question } = {}) => {
     return { ok: false };
   }
   // The card shows the full working; the voice says the short version.
-  sendToHud('hud:card', { type: 'info', title: 'About your screen', text: String(out.text).slice(0, 6000), rich: true, force: true });
+  sendToHud('hud:card', { type: 'info', title: 'About your screen', text: String(out.text).slice(0, 6000), rich: true, force: true, ttl: 7000 });
   _teachDiagram(q, out.text);
   _sendTTS(e.sender, out.spoken || String(out.text).replace(/\\[()[\]]/g, '').replace(/\*\*/g, '').slice(0, 600));
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -7947,7 +7950,7 @@ async function _doAssistAction(action) {
       : 'Draft a reply to the message on screen, in their voice, ready to send. Give the '
         + 'reply itself and nothing else - no preamble, no options. Set action to null.');
     const body = out.ok && out.text ? out.text : (out.error || 'I could not read that.');
-    sendToHud('hud:card', { type: 'info', text: body });
+    sendToHud('hud:card', { type: 'info', text: body, ttl: 7000 });
     // And in the window too, so it is somewhere they can copy it from.
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('assist:result', {
@@ -8134,16 +8137,9 @@ function startAssist() {
   // only, so it appears over whatever they are working in and never inside
   // Callisto itself.
   ASSIST.announced = true;
-  sendToHud('hud:card', {
-    type: 'info',
-    text: '👀 Screen assist is on. Say what you need, then press Alt+Shift+C again.',
-    ttl: 3000,
-    force: true,
-  });
-  // And then the microphone bars stay up for as long as it is actually
-  // listening. The second notice card used to say this and vanish, which left
-  // no way to tell an open microphone from a broken one.
-  sendToHud('hud:listening', { sustained: true, label: '👀 Watching your screen · listening' });
+  // One notice, shown once for five seconds. A separate card plus the bars
+  // used to take turns, which looked like it was flickering.
+  sendToHud('hud:listening', { sustained: true, ttl: 5000, label: 'Screen assist is on and listening' });
   _tellOverlayAssist({ on: true });
   // Moving the mouse does nothing; pressing and circling picks out an area.
   // The notice goes up again once that layer is showing, above it, because on

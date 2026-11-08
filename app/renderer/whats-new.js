@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.42': [
+      { icon: '👀', title: 'Calmer screen assist', text: 'The "screen assist is on" notice now shows once for five seconds instead of flickering, and answers stay up for seven.' }
+    ],
     '1.9.41': [
       { icon: '🌐', title: 'Up to date with the world', text: 'Ask about anything recent, from a launch to an IPO, and Callisto searches the web first and tells you where it found it.' },
       { icon: '📈', title: 'Graphs', text: 'Company revenue and growth, share prices, and economics like monetary policy or AD-AS, drawn exactly to scale.' },

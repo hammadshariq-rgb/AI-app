@@ -292,7 +292,12 @@ ipcRenderer.on('hud:listening', (_e, d) => {
   const label = listenEl.querySelector('.listen-text');
   if (label) label.textContent = (d && d.label) || 'Listening…';
   if (listenTimer) { clearTimeout(listenTimer); listenTimer = null; }
-  if (!listenHold) listenTimer = setTimeout(() => { listenEl.style.display = 'none'; }, 12000);
+  const hideAfter = (d && d.ttl) || (listenHold ? 0 : 12000);
+  if (hideAfter) listenTimer = setTimeout(() => {
+    listenEl.style.display = 'none';
+    listenEl.classList.remove('held');
+    document.body.classList.remove('listening');
+  }, hideAfter);
 });
 ipcRenderer.on('hud:listening-stop', () => {
   listenHold = false;
