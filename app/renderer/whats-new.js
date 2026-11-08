@@ -13,7 +13,9 @@
 
   var NOTES = {
     '1.9.43': [
-      { icon: '👀', title: 'Screen assist cards stay put', text: 'The notice, the Esc hint and answers no longer blink off and on while Callisto looks at your screen.' }
+      { icon: '👀', title: 'Screen assist cards stay put', text: 'The notice, the Esc hint and answers no longer blink off and on while Callisto looks at your screen.' },
+      { icon: '📈', title: 'Graphs behind the story', text: 'Ask why a company went public or how it grew, and you get a graph of the revenue or valuation that led there.' },
+      { icon: '⌨️', title: 'Mac shortcuts split', text: 'On a Mac, Option+Shift+C turns on screen assist and Option+Shift+S lets you circle part of the screen.' }
     ],
     '1.9.42': [
       { icon: '👀', title: 'Calmer screen assist', text: 'The "screen assist is on" notice now shows once for five seconds instead of flickering, and answers stay up for seven.' }

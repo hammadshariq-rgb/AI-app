@@ -988,12 +988,16 @@ function _assistPassive() {
     if (!captureWindow || captureWindow.isDestroyed()) return;
     captureWindow.setIgnoreMouseEvents(true, { forward: true });
     captureWindow.webContents.send('capture:passive');
+    // On a Mac the layer goes away again after the circle, cursor and all.
+    if (process.platform === 'darwin') captureWindow.hide();
   } catch (_) {}
 }
 // Alt+Shift+S during screen assist: a fresh picture of the screen, then the
 // layer takes the mouse for one circle.
 async function _assistCircle() {
-  if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
+  if (!ASSIST.on) return;
+  if (process.platform === 'darwin') { try { await openCaptureOverlay({ assist: true }); } catch (_) {} }
+  if (!captureWindow || captureWindow.isDestroyed()) return;
   try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
   if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
   captureWindow.setIgnoreMouseEvents(false);
@@ -8149,7 +8153,9 @@ function startAssist() {
   // The notice goes up again once that layer is showing, above it, because on
   // the first press the layer is still being built and used to cover it.
   try { globalShortcut.register('Alt+Shift+S', _assistCircle); } catch (_) {}
-  openCaptureOverlay({ assist: true }).then(() => {
+  // On a Mac the layer brings a crosshair cursor with it, so it only opens
+  // when Option+Shift+S asks for a circle.
+  (process.platform === 'darwin' ? Promise.resolve() : openCaptureOverlay({ assist: true })).then(() => {
     if (!ASSIST.on) return;
     // The circle layer is shown after the notice, at the same level, so on
     // Windows it landed on top of the card and hid it. Lift the card window
@@ -8185,6 +8191,7 @@ const TEACH_Q = new RegExp([
   '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
   '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
   // a company's figures over time, and economics on axes
+  '\\b(?:ipo|go(?:ing|ne)? public|went public|listing|listed|funding rounds?|raised|fundrais\\w*|valuation|unicorn|acquisition|acquired|bankrupt\\w*|rise of|growth of|how (?:did|has) \\w+ grow)\\b',
   '\\b(?:revenue|revenues|sales|profit|profits|earnings|income|margin|margins|growth|market share|valuation|market cap|share price|stock price|financial position|financials|balance sheet|cash flow|debt|subscribers|users)\\b.{0,40}\\b(?:of|for|at|in|over|since|by year|per year|each year|trend|history|growth|compare|vs)\\b|\\b(?:how (?:has|have|is|did))\\b.{0,50}\\b(?:revenue|sales|profit|earnings|growth|share price|stock|valuation)\\b',
   '\\b(?:monetary policy|fiscal policy|interest rates?|inflation|money supply|money market|aggregate (?:demand|supply)|ad[ -]?as|phillips curve|lorenz curve|laffer curve|production possibilit(?:y|ies)|ppf|ppc|elasticity|price (?:ceiling|floor)|tax incidence|deadweight loss|consumer surplus|producer surplus|exchange rate|gdp|business cycle|is[ -]?lm)\\b',
   // or a picture asked for by name

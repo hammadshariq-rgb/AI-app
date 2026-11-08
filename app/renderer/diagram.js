@@ -27,6 +27,7 @@
     '\\b(?:made of|made from|made out of|composed of|consists? of|ingredients|components|materials|inside (?:a|an|the|of)|what\'?s inside)\\b',
     '\\bhow (?:do|does|did|is|are|can)\\b.{0,60}\\b(?:built|designed|structured|organi[sz]ed|powered|controlled|cooled|heated|stored|charged|fuelled|fueled)\\b',
     // a company's figures over time, and economics on axes
+    '\\b(?:ipo|go(?:ing|ne)? public|went public|listing|listed|funding rounds?|raised|fundrais\\w*|valuation|unicorn|acquisition|acquired|bankrupt\\w*|rise of|growth of|how (?:did|has) \\w+ grow)\\b',
     '\\b(?:revenue|revenues|sales|profit|profits|earnings|income|margin|margins|growth|market share|valuation|market cap|share price|stock price|financial position|financials|balance sheet|cash flow|debt|subscribers|users)\\b.{0,40}\\b(?:of|for|at|in|over|since|by year|per year|each year|trend|history|growth|compare|vs)\\b|\\b(?:how (?:has|have|is|did))\\b.{0,50}\\b(?:revenue|sales|profit|earnings|growth|share price|stock|valuation)\\b',
     '\\b(?:monetary policy|fiscal policy|interest rates?|inflation|money supply|money market|aggregate (?:demand|supply)|ad[ -]?as|phillips curve|lorenz curve|laffer curve|production possibilit(?:y|ies)|ppf|ppc|elasticity|price (?:ceiling|floor)|tax incidence|deadweight loss|consumer surplus|producer surplus|exchange rate|gdp|business cycle|is[ -]?lm)\\b',
     // or a picture asked for by name
