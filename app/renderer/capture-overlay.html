@@ -443,6 +443,12 @@ ipcRenderer.on('capture:passive', () => {
   armed = false;
   document.body.style.cursor = 'default';
   document.documentElement.style.cursor = 'default';
+  // Cancelled without circling: back to the normal assist bar.
+  const hint = document.getElementById('hint');
+  if (hint && /^Circle what you mean/.test(hint.innerText)) {
+    const k = process.platform === 'darwin' ? 'Option' : 'Alt';
+    hint.innerHTML = 'Screen assist is on - <span>just ask, or press <b>' + k + '+Shift+S</b> to circle something · <b>' + k + '+Shift+C</b> turns it off</span>';
+  }
 });
 
 // The screen has been captured: show the prompt and start accepting a circle.

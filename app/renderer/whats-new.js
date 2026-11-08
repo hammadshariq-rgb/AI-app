@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.45': [
+      { icon: '👀', title: 'Circle only when you ask', text: 'Screen assist no longer turns on the magic cursor by itself. Press Alt+Shift+S (Option+Shift+S on a Mac) to circle, and you stay in the app you were using.' }
+    ],
     '1.9.44': [
       { icon: '👀', title: 'Screen assist back to normal', text: 'The "screen assist is on" card and the top bar are back, Callisto sees your screen clearly again, and cards no longer blink while it watches.' },
       { icon: '📍', title: 'Cards in the corner on Mac', text: 'Callisto\'s floating cards now sit in the bottom right of your Mac screen, the same as on Windows.' }

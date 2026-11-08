@@ -893,6 +893,11 @@ function _captureSize() {
   return { width, height: process.platform === 'win32' ? height - 1 : height };
 }
 
+function _captureFull() { const { width, height } = _captureSize(); return { x: 0, y: 0, width, height }; }
+function _captureStrip() {
+  const wa = screen.getPrimaryDisplay().workArea;
+  return { x: wa.x, y: wa.y, width: wa.width, height: 90 };
+}
 function buildCaptureWindow() {
   if (captureWindow && !captureWindow.isDestroyed()) return _captureReady;
   const { width, height } = _captureSize();
@@ -913,6 +918,7 @@ function buildCaptureWindow() {
     focusable: true,
     hasShadow: false,
     show: false,
+    ...(process.platform === 'darwin' ? { type: 'panel', acceptFirstMouse: true } : {}),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -940,9 +946,7 @@ async function openCaptureOverlay(opts = {}) {
   const ready = buildCaptureWindow();
   // Fit the current display, in case they changed screen or resolution since.
   try {
-    const { width, height } = _captureSize();
-    const [cw, ch] = captureWindow.getSize();
-    if (cw !== width || ch !== height) { captureWindow.setBounds({ x: 0, y: 0, width, height }); }
+    captureWindow.setBounds(opts.assist ? _captureStrip() : _captureFull());
   } catch (_) {}
   // A fresh window still has to finish loading; a reused one resolves at once.
   if (ready) await ready;
@@ -992,10 +996,11 @@ function closeCaptureOverlay() {
 function _assistPassive() {
   try {
     if (!captureWindow || captureWindow.isDestroyed()) return;
+    try { if (globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape'); } catch (_) {}
     captureWindow.setIgnoreMouseEvents(true, { forward: true });
+    captureWindow.setBounds(_captureStrip());
     captureWindow.webContents.send('capture:passive');
     if (hudWindow && !hudWindow.isDestroyed()) hudWindow.moveTop();
-    // On a Mac the layer goes away again after the circle, cursor and all.
   } catch (_) {}
 }
 // Alt+Shift+S during screen assist: a fresh picture of the screen, then the
@@ -1005,9 +1010,14 @@ async function _assistCircle() {
   if (!captureWindow || captureWindow.isDestroyed()) return;
   try { await _grabFullScreen(); } catch (err) { console.warn('[assist] grab failed:', err.message); }
   if (!ASSIST.on || !captureWindow || captureWindow.isDestroyed()) return;
+  captureWindow.setBounds(_captureFull());
   captureWindow.setIgnoreMouseEvents(false);
   captureWindow.showInactive();
-  captureWindow.focus();
+  if (process.platform === 'darwin') {
+    try { globalShortcut.register('Escape', () => _assistPassive()); } catch (_) {}
+  } else {
+    captureWindow.focus();
+  }
   captureWindow.webContents.send('capture:circle-now');
 }
 
@@ -7984,6 +7994,7 @@ async function _doAssistAction(action) {
 
 function stopAssist(reason) {
   try { globalShortcut.unregister('Alt+Shift+S'); } catch (_) {}
+  try { if (globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape'); } catch (_) {}
   if (!ASSIST.on) return { ok: false };
   ASSIST.on = false;
   closeCaptureOverlay();
