@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.52': [
+      { icon: '✅', title: 'Straight back to you', text: 'Connecting an account no longer covers the app with a full screen. You get a short note in chat and carry on.' }
+    ],
     '1.9.51': [
       { icon: '✅', title: 'A proper "connected" screen', text: 'When you connect Stripe, Spotify, Shopify, Gmail or any other account, a full screen now tells you it worked and what to ask next.' },
       { icon: '🎨', title: 'Each with its own scene', text: 'Stripe shows green dollar signs, Spotify its glowing logo, and the rest a city sunset.' }
