@@ -16,22 +16,22 @@
   'use strict';
 
   const P = {
-    cell: 14, coverage: 0.96, contrast: 1.15, edge: 0.40,
+    cell: 7, coverage: 0.96, contrast: 1.15, edge: 0.40,
     tint: [0, 255, 102], tintAmt: 0.45, bgFill: 'rgba(2,5,18,0.90)',
     vignette: 0.38, scan: 0.28, chroma: 0.40, bloom: 0.60, grain: 0.40, glitch: 0.20,
     flicker: 0.60, fps: 30,
   };
   const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 
-  function attach(modalId) {
+  function attach(modalId, when) {
     const modal = document.getElementById(modalId);
-    if (!modal || modal.querySelector('.ascii-bg')) return;
+    if (!modal || modal.querySelector('.ascii-bg-stripe')) return;
     const cv = document.createElement('canvas');
-    cv.className = 'ascii-bg';
+    cv.className = 'ascii-bg ascii-bg-stripe';
     cv.setAttribute('aria-hidden', 'true');
     cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;';
     modal.insertBefore(cv, modal.firstChild);
-    const box = modal.querySelector('.conn-box');
+    const box = modal.querySelector(':scope > :not(canvas)');
     if (box) { box.style.position = 'relative'; box.style.zIndex = '1'; }
 
     const ctx = cv.getContext('2d');
@@ -142,8 +142,10 @@
     }
     function stop() { running = false; cancelAnimationFrame(raf); }
 
-    const isOpen = () => !modal.classList.contains('hidden');
-    new MutationObserver(() => (isOpen() ? start() : stop())).observe(modal, { attributes: true, attributeFilter: ['class'] });
+    const isOpen = () => !modal.classList.contains('hidden') && (!when || when(modal));
+    const show = () => { cv.style.display = isOpen() ? '' : 'none'; };
+    new MutationObserver(() => { show(); isOpen() ? start() : stop(); }).observe(modal, { attributes: true, attributeFilter: ['class', 'data-service'] });
+    show();
     addEventListener('resize', () => { if (isOpen()) { resize(); if (reduced) frame(0); } });
     if (isOpen()) start();
   }
@@ -161,6 +163,23 @@
   // The source picture: a hundred-dollar-style note, drawn rather than
   // photographed, laid out to fill the window.
   function drawNote(x, w, h) {
+    // One big, unmistakable dollar sign filling the window, softly lit.
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    const glow = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6);
+    glow.addColorStop(0, '#1d3a24'); glow.addColorStop(1, '#000');
+    x.fillStyle = glow; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    // A field of big dollar signs, staggered, so the shape reads all round the box.
+    const size = Math.max(14, Math.round(h * 0.34));
+    x.font = '900 ' + size + 'px "Arial Black", Impact, Arial, sans-serif';
+    const stepX = size * 0.95, stepY = size * 0.92;
+    for (let r = -1, ry = 0; ry < h + size; r++, ry = r * stepY + stepY / 2) {
+      for (let cx = (r & 1 ? stepX / 2 : 0) - stepX; cx < w + stepX; cx += stepX) {
+        x.fillText('$', cx, ry);
+      }
+    }
+  }
+  function drawNoteOld(x, w, h) {
     x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
     const nw = Math.min(w * 0.92, h * 0.92 * 2.35), nh = nw / 2.35;
     const ox = (w - nw) / 2, oy = (h - nh) / 2;
@@ -194,6 +213,6 @@
     x.fillText('100', ox + nw * 0.14, oy + nh * 0.78);
   }
 
-  const go = () => attach('stripeConnectModal');
+  const go = () => attach('connectedScreen', (m) => m.dataset.service === 'stripe');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();

@@ -2778,6 +2778,14 @@
       </div>
 
       <!-- Stripe connect modal -->
+      <div id="connectedScreen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="csTitle">
+        <div class="cs-box">
+          <div class="cs-check" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg></div>
+          <div class="cs-title" id="csTitle"></div>
+          <div class="cs-sub" id="csSub"></div>
+          <button class="cs-done" id="csDone">Done</button>
+        </div>
+      </div>
       <div id="stripeConnectModal" class="hidden" role="dialog" aria-modal="true" aria-label="Connect Stripe">
         <div class="conn-box" id="stripeConnectBox">
           <button class="conn-close" id="stripeModalCancel" aria-label="Close">✕</button>
@@ -3245,6 +3253,8 @@
 
   <script src="renderer.js?v=76"></script>
   <script src="stripe-ascii-bg.js"></script>
+  <script src="sunset-ascii-bg.js"></script>
+  <script src="spotify-ascii-bg.js"></script>
   <script src="tour.js"></script>
   <script src="work-resume.js?v=1"></script>
   <script src="icons.js?v=1"></script>

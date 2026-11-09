@@ -10549,3 +10549,28 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 /* The "To" picker on the Messages and call cards */
 .mac-to{max-width:100%;padding:5px 9px;border-radius:8px;border:1px solid rgba(110,160,255,.28);background:rgba(255,255,255,.06);color:#e6eeff;font:inherit;font-size:13px}
 .mac-to option{background:#0b1226;color:#e6eeff}
+
+/* ── "X connected" screen: shown once a connection finishes, over that
+      connector's own background (dollar signs, Spotify, or the sunset). ── */
+#connectedScreen { position: fixed; inset: 0; z-index: 9995; display: flex; align-items: center; justify-content: center;
+  background: #03050e; animation: csIn .45s ease-out; }
+#connectedScreen.hidden { display: none; }
+@keyframes csIn { from { opacity: 0; } to { opacity: 1; } }
+#connectedScreen .cs-box { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center; padding: 34px 40px; border-radius: 22px; background: rgba(4,7,16,.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: csUp .55s cubic-bezier(.2,.8,.2,1); }
+@keyframes csUp { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+#connectedScreen .cs-check { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: var(--cs-accent, #3264f0); box-shadow: 0 0 34px var(--cs-accent, #3264f0); }
+#connectedScreen .cs-title { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 6px; color: #fff;
+  text-transform: uppercase; text-shadow: 0 0 24px color-mix(in oklab, var(--cs-accent, #3264f0) 55%, transparent); }
+#connectedScreen .cs-sub { max-width: 420px; font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 14px; line-height: 1.6; color: rgba(225,235,255,0.75); }
+#connectedScreen .cs-done { margin-top: 10px; min-width: 160px; height: 44px; padding: 0 26px; border-radius: 999px; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: #fff;
+  background: rgba(255,255,255,0.06); border: 1px solid color-mix(in oklab, var(--cs-accent, #3264f0) 70%, transparent);
+  transition: background .2s, transform .15s; }
+#connectedScreen .cs-done:hover { background: color-mix(in oklab, var(--cs-accent, #3264f0) 22%, transparent); transform: translateY(-1px); }
+#connectedScreen .cs-done:focus-visible { outline: 2px solid var(--cs-accent, #3264f0); outline-offset: 3px; }
+#connectedScreen[data-service="stripe"], #connectedScreen[data-service="spotify"] { --cs-accent: #1db954; }
+#connectedScreen:not([data-service="stripe"]):not([data-service="spotify"]) { --cs-accent: #ff6a2b; }
+@media (prefers-reduced-motion: reduce) { #connectedScreen, #connectedScreen .cs-box { animation: none; } }

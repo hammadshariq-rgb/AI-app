@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.51': [
+      { icon: '✅', title: 'A proper "connected" screen', text: 'When you connect Stripe, Spotify, Shopify, Gmail or any other account, a full screen now tells you it worked and what to ask next.' },
+      { icon: '🎨', title: 'Each with its own scene', text: 'Stripe shows green dollar signs, Spotify its glowing logo, and the rest a city sunset.' }
+    ],
     '1.9.50': [
       { icon: '⌨️', title: 'Mac keys everywhere', text: 'On a Mac, chat replies and cards now name Cmd and Option, never Ctrl or Alt.' },
       { icon: '📷', title: 'Your photo, not a black box', text: 'The camera card shows the photo it took, and reads logos and clothing more carefully.' },
