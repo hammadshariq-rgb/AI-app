@@ -10200,7 +10200,6 @@ document.getElementById('stripeModalConnect')?.addEventListener('click', async (
     renderConnectors();
     const name = result.accountName ? ` (${result.accountName})` : '';
     addMessage('assistant', `Stripe${name} connected! Ask me "how much revenue did I make this month?" or "show me my recent payments".`);
-    showConnectedScreen('stripe', 'Ask me "how much revenue did I make this month?" or "show me my recent payments".');
   } else {
     errEl.textContent = result.error || 'Connection failed - check your secret key.';
     errEl.classList.remove('hidden');
@@ -10238,7 +10237,6 @@ document.getElementById('squarespaceModalConnect')?.addEventListener('click', as
     _hideSquarespaceModal();
     renderConnectors();
     addMessage('assistant', "Squarespace connected! Ask me \"how many orders did I get this month?\" or \"what's my revenue?\"");
-    showConnectedScreen('squarespace', 'Ask me "how many orders did I get this month?" or "what is my revenue?"');
   } else {
     errEl.textContent = result.error || 'Connection failed - check your API key.';
     errEl.classList.remove('hidden');
@@ -10333,7 +10331,6 @@ document.getElementById('shopifyModalConnect')?.addEventListener('click', async 
     document.getElementById('shopifyTokenInput').value = '';
     renderConnectors();
     addMessage('assistant', `"${result.shopName}" is connected! Ask me "how are my sales this month?" or "how many orders came in this week?"`);
-    showConnectedScreen('shopify', 'Ask me "how are my sales this month?" or "how many orders came in this week?"');
   } else {
     errEl.textContent = result.error || 'Connection failed. Check your store URL and token.';
     errEl.classList.remove('hidden');
@@ -10408,33 +10405,6 @@ languageSearch?.addEventListener('input', () => renderLanguageList(languageSearc
 
 // "Stripe connected": a full screen over that connector's own background,
 // shown once the connection is made, with what to ask next.
-const _CS_NAMES = { gmail: 'Gmail', drive: 'Google Drive', calendar: 'Google Calendar', spotify: 'Spotify', youtube: 'YouTube',
-  instagram: 'Instagram', tiktok: 'TikTok', analytics: 'Google Analytics', googleAccount: 'Google Account', stripe: 'Stripe',
-  shopify: 'Shopify', squarespace: 'Squarespace', tv: 'TV' };
-function showConnectedScreen(service, message) {
-  const el = document.getElementById('connectedScreen');
-  if (!el) return;
-  const name = _CS_NAMES[service] || (service.charAt(0).toUpperCase() + service.slice(1));
-  el.dataset.service = service;
-  document.getElementById('csTitle').textContent = name.toUpperCase() + ' CONNECTED';
-  document.getElementById('csSub').textContent = String(message || '').replace(/^[^.!]*connected[.!]?\s*/i, '') || 'You are all set.';
-  el.classList.remove('hidden');
-  // They finished signing in on the service's own page in the browser: bring
-  // Callisto back to the front so they see it worked.
-  try { window.jarvis.focusWindow?.(); } catch (_) {}
-  setTimeout(() => document.getElementById('csDone')?.focus(), 50);
-}
-function hideConnectedScreen() {
-  const el = document.getElementById('connectedScreen');
-  if (!el || el.classList.contains('hidden')) return;
-  el.classList.add('hidden');
-  // Done: straight back into the app, on the main screen.
-  try { window.jarvis.focusWindow?.(); } catch (_) {}
-  try { window._navClose?.(); } catch (_) {}
-}
-document.getElementById('csDone')?.addEventListener('click', hideConnectedScreen);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideConnectedScreen(); });
-
 // Listen for successful connector OAuth callback
 //
 // Two places in the main process announce a finished connection, and for some
@@ -10460,7 +10430,7 @@ window.jarvis.onConnectorConnected(({ service }) => {
   const name = service.charAt(0).toUpperCase() + service.slice(1);
   const msg  = connectedMessages[service] || `${name} connected successfully.`;
   addMessage('assistant', msg);
-  showConnectedScreen(service, msg);
+  try { window.jarvis.focusWindow?.(); } catch (_) {}
 });
 
 // Show GA4 property picker after OAuth completes
