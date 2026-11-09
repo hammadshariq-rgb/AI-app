@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.53': [
+      { icon: '📊', title: 'Numbers you can read', text: 'The views above each bar in your analytics are now bright and easy to see.' },
+      { icon: '🔁', title: 'Again means again', text: 'Say "show them again" and you get the same stats back, not the whole dashboard.' }
+    ],
     '1.9.52': [
       { icon: '✅', title: 'Straight back to you', text: 'Connecting an account no longer covers the app with a full screen. You get a short note in chat and carry on.' }
     ],

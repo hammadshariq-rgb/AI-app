@@ -3201,6 +3201,7 @@ function stripSpokenName(q) {
   return out || String(q || '').trim();
 }
 
+let _lastAnalyticsPlatform = null;
 async function _chatHandler(_e, { message, history, attachments = [], turn = null }) {
   message = stripSpokenName(message);
   console.log('[CHAT] received:', message?.slice(0, 60));
@@ -4554,7 +4555,12 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   }
 
   if (finalAction?.type === 'get_analytics') {
-    const platform = finalAction.arg;
+    // "show them again" means the same panel as last time, not the whole
+    // dashboard: the model often answers a bare "again" with platform all.
+    let platform = finalAction.arg;
+    const _again = /\b(again|back up|once more|reopen|re-open)\b/i.test(String(message || ''));
+    if (_again && platform === 'all' && _lastAnalyticsPlatform && Date.now() - _lastAnalyticsPlatform.at < 3 * 3600 * 1000) platform = _lastAnalyticsPlatform.platform;
+    _lastAnalyticsPlatform = { platform, at: Date.now() };
     const analytics = await connectors.getAllAnalytics();
     const hasSomething = analytics.youtube || analytics.instagram || analytics.tiktok || analytics.shopify || analytics.googleAnalytics || analytics.squarespace || analytics.stripe;
     if (!hasSomething) {

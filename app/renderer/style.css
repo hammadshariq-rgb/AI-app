@@ -10550,3 +10550,7 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 .mac-to{max-width:100%;padding:5px 9px;border-radius:8px;border:1px solid rgba(110,160,255,.28);background:rgba(255,255,255,.06);color:#e6eeff;font:inherit;font-size:13px}
 .mac-to option{background:#0b1226;color:#e6eeff}
 
+
+/* Value above each bar in the analytics bar charts: readable, not a faint squashed label. */
+.aob-bars { position: relative; }
+.aob-val { position: absolute; transform: translate(-50%, -6px); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: #fff; padding: 1px 7px; border-radius: 999px; background: rgba(8,12,28,.75); border: 1px solid rgba(255,255,255,.14); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }

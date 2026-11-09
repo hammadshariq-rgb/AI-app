@@ -364,18 +364,24 @@
       var h = Math.max(2, (it.y / max) * ih), x = PAD_X + i * (bw + gap), y = PAD_T + ih - h;
       return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="4" fill="url(#' + id + ')">' +
         '<title>' + esc(it.label) + ': ' + num(it.y) + '</title></rect>' +
-        (n <= 12 ? '<text class="ao-axis" text-anchor="middle" x="' + (x + bw / 2) + '" y="' + (y - 5) + '">' + esc(compact(it.y)) + '</text>' : '');
+'';
     }).join('');
+    // The numbers sit in HTML over the chart, not in the SVG: the SVG is
+    // stretched to fit, which squashed and dimmed text drawn inside it.
+    var labels = n <= 12 ? items.map(function (it, i) {
+      var h = Math.max(2, (it.y / max) * ih), x = PAD_X + i * (bw + gap);
+      return '<span class="aob-val" style="left:' + ((x + bw / 2) / W * 100).toFixed(2) + '%;bottom:' + ((PAD_B + h) / H * 100).toFixed(2) + '%">' + esc(compact(it.y)) + '</span>';
+    }).join('') : '';
     var grid = '';
     for (var g = 0; g <= 3; g++) {
       var gy = PAD_T + (ih / 3) * g;
       grid += '<line x1="' + PAD_X + '" y1="' + gy + '" x2="' + (W - PAD_X) + '" y2="' + gy + '" class="ao-grid"/>';
     }
-    return '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Bar chart">' +
+    return '<div class="aob-bars">' + labels + '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Bar chart">' +
       '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="' + accent + '" stop-opacity="0.95"/>' +
       '<stop offset="100%" stop-color="#0f37b4" stop-opacity="0.35"/></linearGradient></defs>' +
-      grid + bars + '</svg>';
+      grid + bars + '</svg></div>';
   }
 
   function compact(v) {
