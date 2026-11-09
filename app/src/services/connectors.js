@@ -77,7 +77,7 @@ function getConnectorStatus() {
     shopify: !!store.get('connector.shopify.access_token'),
     squarespace: !!store.get('connector.squarespace.api_key'),
     analytics: !!store.get('connector.analytics.access_token'),
-    stripe: !!(store.get('connector.stripe.access_token') || store.get('connector.stripe.secret_key')),
+    stripe: !!(store.get('connector.stripe.access_token') || store.get('connector.stripe.secret_key') || store.get('connector.stripe.owner')),
     vipSenders: store.get('connector.vipSenders') || [],
     googleAccount: !!store.get('googleAccountEmail'),
     googleAccountEmail: store.get('googleAccountEmail') || null,
@@ -1258,6 +1258,19 @@ async function getGoogleAnalyticsStats() {
 
 // ── Stripe (universal payment/revenue connector) ───────────────────────────────
 
+// Is the signed-in person the owner of Callisto's own Stripe account? If so
+// it is connected without Stripe's sign-in page, which refuses it.
+async function connectStripeAsOwner() {
+  try {
+    const res = await fetch(`${SERVER}/owner/stripe`, { headers: { Authorization: `Bearer ${getAuthToken()}` } });
+    if (!res.ok) return false;
+    const d = await res.json();
+    if (!d.owner) return false;
+    store.set('connector.stripe', { owner: true });
+    return true;
+  } catch (_) { return false; }
+}
+
 function saveStripeCredentials(secretKey) {
   store.set('connector.stripe', { secret_key: encryptSecret(secretKey) });
 }
@@ -1265,6 +1278,12 @@ function saveStripeCredentials(secretKey) {
 async function getStripeStats() {
   const creds = store.get('connector.stripe');
   if (!creds) return null;
+  // The owner's own Callisto account: read through the server, which holds
+  // the key. Same Stripe answers, the key never leaves the server.
+  const fetch = creds.owner
+    ? (url) => globalThis.fetch(url.replace('https://api.stripe.com/v1/', `${SERVER}/owner/stripe/`), { headers: { Authorization: `Bearer ${getAuthToken()}` } })
+    : globalThis.fetch;
+  if (creds.owner) creds.access_token = 'owner';
   // A Connect token is already scoped to their account; a pasted key is the
   // old way in and still works for anyone who set it up that way.
   const bearer = creds.access_token || (creds.secret_key ? decryptSecret(creds.secret_key) : null);
@@ -1803,6 +1822,7 @@ async function markAllEmailsRead() {
 }
 
 module.exports = {
+  connectStripeAsOwner,
   // Email stubs (Gmail/Outlook removed pending ADA-CASA)
   getEmailUpdate, formatEmailUpdateForAI, sendEmail, markAllEmailsRead,
   saveGmailTokens, saveOutlookTokens,

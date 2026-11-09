@@ -1370,6 +1370,32 @@ app.get('/connect/stripe/callback', connectLimiter, async (req, res) => {
   }
 });
 
+// The owner's view of Callisto's own Stripe account. Stripe will not let the
+// account that runs Connect connect to itself, so for the people listed in
+// OWNER_EMAILS (comma separated, set in Railway) the server reads it with its
+// own key. Read-only: GET, and only these three lists.
+const OWNER_STRIPE_PATHS = new Set(['charges', 'customers', 'account']);
+async function isOwner(req) {
+  const list = String(process.env.OWNER_EMAILS || '').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+  if (!list.length) return false;
+  const u = await users.findById(req.userId).catch(() => null);
+  return !!(u && u.email && list.includes(String(u.email).toLowerCase()));
+}
+app.get('/owner/stripe', authMiddleware, async (req, res) => {
+  res.json({ owner: !!process.env.STRIPE_SECRET_KEY && await isOwner(req) });
+});
+app.get('/owner/stripe/:what', authMiddleware, async (req, res) => {
+  if (!OWNER_STRIPE_PATHS.has(req.params.what)) return res.status(404).json({ error: 'Not found' });
+  if (!process.env.STRIPE_SECRET_KEY || !(await isOwner(req))) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    const r = await fetch(`https://api.stripe.com/v1/${req.params.what}${qs}`, { headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` } });
+    res.status(r.status).json(await r.json());
+  } catch (err) {
+    res.status(502).json({ error: 'Stripe did not answer' });
+  }
+});
+
 app.get('/connect/stripe/poll', connectLimiter, (req, res) => {
   const t = takeTokens(req, 'stripe');
   if (t) return res.json({ ok: true, ...t });
@@ -1949,7 +1975,7 @@ app.get('/connect/instagram', connectLimiter, (req, res) => {
       response_type: 'code',
       // basic covers the profile and its numbers; content_publish is posting.
       // Comments and messages need their own scopes and their own review.
-      scope: 'instagram_business_basic,instagram_business_content_publish',
+      scope: 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights',
     });
     return res.redirect(`https://www.instagram.com/oauth/authorize?${params}`);
   }

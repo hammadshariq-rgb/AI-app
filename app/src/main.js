@@ -6523,6 +6523,13 @@ function stepAsideForSignIn() {
 }
 
 ipcMain.handle('connector:connect', async (_e, service) => {
+  // Stripe refuses to connect the account that runs Callisto's own Stripe
+  // Connect to itself. For the owner, the server reads that account directly.
+  if (service === 'stripe' && await connectors.connectStripeAsOwner()) {
+    forgetConnectorCaches();
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('connector:connected', { service });
+    return true;
+  }
   stepAsideForSignIn();
   // Google services: use direct Electron OAuth (no server needed)
   const googleServices = ['gmail', 'calendar', 'drive', 'youtube', 'analytics', 'googleAccount'];
