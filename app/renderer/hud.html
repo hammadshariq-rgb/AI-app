@@ -376,7 +376,20 @@ const TYPE_CFG = {
   email:    { label:'Email',     icon:'📧', line:'linear-gradient(90deg,transparent,rgba(234,67,53,0.6),transparent)',  badge:{text:'✓ DRAFTED', bg:'rgba(234,67,53,0.12)',  color:'#ea4335'} },
 };
 
+function macKeyText(t) {
+  if (typeof t !== 'string' || !t) return t;
+  return t
+    .replace(/\bCtrl\+Shift\+([XE])\b/g, 'Option+Shift+$1')
+    .replace(/\bCtrl\+Space\b/g, 'Control+Space')
+    .replace(/\bCtrl\+(?=[A-Z0-9])/g, 'Cmd+')
+    .replace(/\bAlt\+/g, 'Option+')
+    .replace(/\bWin(?:dows)? key\b/gi, 'Cmd key');
+}
 function showCard(data) {
+  if (process.platform === 'darwin') {
+    data = Object.assign({}, data, { text: macKeyText(data.text), title: macKeyText(data.title) });
+    if (data.card) data.card = Object.assign({}, data.card, { summary: macKeyText(data.card.summary), steps: Array.isArray(data.card.steps) ? data.card.steps.map(macKeyText) : data.card.steps });
+  }
   const { type, text, card, title, ttl } = data;
   const cfg = TYPE_CFG[type] || TYPE_CFG.info;
   // ttl lets the caller say how long a card is worth: the "watching your

@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.50': [
+      { icon: '⌨️', title: 'Mac keys everywhere', text: 'On a Mac, chat replies and cards now name Cmd and Option, never Ctrl or Alt.' },
+      { icon: '📷', title: 'Your photo, not a black box', text: 'The camera card shows the photo it took, and reads logos and clothing more carefully.' },
+      { icon: '🪐', title: 'Just Callisto', text: 'The orb, the loading screen and sign-up all say Callisto.' },
+      { icon: '💵', title: 'A new look for Stripe', text: 'The Connect Stripe window now has a flickering green banknote behind it.' },
+      { icon: '🧭', title: 'A clearer intro', text: 'The intro now covers circling with screen assist on, for Windows and Mac, and the camera. Say "show me the tour" to see it again.' }
+    ],
     '1.9.49': [
       { icon: '🖱️', title: 'You stay where you are', text: 'After circling on a Mac you stay in the app you were using, every time, not just the first.' },
       { icon: '📎', title: 'Uploads work again', text: 'The answer card no longer blocks clicks or file uploads in other apps while Callisto is open.' },

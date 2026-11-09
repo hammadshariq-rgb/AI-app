@@ -76,6 +76,7 @@
       /* The live view is mirrored, as people expect; the TAKEN picture is not,
          so writing in it reads the same for both of you. */
       .cl-stage video{transform:scaleX(-1)}
+      .cl-stage video[hidden],.cl-stage img[hidden]{display:none}
       .cl-count{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
         pointer-events:none;background:radial-gradient(circle at center,rgba(0,0,0,.25),transparent 60%)}
       .cl-count[hidden]{display:none}
@@ -171,7 +172,7 @@
             <button type="button" class="cl-icon" id="clMic" title="Ask by voice" aria-label="Ask by voice">${ICON.mic}</button>
             <button type="submit" class="cl-icon" id="clSend" title="Ask" aria-label="Ask">${ICON.send}</button>
           </form>
-          <div class="cl-hint" id="clHint" hidden>${IN_APP ? 'Or press Ctrl+Shift+C and just ask.' : 'Type a question, or press the mic and ask.'}</div>
+          <div class="cl-hint" id="clHint" hidden>${IN_APP ? 'Or press ' + (window.keys ? window.keys('Ctrl+Shift+C') : 'Ctrl+Shift+C') + ' and just ask.' : 'Type a question, or press the mic and ask.'}</div>
           <div class="cl-row">
             <button class="cl-btn primary" id="clSnap" disabled>Take it now</button>
             <button class="cl-btn" id="clAgain" hidden>Retake</button>
@@ -273,7 +274,7 @@
     try {
       // As much detail as the camera will give. Hand tracking is happy with
       // 320x240; reading a label or a drawing is not.
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     } catch (err) {
       try { stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); } catch (err2) {
         setState('Camera not available', 'err');
@@ -326,7 +327,7 @@
     c.width = videoEl.videoWidth;
     c.height = videoEl.videoHeight;
     c.getContext('2d').drawImage(videoEl, 0, 0, c.width, c.height);
-    const dataUrl = c.toDataURL('image/jpeg', 0.88);
+    const dataUrl = c.toDataURL('image/jpeg', 0.92);
     const flash = root.querySelector('#clFlash');
     flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
 

@@ -21,6 +21,16 @@ function esc(str) {
 // On a Mac, Callisto's shortcuts use ⌘ Cmd where Windows uses Ctrl (Shift stays).
 // One stays on Control: macOS keeps Cmd+Space for Spotlight and never passes it on.
 const IS_MAC = (window.jarvis && window.jarvis.platform) === 'darwin';
+function macKeyText(t) {
+  if (typeof t !== 'string' || !t) return t;
+  return t
+    .replace(/\bCtrl\+Shift\+([XE])\b/g, 'Option+Shift+$1')
+    .replace(/\bCtrl\+Space\b/g, 'Control+Space')
+    .replace(/\bCtrl\+(?=[A-Z0-9])/g, 'Cmd+')
+    .replace(/\bAlt\+/g, 'Option+')
+    .replace(/\bWin(?:dows)? key\b/gi, 'Cmd key');
+}
+window.macKeyText = macKeyText;
 function keys(combo) {
   if (!IS_MAC) return combo;
   if (combo === 'Ctrl+Space') return 'Control+Space';
@@ -34,7 +44,7 @@ function keys(combo) {
   // Alt IS the Option key on a Mac, and every other Ctrl here becomes Cmd, so
   // spell this one out: "Ctrl" next to a row of Cmd shortcuts reads as Command.
   // Alt is already the Option key on a Mac, so Alt+Shift+C needs no remapping.
-  return combo.replace(/\bCtrl\+/g, 'Cmd+');
+  return combo.replace(/\bCtrl\+/g, 'Cmd+').replace(/\bAlt\+/g, 'Option+');
 }
 window.keys = keys;
 document.querySelectorAll('[data-keys]').forEach((el) => { el.textContent = keys(el.dataset.keys); });
@@ -1033,6 +1043,7 @@ function _renderChatMarkdown(src) {
 }
 
 function addMessage(role, text) {
+  if (IS_MAC) text = macKeyText(text);
   // No em dashes on screen: the model is told not to use them, and anything
   // that slips through becomes a comma.
   if (role === 'assistant' && typeof text === 'string') text = text.replace(/[ \t]*—[ \t]*/g, ', ');
@@ -6217,6 +6228,7 @@ function renderAttachPreview() {
 }
 
 function addMessageWithAttachments(role, text, attachments) {
+  if (IS_MAC) text = macKeyText(text);
   const row = document.createElement('div');
   row.className = `msg-row ${role}`;
 
@@ -6435,6 +6447,11 @@ window._stripAssistantName = stripAssistantName;
 async function sendToJarvis(rawText) {
   // Every handler below reads this, so the name comes off once, here.
   let text = stripAssistantName(rawText);
+  // "Show me the tour / intro again" replays the first-run walkthrough.
+  if (/^(?:please )?(?:show|replay|start|open|play)(?: me)? (?:the )?(?:tour|intro|introduction|tutorial|walkthrough)(?: again)?[.!?\s]*$/i.test(String(text || '').trim()) && window.CallistoTour) {
+    window.CallistoTour.start({ force: true });
+    return;
+  }
   // The camera card is open with a photo on it: whatever they say or type
   // ("how do I look?", "does this go with black jeans?") is about that photo.
   if (window.CallistoCameraLook && window.CallistoCameraLook.hasPhoto && window.CallistoCameraLook.hasPhoto()) {
@@ -7905,7 +7922,7 @@ authSubmit.addEventListener('click', async () => {
       return;
     }
     result = await window.jarvis.authSignup({
-      email, password, name: pendingAssistantName || 'My AI',
+      email, password, name: 'Callisto',
       ...(age !== null ? { age } : {}),
     });
   } else {
@@ -7936,13 +7953,13 @@ authSubmit.addEventListener('click', async () => {
   const voice = authMode === 'signup' ? selectedVoice : (profile?.voice || 'male');
   const userEmail = result.user?.email || email;
 
-  if (authMode === 'signup' && !pendingAssistantName) {
+  if (false) {   // the assistant is always Callisto: no naming step
     // Show name-your-AI step after signup
     profile = { name: 'Callisto', email: userEmail, displayName, title, voice };
     await window.jarvis.setProfile(profile);
     showNameStep();
   } else {
-    const name = pendingAssistantName || result.user?.name || 'Callisto';
+    const name = 'Callisto';
     profile = { name, email: userEmail, displayName, title, voice };
     await window.jarvis.setProfile(profile);
     await checkSubscriptionAndEnter(name, userEmail);
@@ -8253,7 +8270,7 @@ document.getElementById('payCheckBtn').addEventListener('click', checkPaymentSta
 // ===================== SPLASH / MAIN =====================
 async function showSplash(name) {
   try {
-    splashName.textContent = (name || 'CALLISTO').toUpperCase();
+    splashName.textContent = 'CALLISTO';
     splashStatus.textContent = 'Initializing systems...';
     splash.classList.remove('hidden');
     await new Promise(r => setTimeout(r, 500));
@@ -8501,7 +8518,7 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     window.jarvis.setProfile(profile).catch(() => {});
   }
 
-  const aiName = (profile.name || 'CALLISTO').toUpperCase();
+  const aiName = 'CALLISTO';   // one name everywhere
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
   setupView.classList.add('hidden');
@@ -10444,7 +10461,7 @@ async function loadSettingsPane() {
 
   // Keep orb name in sync with saved profile name
   const aiNameEl = document.getElementById('aiName');
-  if (aiNameEl && name && name !== 'USER') aiNameEl.textContent = name.toUpperCase();
+  if (aiNameEl) aiNameEl.textContent = 'CALLISTO';
 
   // Name edit
   const nameInput = document.getElementById('profileNameInput');
@@ -10464,7 +10481,7 @@ async function loadSettingsPane() {
       // Update orb name + account header instantly
       document.getElementById('profileName').textContent = newName.toUpperCase();
       const aiNameEl = document.getElementById('aiName');
-      if (aiNameEl) aiNameEl.textContent = newName.toUpperCase();
+      if (aiNameEl) aiNameEl.textContent = 'CALLISTO';
 
       freshSave.textContent = 'SAVED ✓';
       setTimeout(() => { freshSave.textContent = 'SAVE'; }, 1800);

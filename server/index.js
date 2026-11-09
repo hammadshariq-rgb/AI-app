@@ -3915,8 +3915,8 @@ app.post('/ai/vision', authMiddleware, appMessageLimit, expensiveLimiter, async 
       const q = String(instruction || '').slice(0, 400);
       const r = await openai.chat.completions.create({
         model: 'gpt-6-luna',
-        reasoning_effort: 'low',
-        max_completion_tokens: 1200,
+        reasoning_effort: 'medium',
+        max_completion_tokens: 2000,
         response_format: { type: 'json_object' },
         messages: [{
           role: 'user',
@@ -3924,6 +3924,8 @@ app.post('/ai/vision', authMiddleware, appMessageLimit, expensiveLimiter, async 
             { type: 'image_url', image_url: { url: imageBase64, detail: 'high' } },
             { type: 'text', text: [
               'This photo was just taken with their webcam: they are showing you themselves or something they are holding.',
+              'Look closely before naming anything: read any logo, brand mark or printed text and use it (an Under Armour logo means an Under Armour shirt).',
+              'Name clothing by what it actually is - collar or no collar, buttons or not, fabric - and never guess a type you cannot see; if unsure, say "shirt" or "top".',
               q ? 'They asked: "' + q + '". Answer that question about this photo.' : 'They want your honest, useful take on it.',
               'Reply as JSON: {"subject": "2-5 words naming the main thing", "verdict": "1-2 sentences, direct and specific", "details": ["4-6 short points"]}.',
               'The points are specific to THIS photo and each says something useful. For a person or an outfit: how it fits and sits,',

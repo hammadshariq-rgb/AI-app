@@ -11,7 +11,7 @@
   // Bumped when the tour gains steps worth seeing again - it has picked up
   // screen assist, writing into other apps, the Magic Cursor, and the Mac keys
   // and permissions, none of which anyone who took the old tour has been told.
-  const DONE_KEY = 'callisto_tour_done_v2';
+  const DONE_KEY = 'callisto_tour_done_v3';
 
   function tourDone() {
     try { return localStorage.getItem(DONE_KEY) === '1'; } catch (_) { return false; }
@@ -50,7 +50,6 @@
       foot: IS_MAC
         ? 'On a Mac this one is <b>Option</b>, not Cmd - and the first time you use it macOS will ask for <b>Accessibility</b> permission, which is what lets Callisto read your highlighted text.'
         : null,
-      foot: `${MOD}${KEY('Shift')}${KEY('X')} draws a circle round anything on screen - a photo, a chart, a paragraph - and Callisto tells you what it is.`,
     },
     {
       targets: ['#micWrap'],
@@ -84,10 +83,9 @@
     {
       targets: ['#micWrap'],
       title: 'Circle to narrow it down',
-      body: `While screen assist is on, press and draw a circle round anything - an error, a product, a paragraph, a bill - and Callisto tells you what it is. You can speak while you circle: <em>"combine these two"</em>, <em>"what does this cost in pounds"</em>.`,
-      foot: IS_MAC
-        ? 'On a Mac this is <b>Option</b>, not Cmd, and it needs <b>Screen Recording</b> permission the first time.'
-        : null,
+      body: `This only works <b>once screen assist is on</b>. Turn it on with ${ALT}${KEY('Shift')}${KEY('C')}, then press ${ALT}${KEY('Shift')}${KEY('S')}. Hold the mouse down, drag a circle round anything - an error, a product, a paragraph, a bill - and let go. Then ask about what you circled.`,
+      foot: '<b>Windows:</b> Alt+Shift+C turns screen assist on, then Alt+Shift+S to circle.<br><b>Mac:</b> Option+Shift+C turns screen assist on, then Option+Shift+S to circle.'
+        + (IS_MAC ? ' The first time, macOS asks for <b>Screen Recording</b> permission.' : ''),
     },
     {
       targets: ['#gestureToggleBtn'],
@@ -125,11 +123,10 @@
       pad: 8,
     },
     {
-      open: 'settings',
-      targets: ['#profileNameInput', '#profileNameSaveBtn'],
-      title: 'Call it what you like',
-      body: 'Callisto is only the name it came with. Type a new one here and it answers to whatever you pick - and it uses your name back.',
-      whenMissing: 'Open the side panel, go to <b>Settings</b>, and you can rename Callisto to anything you like.',
+      targets: [],
+      title: 'Show it something',
+      body: 'Say <em>"open my camera"</em> and hold anything up - an outfit, a drawing, a label, a broken part. Callisto takes the photo after a short countdown and tells you what it sees. Then ask about it, or turn it into a 3D model or a video.',
+      whenMissing: 'Say <em>"open my camera"</em> and hold anything up - an outfit, a drawing, a label, a broken part. Callisto takes the photo after a short countdown and tells you what it sees. Then ask about it, or turn it into a 3D model or a video.',
     },
     {
       open: 'settings',
