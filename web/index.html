@@ -2149,6 +2149,164 @@
 
     </div>
   </div>
+  <!-- MAKE IT YOURS: the orb's colour and name -->
+  <div class="section" id="makeYours">
+    <style>
+      #makeYours{--yt:#1a3bff;--yt2:#0a1fcc;--ylt:#6688ff;position:relative;overflow:hidden}
+      #makeYours .my-bg{position:absolute;inset:0;z-index:0;pointer-events:none;transition:background .8s ease;
+        background:radial-gradient(48% 60% at 50% 52%,color-mix(in oklab,var(--yt) 30%,transparent),transparent 72%)}
+      #makeYours .my-grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr);gap:40px;align-items:center;max-width:1180px;margin:34px auto 0}
+      #makeYours .my-copy p{color:var(--text);opacity:.8;line-height:1.6;font-size:15.5px;margin:0 0 14px;max-width:34ch}
+      #makeYours .my-copy b{color:#fff}
+      #makeYours .my-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:440px;perspective:1100px}
+      #makeYours .my-word{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--brand);font-weight:700;
+        font-size:clamp(70px,11vw,150px);letter-spacing:.06em;white-space:nowrap;color:color-mix(in oklab,var(--yt) 26%,transparent);
+        pointer-events:none;user-select:none;transition:color .6s ease,opacity .35s ease,transform .5s cubic-bezier(.2,.8,.2,1)}
+      #makeYours .my-word.out{opacity:0;transform:translate(-50%,-80%)}
+      #makeYours .my-card{position:relative;width:min(340px,86vw);aspect-ratio:3/4;border-radius:22px;padding:22px;
+        background:linear-gradient(180deg,rgba(10,14,34,.92),rgba(4,6,18,.96));border:1px solid color-mix(in oklab,var(--yt) 40%,rgba(255,255,255,.08));
+        box-shadow:0 30px 80px -20px color-mix(in oklab,var(--yt) 55%,transparent),0 0 0 1px rgba(255,255,255,.03) inset;
+        display:flex;flex-direction:column;align-items:center;transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .8s ease,border-color .8s ease;transform-style:preserve-3d}
+      #makeYours .my-bar{align-self:stretch;display:flex;justify-content:space-between;font-family:var(--brand);font-size:11px;letter-spacing:3px;color:rgba(160,180,255,.55)}
+      #makeYours .my-orbwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+      #makeYours .my-orb{width:150px;height:150px;border-radius:50%;
+        background:radial-gradient(circle at 38% 32%,var(--ylt),var(--yt) 55%,var(--yt2));
+        box-shadow:0 0 40px color-mix(in oklab,var(--yt) 70%,transparent),0 0 110px color-mix(in oklab,var(--yt) 35%,transparent);
+        animation:myPulse 4s ease-in-out infinite;transition:background .7s ease,box-shadow .7s ease}
+      @keyframes myPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+      #makeYours .my-name{font-family:var(--brand);font-size:34px;font-weight:700;letter-spacing:9px;color:#fff;margin-top:26px;
+        text-shadow:0 0 24px color-mix(in oklab,var(--yt) 60%,transparent);transition:opacity .25s ease}
+      #makeYours .my-status{font-family:var(--brand);font-size:10.5px;letter-spacing:4px;color:color-mix(in oklab,var(--yt) 60%,#9fb0ff);margin-top:4px}
+      #makeYours .my-mic{margin-top:auto;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
+        background:color-mix(in oklab,var(--yt) 22%,transparent);border:1px solid color-mix(in oklab,var(--yt) 50%,transparent);color:#fff}
+      #makeYours .my-label{display:block;font-family:var(--brand);font-size:13px;letter-spacing:3px;color:rgba(160,180,255,.6);margin:0 0 12px}
+      #makeYours .my-names{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:30px}
+      #makeYours .my-chip{font:600 14px/1 var(--brand);letter-spacing:2px;padding:11px 16px;border-radius:999px;cursor:pointer;
+        color:#dfe6ff;background:rgba(255,255,255,.04);border:1px solid rgba(140,160,255,.25);transition:background .2s,border-color .2s,transform .15s}
+      #makeYours .my-chip:hover{transform:translateY(-1px);border-color:rgba(140,160,255,.5)}
+      #makeYours .my-chip[aria-pressed="true"]{background:color-mix(in oklab,var(--yt) 35%,transparent);border-color:var(--yt);color:#fff}
+      #makeYours .my-swatches{display:grid;grid-template-columns:repeat(6,34px);gap:12px}
+      #makeYours .my-sw{width:34px;height:34px;border-radius:50%;cursor:pointer;border:0;background:radial-gradient(circle at 38% 32%,var(--l),var(--c) 60%);
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);transition:transform .15s,box-shadow .25s}
+      #makeYours .my-sw:hover{transform:scale(1.1)}
+      #makeYours .my-sw[aria-pressed="true"]{box-shadow:0 0 0 2px #05081a,0 0 0 4px var(--c)}
+      #makeYours .my-picked{margin-top:14px;font-size:13.5px;color:rgba(200,212,255,.7)}
+      #makeYours button:focus-visible{outline:2px solid #7aa2ff;outline-offset:3px}
+      @media (max-width:900px){#makeYours .my-grid{grid-template-columns:1fr;gap:26px}#makeYours .my-stage{order:-1;min-height:400px}
+        #makeYours .my-copy p{max-width:none}}
+      @media (prefers-reduced-motion:reduce){#makeYours *{animation:none!important;transition:none!important}}
+    </style>
+    <div class="my-bg" aria-hidden="true"></div>
+    <div class="sec-eyebrow">MAKE IT YOURS</div>
+    <h2 class="sec-title">Your colour. Your name.</h2>
+    <p class="sec-sub">Pick the colour of the orb and what your assistant is called. The whole app follows.</p>
+    <div class="my-grid">
+      <div class="my-copy">
+        <p><b>Colour.</b> The orb sets the mood of everything: the glow, the waves, the cards on your screen. Change it any time in Settings.</p>
+        <p><b>Name.</b> It answers to the name you give it, out loud and in writing. Callisto is where it starts.</p>
+        <p>Try it here: press a name or a colour.</p>
+      </div>
+      <div class="my-stage" id="myStage">
+        <span class="my-word" id="myWord" aria-hidden="true">CALLISTO</span>
+        <div class="my-card" id="myCard" role="img" aria-label="Preview of the assistant screen">
+          <div class="my-bar"><span>ONLINE</span><span id="myClock"></span></div>
+          <div class="my-orbwrap">
+            <div class="my-orb"></div>
+            <div class="my-name" id="myName">CALLISTO</div>
+            <div class="my-status">LISTENING</div>
+          </div>
+          <div class="my-mic" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></div>
+        </div>
+      </div>
+      <div>
+        <span class="my-label">NAME</span>
+        <div class="my-names" id="myNames" role="group" aria-label="Assistant name"></div>
+        <span class="my-label">COLOUR</span>
+        <div class="my-swatches" id="mySwatches" role="group" aria-label="Orb colour"></div>
+        <div class="my-picked" id="myPicked" aria-live="polite"></div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var root = document.getElementById('makeYours');
+      if (!root) return;
+      var NAMES = ['Callisto', 'Ultron', 'Jarvis', 'Friday'];
+      // [name, main, deep, light]
+      var COLOURS = [
+        ['Callisto Blue', '#1a3bff', '#0a1fcc', '#6688ff'],
+        ['Red', '#e5262f', '#9b0f17', '#ff7a7f'],
+        ['Purple', '#8b3dff', '#5a1bc4', '#c39bff'],
+        ['Crimson', '#c8102e', '#7a0a1c', '#ff6b80'],
+        ['Violet', '#a855f7', '#6b21a8', '#dcb6ff'],
+        ['Magenta', '#e0249a', '#8f1263', '#ff86cf'],
+        ['Rose', '#f43f5e', '#9f1239', '#ff9fb0'],
+        ['Orange', '#ff6a1a', '#b23f00', '#ffb27f'],
+        ['Gold', '#f5b301', '#a87900', '#ffe08a'],
+        ['Lime', '#7ed321', '#4a8a0c', '#c4f58a'],
+        ['Emerald', '#10b981', '#047857', '#7af0c6'],
+        ['Teal', '#14b8a6', '#0f766e', '#86ece0'],
+        ['Cyan', '#06b6d4', '#0e7490', '#8ae9f7'],
+        ['Sky', '#38bdf8', '#0369a1', '#a6e3ff'],
+        ['Indigo', '#4f46e5', '#312e81', '#a5a1ff'],
+        ['Pink', '#ff5fa2', '#c2185b', '#ffb3d1'],
+        ['Silver', '#a9b4c8', '#5c6678', '#eef2fa'],
+        ['Midnight', '#2a3a8f', '#121a45', '#7385d6']
+      ];
+      var names = document.getElementById('myNames');
+      var sws = document.getElementById('mySwatches');
+      var word = document.getElementById('myWord');
+      var nameEl = document.getElementById('myName');
+      var picked = document.getElementById('myPicked');
+      var state = { n: 0, c: 0 };
+      function say() { picked.textContent = NAMES[state.n] + ' in ' + COLOURS[state.c][0]; }
+      NAMES.forEach(function (n, i) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'my-chip'; b.textContent = n.toUpperCase();
+        b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+        b.addEventListener('click', function () {
+          if (state.n === i) return;
+          state.n = i;
+          names.querySelectorAll('.my-chip').forEach(function (x, j) { x.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
+          word.classList.add('out'); nameEl.style.opacity = '0';
+          setTimeout(function () {
+            word.textContent = nameEl.textContent = n.toUpperCase();
+            word.classList.remove('out'); nameEl.style.opacity = '1';
+          }, 260);
+          say();
+        });
+        names.appendChild(b);
+      });
+      COLOURS.forEach(function (c, i) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'my-sw'; b.title = c[0]; b.setAttribute('aria-label', c[0]);
+        b.style.setProperty('--c', c[1]); b.style.setProperty('--l', c[3]);
+        b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+        b.addEventListener('click', function () {
+          state.c = i;
+          sws.querySelectorAll('.my-sw').forEach(function (x, j) { x.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
+          root.style.setProperty('--yt', c[1]); root.style.setProperty('--yt2', c[2]); root.style.setProperty('--ylt', c[3]);
+          say();
+        });
+        sws.appendChild(b);
+      });
+      say();
+      // The small screen leans towards the pointer.
+      var stage = document.getElementById('myStage'), card = document.getElementById('myCard');
+      if (window.matchMedia('(pointer:fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        stage.addEventListener('pointermove', function (e) {
+          var r = stage.getBoundingClientRect();
+          var nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+          card.style.transform = 'rotateY(' + (nx * 10).toFixed(2) + 'deg) rotateX(' + (-ny * 7).toFixed(2) + 'deg)';
+        });
+        stage.addEventListener('pointerleave', function () { card.style.transform = ''; });
+      }
+      var clock = document.getElementById('myClock');
+      function tick() { clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+      tick(); setInterval(tick, 30000);
+    })();
+    </script>
+  </div>
+
 
   <!-- PRICING -->
   <div class="glow-div"></div>
