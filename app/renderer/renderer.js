@@ -5840,14 +5840,23 @@ window.jarvis.onPermAsk?.((q) => {
   card.className = 'perm-card';
   card.setAttribute('role', 'group');
   card.setAttribute('aria-label', q.title);
+  // One line drawing per kind, in the same stroke style as the app's icons.
+  const PERM_ICON = {
+    files: '<path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H10l2 2h6.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/>',
+    make: '<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4M12.5 11.5v6M9.5 14.5h6"/>',
+    code: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 10 2.5 2.5-2.5 2.5M12.5 15.5h4"/>',
+  };
+  const PERM_LABEL = { files: 'Files', make: 'New file', code: 'Command' };
+  const icon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (PERM_ICON[q.kind] || PERM_ICON.files) + '</svg>';
+  const sub = { files: 'It will only open what is listed here.', make: 'It is saved on this computer. Nothing is uploaded.', code: 'It runs on this computer, in your project folder.' }[q.kind] || '';
   card.innerHTML =
-    '<div class="perm-head"><span class="perm-glyph" aria-hidden="true">⚿</span><span>' + esc(q.title) + '</span></div>' +
-    (q.detail ? '<pre class="perm-detail">' + esc(q.detail) + '</pre>' : '') +
-    '<div class="perm-q">Do you want to proceed?</div>' +
-    '<div class="perm-opts" role="listbox">' + opts.map((o, i) =>
-      '<button type="button" class="perm-opt' + (i === 0 ? ' is-on' : '') + '" role="option" data-k="' + o.key + '">' +
-      '<span class="perm-caret">›</span><span class="perm-n">' + (i + 1) + '.</span> ' + esc(o.label) + '</button>').join('') + '</div>' +
-    '<div class="perm-foot">Esc to cancel · say "reset permissions" to be asked again</div>';
+    '<div class="perm-head"><span class="perm-ico perm-' + esc(q.kind || 'files') + '">' + icon + '</span>' +
+      '<div class="perm-titles"><div class="perm-title">' + esc(q.title) + '</div>' + (sub ? '<div class="perm-sub">' + esc(sub) + '</div>' : '') + '</div></div>' +
+    (q.detail ? '<div class="perm-detail"><span class="perm-tag">' + esc(PERM_LABEL[q.kind] || 'Details') + '</span><pre>' + esc(q.detail) + '</pre></div>' : '') +
+    '<div class="perm-opts" role="listbox" aria-label="Do you want to proceed?">' + opts.map((o, i) =>
+      '<button type="button" class="perm-opt perm-opt-' + o.key + (i === 0 ? ' is-on' : '') + '" role="option" data-k="' + o.key + '">' +
+      '<kbd class="perm-key">' + (i + 1) + '</kbd><span class="perm-lab">' + esc(o.label) + '</span></button>').join('') + '</div>' +
+    '<div class="perm-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> confirm</span><span><kbd>Esc</kbd> no</span></div>';
   body.appendChild(card);
   const btns = Array.from(card.querySelectorAll('.perm-opt'));
   let sel = 0, done = false;

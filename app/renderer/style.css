@@ -10555,24 +10555,43 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 .aob-bars { position: relative; }
 .aob-val { position: absolute; transform: translate(-50%, -6px); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: #fff; padding: 1px 7px; border-radius: 999px; background: rgba(8,12,28,.75); border: 1px solid rgba(255,255,255,.14); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 
-/* ── Permission prompt (before files, making files or commands) ─────────── */
-.perm-card { margin-top: 4px; border: 1px solid rgba(120,160,255,.35); border-radius: 12px; padding: 14px 16px 12px;
-  background: rgba(8,13,28,.7); font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace; font-size: 13px; color: #dbe6ff; }
-.perm-head { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fff; margin-bottom: 10px; }
-.perm-glyph { color: #ffc478; }
-.perm-detail { margin: 0 0 12px; padding: 9px 11px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
-  color: #cfe0ff; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; font: inherit; font-size: 12.5px; }
-.perm-q { color: rgba(205,220,250,.85); margin-bottom: 6px; }
-.perm-opts { display: flex; flex-direction: column; gap: 2px; }
-.perm-opt { display: flex; align-items: center; gap: 6px; text-align: left; font: inherit; color: rgba(205,220,250,.8); background: none; border: 0;
-  padding: 5px 8px; border-radius: 6px; cursor: pointer; }
-.perm-caret { width: 10px; color: transparent; }
-.perm-n { color: rgba(160,185,225,.6); }
-.perm-opt.is-on { color: #fff; background: rgba(77,141,255,.16); }
-.perm-opt.is-on .perm-caret { color: #4D8DFF; }
-.perm-opt:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 1px; }
-.perm-foot { margin-top: 10px; font-size: 11px; color: rgba(160,185,225,.5); }
-.perm-result { padding: 4px 8px; font-weight: 700; }
-.perm-yes .perm-result { color: #3ddc97; }
-.perm-no .perm-result { color: #ff6b7a; }
-.perm-done { border-color: rgba(255,255,255,.12); }
+/* ── Permission prompt (before files, making files or commands) ───────────
+   Quiet, legible, one decision. Type does the work; the only colour is the
+   icon tile and the selected row. Monospace is kept for the thing being
+   approved, because that has to be read exactly. */
+.perm-card { margin-top: 10px; max-width: 460px; border-radius: 14px; padding: 14px;
+  background: linear-gradient(180deg, rgba(22,31,56,.92), rgba(12,18,36,.92));
+  border: 1px solid rgba(140,170,255,.16); box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 16px 34px -20px rgba(0,0,0,.8);
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; color: #dbe6ff; animation: permIn .22s ease-out; }
+@keyframes permIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.perm-head { display: flex; gap: 12px; align-items: flex-start; }
+.perm-ico { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #cfe2ff;
+  background: rgba(77,141,255,.14); border: 1px solid rgba(77,141,255,.28); }
+.perm-ico.perm-code { color: #ffd59a; background: rgba(255,176,80,.12); border-color: rgba(255,176,80,.28); }
+.perm-ico.perm-make { color: #9df0cc; background: rgba(61,220,151,.11); border-color: rgba(61,220,151,.26); }
+.perm-titles { min-width: 0; padding-top: 1px; }
+.perm-title { font-size: 14px; font-weight: 650; color: #f2f6ff; line-height: 1.35; }
+.perm-sub { margin-top: 2px; font-size: 12px; color: rgba(185,203,240,.62); line-height: 1.45; }
+.perm-detail { margin: 12px 0 10px; border-radius: 10px; background: rgba(4,8,20,.55); border: 1px solid rgba(255,255,255,.06); overflow: hidden; }
+.perm-tag { display: block; padding: 6px 11px 0; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(170,190,230,.5); }
+.perm-detail pre { margin: 0; padding: 4px 11px 9px; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow: auto;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace; font-size: 12.5px; line-height: 1.55; color: #e6eeff; }
+.perm-opts { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.perm-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: inherit; font-size: 13px; color: rgba(210,222,250,.82);
+  background: transparent; border: 1px solid transparent; padding: 8px 10px; border-radius: 9px; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.perm-key { flex: none; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; display: grid; place-items: center;
+  font: 600 11px 'JetBrains Mono', Consolas, monospace; color: rgba(190,206,240,.7); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-bottom-width: 2px; }
+.perm-opt.is-on { color: #fff; background: rgba(77,141,255,.13); border-color: rgba(77,141,255,.32); }
+.perm-opt.is-on .perm-key { color: #fff; background: #3a6fe0; border-color: #5b8cff; }
+.perm-opt-deny.is-on { background: rgba(255,92,108,.09); border-color: rgba(255,92,108,.28); }
+.perm-opt-deny.is-on .perm-key { background: #b9404f; border-color: #e05a69; }
+.perm-opt:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 2px; }
+.perm-foot { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06);
+  font-size: 11px; color: rgba(160,182,225,.5); }
+.perm-foot kbd { font: 600 10px 'JetBrains Mono', Consolas, monospace; padding: 1px 5px; margin-right: 3px; border-radius: 4px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: rgba(200,214,245,.7); }
+.perm-result { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; font-size: 13px; font-weight: 600; }
+.perm-yes .perm-result { color: #7fe8bb; background: rgba(61,220,151,.08); }
+.perm-no .perm-result { color: #ff8f9b; background: rgba(255,92,108,.08); }
+.perm-done { opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .perm-card { animation: none; } }
