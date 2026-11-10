@@ -152,16 +152,16 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'combine_pdfs',
-      description: 'Join two or more PDF files on this computer into one new PDF. Use when the user asks to combine, merge or join PDFs - including when they circled them on screen and said "combine these". The originals are never changed; a new file is made beside them. Only use it for PDFs.',
+      description: 'Join two or more files on this computer into one new file. PDFs become one PDF; Word documents (.docx) and text files (.txt, .md) become one Word document with each original as its own section. Use when the user asks to combine, merge or join documents or PDFs - including when they circled them with the Magic Cursor and said "combine these". The originals are never changed; a new file is made beside them.',
       parameters: {
         type: 'object',
         properties: {
           files: {
             type: 'array',
             items: { type: 'string' },
-            description: 'The PDFs to join, in the order they should appear. Use the full paths when they are given to you; otherwise the file names exactly as shown on screen.',
+            description: 'The files to join, in the order they should appear. Use the full paths when they are given to you; otherwise the file names exactly as shown on screen.',
           },
-          title: { type: 'string', description: 'A name for the finished file, without the .pdf' },
+          title: { type: 'string', description: 'A name for the finished file, without the extension' },
         },
         required: ['files'],
       },

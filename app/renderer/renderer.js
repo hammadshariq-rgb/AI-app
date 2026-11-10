@@ -3292,7 +3292,7 @@ window._checkQuickLaunch = async function(text) {
   // is the same call.
   const EDIT_PHOTO = /\b(?:blur|remove|replace|change|swap|erase|delete|take\s+out|clean\s+up|fix|touch\s*up|retouch|recolour|recolor|brighten|darken|crop|turn)\b[^.?!]{0,40}\b(?:backgrounds?|bg|backdrops?|sky|faces?|person|people|objects?|logos?|text|watermarks?|colou?rs?|lighting|shadows?)\b/i
     .source;
-  const EDIT_PHOTO_RE = new RegExp(EDIT_PHOTO + '|\\b(?:make|turn)\\s+(?:it|this|the\\s+(?:photo|picture|image))\\s+(?:black\\s+and\\s+white|greyscale|grayscale|sepia|brighter|darker|a\\s+cartoon|into\\s+a\\s+\\w+)', 'i');
+  const EDIT_PHOTO_RE = new RegExp(EDIT_PHOTO + '|\\b(?:change|edit|redo|fix|restyle)\\s+(?:this|that|the)\\s+(?:image|photo|picture|pic)\\b|\\b(?:make|turn)\\s+(?:it|this|the\\s+(?:photo|picture|image))\\s+(?:black\\s+and\\s+white|greyscale|grayscale|sepia|brighter|darker|a\\s+cartoon|into\\s+a\\s+\\w+)', 'i');
 
   // What picture are we talking about? One they just attached wins over one
   // Callisto made, because attaching it IS the request.
@@ -3300,6 +3300,7 @@ window._checkQuickLaunch = async function(text) {
     const att = (typeof pendingAttachments !== 'undefined' ? pendingAttachments : [])
       .filter((a) => a && a.kind === 'image' && a.dataUrl);
     if (att.length) return { data: att[att.length - 1].dataUrl, from: 'attached' };
+    if (window._circledImage && Date.now() - window._circledImage.at < 2 * 60 * 1000) return { data: window._circledImage.data, from: 'circled' };
     if (window._lastImage && window._lastImage.url) return { data: window._lastImage.url, from: 'made' };
     return null;
   }
@@ -11015,6 +11016,9 @@ window.jarvis.onCaptureAct?.((d) => {
   if (!d || !d.instruction) return;
   addMessage('user', d.instruction);
   window._captureContext = d.context || null;
+  // What they circled, as a picture: "change this image" or "blur the
+  // background" then edits exactly that.
+  window._circledImage = d.image ? { data: String(d.image).startsWith('data:') ? d.image : 'data:image/png;base64,' + d.image, at: Date.now() } : null;
   sendToJarvis(d.instruction);
 });
 

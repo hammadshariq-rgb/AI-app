@@ -38,6 +38,13 @@
       '.mc-badge.est{background:rgba(255,176,80,.14);color:#ffc478;border:1px solid rgba(255,176,80,.3)}',
       '.mc-badge.meas{background:rgba(61,220,151,.12);color:#6fe0ad;border:1px solid rgba(61,220,151,.28)}',
       '.mc-fig{text-align:right;flex:none}',
+      '.mc-dl{position:absolute;top:12px;right:12px;z-index:3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;cursor:pointer;',
+      '  color:#cfe0ff;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .15s,background .15s}',
+      '.mc-card:hover .mc-dl,.mc-dl:focus-visible{opacity:1}',
+      '.mc-dl:hover{background:rgba(77,141,255,.22)}',
+      '.mc-dl:focus-visible{outline:2px solid #4D8DFF;outline-offset:2px}',
+      '.mc-card:not(.mc-bare) .mc-fig{margin-right:38px}',
+      '.mc-card.mc-bare .mc-dl{top:-36px;right:0}',
       ".mc-val{display:block;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:24px;line-height:1;color:#fff;font-variant-numeric:tabular-nums}",
       '.mc-delta{display:inline-block;margin-top:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;font-variant-numeric:tabular-nums}',
       '.mc-delta.up{color:#3ddc97;background:rgba(61,220,151,.12);border:1px solid rgba(61,220,151,.3)}',
@@ -283,7 +290,7 @@
       parts.push('<path class="mc-fade" d="' + mid + '" fill="none" stroke="' + EST + '" stroke-width="1.8" stroke-dasharray="4 4"/>');
       var xd = (x0 + slot / 2).toFixed(1);
       parts.push('<line x1="' + xd + '" y1="' + PAD_T + '" x2="' + xd + '" y2="' + (PAD_T + plotH) + '" stroke="rgba(255,196,120,.35)" stroke-dasharray="2 4"/>');
-      parts.push('<text class="mc-axis mc-fade" x="' + (+xd + 6) + '" y="' + (PAD_T + 10) + '" style="fill:' + EST + '">Projected range</text>');
+      parts.push('<text class="mc-axis mc-fade" x="' + (W - PAD_R) + '" y="' + (PAD_T + 10) + '" text-anchor="end" style="fill:' + EST + '">Projected</text>');
       var e = pr[pr.length - 1], xe = xOf(total - 1);
       parts.push('<text class="mc-axis mc-fade" x="' + xe.toFixed(1) + '" y="' + (yOf(e.hi) - 6).toFixed(1) + '" text-anchor="end" style="fill:' + EST + '">' + esc(fmt(e.hi)) + '</text>');
       parts.push('<text class="mc-axis mc-fade" x="' + xe.toFixed(1) + '" y="' + (yOf(e.lo) + 13).toFixed(1) + '" text-anchor="end" style="fill:' + EST + '">' + esc(fmt(e.lo)) + '</text>');
@@ -333,6 +340,62 @@
   }
 
   // Crosshair, tooltip, arrow keys and legend toggles.
+  var DL_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+
+  // The chart as a PNG: the picture itself on Callisto's dark card, with the
+  // title and badge text drawn above it, at twice the size for sharpness.
+  function download(card, spec) {
+    var svg = card.querySelector('.mc-svg');
+    if (!svg) return;
+    var clone = svg.cloneNode(true);
+    Array.prototype.forEach.call(clone.querySelectorAll('.mc-cross,.mc-pulse'), function (n) { n.remove(); });
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', W); clone.setAttribute('height', H);
+    var st = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    st.textContent = ".mc-axis{font:10.5px 'Plus Jakarta Sans','Segoe UI',sans-serif;fill:rgba(170,195,240,.75)}" +
+      '.mc-grid{stroke:rgba(140,170,230,.18);stroke-width:1;stroke-dasharray:3 4}' +
+      '.mc-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}' +
+      ".mc-barval{font:700 13px 'Rajdhani','Segoe UI',sans-serif;fill:#fff}" +
+      '.mc-off{opacity:.12}';
+    clone.insertBefore(st, clone.firstChild);
+    var data = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    var img = new Image();
+    img.onload = function () {
+      var S = 2, padX = 24, top = 70, bottom = 34;
+      var cw = W + padX * 2, ch = H + top + bottom;
+      var c = document.createElement('canvas');
+      c.width = cw * S; c.height = ch * S;
+      var x = c.getContext('2d');
+      x.scale(S, S);
+      var g = x.createLinearGradient(0, 0, 0, ch);
+      g.addColorStop(0, '#121a30'); g.addColorStop(1, '#090e1c');
+      x.fillStyle = g; x.fillRect(0, 0, cw, ch);
+      x.fillStyle = '#e9f1ff'; x.font = "650 17px 'Plus Jakarta Sans','Segoe UI',sans-serif";
+      x.fillText(String(spec.title || 'Chart').slice(0, 70), padX, 34);
+      var val = card.querySelector('.mc-val'), del = card.querySelector('.mc-delta');
+      if (val) {
+        x.textAlign = 'right'; x.fillStyle = '#ffffff'; x.font = "700 24px 'Rajdhani','Segoe UI',sans-serif";
+        x.fillText(val.textContent, cw - padX, 36);
+        if (del) { x.font = "700 12px 'Plus Jakarta Sans','Segoe UI',sans-serif"; x.fillStyle = del.classList.contains('up') ? UP : DOWN; x.fillText(del.textContent, cw - padX, 56); }
+        x.textAlign = 'left';
+      }
+      var badges = Array.prototype.map.call(card.querySelectorAll('.mc-badge'), function (b) { return b.textContent; }).join('  ·  ');
+      if (badges) { x.font = "700 10px 'Plus Jakarta Sans','Segoe UI',sans-serif"; x.fillStyle = '#ffc478'; x.fillText(badges, padX, 54); }
+      x.drawImage(img, padX, top, W, H);
+      x.font = "500 10px 'Plus Jakarta Sans','Segoe UI',sans-serif"; x.fillStyle = 'rgba(160,185,225,.6)';
+      x.fillText('Made with Callisto AI', padX, ch - 12);
+      c.toBlob(function (blob) {
+        if (!blob) return;
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (String(spec.title || 'chart').replace(/[^\w\- ]+/g, '').trim().slice(0, 60) || 'chart') + '.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      }, 'image/png');
+    };
+    img.src = data;
+  }
+
   function wire(card, model) {
     var plotEl = card.querySelector('.mc-plot'), svg = card.querySelector('.mc-svg');
     var cross = card.querySelector('.mc-cross'), tip = card.querySelector('.mc-tip');
@@ -397,6 +460,12 @@
     host.appendChild(card);
     if (reduced) card.classList.add('mc-still');
     wire(card, b.model);
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'mc-dl';
+    btn.setAttribute('aria-label', 'Download chart as an image'); btn.title = 'Download chart';
+    btn.innerHTML = DL_ICON;
+    btn.addEventListener('click', function (e) { e.stopPropagation(); download(card, spec); });
+    card.appendChild(btn);
     return true;
   }
 

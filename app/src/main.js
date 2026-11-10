@@ -1239,7 +1239,7 @@ ipcMain.handle('capture:identify', async (_e, bounds, instruction) => {
         // model to read; a tool that has to open these files needs the
         // locations themselves, and a file name is not a location.
         _circledFiles = { at: Date.now(), files: found };
-        overlayWindow.webContents.send('capture:act', { instruction, context, files: found });
+        overlayWindow.webContents.send('capture:act', { instruction, context, files: found, image: imageBase64 });
       }
     }
 
@@ -5018,8 +5018,39 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
         || path.basename(String(k)).toLowerCase() === base);
       return hit || f;
     });
+    // Word and text documents: one Word file, each original as its own section.
+    if (files.length >= 2 && !files.every((f) => /\.pdf$/i.test(String(f)))) {
+      const { found, missing } = await pdfs.resolve(files);
+      const docs = found.filter((f) => documents.canRead(f));
+      if (docs.length >= 2) {
+        try {
+          const nl = String.fromCharCode(10);
+          const body = docs.map((f) => '## ' + path.basename(f).replace(/\.[^.]+$/, '') + nl + nl + (documents.readText(f) || '')).join(nl + nl);
+          const title = (finalAction.payload && finalAction.payload.title) || 'Combined';
+          const out = await documents.writeWord(title, body, path.dirname(docs[0]));
+          const spoken = `Done - ${path.basename(out)}, made from ${docs.length} documents. The originals are untouched.`;
+          try { shell.showItemInFolder(out); } catch (_) {}
+          _sendTTS(_e.sender, spoken);
+          return { text: spoken, audio: null, card: null, hasAction: true };
+        } catch (err) {
+          const spoken = 'I could not join those documents: ' + err.message;
+          _sendTTS(_e.sender, spoken);
+          return { text: spoken, audio: null, card: null, hasAction: false };
+        }
+      }
+      if (found.some((f) => /\.pdf$/i.test(f)) && docs.length) {
+        const spoken = 'Those are a mix of PDFs and documents. I can join PDFs with PDFs, or Word and text files together - not one into the other yet.';
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, card: null, hasAction: false };
+      }
+      if (missing.length) {
+        const spoken = 'I could not find ' + missing.join(' or ') + '.';
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, card: null, hasAction: false };
+      }
+    }
     if (files.length < 2) {
-      const spoken = 'I need at least two PDFs to join. Circle them, or tell me their names.';
+      const spoken = 'I need at least two files to join. Circle them, or tell me their names.';
       _sendTTS(_e.sender, spoken);
       return { text: spoken, audio: null, card: null, hasAction: false };
     }
@@ -5030,6 +5061,23 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     if (r.ok) { try { shell.showItemInFolder(r.path); } catch (_) {} }
     _sendTTS(_e.sender, spoken);
     return { text: spoken, audio: null, card: null, hasAction: r.ok };
+  }
+
+  // "Open this document" right after circling one: the circled file, by its
+  // real path, whatever the model called it.
+  if (finalAction && finalAction.type === 'open_file' && _circledFiles && Date.now() - _circledFiles.at < 5 * 60 * 1000 && _circledFiles.files.length) {
+    const said = String(finalAction.arg || '').toLowerCase();
+    const exists = said && require('fs').existsSync(String(finalAction.arg));
+    if (!exists) {
+      const hit = _circledFiles.files.find((f) => said && path.basename(f).toLowerCase().includes(path.basename(said)))
+        || (_circledFiles.files.length === 1 || /\b(this|it|that)\b/.test(said) || !said ? _circledFiles.files[0] : null);
+      if (hit) {
+        try { await shell.openPath(hit); } catch (_) {}
+        const spoken = `Opening ${path.basename(hit)}.`;
+        _sendTTS(_e.sender, spoken);
+        return { text: spoken, audio: null, card: null, hasAction: true };
+      }
+    }
   }
 
   if (finalAction && (finalAction.type === 'open_file' || finalAction.type === 'open_folder')) {
