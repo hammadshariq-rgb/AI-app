@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.55': [
+      { icon: '⬇️', title: 'Download any chart', text: 'Hover over a chart and press the download button to save it as a sharp image.' },
+      { icon: '📄', title: 'Combine documents', text: 'Circle two Word or text files with the Magic Cursor and say "combine these" to get one new document. PDFs work too.' },
+      { icon: '📂', title: 'Open what you circled', text: 'Circle a file and say "open this" to open exactly that file.' },
+      { icon: '🖼️', title: 'Edit a circled image', text: 'Circle a picture on screen and say "blur the background" or "change this image" to edit it.' }
+    ],
     '1.9.54': [
       { icon: '📈', title: 'Live market charts', text: 'Ask about a stock, crypto, gold or an index and get real candlestick prices with a shaded range for the days ahead, read against the latest news.' },
       { icon: '📊', title: 'Every chart, redesigned', text: 'Charts in chat and in your analytics now draw themselves in, show the latest value and its change, and tell you each figure as you move across them.' },
