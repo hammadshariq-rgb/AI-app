@@ -2910,9 +2910,17 @@ function runPowerShell(ps, { timeout = 8000 } = {}, cb) {
 // The ones that take real time: minutes, not milliseconds. They go last, and
 // each announces itself when it finishes - a notification and a line in the
 // chat - because by then the person has usually moved on.
+// What to tell them when a background job from a multi-part request is done.
+const _SLOW_DONE = {
+  generate_image: 'Your image is ready in Creations.',
+  create_slides: 'Your presentation is ready and open.',
+  create_document: 'Your document is ready and open.',
+  create_spreadsheet: 'Your spreadsheet is ready and open.',
+  market_chart: 'Your market chart is ready in the chat.',
+};
 const SLOW_ACTIONS = new Set([
   'generate_image', 'generate_3d_model', 'upload_media',
-  'create_slides', 'create_document', 'create_spreadsheet',
+  'create_slides', 'create_document', 'create_spreadsheet', 'market_chart',
 ]);
 
 // Everything the user asked for beyond the first thing.
@@ -2934,6 +2942,26 @@ async function runSecondaryAction(act, _e) {
   };
 
   switch (act.type) {
+    // A chart beside the main answer: real candles for something traded, or
+    // a chart the model drew. Shown as its own message when it is ready.
+    case 'market_chart': {
+      const data = await realtime.getCandles(act.arg, act.range, act.horizon).catch(() => null);
+      if (!data) return;
+      const cur = data.currency === 'USD' ? '$' : data.currency + ' ';
+      const fmt = (v) => cur + (v >= 1000 ? Math.round(v).toLocaleString('en-US') : v >= 1 ? v.toFixed(2) : v.toPrecision(4));
+      const end = data.projection[data.projection.length - 1];
+      const unitWord = data.interval === '1h' ? 'hours' : data.interval === '1wk' ? 'weeks' : 'trading days';
+      const fact = `${data.name} last at ${fmt(data.last)}. On its usual swings, about 8 in 10 outcomes over the next ${data.projection.length} ${unitWord} land between ${fmt(end.lo)} and ${fmt(end.hi)}.`;
+      send('jarvis:extra-chart', { text: fact, chart: { kind: 'candle', basis: 'measured', title: `${data.name} (${data.symbol})`, unit: cur,
+        candles: data.candles, projection: data.projection, interval: data.interval,
+        note: 'Prices from Yahoo Finance. The shaded range is worked out from past volatility, not a forecast.' } });
+      return;
+    }
+
+    case 'show_chart':
+      if (act.chart) send('jarvis:extra-chart', { text: '', chart: act.chart });
+      return;
+
     case 'draw':
       send('draw:apply', act.payload || {});
       return;
@@ -3988,8 +4016,15 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     ];
     (async () => {
       for (const act of _quickFirst) {
-        try { await runSecondaryAction(act, _e); }
-        catch (err) { console.error('[secondary]', act.type, err && err.message); }
+        try {
+          await runSecondaryAction(act, _e);
+          // The slow ones finish long after the answer: say so when they do,
+          // so nobody has to keep checking.
+          const done = _SLOW_DONE[act.type];
+          if (done && Notification.isSupported()) {
+            new Notification({ title: getAssistantName(), body: done, silent: false }).show();
+          }
+        } catch (err) { console.error('[secondary]', act.type, err && err.message); }
       }
     })();
   }
@@ -4658,6 +4693,27 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // A chart to go with the answer. It rides back with the text rather than
   // being a separate turn, so the figures and the picture of them arrive
   // together instead of the chart landing after the explanation of it.
+  // Real candles and a projected range for something traded.
+  if (finalAction?.type === 'market_chart') {
+    const data = await realtime.getCandles(finalAction.arg, finalAction.range, finalAction.horizon).catch(() => null);
+    if (!data) {
+      const spokenText = (finalText ? finalText + ' ' : '') + `I couldn't get live prices for ${finalAction.arg || 'that'} just now.`;
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    const cur = data.currency === 'USD' ? '$' : data.currency + ' ';
+    const fmt = (v) => cur + (v >= 1000 ? Math.round(v).toLocaleString('en-US') : v >= 1 ? v.toFixed(2) : v.toPrecision(4));
+    const end = data.projection[data.projection.length - 1];
+    const unitWord = data.interval === '1h' ? 'hours' : data.interval === '1wk' ? 'weeks' : 'trading days';
+    const fact = `${data.name} last at ${fmt(data.last)}. On its usual swings, about 8 in 10 outcomes over the next ${data.projection.length} ${unitWord} land between ${fmt(end.lo)} and ${fmt(end.hi)}.`;
+    const spokenText = finalText || fact;
+    _sendTTS(_e.sender, spokenText);
+    const chart = { kind: 'candle', basis: 'measured', title: `${data.name} (${data.symbol})`, unit: cur,
+      candles: data.candles, projection: data.projection, interval: data.interval,
+      note: fact + ' Prices from Yahoo Finance. The shaded range is worked out from past volatility, not a forecast.' };
+    return { text: spokenText, audio: null, card: null, hasAction: false, chart };
+  }
+
   if (finalAction?.type === 'show_chart' && finalAction.chart) {
     const spokenText = finalText || 'Here it is.';
     _sendTTS(_e.sender, spokenText);

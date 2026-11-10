@@ -314,8 +314,21 @@
       // anyone else is a new install, who gets the tour instead.
       var updated = seen ? seen !== version : !!read('callisto_daily_brief');
       if (!updated) { write(SEEN, version); return; }
-      var notes = NOTES[version];
-      if (!notes) { write(SEEN, version); return; }
+      // Someone jumping several versions at once (1.9.34 straight to 1.9.56)
+      // gets everything they missed on one card, newest first, not just the
+      // last release's lines.
+      var cmp = function (a, b) {
+        var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+        for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (x[i] || 0) - (y[i] || 0); if (d) return d; }
+        return 0;
+      };
+      var notes = [];
+      Object.keys(NOTES).sort(function (a, b) { return cmp(b, a); }).forEach(function (v) {
+        if (cmp(v, version) <= 0 && (!seen || cmp(v, seen) > 0)) notes = notes.concat(NOTES[v]);
+      });
+      // A long gap is summed up by its 12 newest changes, so the card stays readable.
+      notes = notes.slice(0, 12);
+      if (!notes.length) { write(SEEN, version); return; }
       whenReady(function () { write(SEEN, version); show(version, notes); });
     }).catch(function () {});
   }

@@ -548,6 +548,22 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'market_chart',
+      description: 'Draw a REAL candlestick chart for a stock, crypto coin, index, commodity or bond from live market data, with a shaded range for where the price could plausibly be over the next days (worked out from its real volatility, labelled as an estimate). Use whenever they ask about the price, trend or outlook of something traded: "how is Nvidia doing", "where is bitcoin heading", "show me the Nasdaq", "should I buy Tesla", "what will gold do", "how will this affect the markets" (chart the thing most affected). Put your reading of the news, geopolitics and the trend in your reply text; the chart carries the numbers. Never invent prices - this tool fetches them.',
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker or plain name: "NVDA", "Nvidia", "bitcoin", "BTC-USD", "Nasdaq 100", "gold", "TLT" for US treasury bonds, "^TNX" for the 10-year yield.' },
+          range: { type: 'string', enum: ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y'], description: 'How much history to show. 3mo by default; 5d for intraday moves; 1y or more for the long trend.' },
+          horizon_days: { type: 'number', description: 'How far ahead to draw the projected range, 1-30. Default 10.' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'play_music',
       description: 'Play a song, album, artist, or playlist on the user\'s music app. Use whenever the user says "play", "put on", "queue", "listen to", or names a song/artist they want to hear.',
       parameters: {
@@ -1543,6 +1559,19 @@ REPLY STYLE:
   open, the turn, the proof, the ask. Say how long it runs. Where a claim
   needs a number they have not given you, leave an obvious blank like
   [your number] rather than inventing a figure they would then say on camera.
+- TRADING AND INVESTING (stocks, crypto, bonds, indices, commodities):
+  * Chart it with market_chart - real candles and a projected range. When they
+    ask how news will affect the markets, chart the thing most exposed to it.
+  * Read the trend from the real numbers and weigh the live news: wars,
+    sanctions, elections, tariffs, central bank moves, export controls,
+    earnings. Say which way each one pushes and how strongly.
+  * Give a short base case, bull case and bear case, each with what would have
+    to happen for it.
+  * NEVER tell this person to buy, sell or hold, and never give a price target
+    as a certainty. Even when asked "should I buy?", lay out the case for, the
+    case against, and what would change the picture, and leave the decision
+    with them. The projected range is statistics, not a prediction - say so.
+  * End with one line: "This is analysis, not financial advice."
 - MARKETS: when they ask about a market, a competitor or an opportunity, answer
   with the shape of it - who is already there, what they charge, where the
   demand is going, where the gap is, and what it would cost to enter. Use
@@ -1901,6 +1930,7 @@ function mapToolCall(fnName, args) {
         arg: args.request || 'that',
         steps: Array.isArray(args.steps) ? args.steps : [],
       };
+      else if (fnName === 'market_chart') return { type: 'market_chart', arg: args.symbol || '', range: args.range || '3mo', horizon: args.horizon_days || 10 };
       else if (fnName === 'show_chart') return {
         type: 'show_chart',
         arg: args.title || 'Chart',

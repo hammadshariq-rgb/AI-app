@@ -80,8 +80,72 @@
     return { top: top, bottom: bottom, ticks: ticks.slice(0, 6) };
   }
 
+  // Real candles, then a shaded range for the days ahead. The range is drawn
+  // as a fan, never as candles: drawing invented candles would look like data.
+  function buildCandle(spec) {
+    var cs = (spec.candles || []).filter(function (c) { return c && isFinite(c.o) && isFinite(c.h) && isFinite(c.l) && isFinite(c.c); });
+    if (cs.length < 2) return null;
+    var pr = (spec.projection || []).filter(function (p) { return p && isFinite(p.lo) && isFinite(p.hi); });
+    var lows = cs.map(function (c) { return c.l; }).concat(pr.map(function (p) { return p.lo; }));
+    var highs = cs.map(function (c) { return c.h; }).concat(pr.map(function (p) { return p.hi; }));
+    var min = Math.min.apply(null, lows), max = Math.max.apply(null, highs);
+    var pad = (max - min) * 0.06 || max * 0.02 || 1; min -= pad; max += pad;
+    var plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
+    var total = cs.length + pr.length;
+    var slot = plotW / total, bw = Math.max(1.5, Math.min(9, slot * 0.62));
+    var xOf = function (i) { return PAD_L + slot * i + slot / 2; };
+    var yOf = function (v) { return PAD_T + plotH - ((v - min) / (max - min)) * plotH; };
+    var unit = spec.unit || '';
+    var fmt = function (v) { return unit + (v >= 1000 ? short(v) : v >= 1 ? v.toFixed(2) : v.toPrecision(3)); };
+    var parts = [];
+    for (var g = 0; g <= 4; g++) {
+      var gv = min + ((max - min) * g) / 4, gy = yOf(gv);
+      parts.push('<line class="mc-grid" x1="' + PAD_L + '" y1="' + gy.toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + gy.toFixed(1) + '"/>');
+      parts.push('<text class="mc-axis" x="' + (PAD_L - 8) + '" y="' + (gy + 3.5).toFixed(1) + '" text-anchor="end">' + esc(fmt(gv)) + '</text>');
+    }
+    if (pr.length) {
+      var x0 = xOf(cs.length - 1), lastC = cs[cs.length - 1].c;
+      var top = 'M' + x0.toFixed(1) + ' ' + yOf(lastC).toFixed(1), bot = '';
+      pr.forEach(function (p, k) { top += ' L' + xOf(cs.length + k).toFixed(1) + ' ' + yOf(p.hi).toFixed(1); });
+      for (var k = pr.length - 1; k >= 0; k--) bot += ' L' + xOf(cs.length + k).toFixed(1) + ' ' + yOf(pr[k].lo).toFixed(1);
+      parts.push('<path d="' + top + bot + ' Z" fill="#ffb050" opacity="0.14"/>');
+      var mid = 'M' + x0.toFixed(1) + ' ' + yOf(lastC).toFixed(1);
+      pr.forEach(function (p, k) { mid += ' L' + xOf(cs.length + k).toFixed(1) + ' ' + yOf(p.base).toFixed(1); });
+      parts.push('<path d="' + mid + '" fill="none" stroke="#ffc478" stroke-width="1.6" stroke-dasharray="4 4"/>');
+      var xd = (x0 + slot / 2).toFixed(1);
+      parts.push('<line x1="' + xd + '" y1="' + PAD_T + '" x2="' + xd + '" y2="' + (PAD_T + plotH) + '" stroke="rgba(255,196,120,.35)" stroke-dasharray="2 4"/>');
+      parts.push('<text class="mc-axis" x="' + (+xd + 6) + '" y="' + (PAD_T + 10) + '" style="fill:#ffc478">Projected range</text>');
+      var e = pr[pr.length - 1], xe = xOf(total - 1);
+      parts.push('<text class="mc-axis" x="' + xe.toFixed(1) + '" y="' + (yOf(e.hi) - 5).toFixed(1) + '" text-anchor="end" style="fill:#ffc478">' + esc(fmt(e.hi)) + '</text>');
+      parts.push('<text class="mc-axis" x="' + xe.toFixed(1) + '" y="' + (yOf(e.lo) + 12).toFixed(1) + '" text-anchor="end" style="fill:#ffc478">' + esc(fmt(e.lo)) + '</text>');
+    }
+    cs.forEach(function (c, i) {
+      var up = c.c >= c.o, col = up ? '#3ddc97' : '#ff5c6c', x = xOf(i);
+      var yt = yOf(Math.max(c.o, c.c)), yb = yOf(Math.min(c.o, c.c));
+      parts.push('<line x1="' + x.toFixed(1) + '" y1="' + yOf(c.h).toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + yOf(c.l).toFixed(1) + '" stroke="' + col + '" stroke-width="1"/>');
+      parts.push('<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(1, yb - yt).toFixed(1) + '" fill="' + col + '" rx="1"/>');
+    });
+    var daily = spec.interval !== '1h';
+    var lab = function (t) { var d = new Date(t); return daily ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
+    var every = Math.ceil(cs.length / 6);
+    cs.forEach(function (c, i) {
+      if (i % every) return;
+      parts.push('<text class="mc-axis" x="' + xOf(i).toFixed(1) + '" y="' + (H - PAD_B + 17) + '" text-anchor="middle">' + esc(lab(c.t)) + '</text>');
+    });
+    var last = cs[cs.length - 1], first = cs[0], chg = ((last.c - first.c) / first.c) * 100;
+    return '<div class="mc-card">' +
+      '<div class="mc-head"><span class="mc-title">' + esc(spec.title || 'Price') + '</span>' +
+      '<span class="mc-badge meas">LIVE PRICES</span>' +
+      (pr.length ? '<span class="mc-badge est">RANGE IS AN ESTIMATE</span>' : '') +
+      '<span class="mc-leg" style="margin-left:auto;color:' + (chg >= 0 ? '#3ddc97' : '#ff5c6c') + '">' + esc(fmt(last.c)) + ' · ' + (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%</span></div>' +
+      '<svg class="mc-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.title || 'price chart') + '">' + parts.join('') + '</svg>' +
+      (spec.note ? '<div class="mc-note">' + esc(spec.note) + '</div>' : '') +
+      '</div>';
+  }
+
   function build(spec) {
     if (!spec || typeof spec !== 'object') return null;
+    if (spec.kind === 'candle') return buildCandle(spec);
     var series = (spec.series || [])
       .filter(function (s) { return s && Array.isArray(s.points) && s.points.length; })
       .slice(0, 4);

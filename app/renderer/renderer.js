@@ -5823,6 +5823,15 @@ function triggerActionFlash() {
 }
 // Fire flash immediately when main process starts an action (before app opens)
 window.jarvis.onActionFired(() => triggerActionFlash());
+// A chart asked for alongside something else ("analyse the markets and chart
+// gold and bitcoin") arrives on its own, as its own message under the answer.
+window.jarvis.onExtraChart?.(({ text, chart }) => {
+  try {
+    const el = addMessage('assistant', text || '');
+    const body = (el && el.querySelector('.message-content')) || el;
+    if (body && chart) window.CallistoMarketChart?.render(chart, body);
+  } catch (_) {}
+});
 
 // Ctrl+S background voice trigger - press to start, press again to stop & send
 window.jarvis.onVoiceTrigger(() => {

@@ -2201,4 +2201,64 @@ async function findSources(query) {
   return { query: raw || q, subject: q, sources };
 }
 
-module.exports = { findSources, fetchRealtimeContext, roleHolderFact, wikipediaFact, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };
+// ── Candles and a projection band ────────────────────────────────────────────
+// Real price history from Yahoo (stocks, ETFs, indices, crypto as BTC-USD,
+// bonds via ETFs or ^TNX), plus a range for the next few days worked out from
+// how much the price has actually been moving. The band is statistics, not a
+// forecast: about 8 in 10 moves of that size have landed inside it before.
+const CRYPTO_NAMES = { bitcoin: 'BTC-USD', btc: 'BTC-USD', ethereum: 'ETH-USD', eth: 'ETH-USD', solana: 'SOL-USD', sol: 'SOL-USD', xrp: 'XRP-USD', ripple: 'XRP-USD', dogecoin: 'DOGE-USD', doge: 'DOGE-USD', bnb: 'BNB-USD', cardano: 'ADA-USD', ada: 'ADA-USD' };
+const INDEX_NAMES = { 'nasdaq 100': '^NDX', nasdaq: '^IXIC', 's&p 500': '^GSPC', sp500: '^GSPC', 's&p': '^GSPC', dow: '^DJI', 'dow jones': '^DJI', 'ftse 100': '^FTSE', ftse: '^FTSE', nifty: '^NSEI', 'nifty 50': '^NSEI', sensex: '^BSESN', gold: 'GC=F', oil: 'CL=F', 'crude oil': 'CL=F', '10 year treasury': '^TNX', 'us 10 year': '^TNX', bonds: 'TLT', 'treasury bonds': 'TLT' };
+
+async function getCandles(query, range = '3mo', horizonDays = 10) {
+  const q = String(query || '').trim();
+  if (!q) return null;
+  const low = q.toLowerCase();
+  let symbol = CRYPTO_NAMES[low] || INDEX_NAMES[low] || (/^[\^A-Z0-9.=-]{1,12}$/.test(q) ? q.toUpperCase() : null);
+  if (!symbol) symbol = await resolveTickerSymbol(q).catch(() => null);
+  if (!symbol) return null;
+  const R = ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y'].includes(range) ? range : '3mo';
+  const interval = R === '5d' ? '1h' : (R === '2y' || R === '5y') ? '1wk' : '1d';
+  try {
+    const res = await _timedFetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${R}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }, 6000);
+    const data = await res.json();
+    const r = data && data.chart && data.chart.result && data.chart.result[0];
+    const qd = r && r.indicators && r.indicators.quote && r.indicators.quote[0];
+    if (!r || !qd || !Array.isArray(r.timestamp)) return null;
+    const candles = [];
+    r.timestamp.forEach((t, i) => {
+      const o = qd.open[i], h = qd.high[i], l = qd.low[i], c = qd.close[i];
+      if ([o, h, l, c].every((v) => typeof v === 'number' && isFinite(v))) candles.push({ t: t * 1000, o, h, l, c });
+    });
+    if (candles.length < 5) return null;
+    const keep = candles.slice(-90);
+    const rets = [];
+    for (let i = 1; i < candles.length; i++) rets.push(Math.log(candles[i].c / candles[i - 1].c));
+    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / Math.max(1, rets.length - 1));
+    // Drift is shrunk hard: the recent trend says little about next week, and
+    // a full-strength trend line would read as a prediction.
+    const drift = mean * 0.25;
+    const H = Math.max(1, Math.min(30, Number(horizonDays) || 10));
+    const last = keep[keep.length - 1].c;
+    const stepMs = interval === '1h' ? 3600e3 : interval === '1wk' ? 7 * 86400e3 : 86400e3;
+    const projection = [];
+    for (let k = 1; k <= H; k++) {
+      const m = drift * k, s = sd * Math.sqrt(k);
+      projection.push({ t: keep[keep.length - 1].t + k * stepMs, base: last * Math.exp(m), lo: last * Math.exp(m - 1.2816 * s), hi: last * Math.exp(m + 1.2816 * s) });
+    }
+    const meta = r.meta || {};
+    const first = keep[0].c;
+    return {
+      symbol: meta.symbol || symbol,
+      name: meta.longName || meta.shortName || meta.symbol || symbol,
+      currency: meta.currency || 'USD',
+      interval, range: R, candles: keep, projection,
+      last, changePct: ((last - first) / first) * 100,
+      dailyVolPct: sd * 100,
+    };
+  } catch (_) { return null; }
+}
+
+module.exports = { getCandles, findSources, fetchRealtimeContext, roleHolderFact, wikipediaFact, getWeatherGreeting, fetchCardData, SPORTS_REGEX, getStockCard, resolveTickerSymbol, SCIENCE_REGEX, ELEMENTS, COMPANY_FINANCE_REGEX, getCompanyFinanceCard, fetchNewsFeeds, getNewsContext, PLACES_SEARCH_REGEX, getPlacesCard, getLocationCard, ANIMAL_REGEX, CHARACTER_REGEX, HISTORICAL_REGEX, ART_REGEX, FOOD_REGEX, FLAG_REGEX, FASHION_REGEX, searchImages };

@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   getLanguage: () => ipcRenderer.sendSync('language:get'),
   setLanguage: (lang) => ipcRenderer.sendSync('language:set', lang),
   onActionFired: (cb) => ipcRenderer.on('jarvis:action-fired', (_e, d) => cb(d)),
+  onExtraChart: (cb) => ipcRenderer.on('jarvis:extra-chart', (_e, d) => cb(d)),
   onVoiceTrigger: (cb) => ipcRenderer.on('jarvis:voice-trigger', () => cb()),
   onHudVoiceTrigger: (cb) => ipcRenderer.on('jarvis:hud-voice-trigger', () => cb()),
   onHudResponse: (cb) => ipcRenderer.on('jarvis:hud-response', (_e, d) => cb(d)),
