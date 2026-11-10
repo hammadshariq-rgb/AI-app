@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.56': [
+      { icon: '🔐', title: 'You decide what it touches', text: 'Callisto now asks in the chat before it looks at your files, makes a file or runs a command. Choose "don\'t ask again" and it remembers.' },
+      { icon: '↩️', title: 'Change your mind any time', text: 'Say "reset permissions" and Callisto will ask again next time.' }
+    ],
     '1.9.55': [
       { icon: '⬇️', title: 'Download any chart', text: 'Hover over a chart and press the download button to save it as a sharp image.' },
       { icon: '📄', title: 'Combine documents', text: 'Circle two Word or text files with the Magic Cursor and say "combine these" to get one new document. PDFs work too.' },
