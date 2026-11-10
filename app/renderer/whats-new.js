@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.54': [
+      { icon: '📈', title: 'Live market charts', text: 'Ask about a stock, crypto, gold or an index and get real candlestick prices with a shaded range for the days ahead, read against the latest news.' },
+      { icon: '📊', title: 'Every chart, redesigned', text: 'Charts in chat and in your analytics now draw themselves in, show the latest value and its change, and tell you each figure as you move across them.' },
+      { icon: '🔔', title: 'Done in the background', text: 'Ask for several things at once and the quick ones come first. You get a notification when the longer ones are ready.' },
+      { icon: '✨', title: 'Catch up on updates', text: 'Skipped a few versions? This card now shows everything you missed, not just the latest.' }
+    ],
     '1.9.53': [
       { icon: '📊', title: 'Numbers you can read', text: 'The views above each bar in your analytics are now bright and easy to see.' },
       { icon: '🔁', title: 'Again means again', text: 'Say "show them again" and you get the same stats back, not the whole dashboard.' }

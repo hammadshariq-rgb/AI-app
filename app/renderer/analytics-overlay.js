@@ -403,8 +403,17 @@
     if (!p || !t) return;
     var c = t.chart || {}, series = c.series || [], bars = c.bars || [], chartTile;
     var legend = function (text) { return '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>' + esc(text) + '</div>'; };
-    if (series.length) chartTile = legend(c.label + ' · last ' + series.length + ' days') + chartSvg(series, p.accent, c.money);
-    else if (bars.length) chartTile = legend(c.barLabel + ' · latest ' + bars.length) + barsSvg(bars, p.accent);
+    // Same chart engine as the charts in chat, so every graph looks and reads
+    // the same: dashed grid, dotted fill, live marker, hover for each value.
+    var MC = window.CallistoMarketChart;
+    if (series.length) chartTile = legend(c.label + ' · last ' + series.length + ' days') + (MC && MC.slot
+      ? MC.slot({ kind: 'line', bare: true, basis: 'measured', colour: p.accent, unit: c.money || '', title: c.label,
+          series: [{ label: c.label, points: series.map(function (q) { return { x: shortDate(q.x), y: q.y }; }) }] })
+      : chartSvg(series, p.accent, c.money));
+    else if (bars.length) chartTile = legend(c.barLabel + ' · latest ' + bars.length) + (MC && MC.slot
+      ? MC.slot({ kind: 'bar', bare: true, basis: 'measured', colour: p.accent, title: c.barLabel,
+          series: [{ label: c.label || 'Value', points: bars.map(function (b) { return { x: String(b.label || '').slice(0, 14), y: b.y }; }) }] })
+      : barsSvg(bars, p.accent));
     else chartTile = legend(c.label || 'Trend') + '<div class="aob-empty">Nothing to chart yet. It fills in as ' + esc(p.name) + ' reports new figures.</div>';
 
     var rows = (t.list.rows || []).map(function (r) {
@@ -431,6 +440,7 @@
         }).join('') +
       '</div>';
     root.querySelector('#aoClose').addEventListener('click', close);
+    try { window.CallistoMarketChart && window.CallistoMarketChart.hydrate(root); } catch (_) {}
   }
 
   async function show(key) {
