@@ -2937,6 +2937,7 @@ const SLOW_ACTIONS = new Set([
 // everything, because the model wrote it knowing what it asked for.
 async function runSecondaryAction(act, _e) {
   const sender = _e && _e.sender;
+  if (PERM_FOR[act.type] && !(await askPermission(sender, act))) return;
   const send = (ch, payload) => {
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send(ch, payload);
   };
@@ -3229,10 +3230,81 @@ function stripSpokenName(q) {
   return out || String(q || '').trim();
 }
 
+
+// ── Asking before touching anything private ──────────────────────────────────
+// Reading or opening their files, making files on their computer, and running
+// code or commands all ask first, in the chat, the way a careful assistant
+// would. "Yes" covers this once; "Yes, don't ask again" covers that kind of
+// thing from now on. Saying "reset permissions" takes every "always" back.
+const PERM_KINDS = {
+  files: { title: 'look at your files', always: 'Yes, and don\'t ask again for files' },
+  make:  { title: 'make a file on your computer', always: 'Yes, and don\'t ask again for making files' },
+  code:  { title: 'run a command on your computer', always: 'Yes, and don\'t ask again for commands' },
+};
+const PERM_FOR = {
+  open_file: 'files', open_folder: 'files', combine_pdfs: 'files',
+  create_spreadsheet: 'make', create_slides: 'make', create_document: 'make',
+  run_command: 'code',
+};
+// Never waved through, whatever was allowed before: these lose work.
+const DESTRUCTIVE_CMD = /\b(rm\s+-[a-z]*r|rmdir|del\s|erase\s|format\s|mkfs|shutdown|reg\s+delete|drop\s+(table|database)|git\s+(push\s+.*--force|reset\s+--hard|clean\s+-[a-z]*f))/i;
+const _permWaits = new Map();
+
+function permAllowed(kind) {
+  const p = store.get('permissions') || {};
+  return p[kind] === 'always';
+}
+
+function permDetail(act) {
+  if (!act) return '';
+  if (act.type === 'run_command') return String((act.payload && act.payload.command) || act.arg || '');
+  if (act.type === 'combine_pdfs') return ((act.payload && act.payload.files) || []).map((f) => path.basename(String(f))).join('\n');
+  if (act.type === 'open_file' || act.type === 'open_folder') return String(act.arg || (_circledFiles && _circledFiles.files[0]) || '');
+  return String(act.arg || (act.spec && act.spec.title) || '');
+}
+
+// Resolves true or false. Asked once per action, in the chat bubble.
+function askPermission(sender, act) {
+  const kind = PERM_FOR[act && act.type];
+  if (!kind) return Promise.resolve(true);
+  const detail = permDetail(act);
+  if (kind === 'code' && DESTRUCTIVE_CMD.test(detail)) {
+    // Asked every time, and the always option is not offered.
+  } else if (permAllowed(kind)) return Promise.resolve(true);
+  if (!sender || sender.isDestroyed()) return Promise.resolve(false);
+  const id = require('crypto').randomBytes(8).toString('hex');
+  const k = PERM_KINDS[kind];
+  sender.send('perm:ask', {
+    id, kind, title: 'Callisto wants to ' + k.title, detail,
+    action: act.type.replace(/_/g, ' '),
+    always: kind === 'code' && DESTRUCTIVE_CMD.test(detail) ? null : k.always,
+  });
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { _permWaits.delete(id); resolve(false); }, 10 * 60 * 1000);
+    _permWaits.set(id, (choice) => {
+      clearTimeout(t);
+      _permWaits.delete(id);
+      if (choice === 'always') {
+        const p = store.get('permissions') || {};
+        p[kind] = 'always';
+        store.set('permissions', p);
+      }
+      resolve(choice === 'once' || choice === 'always');
+    });
+  });
+}
+ipcMain.on('perm:answer', (_e, { id, choice }) => { const f = _permWaits.get(id); if (f) f(choice); });
+
 let _lastAnalyticsPlatform = null;
 async function _chatHandler(_e, { message, history, attachments = [], turn = null }) {
   message = stripSpokenName(message);
   console.log('[CHAT] received:', message?.slice(0, 60));
+  if (/^\s*(?:reset|clear|forget|take back)\s+(?:all\s+)?(?:my\s+|your\s+)?permissions?\b/i.test(String(message || ''))) {
+    store.delete('permissions');
+    const spokenText = 'Done. I will ask again before I look at your files, make files or run commands.';
+    _sendTTS(_e.sender, spokenText);
+    return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);
   if (!token) return { error: 'login_required' };
@@ -4004,6 +4076,17 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // They are side effects only - no second voice line, no second card - so
   // they are set going and left to finish on their own. A 3D model takes
   // minutes, and the answer must not wait behind it.
+  if (finalAction && PERM_FOR[finalAction.type]) {
+    const ok = await askPermission(_e.sender, finalAction);
+    if (!ok) {
+      const spokenText = 'Okay, I left that alone.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    // Allowed for good, and not something that loses work: run it straight
+    // away instead of asking again with a Run button.
+    if (finalAction.type === 'run_command') finalAction._autoRun = permAllowed('code') && !DESTRUCTIVE_CMD.test(permDetail(finalAction));
+  }
   const _extra = (result.actions || []).slice(1).filter((a) => a && a !== finalAction);
   if (_extra.length) {
     // Quickest first, whatever order they were asked for in. Opening a panel or
@@ -4206,7 +4289,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     return {
       text: finalText && finalText.length > 4 ? finalText : spokenText,
       audio: null,
-      card: { type: 'command', command: p.command || '', folder, why: p.why || '' },
+      card: { type: 'command', command: p.command || '', folder, why: p.why || '', autoRun: !!finalAction._autoRun },
       hasAction: false,
     };
   }

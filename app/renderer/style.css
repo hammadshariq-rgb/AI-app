@@ -10554,3 +10554,25 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 /* Value above each bar in the analytics bar charts: readable, not a faint squashed label. */
 .aob-bars { position: relative; }
 .aob-val { position: absolute; transform: translate(-50%, -6px); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: #fff; padding: 1px 7px; border-radius: 999px; background: rgba(8,12,28,.75); border: 1px solid rgba(255,255,255,.14); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+
+/* ── Permission prompt (before files, making files or commands) ─────────── */
+.perm-card { margin-top: 4px; border: 1px solid rgba(120,160,255,.35); border-radius: 12px; padding: 14px 16px 12px;
+  background: rgba(8,13,28,.7); font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace; font-size: 13px; color: #dbe6ff; }
+.perm-head { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+.perm-glyph { color: #ffc478; }
+.perm-detail { margin: 0 0 12px; padding: 9px 11px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  color: #cfe0ff; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; font: inherit; font-size: 12.5px; }
+.perm-q { color: rgba(205,220,250,.85); margin-bottom: 6px; }
+.perm-opts { display: flex; flex-direction: column; gap: 2px; }
+.perm-opt { display: flex; align-items: center; gap: 6px; text-align: left; font: inherit; color: rgba(205,220,250,.8); background: none; border: 0;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.perm-caret { width: 10px; color: transparent; }
+.perm-n { color: rgba(160,185,225,.6); }
+.perm-opt.is-on { color: #fff; background: rgba(77,141,255,.16); }
+.perm-opt.is-on .perm-caret { color: #4D8DFF; }
+.perm-opt:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 1px; }
+.perm-foot { margin-top: 10px; font-size: 11px; color: rgba(160,185,225,.5); }
+.perm-result { padding: 4px 8px; font-weight: 700; }
+.perm-yes .perm-result { color: #3ddc97; }
+.perm-no .perm-result { color: #ff6b7a; }
+.perm-done { border-color: rgba(255,255,255,.12); }

@@ -5451,6 +5451,7 @@ function showCard(card) {
           ? `✅ Ran \`${card.command}\`${res.output ? `\n\n\`\`\`\n${String(res.output).slice(-1200)}\n\`\`\`` : ''}`
           : `⚠️ \`${card.command}\` failed${res.output || res.error ? `\n\n\`\`\`\n${String(res.output || res.error).slice(-1200)}\n\`\`\`` : ''}`);
       });
+      if (card.autoRun) runBtn?.click();
     }, 50);
   } else if (card.type === 'pick-folder') {
     cardContent.innerHTML = `<div style="padding:4px 2px">
@@ -5824,6 +5825,60 @@ function triggerActionFlash() {
 }
 // Fire flash immediately when main process starts an action (before app opens)
 window.jarvis.onActionFired(() => triggerActionFlash());
+// ── Permission prompt ────────────────────────────────────────────────────────
+// Before Callisto looks at files, makes files or runs a command, it asks here,
+// in the chat. Numbered choices, arrow keys or 1/2/3 to pick, Enter to confirm.
+window.jarvis.onPermAsk?.((q) => {
+  if (!q || !q.id) return;
+  const el = addMessage('assistant', '');
+  const body = (el && el.querySelector('.message-content')) || el;
+  if (!body) return;
+  const opts = [{ key: 'once', label: 'Yes' }];
+  if (q.always) opts.push({ key: 'always', label: q.always });
+  opts.push({ key: 'deny', label: 'No, leave it' });
+  const card = document.createElement('div');
+  card.className = 'perm-card';
+  card.setAttribute('role', 'group');
+  card.setAttribute('aria-label', q.title);
+  card.innerHTML =
+    '<div class="perm-head"><span class="perm-glyph" aria-hidden="true">⚿</span><span>' + esc(q.title) + '</span></div>' +
+    (q.detail ? '<pre class="perm-detail">' + esc(q.detail) + '</pre>' : '') +
+    '<div class="perm-q">Do you want to proceed?</div>' +
+    '<div class="perm-opts" role="listbox">' + opts.map((o, i) =>
+      '<button type="button" class="perm-opt' + (i === 0 ? ' is-on' : '') + '" role="option" data-k="' + o.key + '">' +
+      '<span class="perm-caret">›</span><span class="perm-n">' + (i + 1) + '.</span> ' + esc(o.label) + '</button>').join('') + '</div>' +
+    '<div class="perm-foot">Esc to cancel · say "reset permissions" to be asked again</div>';
+  body.appendChild(card);
+  const btns = Array.from(card.querySelectorAll('.perm-opt'));
+  let sel = 0, done = false;
+  const mark = () => btns.forEach((b, i) => b.classList.toggle('is-on', i === sel));
+  const finish = (k) => {
+    if (done) return;
+    done = true;
+    window.jarvis.permAnswer(q.id, k);
+    document.removeEventListener('keydown', onKey, true);
+    const label = k === 'deny' ? 'Not allowed' : k === 'always' ? 'Allowed, and won\'t ask again' : 'Allowed this time';
+    card.classList.add('perm-done', k === 'deny' ? 'perm-no' : 'perm-yes');
+    card.querySelector('.perm-opts').innerHTML = '<div class="perm-result">' + (k === 'deny' ? '✕ ' : '✓ ') + label + '</div>';
+    card.querySelector('.perm-foot')?.remove();
+  };
+  function onKey(e) {
+    if (done) return;
+    if (e.key === 'ArrowDown') { sel = (sel + 1) % btns.length; mark(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = (sel - 1 + btns.length) % btns.length; mark(); e.preventDefault(); }
+    else if (e.key === 'Enter' && document.activeElement && card.contains(document.activeElement)) { finish(btns[sel].dataset.k); e.preventDefault(); }
+    else if (/^[1-3]$/.test(e.key) && btns[+e.key - 1] && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { finish(btns[+e.key - 1].dataset.k); e.preventDefault(); }
+    else if (e.key === 'Escape') { finish('deny'); }
+  }
+  document.addEventListener('keydown', onKey, true);
+  btns.forEach((b, i) => {
+    b.addEventListener('mouseenter', () => { sel = i; mark(); });
+    b.addEventListener('click', () => finish(b.dataset.k));
+  });
+  setTimeout(() => btns[0]?.focus(), 30);
+  try { el.scrollIntoView({ block: 'end', behavior: 'smooth' }); } catch (_) {}
+});
+
 // A chart asked for alongside something else ("analyse the markets and chart
 // gold and bitcoin") arrives on its own, as its own message under the answer.
 window.jarvis.onExtraChart?.(({ text, chart }) => {
