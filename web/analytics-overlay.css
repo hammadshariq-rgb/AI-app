@@ -113,3 +113,9 @@
 .aob-big-long { font-size: 28px; }
 .aob-empty { font-size: 13px; color: rgba(170, 192, 235, .65); line-height: 1.5; padding: 10px 0; }
 @media (max-width: 720px) { .aob-tile, .aob-wide { grid-column: span 6; } }
+
+/* Same as the app: bar values readable, and the extra breakdown tiles. */
+.aob-bars { position: relative; }
+.aob-val { position: absolute; transform: translate(-50%, -6px); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: #fff; padding: 1px 7px; border-radius: 999px; background: rgba(8,12,28,.75); border: 1px solid rgba(255,255,255,.14); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.aob-half { grid-column: span 3; }
+@media (max-width: 720px) { .aob-half { grid-column: span 6; } }

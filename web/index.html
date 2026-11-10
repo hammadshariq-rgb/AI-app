@@ -1110,6 +1110,16 @@
                 border: 1px solid rgba(255,255,255,0.14); color: rgba(205,222,255,0.9); }
     .mbub-btn:hover { background: rgba(255,255,255,0.14); }
     .mbub-link { color: #8fb4ff; text-decoration: underline; }
+    /* Copy, the way the app does it: a faint icon in the answer's corner that
+       wakes up when the answer is hovered. */
+    .mbub.ai { position: relative; padding-bottom: 24px; }
+    .msg-copy-btn { display: inline-flex; align-items: center; justify-content: center; position: absolute; bottom: 5px; right: 7px;
+      width: 22px; height: 22px; padding: 3px; border: none; border-radius: 5px; background: none; cursor: pointer;
+      color: rgba(180,200,255,0.3); opacity: 0; transition: opacity .15s, color .15s, background .15s; }
+    .mbub.ai:hover .msg-copy-btn, .msg-copy-btn:focus-visible { opacity: 1; }
+    .msg-copy-btn:hover { color: rgba(160,180,255,0.95); background: rgba(140,160,255,0.12); }
+    .msg-copy-btn:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 1px; }
+    @media (hover: none) { .msg-copy-btn { opacity: .8; } }
     #stopBtn { display: flex; align-items: center; justify-content: center;
                background: rgba(220,60,70,0.92); border: none; cursor: pointer; }
     .mbub code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
@@ -1789,7 +1799,7 @@
     body *:not(#orbName):not(#nav):not(#nav *):not(svg):not(svg *) { font-family: var(--body) !important; }
   </style>
   <link rel="stylesheet" href="/panels/panels.css?v=2" />
-  <link rel="stylesheet" href="/analytics-overlay.css?v=1" />
+  <link rel="stylesheet" href="/analytics-overlay.css?v=2" />
 </head>
 <body>
   <h1 class="sr-only">Callisto AI — the desktop AI assistant for Windows and Mac</h1>
@@ -4493,19 +4503,16 @@
     // the website had no way to take an answer out of it at all, short of
     // selecting it by hand.
     if(role!=='user'){
-      const bar=document.createElement('div'); bar.className='mbub-bar';
+      const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      const CHECK_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
       const copy=document.createElement('button');
-      copy.className='mbub-btn'; copy.type='button'; copy.textContent='Copy';
-      copy.title='Copy this answer';
+      copy.className='msg-copy-btn'; copy.type='button'; copy.innerHTML=COPY_SVG;
+      copy.title='Copy'; copy.setAttribute('aria-label','Copy this answer');
       copy.addEventListener('click',()=>{
-        try{
-          navigator.clipboard.writeText(text);
-          copy.textContent='Copied';
-          setTimeout(()=>{ copy.textContent='Copy'; },1600);
-        }catch(_){ copy.textContent='Could not copy'; }
+        const plain=String(b._fullText||text).replace(/```callisto-(?:chart|market)\s*\n[\s\S]*?```/gi,'').trim();
+        navigator.clipboard.writeText(plain).then(()=>{ copy.innerHTML=CHECK_SVG; setTimeout(()=>{ copy.innerHTML=COPY_SVG; },1500); }).catch(()=>{});
       });
-      bar.appendChild(copy);
-      b.appendChild(bar);
+      b.appendChild(copy);
     }
     // Any chart the answer asked for, drawn into the bubble. Same renderer the
     // app uses, so a market graph looks the same in both places.
@@ -4522,6 +4529,27 @@
   // than an answer with no picture in it.
   function drawCharts(bubble, text){
     if(!window.CallistoMarketChart || !text) return;
+    // ```callisto-market {"symbol":"NVDA","range":"3mo"}``` - real candles.
+    const mre=/```callisto-market\s*\n([\s\S]*?)```/gi;
+    let mm;
+    bubble._marketDone = bubble._marketDone || {};
+    while((mm=mre.exec(text))){
+      let q=null;
+      try{ q=JSON.parse(mm[1].trim()); }catch(_){ continue; }
+      if(!q || !q.symbol || bubble._marketDone[q.symbol]) continue;
+      bubble._marketDone[q.symbol]=true;
+      const holder=document.createElement('div'); bubble.appendChild(holder);
+      fetch(`${SERVER}/web/candles?symbol=${encodeURIComponent(q.symbol)}&range=${encodeURIComponent(q.range||'3mo')}&horizon=${encodeURIComponent(q.horizon||10)}`)
+        .then((r)=>r.ok?r.json():null).then((d)=>{
+          if(!d || !d.candles) return;
+          const cur=d.currency==='USD'?'$':d.currency+' ';
+          const end=d.projection[d.projection.length-1];
+          const f=(v)=>cur+(v>=1000?Math.round(v).toLocaleString('en-US'):v>=1?v.toFixed(2):v.toPrecision(4));
+          window.CallistoMarketChart.render({ kind:'candle', basis:'measured', title:`${d.name} (${d.symbol})`, unit:cur,
+            candles:d.candles, projection:d.projection, interval:d.interval,
+            note:`${d.name} last at ${f(d.last)}. On its usual swings, about 8 in 10 outcomes over the next ${d.projection.length} ${d.interval==='1h'?'hours':d.interval==='1wk'?'weeks':'trading days'} land between ${f(end.lo)} and ${f(end.hi)}. Prices from Yahoo Finance; the shaded range is worked out from past volatility, not a forecast.` }, holder);
+        }).catch(()=>{});
+    }
     const re=/```callisto-chart\s*\n([\s\S]*?)```/gi;
     let m;
     while((m=re.exec(text))){
@@ -4570,6 +4598,12 @@
     // apps — none of which a web page has — so they live in the app.
     [/\b(?:add|install|get|import|load)\b[^.?!]{0,24}\bskills?\b|\bskills?\b[^.?!]{0,16}\b(?:from )?github\b|\bgithub (?:repo|repository)\b[^.?!]{0,20}\bskill/i,
       'Skills from GitHub'],
+    [/\b(?:combine|merge|join)\b[^.?!]{0,30}\b(?:these|those|my)\b[^.?!]{0,20}\b(?:files?|documents?|docs?|pdfs?)\b/i,
+      'Combining files on your computer'],
+    [/\b(?:camera|webcam)\b[^.?!]{0,30}\b(?:look|see|what|identify|open)\b|\bopen (?:my |the )?camera\b/i,
+      'Looking through your camera'],
+    [/\b(?:send|reply to|read)\b[^.?!]{0,20}\b(?:my )?(?:whatsapp|imessage|text messages?|sms)\b/i,
+      'Your messages'],
     // Overnight work needs something that keeps running; a browser tab does not.
     [/\b(?:overnight|while i sleep|while i(?:\x27m| am) (?:asleep|away)|by (?:the )?morning|through the night)\b/i,
       'Work that runs overnight'],
@@ -4584,9 +4618,8 @@
     for(const [re, what] of WEB_CANNOT){
       if(re.test(text)){
         addMsg('ai',
-          `**${what}** is only available in the downloaded app version of Callisto, not on the website.\n\n`
-          + `The app is free. `
-          + `[Download it](https://github.com/hammadshariq-rgb/AI-app/releases/latest) — it is free.`);
+          `I can only do this on the installed version of Callisto on your device. **${what}** needs the app, because a website cannot reach your computer.\n\n`
+          + `[Download Callisto](https://github.com/hammadshariq-rgb/AI-app/releases/latest). It is free, and your account works in both.`);
         return true;
       }
     }
@@ -4607,7 +4640,7 @@
   function fmt(t){return String(t==null?'':t)
     // The chart block is drawn, not printed. Left in, it would show the reader
     // a wall of raw JSON underneath the picture of the same numbers.
-    .replace(/```callisto-chart\s*\n[\s\S]*?```/gi,'')
+    .replace(/```callisto-(?:chart|market)\s*\n[\s\S]*?```/gi,'')
     .replace(/\[\[REMEMBER:[^\]]*\]\]/gi,'')
     // Quotes are escaped as well as < and >. Without that, a link whose
     // address contained a " closed the href and opened a live attribute:
@@ -5609,11 +5642,11 @@
     .catch(function () {});
 })();
 </script>
-<script defer src="/market-chart.js?v=1"></script>
+<script defer src="/market-chart.js?v=3"></script>
 <script defer src="/mic-wave.js?v=1"></script>
 <script defer src="/account-security.js?v=3"></script>
 <script defer src="/memory-orb.js?v=1"></script>
-<script defer src="/analytics-overlay.js?v=1"></script>
+<script defer src="/analytics-overlay.js?v=2"></script>
 <script>
   // The memory orb talks to the server here instead of the app's store.
   (function(){

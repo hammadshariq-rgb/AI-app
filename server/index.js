@@ -2797,6 +2797,22 @@ function webSystemPrompt() {
     '  say so in words instead of drawing it.',
     '- Write a sentence before the chart saying what it shows. Never only a chart.',
     '',
+    'TRADING AND INVESTING (stocks, crypto, bonds, indices, commodities):',
+    '- For the price, trend or outlook of anything traded, add a LIVE chart with a',
+    '  fenced block tagged `callisto-market` holding {"symbol":"NVDA","range":"3mo"}.',
+    '  symbol can be a ticker or a plain name ("bitcoin", "gold", "Nasdaq 100");',
+    '  range is 5d, 1mo, 3mo, 6mo, 1y, 2y or 5y. The page fetches real prices and',
+    '  draws candles with a projected range - never invent prices yourself. When',
+    '  they ask how news will move the markets, chart the thing most exposed.',
+    '- Weigh the live news: wars, sanctions, elections, tariffs, central banks,',
+    '  export controls, earnings. Say which way each pushes and how strongly.',
+    '- Give a short base case, bull case and bear case, each with what would have',
+    '  to happen for it.',
+    '- NEVER tell this person to buy, sell or hold, and never give a price target',
+    '  as a certainty. For "should I buy?" give the case for, the case against and',
+    '  what would change the picture, and leave the decision with them.',
+    '- End with one line: "This is analysis, not financial advice."',
+    '',
     'REMEMBERING THEM:',
     '- When they tell you something durable about themselves or their business -',
     '  what they sell, who buys it, which platforms they are on, their stage,',
@@ -4350,6 +4366,8 @@ do not invent a question to seem thorough.`
 
 // ── Shopping search (real product results) ────────────────────────────────────
 require('./shopping').mountShopping(app, { authMiddleware });
+// Live candles for the website's market charts.
+require('./market').mountMarket(app, { limiter: aiLimiter });
 
 // ── Text-to-3D ────────────────────────────────────────────────────────────────
 require('./modeling').mountModeling(app, { authMiddleware });

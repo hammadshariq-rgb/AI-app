@@ -37,7 +37,7 @@
             sub: (d.last7Days && d.last7Days.orders) + ' payments' },
           { label: 'Last 30 days', value: cur + money(Number(d.last30Days && d.last30Days.revenue) || 0),
             sub: (d.last30Days && d.last30Days.orders) + ' payments' },
-          { label: 'Customers', value: String(d.totalCustomers || '—') }
+          { label: 'Customers', value: String(d.totalCustomers || ' - ') }
         ];
       },
       list: function (d) {
@@ -55,7 +55,7 @@
           { label: 'Subscribers', value: num(d.subscribers) },
           { label: 'Views, 28 days', value: num(d.views28 != null ? d.views28 : d.totalViews) },
           { label: 'Videos', value: num(d.videoCount) },
-          { label: 'Watch time', value: d.watchTime != null ? num(d.watchTime) + ' hrs' : '—' }
+          { label: 'Watch time', value: d.watchTime != null ? num(d.watchTime) + ' hrs' : ' - ' }
         ];
       },
       list: function (d) {
@@ -71,9 +71,9 @@
       metrics: function (d) {
         return [
           { label: 'Followers', value: num(d.followers) },
-          { label: 'Views, 30 days', value: d.views30 != null ? num(d.views30) : '—' },
-          { label: 'Reach, 30 days', value: d.reach30 != null ? num(d.reach30) : '—' },
-          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : '—' }
+          { label: 'Views, 30 days', value: d.views30 != null ? num(d.views30) : ' - ' },
+          { label: 'Reach, 30 days', value: d.reach30 != null ? num(d.reach30) : ' - ' },
+          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ' }
         ];
       },
       list: function (d) {
@@ -89,9 +89,9 @@
       metrics: function (d) {
         return [
           { label: 'Followers', value: num(d.followers) },
-          { label: 'Reach', value: d.reach != null ? num(d.reach) : '—' },
+          { label: 'Reach', value: d.reach != null ? num(d.reach) : ' - ' },
           { label: 'Posts', value: num(d.posts) },
-          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : '—' }
+          { label: 'Engagement', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ' }
         ];
       },
       list: function (d) {
@@ -113,7 +113,7 @@
           { label: 'Followers', value: num(d.followers) },
           { label: 'Likes', value: num(d.totalLikes != null ? d.totalLikes : d.likes) },
           { label: 'Videos', value: num(d.videoCount) },
-          { label: 'Views', value: d.views != null ? num(d.views) : '—' }
+          { label: 'Views', value: d.views != null ? num(d.views) : ' - ' }
         ];
       },
       list: function (d) {
@@ -127,7 +127,7 @@
   /* ── Small helpers ─────────────────────────────────────────────────────── */
   function num(v) {
     var n = Number(v);
-    return isFinite(n) ? n.toLocaleString() : '—';
+    return isFinite(n) ? n.toLocaleString() : ' - ';
   }
   function money(v) {
     var n = Number(v) || 0;
@@ -252,6 +252,12 @@
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5a3.5 3.5 0 0 1 0 6.5M18 14.5c2 .8 3 2.8 3 5.5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
   };
+  // Extra breakdowns: a titled list per dimension, only those with data.
+  function sections(defs) {
+    return defs.filter(function (d) { return d[1] && d[1].length; }).map(function (d) {
+      return { title: d[0], rows: d[1].slice(0, 8).map(function (r) { return { t: r.name || '(not set)', main: compact(d[2] ? r[d[2]] : r.value), sub: '' }; }) };
+    });
+  }
   function rowsFrom(list, map) { return (list || []).slice(0, 6).map(map); }
   function barsFrom(list, valueOf, labelOf) {
     return (list || []).filter(function (x) { return valueOf(x) != null; }).slice(0, 12).reverse()
@@ -293,10 +299,11 @@
       return {
         handle: d.username ? '@' + d.username : '',
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: total != null ? num(total) : '—', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
+        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
         b: { icon: 'heart', value: d.reach30 != null ? num(d.reach30) : num(sumOf(d.recentPosts, function (p) { return p.likes; }) || 0), label: d.reach30 != null ? 'Reach · 30 days' : 'Likes · recent posts', sub: d.engagementRate != null ? d.engagementRate + '% engagement' : '' },
         chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Views per post' },
-        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) }
+        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) },
+        more: (function (a, act) { a = a || {}; var acts = Object.keys(act || {}).filter(function (k) { return act[k] != null; }).map(function (k) { return { name: k.replace(/_/g, ' '), value: act[k] }; }); return sections([['Activity · 30 days', acts], ['Followers by country', a.countries], ['Followers by city', a.cities], ['Followers by age', a.ages], ['Followers by gender', a.genders], ['Engaged audience by country', a.engagedCountries], ['Engaged audience by age', a.engagedAges]]); })(d.audience, d.activity30)
       };
     },
     tiktok: function (d) {
@@ -304,7 +311,7 @@
       return {
         handle: d.username,
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: total != null ? num(total) : '—', label: 'Views · recent videos' },
+        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: 'Views · recent videos' },
         b: { icon: 'heart', value: num(d.totalLikes != null ? d.totalLikes : d.likes), label: 'Likes', sub: d.videoCount != null ? num(d.videoCount) + ' videos' : '' },
         chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentVideos, viewsOf, function (v) { return v.title; }), barLabel: 'Views per video' },
         list: { title: 'Recent videos', empty: 'No videos yet.', rows: rowsFrom(d.recentVideos, function (v) { return { t: v.title || 'Video', main: v.views != null ? compact(v.views) + ' views' : '', sub: v.likes != null ? compact(v.likes) + ' likes' : '' }; }) }
@@ -313,8 +320,8 @@
     facebook: function (d) {
       return {
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: d.reach != null ? num(d.reach) : '—', label: 'Reach' },
-        b: { icon: 'heart', value: d.engagementRate != null ? d.engagementRate + '%' : '—', label: 'Engagement', sub: d.posts != null ? num(d.posts) + ' posts' : '' },
+        a: { icon: 'eye', value: d.reach != null ? num(d.reach) : ' - ', label: 'Reach' },
+        b: { icon: 'heart', value: d.engagementRate != null ? d.engagementRate + '%' : ' - ', label: 'Engagement', sub: d.posts != null ? num(d.posts) + ' posts' : '' },
         chart: { label: 'Reach', series: seriesOf(d) },
         list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.message || 'Post', main: p.likes != null ? compact(p.likes) + ' likes' : '', sub: '' }; }) }
       };
@@ -325,9 +332,11 @@
         handle: d.siteName,
         hero: { value: compact(m.users), label: 'Visitors · 30 days' },
         a: { icon: 'eye', value: num(m.pageViews), label: 'Page views · 30 days', sub: num(m.sessions) + ' sessions' },
-        b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : '—', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
+        b: { icon: 'clock', value: m.avgSessionSec != null ? dur(m.avgSessionSec) : ' - ', label: 'Average visit', sub: w.users != null ? num(w.users) + ' visitors this week' : '' },
         chart: { label: 'Visitors', series: seriesOf(d), bars: barsFrom(d.topPages, viewsOf, function (p) { return p.path; }), barLabel: 'Views per page' },
-        list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) }
+        list: { title: 'Top pages', empty: 'No visits yet.', rows: rowsFrom(d.topPages, function (p) { return { t: p.path, main: compact(p.views) + ' views', sub: '' }; }) },
+        more: (function (b) { b = b || {}; return sections([['Countries', b.countries, 'totalUsers'], ['Cities', b.cities, 'totalUsers'], ['How they found you', b.channels, 'totalUsers'], ['Sources', b.sources, 'totalUsers'], ['Referring sites', b.referrers, 'sessions'], ['Devices', b.devices, 'totalUsers'], ['Browsers', b.browsers, 'totalUsers'], ['Operating systems', b.systems, 'totalUsers'], ['Languages', b.languages, 'totalUsers'], ['New vs returning', b.newVsReturning, 'totalUsers'], ['Landing pages', b.landingPages, 'sessions'], ['Events', b.events, 'eventCount']]); })(d.breakdown),
+        live: d.activeNow
       };
     },
     shopify: function (d) { return shopTiles(d, d.shopName); },
@@ -339,7 +348,7 @@
       handle: handle,
       hero: { value: moneyTile(cur, m.revenue), label: 'Sales · 30 days' },
       a: { icon: 'bag', value: num(m.orders || 0), label: 'Orders · 30 days', sub: m.paidOrders != null ? num(m.paidOrders) + ' paid' : '' },
-      b: { icon: 'users', value: d.totalCustomers != null ? num(d.totalCustomers) : '—', label: 'Customers' },
+      b: { icon: 'users', value: d.totalCustomers != null ? num(d.totalCustomers) : ' - ', label: 'Customers' },
       chart: { label: 'Daily sales', series: (d.series || []).map(function (p) { return { x: p.date, y: p.value }; }), money: cur },
       list: { title: 'Recent orders', empty: 'No orders to show yet.', rows: rowsFrom(d.recentOrders, function (o) { return { t: 'Order ' + (o.orderNumber || ''), main: o.total || '', sub: o.status ? String(o.status).toLowerCase() : '' }; }) }
     };
@@ -355,18 +364,24 @@
       var h = Math.max(2, (it.y / max) * ih), x = PAD_X + i * (bw + gap), y = PAD_T + ih - h;
       return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="4" fill="url(#' + id + ')">' +
         '<title>' + esc(it.label) + ': ' + num(it.y) + '</title></rect>' +
-        (n <= 12 ? '<text class="ao-axis" text-anchor="middle" x="' + (x + bw / 2) + '" y="' + (y - 5) + '">' + esc(compact(it.y)) + '</text>' : '');
+'';
     }).join('');
+    // The numbers sit in HTML over the chart, not in the SVG: the SVG is
+    // stretched to fit, which squashed and dimmed text drawn inside it.
+    var labels = n <= 12 ? items.map(function (it, i) {
+      var h = Math.max(2, (it.y / max) * ih), x = PAD_X + i * (bw + gap);
+      return '<span class="aob-val" style="left:' + ((x + bw / 2) / W * 100).toFixed(2) + '%;bottom:' + ((PAD_B + h) / H * 100).toFixed(2) + '%">' + esc(compact(it.y)) + '</span>';
+    }).join('') : '';
     var grid = '';
     for (var g = 0; g <= 3; g++) {
       var gy = PAD_T + (ih / 3) * g;
       grid += '<line x1="' + PAD_X + '" y1="' + gy + '" x2="' + (W - PAD_X) + '" y2="' + gy + '" class="ao-grid"/>';
     }
-    return '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Bar chart">' +
+    return '<div class="aob-bars">' + labels + '<svg class="ao-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Bar chart">' +
       '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="' + accent + '" stop-opacity="0.95"/>' +
       '<stop offset="100%" stop-color="#0f37b4" stop-opacity="0.35"/></linearGradient></defs>' +
-      grid + bars + '</svg>';
+      grid + bars + '</svg></div>';
   }
 
   function compact(v) {
@@ -388,8 +403,17 @@
     if (!p || !t) return;
     var c = t.chart || {}, series = c.series || [], bars = c.bars || [], chartTile;
     var legend = function (text) { return '<div class="aob-legend"><span class="ao-key" style="background:' + p.accent + '"></span>' + esc(text) + '</div>'; };
-    if (series.length) chartTile = legend(c.label + ' · last ' + series.length + ' days') + chartSvg(series, p.accent, c.money);
-    else if (bars.length) chartTile = legend(c.barLabel + ' · latest ' + bars.length) + barsSvg(bars, p.accent);
+    // Same chart engine as the charts in chat, so every graph looks and reads
+    // the same: dashed grid, dotted fill, live marker, hover for each value.
+    var MC = window.CallistoMarketChart;
+    if (series.length) chartTile = legend(c.label + ' · last ' + series.length + ' days') + (MC && MC.slot
+      ? MC.slot({ kind: 'line', bare: true, basis: 'measured', colour: p.accent, unit: c.money || '', title: c.label,
+          series: [{ label: c.label, points: series.map(function (q) { return { x: shortDate(q.x), y: q.y }; }) }] })
+      : chartSvg(series, p.accent, c.money));
+    else if (bars.length) chartTile = legend(c.barLabel + ' · latest ' + bars.length) + (MC && MC.slot
+      ? MC.slot({ kind: 'bar', bare: true, basis: 'measured', colour: p.accent, title: c.barLabel,
+          series: [{ label: c.label || 'Value', points: bars.map(function (b) { return { x: String(b.label || '').slice(0, 14), y: b.y }; }) }] })
+      : barsSvg(bars, p.accent));
     else chartTile = legend(c.label || 'Trend') + '<div class="aob-empty">Nothing to chart yet. It fills in as ' + esc(p.name) + ' reports new figures.</div>';
 
     var rows = (t.list.rows || []).map(function (r) {
@@ -408,8 +432,15 @@
         small(t.a) + small(t.b) +
         '<div class="aob-tile aob-wide">' + chartTile + '</div>' +
         '<div class="aob-tile aob-wide"><div class="aob-legend">' + esc(t.list.title) + '</div>' + rows + '</div>' +
+        (t.live != null ? '<div class="aob-tile aob-wide"><div class="aob-legend">On the site right now</div><div class="aob-row"><span class="aob-row-t">Active visitors</span><span class="aob-row-s"><b>' + esc(String(t.live)) + '</b></span></div></div>' : '') +
+        (t.more || []).map(function (sec) {
+          return '<div class="aob-tile aob-half"><div class="aob-legend">' + esc(sec.title) + '</div>' + sec.rows.map(function (r) {
+            return '<div class="aob-row"><span class="aob-row-t">' + esc(String(r.t).slice(0, 48)) + '</span><span class="aob-row-s"><b>' + esc(r.main) + '</b></span></div>';
+          }).join('') + '</div>';
+        }).join('') +
       '</div>';
     root.querySelector('#aoClose').addEventListener('click', close);
+    try { window.CallistoMarketChart && window.CallistoMarketChart.hydrate(root); } catch (_) {}
   }
 
   async function show(key) {
