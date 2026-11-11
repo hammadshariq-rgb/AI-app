@@ -1120,6 +1120,22 @@
     .msg-copy-btn:hover { color: rgba(160,180,255,0.95); background: rgba(140,160,255,0.12); }
     .msg-copy-btn:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 1px; }
     @media (hover: none) { .msg-copy-btn { opacity: .8; } }
+    .mlist { margin: 6px 0 8px; padding-left: 20px; white-space: normal; }
+    .mlist li { margin: 4px 0; line-height: 1.55; }
+    .mlist li::marker { color: #7fa8ff; }
+    .chart-pending { margin: 10px 0 2px; padding: 12px 14px; border-radius: 14px; max-width: 420px; white-space: normal;
+      background: linear-gradient(180deg, rgba(18,26,48,.9), rgba(9,14,28,.9)); border: 1px solid rgba(120,160,255,.18); }
+    .cp-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #cfe0ff; }
+    .cp-dots { display: inline-flex; gap: 3px; }
+    .cp-dots i { width: 4px; height: 4px; border-radius: 50%; background: #7fa8ff; animation: cpDot 1.2s infinite ease-in-out; }
+    .cp-dots i:nth-child(2) { animation-delay: .15s; } .cp-dots i:nth-child(3) { animation-delay: .3s; }
+    @keyframes cpDot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+    .cp-bars { display: flex; align-items: flex-end; gap: 6px; height: 64px; margin-top: 12px; padding-top: 6px; border-top: 1px dashed rgba(140,170,230,.14); }
+    .cp-bars span { flex: 1; border-radius: 4px 4px 2px 2px; background: linear-gradient(180deg, rgba(77,141,255,.55), rgba(77,141,255,.12));
+      transform-origin: bottom; animation: cpGrow 1.4s ease-in-out infinite alternate; }
+    .cp-bars span:nth-child(2n) { animation-delay: .2s; } .cp-bars span:nth-child(3n) { animation-delay: .4s; }
+    @keyframes cpGrow { from { transform: scaleY(.35); opacity: .5; } to { transform: scaleY(1); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .cp-bars span, .cp-dots i { animation: none; } }
     #stopBtn { display: flex; align-items: center; justify-content: center;
                background: rgba(220,60,70,0.92); border: none; cursor: pointer; }
     .mbub code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
@@ -4553,8 +4569,10 @@
       if(!q || !q.symbol || bubble._marketDone[q.symbol]) continue;
       bubble._marketDone[q.symbol]=true;
       const holder=document.createElement('div'); bubble.appendChild(holder);
+      holder.innerHTML='<div class="chart-pending"><div class="cp-head"><span class="cp-t">Fetching live prices</span><span class="cp-dots"><i></i><i></i><i></i></span></div><div class="cp-bars"><span style="height:38%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:80%"></span><span style="height:56%"></span><span style="height:92%"></span><span style="height:70%"></span></div></div>';
       fetch(`${SERVER}/web/candles?symbol=${encodeURIComponent(q.symbol)}&range=${encodeURIComponent(q.range||'3mo')}&horizon=${encodeURIComponent(q.horizon||10)}`)
         .then((r)=>r.ok?r.json():null).then((d)=>{
+          holder.innerHTML='';
           if(!d || !d.candles) return;
           const cur=d.currency==='USD'?'$':d.currency+' ';
           const end=d.projection[d.projection.length-1];
@@ -4562,7 +4580,7 @@
           window.CallistoMarketChart.render({ kind:'candle', basis:'measured', title:`${d.name} (${d.symbol})`, unit:cur,
             candles:d.candles, projection:d.projection, interval:d.interval,
             note:`${d.name} last at ${f(d.last)}. On its usual swings, about 8 in 10 outcomes over the next ${d.projection.length} ${d.interval==='1h'?'hours':d.interval==='1wk'?'weeks':'trading days'} land between ${f(end.lo)} and ${f(end.hi)}. Prices from Yahoo Finance; the shaded range is worked out from past volatility, not a forecast.` }, holder);
-        }).catch(()=>{});
+        }).catch(()=>{ holder.innerHTML=''; });
     }
     const re=/```callisto-chart\s*\n([\s\S]*?)```/gi;
     let m;
@@ -4655,6 +4673,9 @@
     // The chart block is drawn, not printed. Left in, it would show the reader
     // a wall of raw JSON underneath the picture of the same numbers.
     .replace(/```callisto-(?:chart|market)\s*\n[\s\S]*?```/gi,'')
+    // A chart block still being written: a placeholder where it will land,
+    // instead of half a JSON object.
+    .replace(/```callisto-(?:chart|market)[\s\S]*$/i,'\u0000CHARTPENDING\u0000')
     .replace(/\[\[REMEMBER:[^\]]*\]\]/gi,'')
     // Quotes are escaped as well as < and >. Without that, a link whose
     // address contained a " closed the href and opened a live attribute:
@@ -4667,7 +4688,17 @@
     // https: anything else here would be a way to put a javascript: link into
     // the page.
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" class="mbub-link">$1</a>')
-    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>').replace(/^/,'<p>').replace(/$/,'</p>');}
+    // Bulleted and numbered lists, drawn as real lists from the first line.
+    .replace(/(^|\n)((?:[ \t]*(?:[-*•]|\d+[.)])[ \t]+[^\n]*(?:\n|$))+)/g,(m,lead,block)=>{
+      const items=block.trim().split(/\n/).map(l=>l.replace(/^[ \t]*(?:[-*•]|\d+[.)])[ \t]+/,''));
+      const ordered=/^[ \t]*\d/.test(block);
+      return lead+'\u0001'+(ordered?'<ol class="mlist">':'<ul class="mlist">')+items.map(i=>'<li>'+i+'</li>').join('')+(ordered?'</ol>':'</ul>')+'\u0001';
+    })
+    .replace(/\n*\u0001\n*/g,'\u0001')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')
+    .replace(/\u0001(<[uo]l class="mlist">[\s\S]*?<\/[uo]l>)\u0001/g,'</p>$1<p>')
+    .replace(/^/,'<p>').replace(/$/,'</p>').replace(/<p><\/p>/g,'')
+    .replace(/\u0000CHARTPENDING\u0000/g,'<div class="chart-pending"><div class="cp-head"><span class="cp-t">Making your chart</span><span class="cp-dots"><i></i><i></i><i></i></span></div><div class="cp-bars"><span style="height:38%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:80%"></span><span style="height:56%"></span><span style="height:92%"></span><span style="height:70%"></span></div></div>');}
   function showTyping(){const row=document.createElement('div');row.className='mrow ai';row.id='tRow';const av=document.createElement('div');av.className='mav ai';av.textContent='C';const b=document.createElement('div');b.className='mbub ai';b.innerHTML='<div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;}
 
   // ── Web Action Detection ────────────────────────────────────────────────────

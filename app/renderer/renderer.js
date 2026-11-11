@@ -5825,6 +5825,33 @@ function triggerActionFlash() {
 }
 // Fire flash immediately when main process starts an action (before app opens)
 window.jarvis.onActionFired(() => triggerActionFlash());
+// ── "Making your chart" while a chart is on its way ─────────────────────────
+// A chart arrives after the words, so the bubble shows a small placeholder
+// where it will land: from the moment the question is sent when it plainly
+// asks for one, and as soon as the main process says it is fetching prices.
+const _CHART_ASK = /\b(graph|chart|plot|candles?|candlestick|trend line|bar chart|line chart)\b|\b(stock|share|crypto|bitcoin|ethereum|nasdaq|s&p|dow|gold|oil|bond|yield|currency|exchange rate)\b[^.?!]{0,40}\b(price|doing|heading|trend|today|now|going|forecast|outlook)\b|\bprice of\b/i;
+function _chartPendingEl(label) {
+  const el = document.createElement('div');
+  el.className = 'chart-pending';
+  el.setAttribute('role', 'status');
+  el.innerHTML = '<div class="cp-head"><span class="cp-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 11.5 6 7.5l3 3 5-6"/></svg></span>'
+    + '<span class="cp-t">' + esc(label || 'Making your chart') + '</span><span class="cp-dots"><i></i><i></i><i></i></span></div>'
+    + '<div class="cp-bars" aria-hidden="true">' + [38, 62, 48, 80, 56, 92, 70].map((h, i) => '<span style="height:' + h + '%;animation-delay:' + (i * 0.09).toFixed(2) + 's"></span>').join('') + '</div>';
+  return el;
+}
+function _showChartPending(label) {
+  window._chartExpected = true;
+  if (document.querySelector('.chart-pending')) return;
+  const g = (typeof _replyGate !== 'undefined') ? _replyGate : null;
+  const host = (g && g.el && (g.el.querySelector('.message-content') || g.el)) || document.getElementById('_thinkingRow');
+  if (host) host.appendChild(_chartPendingEl(label));
+}
+function _clearChartPending() {
+  window._chartExpected = false;
+  document.querySelectorAll('.chart-pending').forEach((n) => n.remove());
+}
+window.jarvis.onChartPending?.(() => _showChartPending('Fetching live prices'));
+
 // ── Permission prompt ────────────────────────────────────────────────────────
 // Before Callisto looks at files, makes files or runs a command, it asks here,
 // in the chat. Numbered choices, arrow keys or 1/2/3 to pick, Enter to confirm.
@@ -6657,6 +6684,8 @@ async function sendToJarvis(rawText) {
   thinkingRow.appendChild(thinkingActions);
   thinkingRow._stopBtn = thinkingStopBtn;
   chat.appendChild(thinkingRow);
+  window._chartExpected = false;
+  if (typeof _CHART_ASK !== 'undefined' && _CHART_ASK.test(text)) _showChartPending();
   chat.scrollTop = chat.scrollHeight;
 
   // Capture HUD mode BEFORE the async chat call - _maybeForwardToHud clears it afterwards
@@ -6722,6 +6751,7 @@ async function sendToJarvis(rawText) {
   if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
 
   // Document creation - show Save options
+  if (typeof _clearChartPending === 'function') _clearChartPending();
   // A chart that came back with the answer - market size, a comparison,
   // a projection. Drawn into the message it belongs to.
   if (res.chart && msgEl) {
@@ -6971,6 +7001,7 @@ function _openReplyGate() {
   if (g.text.trim()) {
     document.getElementById('_thinkingRow')?.remove();
     g.el = addMessage('assistant', _streamSafeMarkdown(g.text));
+    if (window._chartExpected) { document.querySelectorAll('.chart-pending').forEach((n) => n.remove()); _showChartPending(); }
   }
   if (g.card) { try { showCard(g.card); } catch (e) { console.error('[card]', e); } g.card = null; }
 }

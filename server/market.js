@@ -18,6 +18,11 @@ async function timed(url, ms) {
 
 async function resolve(q) {
   const low = q.toLowerCase();
+  // Currency pairs: "usd to pkr", "eur/usd", "pound vs dollar".
+  const CUR_NAMES = { dollar: 'USD', dollars: 'USD', usd: 'USD', euro: 'EUR', euros: 'EUR', eur: 'EUR', pound: 'GBP', pounds: 'GBP', sterling: 'GBP', gbp: 'GBP', rupee: 'INR', rupees: 'INR', inr: 'INR', pkr: 'PKR', yen: 'JPY', jpy: 'JPY', yuan: 'CNY', cny: 'CNY', dirham: 'AED', aed: 'AED', riyal: 'SAR', sar: 'SAR', franc: 'CHF', chf: 'CHF', cad: 'CAD', aud: 'AUD' };
+  const pair = low.replace(/pakistani rupees?/, 'pkr').replace(/indian rupees?/, 'inr').match(/^([a-z]+)\s*(?:to|\/|vs\.?|into|in)\s*([a-z]+)$/);
+  if (pair && CUR_NAMES[pair[1]] && CUR_NAMES[pair[2]]) return CUR_NAMES[pair[1]] + CUR_NAMES[pair[2]] + '=X';
+
   if (CRYPTO[low]) return CRYPTO[low];
   if (INDEXES[low]) return INDEXES[low];
   if (/^[\^A-Z0-9.=-]{1,12}$/.test(q)) return q.toUpperCase();

@@ -4076,6 +4076,14 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // They are side effects only - no second voice line, no second card - so
   // they are set going and left to finish on their own. A 3D model takes
   // minutes, and the answer must not wait behind it.
+  if (finalAction && finalAction.type === 'open_url' && /google\.[a-z.]+\/search/i.test(String(finalAction.arg || ''))
+      && /\b(price|stock|shares?|trading|worth|crypto|bitcoin|ethereum|solana|bonds?|yield|exchange rate|forex|currency|nasdaq|s&p|dow|ftse|nifty|sensex|gold|oil|to pkr|to usd|to inr|to gbp|to eur)\b/i.test(String(message || ''))) {
+    try {
+      const q = new URL(String(finalAction.arg)).searchParams.get('q') || String(message || '');
+      const cleaned = q.replace(/\b(what(?:'s| is)|the|current|today'?s?|live|stock|share|price|prices|of|now|rate|exchange|trading at|how much is)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+      if (cleaned) finalAction = { type: 'market_chart', arg: cleaned, range: '1mo', horizon: 5 };
+    } catch (_) {}
+  }
   if (finalAction && PERM_FOR[finalAction.type]) {
     const ok = await askPermission(_e.sender, finalAction);
     if (!ok) {
@@ -4778,6 +4786,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // together instead of the chart landing after the explanation of it.
   // Real candles and a projected range for something traded.
   if (finalAction?.type === 'market_chart') {
+    try { _e.sender.send('jarvis:chart-pending', { title: String(finalAction.arg || '') }); } catch (_) {}
     const data = await realtime.getCandles(finalAction.arg, finalAction.range, finalAction.horizon).catch(() => null);
     if (!data) {
       const spokenText = (finalText ? finalText + ' ' : '') + `I couldn't get live prices for ${finalAction.arg || 'that'} just now.`;

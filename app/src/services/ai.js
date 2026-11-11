@@ -553,7 +553,7 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          symbol: { type: 'string', description: 'Ticker or plain name: "NVDA", "Nvidia", "bitcoin", "BTC-USD", "Nasdaq 100", "gold", "TLT" for US treasury bonds, "^TNX" for the 10-year yield.' },
+          symbol: { type: 'string', description: 'Ticker or plain name: "NVDA", "Nvidia", "bitcoin", "BTC-USD", "Nasdaq 100", "gold", "TLT" for US treasury bonds, "^TNX" for the 10-year yield, or a currency pair like "USD to PKR" or "EURUSD=X".' },
           range: { type: 'string', enum: ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y'], description: 'How much history to show. 3mo by default; 5d for intraday moves; 1y or more for the long trend.' },
           horizon_days: { type: 'number', description: 'How far ahead to draw the projected range, 1-30. Default 10.' },
         },
@@ -1524,6 +1524,13 @@ wastes their time. If you genuinely do not know something that changes the
 answer, ask ONE question for it rather than hedging the whole reply.
 
 REPLY STYLE:
+- LISTS FROM THE FIRST WORD. When an answer has three or more parallel parts -
+  reasons, effects, causes, steps, options, risks, pros and cons, ways
+  something spreads - write those parts as a bulleted list straight away
+  ("- **Supply chain:** ..."), each bullet led by a short bold label and one or
+  two sentences. Never write them as a paragraph first. One short sentence of
+  lead-in before the list is fine; a closing line after it is fine. Small
+  answers, one-line facts and casual chat stay as plain sentences - no bullets.
 - SHORT, IN EVERY LANGUAGE. Say the thing and stop. No preamble, no restating
   the question, no summing up what you just said, no offering to help further.
   Small talk and commands: one sentence. A question with a real answer: the
@@ -1560,6 +1567,10 @@ REPLY STYLE:
   needs a number they have not given you, leave an obvious blank like
   [your number] rather than inventing a figure they would then say on camera.
 - TRADING AND INVESTING (stocks, crypto, bonds, indices, commodities):
+  * Prices of anything traded - a stock, share, ETF, index, crypto coin, bond
+    or yield, commodity, or a currency exchange rate ("dollar to rupee") -
+    are ALWAYS market_chart, which shows them as a card in the chat. Never
+    open Google or a browser for a price. Say the current price in words too.
   * Chart it with market_chart - real candles and a projected range. When they
     ask how news will affect the markets, chart the thing most exposed to it.
   * Read the trend from the real numbers and weigh the live news: wars,

@@ -2213,7 +2213,14 @@ async function getCandles(query, range = '3mo', horizonDays = 10) {
   const q = String(query || '').trim();
   if (!q) return null;
   const low = q.toLowerCase();
-  let symbol = CRYPTO_NAMES[low] || INDEX_NAMES[low] || (/^[\^A-Z0-9.=-]{1,12}$/.test(q) ? q.toUpperCase() : null);
+  const _pairSym = (() => {
+  // Currency pairs: "usd to pkr", "eur/usd", "pound vs dollar".
+  const CUR_NAMES = { dollar: 'USD', dollars: 'USD', usd: 'USD', euro: 'EUR', euros: 'EUR', eur: 'EUR', pound: 'GBP', pounds: 'GBP', sterling: 'GBP', gbp: 'GBP', rupee: 'INR', rupees: 'INR', inr: 'INR', pkr: 'PKR', yen: 'JPY', jpy: 'JPY', yuan: 'CNY', cny: 'CNY', dirham: 'AED', aed: 'AED', riyal: 'SAR', sar: 'SAR', franc: 'CHF', chf: 'CHF', cad: 'CAD', aud: 'AUD' };
+  const pair = low.replace(/pakistani rupees?/, 'pkr').replace(/indian rupees?/, 'inr').match(/^([a-z]+)\s*(?:to|\/|vs\.?|into|in)\s*([a-z]+)$/);
+  if (pair && CUR_NAMES[pair[1]] && CUR_NAMES[pair[2]]) return CUR_NAMES[pair[1]] + CUR_NAMES[pair[2]] + '=X';
+    return null;
+  })();
+  let symbol = _pairSym || CRYPTO_NAMES[low] || INDEX_NAMES[low] || (/^[\^A-Z0-9.=-]{1,12}$/.test(q) ? q.toUpperCase() : null);
   if (!symbol) symbol = await resolveTickerSymbol(q).catch(() => null);
   if (!symbol) return null;
   const R = ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y'].includes(range) ? range : '3mo';
