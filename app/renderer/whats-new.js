@@ -12,7 +12,8 @@
   'use strict';
 
   var NOTES = {
-    '1.9.57': [
+    '1.9.58': [
+      { icon: '⚡', title: 'Faster charts, fuller answers', text: 'Ask for a chart or about the markets and the answer starts at once, in full, while the chart is made alongside it.' },
       { icon: '📝', title: 'Clearer answers', text: 'Answers with several reasons, effects or steps now come as bullet points from the first word.' },
       { icon: '📈', title: 'Charts that explain themselves', text: 'Every chart now opens with a one-line summary, marks its highs and lows, and shows a key for its colours.' },
       { icon: '⏳', title: 'Making your chart', text: 'A small placeholder shows where a chart will appear while it is being made.' },
