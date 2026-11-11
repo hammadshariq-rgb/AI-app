@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.59': [
+      { icon: '✉️', title: 'Send email from Gmail', text: 'Connect Gmail and say "email Sarah that I am running late". You check the draft, then it sends. Callisto never reads your inbox.' },
+      { icon: '📁', title: 'Save to Google Drive', text: 'Connect Google Drive and "Open in Google Docs" saves your document straight into your Drive, ready to edit.' }
+    ],
     '1.9.58': [
       { icon: '⚡', title: 'Faster charts, fuller answers', text: 'Ask for a chart or about the markets and the answer starts at once, in full, while the chart is made alongside it.' },
       { icon: '📝', title: 'Clearer answers', text: 'Answers with several reasons, effects or steps now come as bullet points from the first word.' },
