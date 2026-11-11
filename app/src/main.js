@@ -4974,7 +4974,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
     if (igBrief) {
       const bits = [`Instagram is on ${plural(igBrief.followers, 'follower')}`];
-      if (igBrief.views30 != null) bits.push(`${plural(igBrief.views30, 'view')} in the last thirty days`);
+      if (igBrief.views30 != null) bits.push(`${plural(igBrief.views30, 'organic view')} in the last thirty days`);
       // How the newest post is doing, which is the thing actually worth hearing.
       const last = (igBrief.recentPosts || [])[0];
       if (last && last.views != null) {

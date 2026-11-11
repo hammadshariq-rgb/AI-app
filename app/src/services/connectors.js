@@ -1543,7 +1543,7 @@ function formatAnalyticsForAI({ youtube, instagram, tiktok, shopify, squarespace
   }
   if (instagram) {
     lines.push(`Instagram (@${instagram.username}): ${instagram.followers.toLocaleString()} followers, ${instagram.posts} posts.`);
-    if (instagram.views30 != null) lines.push(`Last 30 days: ${instagram.views30.toLocaleString()} views, ${(instagram.reach30 || 0).toLocaleString()} accounts reached${instagram.engagementRate ? `, ${instagram.engagementRate}% engagement` : ''}.`);
+    if (instagram.views30 != null) lines.push(`Last 30 days: ${instagram.views30.toLocaleString()} organic views (Instagram does not share views from boosted posts or ads), ${(instagram.reach30 || 0).toLocaleString()} accounts reached${instagram.engagementRate ? `, ${instagram.engagementRate}% engagement` : ''}.`);
     const last = instagram.recentPosts[0];
     if (last) lines.push(`Last ${last.kind.toLowerCase()}${last.views != null ? ` got ${last.views.toLocaleString()} views,` : ' got'} ${last.likes} likes, ${last.comments} comments.`);
   }
@@ -1596,7 +1596,7 @@ function formatAnalyticsDetail(a) {
   const ig = a.instagram;
   if (ig) {
     out.push('INSTAGRAM (@' + ig.username + '): ' + num(ig.followers) + ' followers, following ' + num(ig.following) + ', ' + num(ig.posts) + ' posts. Last 30 days: '
-      + num(ig.views30) + ' views, ' + num(ig.reach30) + ' accounts reached, ' + num(ig.profileViews30) + ' profile views, ' + num(ig.accountsEngaged)
+      + num(ig.views30) + ' organic views (ads not included), ' + num(ig.reach30) + ' accounts reached, ' + num(ig.profileViews30) + ' profile views, ' + num(ig.accountsEngaged)
       + ' accounts engaged, ' + num(ig.interactions) + ' interactions, engagement rate ' + (ig.engagementRate == null ? '?' : ig.engagementRate) + '%.');
     const act = ig.activity30 || {};
     if (Object.keys(act).length) out.push('Instagram activity, last 30 days: ' + Object.entries(act).map(([k, v]) => k.replace(/_/g, ' ') + ' ' + num(v)).join(', '));

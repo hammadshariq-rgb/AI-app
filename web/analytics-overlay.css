@@ -119,3 +119,8 @@
 .aob-val { position: absolute; transform: translate(-50%, -6px); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: #fff; padding: 1px 7px; border-radius: 999px; background: rgba(8,12,28,.75); border: 1px solid rgba(255,255,255,.14); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 .aob-half { grid-column: span 3; }
 @media (max-width: 720px) { .aob-half { grid-column: span 6; } }
+
+/* Analytics: the 'organic only' note above the tiles. */
+.aob-notice { grid-column: 1 / -1; display: flex; gap: 9px; align-items: flex-start; padding: 10px 13px; border-radius: 12px; font-size: 12.5px; line-height: 1.5;
+  color: rgba(225,232,250,.86); background: rgba(255,176,80,.08); border: 1px solid rgba(255,176,80,.24); }
+.aob-notice svg { flex: none; margin-top: 2px; color: #ffc478; }

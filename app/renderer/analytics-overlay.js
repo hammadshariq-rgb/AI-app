@@ -299,10 +299,14 @@
       return {
         handle: d.username ? '@' + d.username : '',
         hero: { value: compact(d.followers), label: 'Followers' },
-        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: d.views30 != null ? 'Views · 30 days' : 'Views · recent posts' },
+        a: { icon: 'eye', value: total != null ? num(total) : ' - ', label: d.views30 != null ? 'Organic views · 30 days' : 'Organic views · recent posts', sub: 'Ads not included' },
         b: { icon: 'heart', value: d.reach30 != null ? num(d.reach30) : num(sumOf(d.recentPosts, function (p) { return p.likes; }) || 0), label: d.reach30 != null ? 'Reach · 30 days' : 'Likes · recent posts', sub: d.engagementRate != null ? d.engagementRate + '% engagement' : '' },
-        chart: { label: 'Views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Views per post' },
-        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) },
+        // Instagram only gives apps organic figures. A boosted post shows its
+        // paid views in the Instagram app but not here, which reads as a
+        // mistake unless it is said plainly.
+        notice: 'Organic views only. Instagram does not share views from boosted posts or ads with other apps, so a boosted reel shows more views in the Instagram app than here.',
+        chart: { label: 'Organic views', series: seriesOf(d), bars: barsFrom(d.recentPosts, viewsOf, function (p) { return p.caption; }), barLabel: 'Organic views per post' },
+        list: { title: 'Recent posts', empty: 'No posts yet.', rows: rowsFrom(d.recentPosts, function (p) { return { t: p.caption || 'Post', main: p.views != null ? compact(p.views) + ' organic views' : '', sub: p.likes != null ? compact(p.likes) + ' likes' : '' }; }) },
         more: (function (a, act) { a = a || {}; var acts = Object.keys(act || {}).filter(function (k) { return act[k] != null; }).map(function (k) { return { name: k.replace(/_/g, ' '), value: act[k] }; }); return sections([['Activity · 30 days', acts], ['Followers by country', a.countries], ['Followers by city', a.cities], ['Followers by age', a.ages], ['Followers by gender', a.genders], ['Engaged audience by country', a.engagedCountries], ['Engaged audience by age', a.engagedAges]]); })(d.audience, d.activity30)
       };
     },
@@ -428,6 +432,7 @@
         '<span>' + esc(p.name) + '</span>' + (t.handle || p.sub ? '<span class="ao-sub">' + esc(t.handle || p.sub) + '</span>' : '') + '</div>' +
         '<button class="ao-x" id="aoClose" aria-label="Close">✕</button></div>' +
       '<div class="aob" style="--acc:' + p.accent + '">' +
+        (t.notice ? '<div class="aob-notice" role="note"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M11 12h1v5h1"/></svg><span>' + esc(t.notice) + '</span></div>' : '') +
         '<div class="aob-tile aob-hero"><div class="aob-big' + (longHero ? ' aob-big-long' : '') + '">' + esc(t.hero.value) + '</div><div class="aob-cap">' + esc(t.hero.label) + '</div></div>' +
         small(t.a) + small(t.b) +
         '<div class="aob-tile aob-wide">' + chartTile + '</div>' +

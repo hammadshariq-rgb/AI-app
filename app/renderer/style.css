@@ -10612,3 +10612,8 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
   transform-origin: bottom; animation: cpGrow 1.4s ease-in-out infinite alternate; }
 @keyframes cpGrow { from { transform: scaleY(.35); opacity: .5; } to { transform: scaleY(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cp-bars span, .cp-dots i { animation: none; } }
+
+/* Analytics: the 'organic only' note above the tiles. */
+.aob-notice { grid-column: 1 / -1; display: flex; gap: 9px; align-items: flex-start; padding: 10px 13px; border-radius: 12px; font-size: 12.5px; line-height: 1.5;
+  color: rgba(225,232,250,.86); background: rgba(255,176,80,.08); border: 1px solid rgba(255,176,80,.24); }
+.aob-notice svg { flex: none; margin-top: 2px; color: #ffc478; }
