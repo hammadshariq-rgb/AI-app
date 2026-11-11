@@ -2024,10 +2024,15 @@
               <!-- Gmail and Meet are built but waiting on Google's security
                    review for restricted scopes, so they show as coming soon
                    rather than offering a Connect button that can't work yet. -->
-              <div class="connector-row connector-soon" id="gmailRow">
+              <div class="connector-row" id="gmailRow">
                 <div class="connector-icon" style="background:rgba(234,67,53,0.13);color:#EA4335"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg></div>
-                <div class="connector-info"><div class="connector-name">GMAIL</div><div class="connector-status">Coming soon · Read &amp; draft your email by voice</div></div>
-                <span class="connector-soon-tag">SOON</span>
+                <div class="connector-info"><div class="connector-name">GMAIL</div><div class="connector-status" id="gmailStatus">Not connected · Send email by voice</div></div>
+                <button class="connector-btn" id="gmailBtn">CONNECT</button>
+              </div>
+              <div class="connector-row" id="driveRow">
+                <div class="connector-icon" style="background:rgba(66,133,244,0.13);color:#4285F4"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3h7l6 10.5-3.5 6h-12L2.5 13.5z"/><path d="M8.5 3 15 14.5M15.5 3 9 14.5M2.5 13.5h13"/></svg></div>
+                <div class="connector-info"><div class="connector-name">GOOGLE DRIVE</div><div class="connector-status" id="driveStatus">Not connected · Save documents to your Drive</div></div>
+                <button class="connector-btn" id="driveBtn">CONNECT</button>
               </div>
               <div class="connector-row connector-soon" id="slidesRow">
                 <div class="connector-icon" style="background:rgba(244,180,0,0.14);color:#f4b400"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M12 17v4"/><path d="M8 21h8"/></svg></div>

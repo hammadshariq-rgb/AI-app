@@ -101,7 +101,62 @@ function saveGoogleAccountEmail(email) { store.set('googleAccountEmail', email);
 function getGoogleAccountEmail() { return store.get('googleAccountEmail') || null; }
 function disconnectGoogleAccount() { store.delete('googleAccountEmail'); }
 
-function saveGmailTokens(_tokens) { /* Gmail removed - pending ADA-CASA */ }
+// ── Gmail: SENDING only (gmail.send) ─────────────────────────────────────────
+// gmail.send is a sensitive scope, not a restricted one, so it needs only the
+// normal Google review - no paid security assessment. Callisto can send from
+// the account; it cannot read the inbox (that would be restricted).
+function saveGmailTokens(tokens) { saveTokens('gmail', tokens); }
+
+// A Google token for gmail or drive, refreshed through the server (which holds
+// the client secret) when it is about to run out.
+async function googleToken(service) {
+  const t = loadTokens(service);
+  if (!t || !t.access_token) return null;
+  if (t.expires_at && Date.now() > t.expires_at - 60000) {
+    if (!t.refresh_token) return null;
+    try {
+      const res = await fetch(`${SERVER}/connect/${service}/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: t.refresh_token }),
+      });
+      const d = await res.json();
+      if (!d.access_token) return null;
+      saveTokens(service, { access_token: d.access_token, refresh_token: t.refresh_token, expires_in: d.expires_in || 3600 });
+      return d.access_token;
+    } catch (_) { return null; }
+  }
+  return t.access_token;
+}
+
+// RFC 2047 so a subject with accents or emoji arrives intact.
+function _mimeWord(s) { return /^[\x20-\x7e]*$/.test(s) ? s : '=?UTF-8?B?' + Buffer.from(s, 'utf8').toString('base64') + '?='; }
+
+async function sendGmail({ to, subject, body }) {
+  const token = await googleToken('gmail');
+  if (!token) return { ok: false, error: 'Gmail is not connected. Open Connectors and connect Gmail.' };
+  if (!to || !/@/.test(String(to))) return { ok: false, error: 'I need an email address to send it to.' };
+  const CRLF = '\r\n';
+  const raw = [
+    'To: ' + String(to).replace(/[\r\n]/g, ''),
+    'Subject: ' + _mimeWord(String(subject || '').replace(/[\r\n]/g, ' ')),
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(String(body || ''), 'utf8').toString('base64'),
+  ].join(CRLF);
+  const encoded = Buffer.from(raw, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: encoded }),
+    });
+    const d = await res.json();
+    if (d && d.id) return { ok: true, id: d.id, via: 'gmail' };
+    return { ok: false, error: (d && d.error && d.error.message) || 'Gmail did not send it.' };
+  } catch (err) { return { ok: false, error: 'Could not reach Gmail: ' + err.message }; }
+}
+
 function saveOutlookTokens(tokens) { saveTokens('outlook', tokens); }
 function saveSpotifyTokens(tokens) { saveTokens('spotify', tokens); }
 
@@ -294,10 +349,56 @@ function saveCalendarTokens(tokens) { saveTokens('calendar', tokens); }
 // ── Google Drive - removed pending ADA-CASA verification ─────────────────────
 // Will be restored when Drive connector is re-enabled.
 
-function saveDriveTokens(_tokens) { /* Drive removed - pending ADA-CASA */ }
-async function getDriveToken() { return null; }
-async function searchDriveFiles() { return []; }
-async function openDriveFile() { return false; }
+// ── Google Drive (drive.file) ────────────────────────────────────────────────
+// drive.file is not a restricted scope: Callisto can create files in the
+// person's Drive and work with the files it made (or ones they pick), and
+// nothing else. No security assessment needed.
+function saveDriveTokens(tokens) { saveTokens('drive', tokens); }
+async function getDriveToken() { return googleToken('drive'); }
+
+// Upload a file Callisto made. Word, Excel and PowerPoint files are turned
+// into Google Docs, Sheets and Slides so they open and edit in the browser.
+async function uploadToDrive(filePath, title) {
+  const token = await getDriveToken();
+  if (!token) return { ok: false, error: 'not_connected' };
+  const fs = require('fs');
+  const path = require('path');
+  const ext = path.extname(filePath).toLowerCase();
+  const SRC = { '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.txt': 'text/plain', '.md': 'text/plain', '.pdf': 'application/pdf' };
+  const GOOGLE = { '.docx': 'application/vnd.google-apps.document', '.txt': 'application/vnd.google-apps.document', '.md': 'application/vnd.google-apps.document', '.xlsx': 'application/vnd.google-apps.spreadsheet', '.pptx': 'application/vnd.google-apps.presentation' };
+  const meta = { name: title || path.basename(filePath, ext) };
+  if (GOOGLE[ext]) meta.mimeType = GOOGLE[ext];
+  const boundary = 'callisto' + Date.now();
+  const head = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${SRC[ext] || 'application/octet-stream'}\r\n\r\n`, 'utf8');
+  const tail = Buffer.from(`\r\n--${boundary}--`, 'utf8');
+  try {
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: Buffer.concat([head, fs.readFileSync(filePath), tail]),
+    });
+    const d = await res.json();
+    if (d && d.id) return { ok: true, id: d.id, name: d.name, url: d.webViewLink };
+    return { ok: false, error: (d && d.error && d.error.message) || 'Drive did not accept the file.' };
+  } catch (err) { return { ok: false, error: err.message }; }
+}
+
+// Files Callisto saved (the only ones drive.file lets it see), by name.
+async function searchDriveFiles(query) {
+  const token = await getDriveToken();
+  if (!token) return [];
+  const q = query ? `name contains '${String(query).replace(/['\\]/g, ' ').slice(0, 80)}' and trashed = false` : 'trashed = false';
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime desc&pageSize=10&fields=files(id,name,webViewLink,modifiedTime,mimeType)`, { headers: { Authorization: `Bearer ${token}` } });
+    const d = await res.json();
+    return (d && d.files) || [];
+  } catch (_) { return []; }
+}
+async function openDriveFile(file) {
+  if (!file || !file.webViewLink) return false;
+  try { await require('electron').shell.openExternal(file.webViewLink); return true; } catch (_) { return false; }
+}
+
 
 // ── YouTube Studio ─────────────────────────────────────────────────────────────
 
@@ -1809,13 +1910,11 @@ async function getOutlookAccount() {
 // Outlook is the one mailbox Callisto can send from - Gmail still waits on
 // Google's CASA assessment, so it is named rather than failing vaguely.
 async function sendEmail(opts) {
+  // Gmail first when it is connected, then Outlook.
+  if (await googleToken('gmail')) return sendGmail(opts || {});
   const outlook = await getOutlookToken();
   if (outlook) return sendOutlookEmail(opts || {});
-  const status = getConnectorStatus();
-  if (status.gmail) {
-    return { ok: false, error: 'Sending from Gmail is not available yet. It needs Google security review. Connect Outlook and Callisto can send from there.' };
-  }
-  return { ok: false, error: 'No mailbox is connected. Open Connectors and link Outlook.' };
+  return { ok: false, error: 'No mailbox is connected. Open Connectors and connect Gmail or Outlook.' };
 }
 async function markAllEmailsRead() {
   return { ok: false, error: 'Email not available in this version.' };
@@ -1828,6 +1927,7 @@ module.exports = {
   saveGmailTokens, saveOutlookTokens,
   // Drive stub (removed pending ADA-CASA)
   saveDriveTokens, getDriveToken, searchDriveFiles, openDriveFile,
+  sendGmail, uploadToDrive,
   // Active connectors
   getConnectorStatus, saveGoogleAccountEmail, getGoogleAccountEmail, disconnectGoogleAccount,
   saveSpotifyTokens, saveCalendarTokens,

@@ -6821,7 +6821,7 @@ async function sendToJarvis(rawText) {
           const hint = document.createElement('div');
           hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:rgba(255,180,0,0.12);border:1px solid rgba(255,180,0,0.3);border-radius:6px;font-size:11px;color:rgba(255,200,80,0.95);';
           if (result.error === 'not_connected') {
-            hint.textContent = '⚠ Google Drive is not available in this version.';
+            hint.textContent = '⚠ Connect Google Drive in Connectors to save documents there.';
           } else if (result.error === 'scope_missing') {
             hint.textContent = '⚠ Google Drive is not available in this version.';
           } else {
@@ -10050,7 +10050,7 @@ const CONNECT_STEPS = {
     steps: [
       'A browser window will open',
       'Sign in with your <strong>Google account</strong>',
-      'Click <strong>Allow</strong> to grant email read access',
+      'Click <strong>Allow</strong> so Callisto can send email for you. It cannot read your inbox.',
       'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
@@ -10072,7 +10072,7 @@ const CONNECT_STEPS = {
     steps: [
       'A browser window will open',
       'Sign in with your <strong>Google account</strong>',
-      'Click <strong>Allow</strong> to grant Drive read access',
+      'Click <strong>Allow</strong>. Callisto only sees files it saves for you, never the rest of your Drive.',
       'The tab will close - you\'re connected',
     ],
     continueLabel: 'Open Google Sign-In →',
@@ -10536,8 +10536,8 @@ window.jarvis.onConnectorConnected(({ service }) => {
   if (_now - (_announcedConnect.get(service) || 0) < 10000) return;
   _announcedConnect.set(service, _now);
   const connectedMessages = {
-    gmail:         'Gmail connected. Say "give me an update" to check your emails.',
-    drive:         'Google Drive connected. Say "create me a document about X" or "open my files" to get started.',
+    gmail:         'Gmail connected. Say "email Sarah that I am running late" and I will write it for you to check before it goes.',
+    drive:         'Google Drive connected. Make a document and press "Open in Google Docs" to save it straight into your Drive.',
     calendar:      'Google Calendar connected. Say "what\'s on my schedule" to see your events.',
     spotify:       'Spotify connected. Say "play some music" to get started.',
     youtube:       'YouTube connected. Say "show me my channel stats" to see your analytics.',

@@ -1108,7 +1108,7 @@ app.post('/connect/google/exchange', connectLimiter, async (req, res) => {
 app.get('/connect/gmail', connectLimiter, (_req, res) => res.status(410).json({ error: 'Gmail connector not available in this version.' }));
 app.get('/connect/gmail/callback', connectLimiter, (_req, res) => res.status(410).send('Gmail connector not available.'));
 app.get('/connect/gmail/poll', connectLimiter, (_req, res) => res.json({ ok: false }));
-app.post('/connect/gmail/refresh', connectLimiter, (_req, res) => res.status(410).json({ error: 'Gmail connector not available.' }));
+app.post('/connect/gmail/refresh', connectLimiter, (req, res) => googleRefresh(req, res));
 
 // Temporary token store (in-memory, cleared after pickup)
 const pendingTokens = {};
@@ -1625,6 +1625,19 @@ app.get('/connect/calendar/poll', connectLimiter, (req, res) => {
   res.json({ ok: false });
 });
 
+// Gmail (send only) and Drive (drive.file) refresh the same way Calendar does.
+async function googleRefresh(req, res) {
+  const { refresh_token } = req.body || {};
+  if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, refresh_token, grant_type: 'refresh_token' }),
+    });
+    res.json(await r.json());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
 app.post('/connect/calendar/refresh', connectLimiter, async (req, res) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
@@ -1889,7 +1902,7 @@ app.get('/account', connectLimiter, (req, res) => {
 app.get('/connect/drive', connectLimiter, (_req, res) => res.status(404).json({ error: 'Drive connector not available in this version.' }));
 app.get('/connect/drive/callback', connectLimiter, (_req, res) => res.status(404).send('Not found.'));
 app.get('/connect/drive/poll', connectLimiter, (_req, res) => res.status(404).json({ ok: false }));
-app.post('/connect/drive/refresh', connectLimiter, (_req, res) => res.status(404).json({ error: 'Drive not available.' }));
+app.post('/connect/drive/refresh', connectLimiter, (req, res) => googleRefresh(req, res));
 
 // ── YouTube Studio connector OAuth ────────────────────────────────────────────
 // Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — just adds YouTube scopes

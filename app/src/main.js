@@ -2866,7 +2866,20 @@ ipcMain.handle('jarvis:addCalendarEvent', async (_e, { title, startISO, endISO, 
   return { ok: true };
 });
 
-ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content }) => {
+ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content, sections }) => {
+  // With Drive connected: a real Google Doc in their Drive, opened in the
+  // browser. Without it: the old copy-and-paste way.
+  try {
+    if (await connectors.getDriveToken()) {
+      const out = await documents.writeAny({ kind: 'doc', title: title || 'Document', sections: sections || [], content: content || '' }, app.getPath('temp'));
+      const up = await connectors.uploadToDrive(out, title || 'Document');
+      if (up.ok && up.url) { await shell.openExternal(up.url); return { ok: true, url: up.url }; }
+      return { error: up.error || 'upload_failed' };
+    }
+  } catch (err) { console.warn('[drive] upload failed:', err.message); }
+  if (!content && Array.isArray(sections)) {
+    content = sections.map((x) => x.text || (x.items || []).map((i) => '• ' + i).join(String.fromCharCode(10))).filter(Boolean).join(String.fromCharCode(10, 10));
+  }
   const { clipboard } = require('electron');
   clipboard.writeText(`${title}\n\n${content}`);
   await shell.openExternal('https://docs.google.com/document/create');
@@ -6468,6 +6481,10 @@ const GOOGLE_OAUTH_SCOPES = {
   // is not requested. To turn Drive back on after the assessment: restore the
   // line below and re-enable the connector in connectors.js.
   // drive:      'https://www.googleapis.com/auth/drive.readonly',
+  // Not restricted, so no paid assessment: Drive limited to files Callisto
+  // makes or the person picks, and Gmail limited to sending.
+  drive:         'https://www.googleapis.com/auth/drive.file',
+  gmail:         'https://www.googleapis.com/auth/gmail.send',
   // upload is needed so customers can post their videos to their own channel
   youtube:       'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
   analytics:     'https://www.googleapis.com/auth/analytics.readonly',
