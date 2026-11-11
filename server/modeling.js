@@ -49,7 +49,41 @@ async function meshy(path, options = {}) {
   return body;
 }
 
-function mountModeling(app, { authMiddleware }) {
+
+// ── What a 3D model must never be ────────────────────────────────────────────
+// Every prompt is checked twice before Meshy sees it: a strict list of words
+// (sex dolls and toys, nudity, fetish wear, adult bodies posed for it), and the
+// same moderation the chat uses. The list matters because a request gets
+// expanded into a long, harmless-sounding description - "a realistic life-size
+// female figure, smooth skin, soft silicone" - that moderation alone let
+// through, and Meshy then built exactly what was meant.
+const BLOCKED_3D = new RegExp([
+  'sex\\s*(?:doll|toy|robot|bot|machine|swing|furniture)s?', 'love\\s*dolls?', 'real\\s*dolls?', 'silicone\\s+(?:doll|woman|girl|body|torso|companion)',
+  'companion\\s+dolls?', 'adult\\s+(?:doll|toy|figure|product)s?', 'blow[\\s-]*up\\s+dolls?', 'onahole', 'fleshlight', 'dildo', 'vibrator', 'butt\\s*plug',
+  'strap[\\s-]*on', 'masturbat\\w*', 'genital\\w*', 'penis', 'vagina\\w*', 'vulva', 'nipples?', 'areolae?', 'naked', 'nude\\w*', 'topless', 'bottomless',
+  'lingerie', 'thong', 'g[\\s-]*string', 'bikini\\s+(?:girl|woman|body)', 'erotic\\w*', 'porn\\w*', 'hentai', 'nsfw', 'fetish\\w*', 'bdsm', 'bondage',
+  'dominatrix', 'stripper', 'pole\\s*dancer', 'seductive', 'sexy', 'sensual', 'aroused', 'orgasm', 'intercourse', 'sex\\s+position',
+  'busty', 'big\\s+(?:breasts?|boobs?|butt|ass)', 'breasts?', 'boobs?', 'cleavage', 'curvy\\s+(?:woman|girl|body)', 'voluptuous', 'life[\\s-]*size\\s+(?:woman|girl|female|doll)',
+  'anatomically\\s+correct', 'realistic\\s+(?:woman|girl|female)\\s+(?:body|torso|doll)', 'female\\s+torso', 'torso\\s+(?:doll|toy)',
+].join('|'), 'i');
+const REFUSE_3D = 'I can\u2019t make that as a 3D model. Try something else - an object, a character, a building or a scene.';
+
+async function blocked3d(text, req) {
+  const t = String(text || '');
+  if (BLOCKED_3D.test(t)) {
+    console.log('[flag] 3d-blocked-words user=' + (req && req.userId || 'guest'));
+    return true;
+  }
+  if (_guard) {
+    const hit = await _guard.review({ text: t }, req && req.userId).catch(() => null);
+    if (hit) return true;
+  }
+  return false;
+}
+let _guard = null;
+
+function mountModeling(app, { authMiddleware, guard }) {
+  _guard = guard || null;
   const configured = !!MESHY_API_KEY;
 
   app.get('/models/config', authMiddleware, (_req, res) => {
@@ -64,6 +98,9 @@ function mountModeling(app, { authMiddleware }) {
       }
       const prompt = String(req.body?.prompt || '').trim();
       if (!prompt) return res.status(400).json({ error: 'Describe the model you want.' });
+      // What they actually said, when the app sends it, is checked as well as
+      // the expanded description.
+      if (await blocked3d(prompt + ' ' + String(req.body?.request || ''), req)) return res.status(400).json({ error: REFUSE_3D, refused: true });
 
       const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
       const slot = await usage.reserve('meshy', req.userId, allow.limit, allow.period);
@@ -109,6 +146,12 @@ function mountModeling(app, { authMiddleware }) {
       const imageUrl = String(req.body?.imageUrl || '').trim();
       if (!(await require('./netguard').resolvesPublic(imageUrl))) {
         return res.status(400).json({ error: 'That needs a picture to work from.' });
+      }
+      // A picture turned into a model is looked at first, the same way a
+      // picture sent in chat is.
+      if (_guard) {
+        const hit = await _guard.review({ images: [imageUrl] }, req.userId).catch(() => 'unchecked-image');
+        if (hit) return res.status(400).json({ error: REFUSE_3D, refused: true });
       }
 
       const allow = await usage.allowance(req.userId, { paidPerDay: MESHY_USES_PER_DAY, trialPerDay: TRIAL_MESHY_USES_PER_DAY });
@@ -230,6 +273,7 @@ function mountModeling(app, { authMiddleware }) {
       const prompt = String(req.body?.prompt || '').trim();
       if (!taskId) return res.status(400).json({ error: 'That model can’t be repainted — generate it again first.' });
       if (!prompt) return res.status(400).json({ error: 'Describe the new look.' });
+      if (await blocked3d(prompt, req)) return res.status(400).json({ error: REFUSE_3D, refused: true });
       // The model being repainted must be theirs. Otherwise anyone holding
       // another person's model id could pull that model out under a new skin.
       if (!(await ownership.mayAccess('model', taskId, req.userId))) {

@@ -4392,7 +4392,7 @@ require('./shopping').mountShopping(app, { authMiddleware });
 require('./market').mountMarket(app, { limiter: aiLimiter });
 
 // ── Text-to-3D ────────────────────────────────────────────────────────────────
-require('./modeling').mountModeling(app, { authMiddleware });
+require('./modeling').mountModeling(app, { authMiddleware, guard: contentGuard });
 require('./video').mountVideo(app, { authMiddleware, publicUrl: getPublicUrl });
 require('./media-host').mountMediaHost(app, { authMiddleware, publicUrl: getPublicUrl });
 
