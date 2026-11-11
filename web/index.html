@@ -368,10 +368,10 @@
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       max-width: 880px;
     }
-    /* Three phone-shaped recordings: tall frames, side by side. */
+    /* Four phone-shaped recordings: tall frames, side by side. */
     .demo-grid-tall {
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      max-width: 900px;
+      max-width: 1180px;
     }
     .demo-grid-tall .demo-frame { aspect-ratio: 9 / 16; }
     @media (max-width: 760px) { .demo-grid-tall { max-width: 360px; } }
@@ -1963,6 +1963,20 @@
           <span class="demo-num">03</span>
           <b>AI video</b>
           <span>Describe it in a sentence and watch the video get made.</span>
+        </figcaption>
+      </figure>
+      <figure class="demo-card">
+        <div class="demo-frame">
+          <video class="demo-video" playsinline muted loop preload="none"
+                 controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture
+                 poster="assets/demo/demo-4.jpg">
+            <source src="assets/demo/demo-4.mp4" type="video/mp4">
+          </video>
+        </div>
+        <figcaption class="demo-cap">
+          <span class="demo-num">04</span>
+          <b>Screen assist</b>
+          <span>Circle anything on screen and get the answer, worked step by step.</span>
         </figcaption>
       </figure>
     </div>
