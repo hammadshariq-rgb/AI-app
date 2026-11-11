@@ -2947,20 +2947,20 @@ async function runSecondaryAction(act, _e) {
     // a chart the model drew. Shown as its own message when it is ready.
     case 'market_chart': {
       const data = await realtime.getCandles(act.arg, act.range, act.horizon).catch(() => null);
-      if (!data) return;
+      if (!data) { if (act._attach) send('jarvis:chart-pending', { cancel: true }); return; }
       const cur = data.currency === 'USD' ? '$' : data.currency + ' ';
       const fmt = (v) => cur + (v >= 1000 ? Math.round(v).toLocaleString('en-US') : v >= 1 ? v.toFixed(2) : v.toPrecision(4));
       const end = data.projection[data.projection.length - 1];
       const unitWord = data.interval === '1h' ? 'hours' : data.interval === '1wk' ? 'weeks' : 'trading days';
       const fact = `${data.name} last at ${fmt(data.last)}. On its usual swings, about 8 in 10 outcomes over the next ${data.projection.length} ${unitWord} land between ${fmt(end.lo)} and ${fmt(end.hi)}.`;
-      send('jarvis:extra-chart', { text: fact, chart: { kind: 'candle', basis: 'measured', title: `${data.name} (${data.symbol})`, unit: cur,
+      send('jarvis:extra-chart', { attach: !!act._attach, text: act._attach ? '' : fact, chart: { kind: 'candle', basis: 'measured', title: `${data.name} (${data.symbol})`, unit: cur,
         candles: data.candles, projection: data.projection, interval: data.interval,
         note: 'Prices from Yahoo Finance. The shaded range is worked out from past volatility, not a forecast.' } });
       return;
     }
 
     case 'show_chart':
-      if (act.chart) send('jarvis:extra-chart', { text: '', chart: act.chart });
+      if (act.chart) send('jarvis:extra-chart', { attach: !!act._attach, text: '', chart: act.chart });
       return;
 
     case 'draw':
@@ -3942,11 +3942,23 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
 
   // This turn's generation, so sentences from an older one can be dropped.
   const _textGen = _ttsGeneration;
-  const result = needsAction
+  // A chart question: the answer streams straight away from the full model,
+  // and the chart is worked out at the same time by a small, quick call. It
+  // used to wait for one slow call to write both before anything appeared.
+  const _chartAsk = ai.CHART_INTENT.test(message) && !(attachments && attachments.length)
+    && !/\b(document|doc|spreadsheet|excel|slides?|deck|presentation|report|pdf)\b/i.test(message);
+  let _chartJob = null;
+  if (_chartAsk) {
+    aiParams.realtimeContext = (aiParams.realtimeContext || '') + String.fromCharCode(10, 10) +
+      'A live chart for this question is being drawn under your answer automatically. Give the full explanation in words, with bullet points for the separate effects or reasons. Do not describe the chart, do not promise one, and never say you cannot make charts.';
+    try { _e.sender.send('jarvis:chart-pending', { hold: true }); } catch (_) {}
+    _chartJob = ai.chartToolCall({ message, history }).catch(() => null);
+  }
+  const result = (needsAction && !_chartAsk)
     ? await ai.respond(aiParams)
     : await ai.respondStreaming({
         ...aiParams,
-        skipToolFallback: isEmailSendRequest,
+        skipToolFallback: isEmailSendRequest || _chartAsk,
         onSentence: (sentence, fullSoFar) => {
           // Only if this answer is still the one being waited for. The reply
           // gate in the renderer is a single object, so a sentence still
@@ -4051,6 +4063,15 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     hudVoiceMode = false;
     hudListening = false;
     return { text: '', audio: null, card: null, hasAction: false };
+  }
+  if (_chartJob) {
+    _chartJob.then(async (act) => {
+      if (act && (act.type === 'market_chart' || act.type === 'show_chart')) {
+        await runSecondaryAction({ ...act, _attach: true }, _e).catch(() => {});
+      } else {
+        try { _e.sender.send('jarvis:chart-pending', { cancel: true }); } catch (_) {}
+      }
+    });
   }
   const didTakeAction = !!result.action; // track before nulling out
 

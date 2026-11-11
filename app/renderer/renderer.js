@@ -5850,7 +5850,11 @@ function _clearChartPending() {
   window._chartExpected = false;
   document.querySelectorAll('.chart-pending').forEach((n) => n.remove());
 }
-window.jarvis.onChartPending?.(() => _showChartPending('Fetching live prices'));
+window.jarvis.onChartPending?.((d) => {
+  if (d && d.cancel) { window._chartHold = false; _clearChartPending(); return; }
+  if (d && d.hold) { window._chartHold = true; _showChartPending(); return; }
+  _showChartPending('Fetching live prices');
+});
 
 // ── Permission prompt ────────────────────────────────────────────────────────
 // Before Callisto looks at files, makes files or runs a command, it asks here,
@@ -5917,8 +5921,18 @@ window.jarvis.onPermAsk?.((q) => {
 
 // A chart asked for alongside something else ("analyse the markets and chart
 // gold and bitcoin") arrives on its own, as its own message under the answer.
-window.jarvis.onExtraChart?.(({ text, chart }) => {
+window.jarvis.onExtraChart?.(({ text, chart, attach }) => {
   try {
+    // Made alongside the answer: it goes under that answer, where the
+    // "Making your chart" placeholder has been waiting.
+    if (attach) {
+      window._chartHold = false;
+      const slot = document.querySelector('.chart-pending');
+      const host = slot ? slot.parentElement : (Array.from(document.querySelectorAll('.msg-row.assistant .message-content, .msg.assistant')).pop());
+      if (typeof _clearChartPending === 'function') _clearChartPending();
+      if (host && chart) { window.CallistoMarketChart?.render(chart, host); if (typeof scrollToBottom === 'function') scrollToBottom(); }
+      return;
+    }
     const el = addMessage('assistant', text || '');
     const body = (el && el.querySelector('.message-content')) || el;
     if (body && chart) window.CallistoMarketChart?.render(chart, body);
@@ -6751,7 +6765,7 @@ async function sendToJarvis(rawText) {
   if (res.spreadsheet && msgEl) renderSpreadsheetCard(msgEl, res.spreadsheet);
 
   // Document creation - show Save options
-  if (typeof _clearChartPending === 'function') _clearChartPending();
+  if (typeof _clearChartPending === 'function' && !window._chartHold) _clearChartPending();
   // A chart that came back with the answer - market size, a comparison,
   // a projection. Drawn into the message it belongs to.
   if (res.chart && msgEl) {

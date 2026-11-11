@@ -2182,7 +2182,7 @@ async function respondStreaming({ message, history = [], assistantName, memories
       // a model given four thousand tokens tends to use them - which is time
       // the person spends waiting. Asking for depth still lifts the ceiling;
       // the default no longer invites a lecture.
-      const streamTokens = deepSubject ? 2200 : (isKnowledgeQuestion(message) ? 1000 : 500);
+      const streamTokens = (deepSubject || CHART_INTENT.test(message)) ? 3000 : (isKnowledgeQuestion(message) ? 1200 : 600);
       // The answer itself, where what the model actually knows shows. gpt-4o-mini
       // was three generations behind, which is most of why answers read as out
       // of date. The server turns max_tokens into max_completion_tokens for a
@@ -2296,5 +2296,38 @@ async function generateImage(prompt, size = '1024x1024') {
   return { url: data.url };
 }
 
+
+// ── Charts made alongside the answer, not before it ──────────────────────────
+// A question that wants a chart used to go down the non-streaming tool path:
+// nothing on screen until the whole answer AND the chart's numbers were
+// written, from a smaller model capped at a short reply. Now the explanation
+// streams from the full model as usual while this small call, at the same
+// time, does nothing but pick the chart. Words appear at once; the chart lands
+// under them a moment later.
+const CHART_INTENT = /\b(graph|chart|plot|candles?|candlestick|visuali[sz]e)\b|\b(stocks?|shares?|share price|crypto|bitcoin|ethereum|solana|nasdaq|s&p|dow jones|ftse|nifty|sensex|gold|oil|bonds?|yields?|treasur(?:y|ies)|exchange rate|forex|currenc(?:y|ies)|dollar to|euro to|pound to|to pkr|to inr)\b[^.?!]{0,60}\b(price|doing|heading|trend|today|now|going|forecast|outlook|affect|effect|impact|worth|rate|predict|future)\b|\bprice of\b|\b(how|what) (?:will|would|does|did)\b[^.?!]{0,60}\b(markets?|stocks?)\b/i;
+const CHART_SYSTEM = [
+  'Make exactly one chart tool call for this request, nothing else.',
+  '- Anything traded (a stock, share, index, crypto, bond or yield, commodity, currency pair): market_chart with its ticker or plain name. When the question is how something affects other companies or markets, chart the single most affected one.',
+  '- Anything else (market sizes, comparisons, how one thing moves others, projections): show_chart with real, defensible figures. basis "measured" ONLY for the user\'s own data; everything worked out or estimated is "estimate". Put the assumption in note.',
+  '- A comparison of several companies or assets: one show_chart bar chart with one bar each.',
+].join('\n');
+
+async function chartToolCall({ message, history = [] }) {
+  const tools = TOOLS.filter((t) => ['market_chart', 'show_chart'].includes(t.function && t.function.name));
+  const body = {
+    model: 'gpt-5.4-mini', max_tokens: 1400, tool_choice: 'required', tools,
+    messages: [
+      { role: 'system', content: CHART_SYSTEM },
+      ...history.slice(-6).map((h) => ({ role: h.role, content: h.content })),
+      { role: 'user', content: message },
+    ],
+  };
+  const res = await serverFetch('chat', body, { timeout: 30000, retries: 1 });
+  const data = await res.json();
+  const call = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.tool_calls && data.choices[0].message.tool_calls[0];
+  if (!call) return null;
+  try { return mapToolCall(call.function.name, JSON.parse(call.function.arguments)); } catch (_) { return null; }
+}
+
 module.exports = {
-  asksAboutOwnData, respond, respondStreaming, generateImage, ACTION_KEYWORDS, isKnowledgeQuestion, serverFetch };
+  asksAboutOwnData, respond, respondStreaming, generateImage, ACTION_KEYWORDS, isKnowledgeQuestion, serverFetch, CHART_INTENT, chartToolCall };
