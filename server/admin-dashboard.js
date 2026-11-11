@@ -70,7 +70,7 @@ async function load(){
    +'</div>';
   document.getElementById('rf').onclick=load;
   var grant=async function(revoke){var em=document.getElementById('ge').value.trim();var m=document.getElementById('gm');if(!em){m.textContent='Type their email first.';return;}m.textContent='Working…';
-    var r=await fetch('/admin/grant-free',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:secret,email:em,revoke:!!revoke})});
+    var r=await fetch('/admin/grant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:secret,email:em,revoke:!!revoke})});
     var j=await r.json().catch(function(){return {}});
     m.textContent=r.ok?(revoke?'Free Premium taken back from ':'Free Premium given to ')+em+'.':(r.status===404?'No account with that email. They need to sign up first.':(j.error||'That did not work.'));
     if(r.ok)setTimeout(load,800);};
@@ -120,6 +120,20 @@ function mountAdminDashboard(app, { limiter, secretMatches }) {
     res.set('Cache-Control', 'no-store');
     res.set('X-Robots-Tag', 'noindex, nofollow');
     res.type('html').send(PAGE);
+  });
+
+  // Free Premium from the page itself. Mounted here, ahead of CORS, for the
+  // same reason as /admin/data: the page posts to its own address.
+  app.post('/admin/grant', gate, express.json({ limit: '2kb' }), async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const { secret, email, revoke } = req.body || {};
+    if (!secretMatches(secret, process.env.ADMIN_SECRET)) return res.status(403).json({ error: 'Forbidden' });
+    const users = require('./users');
+    const user = email ? await users.findByEmail(String(email).trim()) : null;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await users.update(user.id, { freeAccess: !revoke });
+    console.log(`[admin] freeAccess=${!revoke} set for ${user.email}`);
+    res.json({ ok: true, email: user.email, freeAccess: !revoke });
   });
 
   app.post('/admin/data', gate, express.json({ limit: '2kb' }), async (req, res) => {
