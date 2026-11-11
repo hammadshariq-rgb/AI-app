@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.60': [
+      { icon: '🛡️', title: 'Safer 3D models', text: 'Callisto now refuses sexual or explicit 3D models straight away, whatever way they are described.' }
+    ],
     '1.9.59': [
       { icon: '✉️', title: 'Send email from Gmail', text: 'Connect Gmail and say "email Sarah that I am running late". You check the draft, then it sends. Callisto never reads your inbox.' },
       { icon: '📁', title: 'Save to Google Drive', text: 'Connect Google Drive and "Open in Google Docs" saves your document straight into your Drive, ready to edit.' }

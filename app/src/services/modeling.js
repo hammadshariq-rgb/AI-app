@@ -42,7 +42,20 @@ async function isEnabled(token) {
 
 // Generates a model and resolves to { ok, url } once it's ready.
 // onProgress({ status, progress }) fires on each poll.
+// Sexual models are refused here at once, before anything is sent. The server
+// checks again (with AI moderation as well), so an old app is covered too.
+const BLOCKED_3D = new RegExp([
+  'sex\\s*(?:doll|toy|robot|bot|machine|swing|furniture)s?', 'love\\s*dolls?', 'real\\s*dolls?', 'silicone\\s+(?:doll|woman|girl|body|torso|companion)',
+  'companion\\s+dolls?', 'adult\\s+(?:doll|toy|figure|product)s?', 'blow[\\s-]*up\\s+dolls?', 'onahole', 'fleshlight', 'dildo', 'vibrator', 'butt\\s*plug',
+  'strap[\\s-]*on', 'masturbat\\w*', 'genital\\w*', 'penis', 'vagina\\w*', 'vulva', 'nipples?', 'areolae?', 'naked', 'nude\\w*', 'topless', 'bottomless',
+  'lingerie', 'thong', 'g[\\s-]*string', 'bikini\\s+(?:girl|woman|body)', 'erotic\\w*', 'porn\\w*', 'hentai', 'nsfw', 'fetish\\w*', 'bdsm', 'bondage',
+  'dominatrix', 'stripper', 'pole\\s*dancer', 'seductive', 'sexy', 'sensual', 'aroused', 'orgasm', 'intercourse', 'sex\\s+position',
+  'busty', 'big\\s+(?:breasts?|boobs?|butt|ass)', '(?:bare|exposed|naked|large|huge|giant|perky)\\s+breasts?', '(?<!(?:chicken|turkey|duck)\\s)breasts\\b', 'boobs?', 'cleavage', 'curvy\\s+(?:woman|girl|body)', 'voluptuous', 'life[\\s-]*size\\s+(?:woman|girl|female|doll)',
+  'anatomically\\s+correct', 'realistic\\s+(?:woman|girl|female)\\s+(?:body|torso|doll)', 'female\\s+torso', 'torso\\s+(?:doll|toy)',
+].join('|'), 'i');
+
 async function generate({ token, prompt, style }, onProgress, onStarted) {
+  if (BLOCKED_3D.test(String(prompt || ''))) return { ok: false, error: 'I can’t make that as a 3D model. Try something else - an object, a character, a building or a scene.' };
   const started = await api('/models/generate', {
     token, method: 'POST', body: { prompt, style }, timeoutMs: 30000,
   });
