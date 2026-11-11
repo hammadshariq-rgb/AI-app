@@ -12,6 +12,13 @@
   'use strict';
 
   var NOTES = {
+    '1.9.57': [
+      { icon: '📝', title: 'Clearer answers', text: 'Answers with several reasons, effects or steps now come as bullet points from the first word.' },
+      { icon: '📈', title: 'Charts that explain themselves', text: 'Every chart now opens with a one-line summary, marks its highs and lows, and shows a key for its colours.' },
+      { icon: '⏳', title: 'Making your chart', text: 'A small placeholder shows where a chart will appear while it is being made.' },
+      { icon: '💱', title: 'Prices as cards', text: 'Stocks, crypto, bonds, gold and currencies like dollar to rupee now show as a live card, never a Google search.' },
+      { icon: 'ℹ️', title: 'Organic views, labelled', text: 'Instagram stats now say plainly that views are organic. Boosted and ad views are not shared with other apps.' }
+    ],
     '1.9.56': [
       { icon: '🔐', title: 'You decide what it touches', text: 'Callisto now asks in the chat before it looks at your files, makes a file or runs a command. Choose "don\'t ask again" and it remembers.' },
       { icon: '↩️', title: 'Change your mind any time', text: 'Say "reset permissions" and Callisto will ask again next time.' }
