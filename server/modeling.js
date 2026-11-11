@@ -63,7 +63,7 @@ const BLOCKED_3D = new RegExp([
   'strap[\\s-]*on', 'masturbat\\w*', 'genital\\w*', 'penis', 'vagina\\w*', 'vulva', 'nipples?', 'areolae?', 'naked', 'nude\\w*', 'topless', 'bottomless',
   'lingerie', 'thong', 'g[\\s-]*string', 'bikini\\s+(?:girl|woman|body)', 'erotic\\w*', 'porn\\w*', 'hentai', 'nsfw', 'fetish\\w*', 'bdsm', 'bondage',
   'dominatrix', 'stripper', 'pole\\s*dancer', 'seductive', 'sexy', 'sensual', 'aroused', 'orgasm', 'intercourse', 'sex\\s+position',
-  'busty', 'big\\s+(?:breasts?|boobs?|butt|ass)', 'breasts?', 'boobs?', 'cleavage', 'curvy\\s+(?:woman|girl|body)', 'voluptuous', 'life[\\s-]*size\\s+(?:woman|girl|female|doll)',
+  'busty', 'big\\s+(?:breasts?|boobs?|butt|ass)', '(?:bare|exposed|naked|large|huge|giant|perky)\\s+breasts?', 'breasts\\b', 'boobs?', 'cleavage', 'curvy\\s+(?:woman|girl|body)', 'voluptuous', 'life[\\s-]*size\\s+(?:woman|girl|female|doll)',
   'anatomically\\s+correct', 'realistic\\s+(?:woman|girl|female)\\s+(?:body|torso|doll)', 'female\\s+torso', 'torso\\s+(?:doll|toy)',
 ].join('|'), 'i');
 const REFUSE_3D = 'I can\u2019t make that as a 3D model. Try something else - an object, a character, a building or a scene.';
