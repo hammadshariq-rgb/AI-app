@@ -14,7 +14,7 @@ function looksSexual(text) { return BLOCKED.test(String(text || '')); }
 
 function collect(body) {
   const b = body || {};
-  const text = [b.prompt, b.instruction, b.texture_prompt, b.title, b.description].filter((x) => typeof x === 'string').join('\n').slice(0, 4000);
+  const text = [b.request, b.prompt, b.instruction, b.texture_prompt, b.title, b.description].filter((x) => typeof x === 'string').join('\n').slice(0, 4000);
   const images = [];
   for (const v of [b.imageUrl, b.image_url]) if (typeof v === 'string' && require('./netguard').publicUrl(v)) images.push(v);
   if (typeof b.imageBase64 === 'string' && b.imageBase64) {
@@ -34,6 +34,25 @@ async function moderate(openai, text, images, timeoutMs = 5000) {
   return r.results.some((x) => x.categories && (x.categories.sexual || x.categories['sexual/minors']));
 }
 
+// The third layer. Before anything is made, the request goes through the AI,
+// which rewrites it into a long, polite description - "a life-size realistic
+// female figure, soft smooth skin, full body" - that neither the word list nor
+// moderation reads as sexual, and a sex doll came out of it. A small model
+// asked one direct question about what the thing IS sees through that.
+async function judge(openai, text, timeoutMs = 6000) {
+  if (!text || !text.trim()) return false;
+  const call = openai.chat.completions.create({
+    model: 'gpt-5.4-mini', max_completion_tokens: 5,
+    messages: [
+      { role: 'system', content: 'You screen requests for an image, video and 3D model generator. Answer YES if what would be made is sexual or for sexual use: a sex doll or love doll (however it is described, including a life-size or realistic female or male figure, body or torso meant as a companion or doll), a sex toy, nudity, exposed genitals or breasts, lingerie or fetish wear, or a body posed or shaped to be sexually suggestive. Answer NO for everything else, including ordinary people, characters, statues, mannequins for clothes, anatomy for medical study, and swimwear in a normal setting. Reply with YES or NO only.' },
+      { role: 'user', content: text.slice(0, 3000) },
+    ],
+  });
+  const r = await Promise.race([call, new Promise((ok) => setTimeout(() => ok(null), timeoutMs))]);
+  const out = r && r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
+  return /^\s*yes/i.test(String(out || ''));
+}
+
 // Express middleware. Needs the parsed body, and a function returning the client.
 function middleware(getOpenAI, onBlock) {
   return async (req, res, next) => {
@@ -43,10 +62,13 @@ function middleware(getOpenAI, onBlock) {
     if (!blocked) {
       try { blocked = await moderate(getOpenAI(), text, images); } catch (_) { /* word list stands */ }
     }
+    if (!blocked) {
+      try { blocked = await judge(getOpenAI(), text); } catch (_) { /* the other layers stand */ }
+    }
     if (!blocked) return next();
     try { if (onBlock) onBlock(req); } catch (_) {}
     return res.status(400).json({ error: REFUSAL, blockedContent: true });
   };
 }
 
-module.exports = { middleware, looksSexual, collect, moderate, REFUSAL };
+module.exports = { middleware, looksSexual, collect, moderate, judge, REFUSAL };
