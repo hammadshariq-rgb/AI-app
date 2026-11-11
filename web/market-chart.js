@@ -79,6 +79,15 @@
       '.mc-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}',
       '.mc-card.mc-bare{margin:0;padding:0;background:none;border:0;box-shadow:none}',
       ".mc-barval{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;fill:#fff;font-variant-numeric:tabular-nums}",
+      '.mc-take{margin:-2px 0 12px;padding:9px 12px;border-radius:10px;font-size:12.5px;line-height:1.55;color:#dbe6ff;',
+      '  background:rgba(77,141,255,.08);border:1px solid rgba(77,141,255,.18)}',
+      '.mc-take b{color:#fff;font-weight:650}',
+      '.mc-key{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:rgba(195,215,250,.85)}',
+      '.mc-key span{display:inline-flex;align-items:center;gap:6px}',
+      '.mc-key i{width:10px;height:10px;border-radius:3px;flex:none}',
+      '.mc-hint{margin-top:8px;font-size:10.5px;color:rgba(160,185,225,.5)}',
+      ".mc-tag{font:600 10.5px 'Plus Jakarta Sans','Segoe UI',sans-serif;fill:#fff}",
+      '.mc-tagbg{fill:rgba(8,13,28,.85);stroke:rgba(255,255,255,.18)}',
       '.mc-note{margin-top:10px;font-size:11px;line-height:1.6;color:rgba(160,185,225,.72)}',
       '@media (prefers-reduced-motion:reduce){.mc-draw,.mc-fade,.mc-grow,.mc-pulse{animation:none!important;stroke-dashoffset:0;opacity:1;transform:none}}'
     ].join('');
@@ -96,7 +105,7 @@
     var a = Math.abs(n);
     if (a >= 1e9) return (n / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
     if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
-    if (a >= 1e3) return (n / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'k';
+    if (a >= 1e3) return (n / 1e3).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'k';
     if (a < 1 && a > 0) return String(Math.round(n * 100) / 100);
     return String(Math.round(n * 100) / 100);
   }
@@ -156,6 +165,48 @@
     return spec.basis === 'measured' ? '<span class="mc-badge meas">YOUR DATA</span>' : '<span class="mc-badge est">ESTIMATE</span>';
   }
 
+  // A plain-English line under the title, so the chart can be read without
+  // studying it: what changed, from what to what, and what stands out.
+  function pct(a, b) { return a ? ((b - a) / Math.abs(a)) * 100 : NaN; }
+  function trendWord(d) { return !isFinite(d) ? 'changed' : Math.abs(d) < 1 ? 'held steady' : d > 0 ? 'rose ' + Math.abs(d).toFixed(0) + '%' : 'fell ' + Math.abs(d).toFixed(0) + '%'; }
+  function lineTakeaway(spec, series, labels) {
+    var out = [];
+    series.slice(0, 2).forEach(function (s) {
+      var pts = s.points, a = Number(pts[0].y), z = Number(pts[pts.length - 1].y);
+      var hi = 0;
+      pts.forEach(function (p, i) { if (Number(p.y) > Number(pts[hi].y)) hi = i; });
+      var name = s.label || 'It';
+      out.push('<b>' + esc(name) + '</b> ' + trendWord(pct(a, z)) + ', from ' + esc(withUnit(spec, a, true)) + ' in ' + esc(labels[0]) + ' to ' + esc(withUnit(spec, z, true)) + ' in ' + esc(labels[labels.length - 1]) +
+        (hi !== pts.length - 1 && hi !== 0 ? ', peaking at ' + esc(withUnit(spec, Number(pts[hi].y), true)) + ' in ' + esc(labels[hi]) : '') + '.');
+    });
+    if (series.length === 2) {
+      var A = series[0], B = series[1], above = A.points.every(function (p, i) { return B.points[i] && Number(p.y) >= Number(B.points[i].y); });
+      var below = A.points.every(function (p, i) { return B.points[i] && Number(p.y) <= Number(B.points[i].y); });
+      if (above || below) out.push(esc(A.label || 'The first') + ' stayed ' + (above ? 'above ' : 'below ') + esc(B.label || 'the second') + ' the whole time.');
+    }
+    return out.join(' ');
+  }
+  function barTakeaway(spec, series) {
+    var pts = series[0].points.map(function (p) { return { x: String(p.x), y: Number(p.y) || 0 }; }).sort(function (a, b) { return b.y - a.y; });
+    if (!pts.length) return '';
+    var t = '<b>' + esc(pts[0].x) + '</b> is highest at ' + esc(withUnit(spec, pts[0].y, true));
+    if (pts[1]) {
+      var times = pts[1].y > 0 ? pts[0].y / pts[1].y : 0;
+      t += times >= 1.5 ? ', about ' + times.toFixed(times >= 10 ? 0 : 1) + ' times ' + esc(pts[1].x) + ' (' + esc(withUnit(spec, pts[1].y, true)) + ')' : ', just ahead of ' + esc(pts[1].x) + ' (' + esc(withUnit(spec, pts[1].y, true)) + ')';
+    }
+    if (pts.length > 2) t += '. <b>' + esc(pts[pts.length - 1].x) + '</b> is lowest at ' + esc(withUnit(spec, pts[pts.length - 1].y, true));
+    return t + '.';
+  }
+  // A labelled marker on the highest and lowest point of a line.
+  function tag(x, y, text, above) {
+    var w = text.length * 6.2 + 12, ty = above ? y - 14 : y + 14;
+    var tx = Math.min(Math.max(x, PAD_L + w / 2), W - PAD_R - w / 2);
+    return '<g class="mc-fade" style="animation-delay:1s"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.5" fill="#fff"/>' +
+      '<rect class="mc-tagbg" x="' + (tx - w / 2).toFixed(1) + '" y="' + (ty - 9).toFixed(1) + '" width="' + w.toFixed(1) + '" height="17" rx="5"/>' +
+      '<text class="mc-tag" x="' + tx.toFixed(1) + '" y="' + (ty + 3.5).toFixed(1) + '" text-anchor="middle">' + esc(text) + '</text></g>';
+  }
+  var HINT = '<div class="mc-hint">Move across the chart, or use the arrow keys, to read each exact value.</div>';
+
   // ── Line and bar ──────────────────────────────────────────────────────────
   function buildSeries(spec) {
     var series = (spec.series || []).filter(function (s) { return s && Array.isArray(s.points) && s.points.length; }).slice(0, 5);
@@ -214,6 +265,12 @@
       }
     });
 
+    if (!isBar && series.length === 1 && n >= 4) {
+      var sp = series[0].points, hiI = 0, loI = 0;
+      sp.forEach(function (p, i) { if (Number(p.y) > Number(sp[hiI].y)) hiI = i; if (Number(p.y) < Number(sp[loI].y)) loI = i; });
+      if (hiI !== n - 1) later.push(tag(xOf(hiI), yOf(Number(sp[hiI].y)), 'High ' + withUnit(spec, Number(sp[hiI].y), true), true));
+      if (loI !== hiI && loI !== n - 1) later.push(tag(xOf(loI), yOf(Number(sp[loI].y)), 'Low ' + withUnit(spec, Number(sp[loI].y), true), false));
+    }
     parts = parts.concat(later);
     var every = Math.max(1, Math.ceil(n / 7));
     labels.forEach(function (lab, i) {
@@ -223,6 +280,7 @@
 
     var first = series[0].points, v0 = Number(first[0].y), v1 = Number(first[first.length - 1].y);
     var delta = first.length > 1 && v0 ? ((v1 - v0) / Math.abs(v0)) * 100 : NaN;
+    var take = isBar ? barTakeaway(spec, series) : lineTakeaway(spec, series, labels);
     var legend = series.length > 1 ? '<div class="mc-legend">' + series.map(function (s, i) {
       return '<button type="button" class="mc-leg" aria-pressed="true" data-s="' + i + '"><span class="mc-dot" style="background:' + pal[i % pal.length] + '"></span>' + esc(s.label || 'Series ' + (i + 1)) + '</button>';
     }).join('') + '</div>' : '';
@@ -239,8 +297,10 @@
     };
 
     if (spec.bare) return { html: '<div class="mc-card mc-bare">' + plot(uid, defs, parts, spec.title) + legend + '</div>', model: model };
+    var key1 = series.length === 1 ? '<div class="mc-key"><span><i style="background:' + pal[0] + '"></i>' + esc(series[0].label || spec.title || 'Value') + (spec.unit ? ' (' + esc(spec.unit) + ')' : '') + '</span></div>' : '';
     var html = '<div class="mc-card">' + head(spec, isBar ? GLYPH_BAR : GLYPH_LINE, isBar ? null : withUnit(spec, v1), isBar ? NaN : delta, basisBadge(spec)) +
-      plot(uid, defs, parts, spec.title) + legend +
+      (take ? '<div class="mc-take">' + take + '</div>' : '') +
+      plot(uid, defs, parts, spec.title) + legend + key1 + HINT +
       (spec.note ? '<div class="mc-note">' + esc(spec.note) + '</div>'
         : (spec.basis === 'measured' ? '' : '<div class="mc-note">Worked out, not measured - check it before you rely on it.</div>')) + '</div>';
     return { html: html, model: model };
@@ -326,9 +386,16 @@
       title: function (i) { return i < cs.length ? lab(cs[i].t) : 'Estimate · ' + lab(pr[i - cs.length].t); },
       top: function (i) { return i < cs.length ? yOf(cs[i].h) : yOf(pr[i - cs.length].hi); }
     };
+    var unitWord = spec.interval === '1h' ? 'hours' : spec.interval === '1wk' ? 'weeks' : 'trading days';
+    var ctake = '<b>' + (Math.abs(chg) < 1 ? 'Roughly flat' : (chg > 0 ? 'Up ' : 'Down ') + Math.abs(chg).toFixed(1) + '%') + '</b> since ' + esc(lab(first.t)) + ', now ' + esc(fmt(lc.c)) + '.' +
+      (pr.length ? ' The orange fan shows where the price could be over the next ' + pr.length + ' ' + unitWord + ': about 8 times in 10, it lands between <b>' + esc(fmt(pr[pr.length - 1].lo)) + '</b> and <b>' + esc(fmt(pr[pr.length - 1].hi)) + '</b>.' : '');
+    var ckey = '<div class="mc-key"><span><i style="background:' + UP + '"></i>Closed higher that ' + (spec.interval === '1h' ? 'hour' : spec.interval === '1wk' ? 'week' : 'day') + '</span>' +
+      '<span><i style="background:' + DOWN + '"></i>Closed lower</span>' +
+      (pr.length ? '<span><i style="background:' + EST + ';opacity:.7"></i>Likely range ahead (estimate)</span>' : '') + '</div>';
     var html = '<div class="mc-card">' +
       head(spec, GLYPH_CANDLE, fmt(lc.c), chg, '<span class="mc-badge meas">LIVE PRICES</span>' + (pr.length ? '<span class="mc-badge est">RANGE IS AN ESTIMATE</span>' : '')) +
-      plot(uid, '', parts, spec.title) +
+      '<div class="mc-take">' + ctake + '</div>' +
+      plot(uid, '', parts, spec.title) + ckey + HINT +
       (spec.note ? '<div class="mc-note">' + esc(spec.note) + '</div>' : '') + '</div>';
     return { html: html, model: model };
   }
