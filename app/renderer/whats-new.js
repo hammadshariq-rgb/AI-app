@@ -12,6 +12,10 @@
   'use strict';
 
   var NOTES = {
+    '1.9.61': [
+      { icon: '📥', title: 'Callisto can read your Gmail', text: 'Connect Gmail (read) with an app password and ask "any new emails?" or "what needs a reply?". It only reads, and the password stays on your computer.' },
+      { icon: '📂', title: 'Open files from Google Drive', text: 'Say "open a file from my Drive", pick from your whole Drive, then ask Callisto to summarise, explain or chart it.' }
+    ],
     '1.9.60': [
       { icon: '🛡️', title: 'Safer 3D models', text: 'Callisto now refuses sexual or explicit 3D models straight away, whatever way they are described.' }
     ],
