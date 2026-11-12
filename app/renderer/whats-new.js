@@ -12,7 +12,10 @@
   'use strict';
 
   var NOTES = {
-    '1.9.61': [
+    '1.9.62': [
+      { icon: '✉️', title: 'Sending email, fixed', text: 'Say an address any way, like "sarah at gmail dot com", and it is used exactly. "Send this document to …" now attaches it.' },
+      { icon: '⭐', title: 'Important senders are back', text: 'Add the people you email most in Connectors, then just say their first name.' },
+      { icon: '🕯️', title: 'Candles explained', text: 'Trading prices show candles with a plain reading of what they mean. Revenue and business numbers get line and bar graphs.' },
       { icon: '📥', title: 'Callisto can read your Gmail', text: 'Connect Gmail (read) with an app password and ask "any new emails?" or "what needs a reply?". It only reads, and the password stays on your computer.' },
       { icon: '📂', title: 'Open files from Google Drive', text: 'Say "open a file from my Drive", pick from your whole Drive, then ask Callisto to summarise, explain or chart it.' }
     ],
