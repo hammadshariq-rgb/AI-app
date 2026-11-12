@@ -1433,6 +1433,7 @@ MARKETS, GEOPOLITICS & INVESTING (answer like a senior macro strategist and equi
 - For a stock, sector, crypto asset or market: give the thesis, the bull case and the bear case, the key numbers (revenue growth, margins, valuation multiples such as P/E and EV/EBITDA versus peers, debt, cash flow), the catalysts and the risks, and what would change the view.
 - For "should I invest in X": lay out the case both ways, the risk level, how it fits a diversified portfolio, sensible position sizing (only money they can afford to lose in anything speculative), time horizon, and the alternatives (index funds, bonds, cash). Be concrete and useful, not evasive.
 - Use live prices, news and portfolio data when they are provided in the context, and say when your information may be out of date. Never invent a price, a figure or a news event.
+- PRODUCT PRICES ("price of the iPhone 17", "how much is a PS5", "what does a Tesla Model Y cost"): give the price from the web results in your context, with the store or source and a link, in one or two lines. For something not released yet, give the expected or rumoured price and say plainly it is not confirmed. Never answer "I don't have live prices" when web results are there. A product price is NOT a stock: no market_chart, no candles, no share price, and no graph unless they ask how the price changed over time.
 - Close investing answers with one short line: this is analysis, not personal financial advice. One line, not a lecture.
 
 BUSINESS ANALYSIS FOR ENTREPRENEURS (answer like a sharp CFO and growth advisor to a small founder):
@@ -2306,7 +2307,7 @@ async function generateImage(prompt, size = '1024x1024') {
 // streams from the full model as usual while this small call, at the same
 // time, does nothing but pick the chart. Words appear at once; the chart lands
 // under them a moment later.
-const CHART_INTENT = /\b(graph|chart|plot|candles?|candlestick|visuali[sz]e)\b|\b(stocks?|shares?|share price|crypto|bitcoin|ethereum|solana|nasdaq|s&p|dow jones|ftse|nifty|sensex|gold|oil|bonds?|yields?|treasur(?:y|ies)|exchange rate|forex|currenc(?:y|ies)|dollar to|euro to|pound to|to pkr|to inr)\b[^.?!]{0,60}\b(price|doing|heading|trend|today|now|going|forecast|outlook|affect|effect|impact|worth|rate|predict|future)\b|\bprice of\b|\b(how|what) (?:will|would|does|did)\b[^.?!]{0,60}\b(markets?|stocks?)\b/i;
+const CHART_INTENT = /\b(graph|chart|plot|candles?|candlestick|visuali[sz]e)\b|\b(stocks?|shares?|share price|crypto|bitcoin|ethereum|solana|nasdaq|s&p|dow jones|ftse|nifty|sensex|gold|oil|bonds?|yields?|treasur(?:y|ies)|exchange rate|forex|currenc(?:y|ies)|dollar to|euro to|pound to|to pkr|to inr)\b[^.?!]{0,60}\b(price|doing|heading|trend|today|now|going|forecast|outlook|affect|effect|impact|worth|rate|predict|future)\b|\b(how|what) (?:will|would|does|did)\b[^.?!]{0,60}\b(markets?|stocks?)\b/i;
 const CHART_SYSTEM = [
   'Make exactly one chart tool call for this request, nothing else. Pick the tool by WHAT is being measured:',
   '- market_chart (candlesticks) is ONLY for the trading PRICE of something traded: a stock or share price, an index level, a crypto price, a bond yield, a commodity price, a currency exchange rate. For "how will this affect the markets / other stocks", chart the price of the single most affected one.',

@@ -2790,7 +2790,7 @@ ipcMain.handle('jarvis:openGoogleSlides', async (_e, d) => {
     // With Drive connected the deck goes into Drive as Google Slides.
     if (await connectors.getDriveToken()) {
       const up = await connectors.uploadToDrive(file, payload.title || 'Presentation');
-      if (up.ok && up.url) { await shell.openExternal(up.url); return { ok: true, url: up.url }; }
+      if (up.ok && up.url) { commands.openInChrome(up.url); return { ok: true, url: up.url }; }
     }
     await shell.openPath(file);
     return { ok: true, path: file };
@@ -2916,7 +2916,7 @@ ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content, sections }) 
     if (await connectors.getDriveToken()) {
       const out = await documents.writeAny({ kind: 'doc', title: title || 'Document', sections: sections || [], content: content || '' }, app.getPath('temp'));
       const up = await connectors.uploadToDrive(out, title || 'Document');
-      if (up.ok && up.url) { await shell.openExternal(up.url); return { ok: true, url: up.url }; }
+      if (up.ok && up.url) { commands.openInChrome(up.url); return { ok: true, url: up.url }; }
       return { error: up.error || 'upload_failed' };
     }
   } catch (err) { console.warn('[drive] upload failed:', err.message); }
@@ -2925,7 +2925,7 @@ ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content, sections }) 
   }
   const { clipboard } = require('electron');
   clipboard.writeText(`${title}\n\n${content}`);
-  await shell.openExternal('https://docs.google.com/document/create');
+  commands.openInChrome('https://docs.google.com/document/create');
   return { ok: true };
 });
 
@@ -3909,6 +3909,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const addr = message.match(EMAIL_IN_TEXT);
     const notes = [];
     if (addr) notes.push(`The recipient's email address is exactly ${addr[0]}. Use it as toEmail, letter for letter.`);
+    if (addr && /\bremind(?:er)?\b/i.test(message)) notes.push("This is an EMAIL reminder to that person, not a reminder for the user. Write a short, friendly reminder email about what they said, with the date or time spelled out (work out what tomorrow means from today" + String.fromCharCode(39) + "s date).");
     if (_attach) notes.push(`The file "${_attach.name}" will be attached to this email automatically. Write a short, friendly covering email that mentions it is attached. Do not paste the document's contents into the email.`);
     if (notes.length) vipContext = notes.join('\n');
   }
@@ -3974,7 +3975,9 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   console.log('[CHAT] calling AI, needsAction:', ai.ACTION_KEYWORDS.test(message), 'isEmailSend:', isEmailSendRequest);
   // Subject questions ("how do I record depreciation?") are answered in chat even
   // if they contain action-ish words like "report" or "book".
-  const needsAction = !isEmailSendRequest && ai.ACTION_KEYWORDS.test(message) && !ai.isKnowledgeQuestion(message);
+  const _productPrice = /\b(?:price|prices|cost|costs|how much)\b/i.test(message)
+    && !/\b(stocks?|shares?|share price|ticker|crypto|bitcoin|ethereum|bonds?|yields?|exchange rate|forex|nasdaq|dow jones|s&p)\b/i.test(message);
+  const needsAction = !isEmailSendRequest && !_productPrice && ai.ACTION_KEYWORDS.test(message) && !ai.isKnowledgeQuestion(message);
 
   // A short answer to a question Callisto just asked is not a fresh command.
   // The quick path gets a bare prompt, five lines of history and an
@@ -4031,7 +4034,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // anything current (a company, a launch, an IPO, a result) is searched on
   // the web first, and the answer is written from what was found.
   let _webNote = '';
-  if (webSearch.needsWeb(message)) {
+  if (webSearch.needsWeb(message) || /\b(?:price|prices|cost|costs|how much)\b/i.test(message)) {
     try {
       const r = await Promise.race([
         fetch(`${_serverBase()}/ai/web-search`, { method: 'POST', headers: { ..._authHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify({ query: message }) }).then((x) => x.json()),
@@ -4219,7 +4222,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   // they are set going and left to finish on their own. A 3D model takes
   // minutes, and the answer must not wait behind it.
   if (finalAction && finalAction.type === 'open_url' && /google\.[a-z.]+\/search/i.test(String(finalAction.arg || ''))
-      && /\b(price|stock|shares?|trading|worth|crypto|bitcoin|ethereum|solana|bonds?|yield|exchange rate|forex|currency|nasdaq|s&p|dow|ftse|nifty|sensex|gold|oil|to pkr|to usd|to inr|to gbp|to eur)\b/i.test(String(message || ''))) {
+      && /\b(stocks?|shares?|share price|ticker|trading|crypto|bitcoin|ethereum|solana|bonds?|yields?|exchange rate|forex|nasdaq|s&p|dow jones|ftse|nifty|sensex|gold price|oil price|to pkr|to usd|to inr|to gbp|to eur)\b/i.test(String(message || ''))) {
     try {
       const q = new URL(String(finalAction.arg)).searchParams.get('q') || String(message || '');
       const cleaned = q.replace(/\b(what(?:'s| is)|the|current|today'?s?|live|stock|share|price|prices|of|now|rate|exchange|trading at|how much is)\b/gi, ' ').replace(/\s+/g, ' ').trim();

@@ -2711,6 +2711,7 @@ function webSystemPrompt() {
     "- For a stock, sector, crypto asset or market: give the thesis, the bull case and the bear case, the key numbers (revenue growth, margins, valuation multiples such as P/E and EV/EBITDA versus peers, debt, cash flow), the catalysts and the risks, and what would change the view.",
     "- For \"should I invest in X\": lay out the case both ways, the risk level, how it fits a diversified portfolio, sensible position sizing (only money they can afford to lose in anything speculative), time horizon, and the alternatives (index funds, bonds, cash). Be concrete and useful, not evasive.",
     "- Use live prices, news and portfolio data when they are provided in the context, and say when your information may be out of date. Never invent a price, a figure or a news event.",
+    '- PRODUCT PRICES ("price of the iPhone 17", "how much is a PS5"): give the price from the web results in the context, with the store or source and a link, in one or two lines. For something not yet released, give the expected or rumoured price and say plainly it is not confirmed. Never answer "I do not have live prices" when web results are there, and never show a stock chart for a product price.',
     "- Close investing answers with one short line: this is analysis, not personal financial advice. One line, not a lecture.",
     "",
     "BUSINESS ANALYSIS FOR ENTREPRENEURS (answer like a sharp CFO and growth advisor to a small founder):",
@@ -3274,7 +3275,13 @@ app.post('/ai/tts', authMiddleware, aiLimiter, async (req, res) => {
           input,
         });
       } catch (steerErr) {
-        console.warn('[TTS] steerable model failed, falling back:', steerErr.message);
+        // One more try on the SAME model. Falling straight back to tts-1 made a
+        // single sentence of a long answer come out in a noticeably different
+        // voice - the "it switched from male to female" people heard.
+        console.warn('[TTS] steerable model failed, retrying once:', steerErr.message);
+        try {
+          result = await openai.audio.speech.create({ model: 'gpt-4o-mini-tts', voice: chosenVoice, speed: rate, instructions: String(instructions).slice(0, 500), input });
+        } catch (e2) { console.warn('[TTS] steerable model failed twice:', e2.message); }
       }
     }
     if (!result) {

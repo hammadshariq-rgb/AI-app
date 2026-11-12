@@ -563,7 +563,7 @@ async function importDriveFile(file) {
 
 async function openDriveFile(file) {
   if (!file || !file.webViewLink) return false;
-  try { await require('electron').shell.openExternal(file.webViewLink); return true; } catch (_) { return false; }
+  try { require('./commands').openInChrome(file.webViewLink); return true; } catch (_) { return false; }
 }
 
 
