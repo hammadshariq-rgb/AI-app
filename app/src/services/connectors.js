@@ -228,20 +228,34 @@ async function googleToken(service) {
 // RFC 2047 so a subject with accents or emoji arrives intact.
 function _mimeWord(s) { return /^[\x20-\x7e]*$/.test(s) ? s : '=?UTF-8?B?' + Buffer.from(s, 'utf8').toString('base64') + '?='; }
 
-async function sendGmail({ to, subject, body }) {
+async function sendGmail({ to, subject, body, attachments = [] }) {
   const token = await googleToken('gmail');
   if (!token) return { ok: false, error: 'Gmail is not connected. Open Connectors and connect Gmail.' };
   if (!to || !/@/.test(String(to))) return { ok: false, error: 'I need an email address to send it to.' };
   const CRLF = '\r\n';
-  const raw = [
+  const fs = require('fs');
+  const head = [
     'To: ' + String(to).replace(/[\r\n]/g, ''),
     'Subject: ' + _mimeWord(String(subject || '').replace(/[\r\n]/g, ' ')),
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-    '',
-    Buffer.from(String(body || ''), 'utf8').toString('base64'),
-  ].join(CRLF);
+  ];
+  const text = Buffer.from(String(body || ''), 'utf8').toString('base64').replace(/(.{76})/g, '$1' + CRLF);
+  let raw;
+  const files = (attachments || []).filter((a) => a && a.path && fs.existsSync(a.path));
+  if (!files.length) {
+    raw = head.concat(['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', text]).join(CRLF);
+  } else {
+    const b = 'callisto_' + Date.now().toString(36);
+    const parts = [head.concat(['Content-Type: multipart/mixed; boundary="' + b + '"', '']).join(CRLF),
+      '--' + b, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', text];
+    for (const f of files) {
+      const nm = String(f.name || require('path').basename(f.path)).replace(/["\r\n]/g, '');
+      parts.push('--' + b, 'Content-Type: application/octet-stream; name="' + nm + '"', 'Content-Disposition: attachment; filename="' + nm + '"',
+        'Content-Transfer-Encoding: base64', '', fs.readFileSync(f.path).toString('base64').replace(/(.{76})/g, '$1' + CRLF));
+    }
+    parts.push('--' + b + '--', '');
+    raw = parts.join(CRLF);
+  }
   const encoded = Buffer.from(raw, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   try {
     const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -249,7 +263,7 @@ async function sendGmail({ to, subject, body }) {
       body: JSON.stringify({ raw: encoded }),
     });
     const d = await res.json();
-    if (d && d.id) return { ok: true, id: d.id, via: 'gmail' };
+    if (d && d.id) return { ok: true, id: d.id, via: 'gmail', service: 'Gmail' };
     return { ok: false, error: (d && d.error && d.error.message) || 'Gmail did not send it.' };
   } catch (err) { return { ok: false, error: 'Could not reach Gmail: ' + err.message }; }
 }
@@ -2016,8 +2030,13 @@ async function getOutlookSummary() {
   return line + '.';
 }
 
-async function sendOutlookEmail({ to, subject, body }) {
+async function sendOutlookEmail({ to, subject, body, attachments = [] }) {
   if (!to) return { ok: false, error: 'No one to send that to.' };
+  const fs = require('fs');
+  const files = (attachments || []).filter((f) => f && f.path && fs.existsSync(f.path)).map((f) => ({
+    '@odata.type': '#microsoft.graph.fileAttachment', name: f.name || require('path').basename(f.path),
+    contentBytes: fs.readFileSync(f.path).toString('base64'),
+  }));
   try {
     await graph('/me/sendMail', {
       method: 'POST',
@@ -2025,6 +2044,7 @@ async function sendOutlookEmail({ to, subject, body }) {
         message: {
           subject: subject || '(no subject)',
           body: { contentType: 'Text', content: body || '' },
+          ...(files.length ? { attachments: files } : {}),
           toRecipients: String(to).split(/[,;]/).map((addr) => ({
             emailAddress: { address: addr.trim() },
           })).filter((r) => r.emailAddress.address),

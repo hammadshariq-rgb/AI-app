@@ -2091,18 +2091,15 @@
               </div>
               <p class="connector-hint" style="margin-top:8px">Works with any <strong>Chromecast</strong>, <strong>Google TV</strong>, <strong>Android TV</strong>, <strong>Nvidia Shield</strong>, or any TV with Chromecast built-in.</p>
             </div>
-            <!-- IMPORTANT SENDERS section hidden until email connectors are live -->
-            <!--
-            <div class="connector-section">
+            <div class="connector-section vip-section">
               <div class="connector-section-title">⭐ IMPORTANT SENDERS</div>
-              <p class="connector-hint">Emails from these people will be read out in detail. Say their first name when emailing - Callisto will find their address automatically.</p>
-              <div id="vipList"></div>
+              <p class="connector-hint">Say a first name ("email Amna that I'm running late") and Callisto uses their address. Their emails are read out first in your update.</p>
+              <div id="vipList" class="vip-list"></div>
               <div class="vip-add-row">
-                <input id="vipInput" placeholder="name or email@example.com" autocomplete="off" />
-                <button id="vipAddBtn">+ ADD</button>
+                <input id="vipInput" type="email" placeholder="name@gmail.com" autocomplete="off" aria-label="Email address to add" />
+                <button id="vipAddBtn" type="button">Add</button>
               </div>
             </div>
-            -->
             <div class="connector-section">
               <div class="connector-section-title">📊 BUSINESS &amp; ANALYTICS</div>
               <p class="connector-hint">Connect your platforms so you can ask about sales, revenue, views, and followers at any time.</p>

@@ -6973,16 +6973,16 @@ async function sendToJarvis(rawText) {
     sendBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
     const sendLabel = document.createElement('span');
     sendLabel.className = 'email-send-label';
-    sendLabel.textContent = `Send to ${draft.to}`;
+    sendLabel.textContent = `Send to ${draft.toEmail && /@/.test(draft.toEmail) ? draft.toEmail : draft.to}${draft.attachName ? ' · with ' + draft.attachName : ''}`;
     sendRow.appendChild(sendBtn);
     sendRow.appendChild(sendLabel);
     sendBtn.addEventListener('click', async () => {
       sendBtn.disabled = true;
       sendLabel.textContent = 'Sending…';
       try {
-        const result = await window.jarvis.sendEmail({ to: draft.toEmail || draft.to, subject: draft.subject, body: draft.body });
+        const result = await window.jarvis.sendEmail({ to: draft.toEmail || draft.to, subject: draft.subject, body: draft.body, attachId: draft.attachId });
         if (result && result.ok) {
-          sendLabel.textContent = `Sent via ${result.service}`;
+          sendLabel.textContent = `Sent to ${draft.toEmail || draft.to}${result.service ? ' via ' + result.service : ''}`;
           sendBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
           sendRow.classList.add('sent');
         } else {
@@ -9576,13 +9576,17 @@ async function renderConnectors() {
   if (vipList) {
     const vips = await window.jarvis.connectorGetVip();
     if (!vips.length) {
-      vipList.innerHTML = '<div style="font-size:11px;color:rgba(0,200,255,0.25);padding:4px 0;">No important senders yet.</div>';
+      vipList.innerHTML = '<div class="vip-empty">No important senders yet. Add the people you email most.</div>';
     } else {
-      vipList.innerHTML = vips.map(v => `
-        <div class="vip-item">
-          <span>${v}</span>
-          <button onclick="removeVip('${v}')">✕</button>
-        </div>`).join('');
+      vipList.innerHTML = vips.map((v) => {
+        const isMail = /@/.test(v);
+        const name = isMail ? v.split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, '').trim() : v;
+        const initial = (name || v).trim().charAt(0).toUpperCase() || '?';
+        return `<div class="vip-card"><span class="vip-avatar" aria-hidden="true">${esc(initial)}</span>`
+          + `<span class="vip-text"><b>${esc(name || v)}</b>${isMail ? `<i>${esc(v)}</i>` : ''}</span>`
+          + `<button class="vip-remove" type="button" data-vip="${esc(v)}" aria-label="Remove ${esc(v)}">✕</button></div>`;
+      }).join('');
+      vipList.querySelectorAll('.vip-remove').forEach((b) => b.addEventListener('click', () => window.removeVip(b.dataset.vip)));
     }
   }
 }

@@ -3346,9 +3346,40 @@ function askPermission(sender, act) {
 }
 ipcMain.on('perm:answer', (_e, { id, choice }) => { const f = _permWaits.get(id); if (f) f(choice); });
 
+
+// ── Email addresses said out loud ────────────────────────────────────────────
+// Speech comes back as "send it to sarah at gmail dot com", or as
+// "sarah@gmail" with the .com dropped. Turned into a real address before
+// anything else reads the sentence, so the recipient is never "sarah" or
+// "gmail". Only done when the sentence is about emailing or sending.
+const _MAIL_HOSTS = 'gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|msn|aol|proton|protonmail|gmx|yandex|zoho';
+function normaliseSpokenEmails(text) {
+  let t = String(text || '');
+  if (!/\b(e-?mail|mail|send|sent|forward|share|to)\b/i.test(t)) return t;
+  // "sarah dot jones at gmail dot com" / "sarah at the rate gmail.com"
+  t = t.replace(/\b([a-z0-9][a-z0-9._%+-]*(?:\s+(?:dot|underscore|dash|hyphen)\s+[a-z0-9]+)*)\s+(?:at\s+the\s+rate(?:\s+of)?|at)\s+([a-z0-9-]+)(?:\s+dot\s+|\s*\.\s*)([a-z]{2,6}(?:\s*(?:dot|\.)\s*[a-z]{2,3})?)\b/gi, (m, user, host, tld) => {
+    const u = user.replace(/\s+dot\s+/gi, '.').replace(/\s+underscore\s+/gi, '_').replace(/\s+(?:dash|hyphen)\s+/gi, '-').replace(/\s+/g, '');
+    return (u + '@' + host + '.' + tld.replace(/\s*(?:dot|\.)\s*/gi, '.')).toLowerCase();
+  });
+  // "sarah at gmail" with no ending, for the big mail providers
+  t = t.replace(new RegExp('\\b([a-z0-9][a-z0-9._%+-]*)\\s+at\\s+(' + _MAIL_HOSTS + ')\\b(?!\\s*(?:dot|\\.))', 'gi'), (m, u, h) => (u + '@' + h + '.com').toLowerCase());
+  // "sarah@gmail" typed or heard without .com
+  t = t.replace(new RegExp('\\b([a-z0-9._%+-]+)@(' + _MAIL_HOSTS + ')\\b(?!\\.)', 'gi'), (m, u, h) => (u + '@' + h + '.com').toLowerCase());
+  // "sarah @ gmail.com" with spaces
+  t = t.replace(/\b([a-z0-9._%+-]+)\s+@\s+([a-z0-9-]+\.[a-z.]{2,})/gi, '$1@$2');
+  return t;
+}
+const EMAIL_IN_TEXT = /\b[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i;
+
+// What the last "write me a document" produced, so "send this document to
+// sarah@gmail.com" has a file to attach.
+let _lastDoc = null;
+// Files Callisto offered to attach, by a one-off id. The chat only ever hands
+// back that id, never a path, so it cannot be used to email an arbitrary file.
+const _attachOffers = new Map();
 let _lastAnalyticsPlatform = null;
 async function _chatHandler(_e, { message, history, attachments = [], turn = null }) {
-  message = stripSpokenName(message);
+  message = normaliseSpokenEmails(stripSpokenName(message));
   console.log('[CHAT] received:', message?.slice(0, 60));
   if (/^\s*(?:reset|clear|forget|take back)\s+(?:all\s+)?(?:my\s+|your\s+)?permissions?\b/i.test(String(message || ''))) {
     store.delete('permissions');
@@ -3798,8 +3829,31 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   console.log('[CHAT] parallel fetches done, newsContext:', !!newsContext, 'realtimeContext:', !!realtimeContext);
   // Email send requests must bypass the tool-calling path - the AI needs full token budget
   // to write the email draft and embed the EMAILDRAFT marker; tool_choice:'required' breaks this
-  const EMAIL_SEND_REGEX = /\b(send|write|compose|draft)\b.{0,40}\b(email|mail|message)\b/i;
+  const EMAIL_SEND_REGEX = /\b(send|write|compose|draft)\b.{0,40}\b(email|mail|message)\b|\b(?:send|email|mail|forward|share)\b[^.?!]{0,60}\b(?:document|doc|report|file|spreadsheet|sheet|it|this|that)\b[^.?!]{0,40}\bto\b|\b(?:send|email|mail|forward|write)\b[^.?!]{0,80}[a-z0-9._%+-]+@[a-z0-9-]+\./i;
   const isEmailSendRequest = EMAIL_SEND_REGEX.test(message);
+
+  // A document to go with the email. "Send this document / the report / the
+  // spreadsheet to …" attaches the last one Callisto made.
+  let _attach = null;
+  if (isEmailSendRequest && /\b(document|doc|report|file|attach\w*|spreadsheet|sheet|excel|this|it)\b/i.test(message)) {
+    try {
+      const lastSheet = store.get('lastSpreadsheet');
+      const wantsSheet = /\b(spreadsheet|sheet|excel|xlsx)\b/i.test(message);
+      const docFresh = _lastDoc && Date.now() - _lastDoc.at < 24 * 3600 * 1000;
+      const sheetFresh = lastSheet && lastSheet.path && require('fs').existsSync(lastSheet.path) && Date.now() - (lastSheet.at || 0) < 24 * 3600 * 1000;
+      let p = null, nm = null;
+      if (sheetFresh && (wantsSheet || !docFresh)) { p = lastSheet.path; nm = path.basename(p); }
+      else if (docFresh) {
+        p = await documents.writeAny({ kind: 'doc', title: _lastDoc.title, sections: _lastDoc.sections }, app.getPath('temp'));
+        nm = path.basename(p);
+      }
+      if (p) {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        _attachOffers.set(id, { path: p, name: nm, at: Date.now() });
+        _attach = { id, name: nm };
+      }
+    } catch (err) { console.warn('[email] could not prepare the attachment:', err.message); }
+  }
 
   // Inject VIP sender list when user wants to send an email
   // Also check if message mentions any VIP by name/keyword even without email keywords
@@ -3843,12 +3897,19 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     return null;
   }
 
+  if (isEmailSendRequest) {
+    const addr = message.match(EMAIL_IN_TEXT);
+    const notes = [];
+    if (addr) notes.push(`The recipient's email address is exactly ${addr[0]}. Use it as toEmail, letter for letter.`);
+    if (_attach) notes.push(`The file "${_attach.name}" will be attached to this email automatically. Write a short, friendly covering email that mentions it is attached. Do not paste the document's contents into the email.`);
+    if (notes.length) vipContext = notes.join('\n');
+  }
   if (isEmailSendRequest && vips.length > 0) {
     const vipLines = vips.map((v, i) => {
       const display = vipDisplayName(v);
       return `${i + 1}. ${display} <${v}>`;
     });
-    vipContext = `VIP SENDERS (people the user can email by first name):\n${vipLines.join('\n')}\nMatch the recipient the user mentions to this list by first name and use their full email in the draft. The name in the email address may differ slightly - e.g. "amnaweb122@gmail.com" is "Amna".`;
+    vipContext = (vipContext ? vipContext + '\n\n' : '') + `VIP SENDERS (people the user can email by first name):\n${vipLines.join('\n')}\nMatch the recipient the user mentions to this list by first name and use their full email in the draft. The name in the email address may differ slightly - e.g. "amnaweb122@gmail.com" is "Amna".`;
   }
 
   // When they're talking about a spreadsheet, show the AI the last one it made so
@@ -4888,6 +4949,7 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   if (finalAction?.type === 'create_document') {
     const docTitle = finalAction.arg || 'Document';
     const docSections = finalAction.sections || [];
+    _lastDoc = { title: docTitle, sections: docSections, at: Date.now() };
     const spokenText = finalText || `I've written your document on "${docTitle}". Choose how you'd like to open it.`;
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false, docTitle, docSections };
@@ -5310,9 +5372,9 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
       const recipientMatch = finalText.match(/(?:draft for|email to|to\s+)([A-Za-z]+)/);
       const toName = recipientMatch ? recipientMatch[1] : 'recipient';
       // Look up VIP by name from original user message first, then from AI-extracted name
-      const toEmail = findVipByMessage(message)
+      const toEmail = message.match(EMAIL_IN_TEXT)?.[0]
+        || findVipByMessage(message)
         || vips.find(v => matchVip(toName, v))
-        || message.match(/\b[\w.+-]+@[\w-]+\.\w+\b/)?.[0]
         || toName;
       if (subject && rawBody) emailDraft = { to: toName, toEmail, subject, body: rawBody };
     }
@@ -5340,6 +5402,12 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
     _teachDiagram(message, finalText);
   }
 
+  if (emailDraft) {
+    // The address they gave beats anything the model wrote.
+    const said = message.match(EMAIL_IN_TEXT);
+    if (said) { emailDraft.toEmail = said[0]; if (!emailDraft.to || emailDraft.to === 'recipient' || /@/.test(emailDraft.to) === false && emailDraft.to.length < 2) emailDraft.to = said[0]; }
+    if (_attach) { emailDraft.attachId = _attach.id; emailDraft.attachName = _attach.name; }
+  }
   return { text: finalText, audio: null, card: finalCard, hasAction: didTakeAction, emailDraft };
 
   } catch (err) {
@@ -7285,8 +7353,12 @@ ipcMain.on('update:install', () => {
 });
 
 ipcMain.handle('gmail:connectRead', async (_e, { email, appPassword }) => connectors.connectGmailImap(email, appPassword));
-ipcMain.handle('email:send', async (_e, { to, subject, body }) => {
-  return connectors.sendEmail({ to, subject, body });
+ipcMain.handle('email:send', async (_e, { to, subject, body, attachId }) => {
+  const off = attachId ? _attachOffers.get(String(attachId)) : null;
+  const attachments = off && require('fs').existsSync(off.path) ? [{ path: off.path, name: off.name }] : [];
+  to = normaliseSpokenEmails('send to ' + String(to || '')).replace(/^send to /, '').trim();
+  if (!EMAIL_IN_TEXT.test(to)) return { ok: false, error: 'I need a full email address, like name@gmail.com.' };
+  return connectors.sendEmail({ to, subject, body, attachments });
 });
 
 // ── The numbers, remembered ──────────────────────────────────────────────────

@@ -10638,3 +10638,23 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
 .grs-btn:disabled { opacity: .6; cursor: default; }
 .grs-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .grs-note { margin: 12px 0 0; font-size: 11.5px; color: rgba(160,182,225,.55); }
+
+/* Important senders, redesigned: a card per person with an initial. */
+.vip-section .vip-list { display: grid; gap: 8px; margin: 10px 0 12px; }
+.vip-empty { font-size: 12px; color: rgba(170,190,230,.55); padding: 10px 12px; border-radius: 10px; border: 1px dashed rgba(140,170,230,.2); }
+.vip-card { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+  background: rgba(255,255,255,.035); border: 1px solid rgba(140,170,255,.12); transition: background .15s, border-color .15s; }
+.vip-card:hover { background: rgba(77,141,255,.08); border-color: rgba(77,141,255,.25); }
+.vip-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  background: linear-gradient(135deg, #4D8DFF, #9b6bff); }
+.vip-text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.vip-text b { font-size: 13px; font-weight: 650; color: #eef3ff; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vip-text i { font-style: normal; font-size: 11.5px; color: rgba(170,190,230,.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vip-remove { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent; background: none; color: rgba(190,206,240,.5); cursor: pointer; }
+.vip-remove:hover { color: #ff8f9b; background: rgba(255,92,108,.1); border-color: rgba(255,92,108,.25); }
+.vip-remove:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 1px; }
+.vip-section .vip-add-row { display: flex; gap: 8px; }
+.vip-section #vipInput { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(4,8,20,.55); color: #fff; font: inherit; font-size: 13px; }
+.vip-section #vipInput:focus { outline: 2px solid #4D8DFF; outline-offset: 1px; }
+.vip-section #vipAddBtn { padding: 0 16px; border-radius: 10px; border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; color: #fff; background: linear-gradient(135deg, #3aa9ff, #2f4dff); }
+.vip-section #vipAddBtn:hover { filter: brightness(1.08); }
