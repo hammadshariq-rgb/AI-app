@@ -90,6 +90,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onActionFired: (cb) => ipcRenderer.on('jarvis:action-fired', (_e, d) => cb(d)),
   onExtraChart: (cb) => ipcRenderer.on('jarvis:extra-chart', (_e, d) => cb(d)),
   drivePick: () => ipcRenderer.invoke('drive:pick'),
+  gmailConnectRead: (email, appPassword) => ipcRenderer.invoke('gmail:connectRead', { email, appPassword }),
   onChartPending: (cb) => ipcRenderer.on('jarvis:chart-pending', (_e, d) => cb(d)),
   onPermAsk: (cb) => ipcRenderer.on('perm:ask', (_e, d) => cb(d)),
   permAnswer: (id, choice) => ipcRenderer.send('perm:answer', { id, choice }),

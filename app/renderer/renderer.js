@@ -5880,6 +5880,54 @@ async function pickFromDrive() {
 }
 window._pickFromDrive = pickFromDrive;
 
+// ── Gmail (read): app-password setup ─────────────────────────────────────────
+// Three short steps with direct links, then the email and the 16-letter app
+// password. Checked with Gmail before it is saved, and kept on this computer.
+function showGmailReadSetup() {
+  document.getElementById('gmailReadSetup')?.remove();
+  const el = document.createElement('div');
+  el.id = 'gmailReadSetup';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'grsTitle');
+  el.innerHTML = `
+    <div class="grs-box">
+      <button class="grs-x" type="button" aria-label="Close">✕</button>
+      <div class="grs-title" id="grsTitle">Let Callisto read your Gmail</div>
+      <p class="grs-sub">Google lets mail apps read Gmail with an <b>app password</b>: a 16-letter code you make in your Google account. Callisto only reads. It never deletes or moves anything, and the code stays on this computer.</p>
+      <ol class="grs-steps">
+        <li>Turn on <b>2-Step Verification</b> if it is not on already. <a href="#" data-url="https://myaccount.google.com/signinoptions/twosv">Open 2-Step Verification</a></li>
+        <li>Make an app password: type <b>Callisto</b> as the name and press Create. <a href="#" data-url="https://myaccount.google.com/apppasswords">Open App passwords</a></li>
+        <li>Copy the 16 letters Google shows and paste them below.</li>
+      </ol>
+      <label class="grs-lab" for="grsEmail">Gmail address</label>
+      <input id="grsEmail" class="grs-in" type="email" autocomplete="email" placeholder="you@gmail.com">
+      <label class="grs-lab" for="grsPass">App password</label>
+      <input id="grsPass" class="grs-in" type="password" autocomplete="off" spellcheck="false" placeholder="abcd efgh ijkl mnop">
+      <div class="grs-err" id="grsErr" role="alert"></div>
+      <div class="grs-row"><button class="grs-btn" id="grsGo" type="button">Connect Gmail</button></div>
+      <p class="grs-note">To disconnect later, press Disconnect here or delete the app password in your Google account.</p>
+    </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.querySelector('.grs-x').addEventListener('click', close);
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  el.querySelectorAll('a[data-url]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); window.jarvis.openUrl?.(a.dataset.url); }));
+  const go = el.querySelector('#grsGo'), err = el.querySelector('#grsErr');
+  const submit = async () => {
+    err.textContent = '';
+    go.disabled = true; go.textContent = 'Checking with Gmail…';
+    const r = await window.jarvis.gmailConnectRead(el.querySelector('#grsEmail').value, el.querySelector('#grsPass').value).catch((e) => ({ ok: false, error: e.message }));
+    go.disabled = false; go.textContent = 'Connect Gmail';
+    if (!r || !r.ok) { err.textContent = (r && r.error) || 'That did not work.'; return; }
+    close();
+    renderConnectors();
+    addMessage('assistant', 'Gmail is connected for reading. Ask **"any new emails?"**, **"what needs a reply?"** or **"did the bank email me this week?"**');
+  };
+  go.addEventListener('click', submit);
+  el.querySelector('#grsPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  setTimeout(() => el.querySelector('#grsEmail').focus(), 30);
+}
+
 // ── Permission prompt ────────────────────────────────────────────────────────
 // Before Callisto looks at files, makes files or runs a command, it asks here,
 // in the chat. Numbered choices, arrow keys or 1/2/3 to pick, Enter to confirm.
@@ -9481,6 +9529,25 @@ async function renderConnectors() {
       calendarBtn.textContent = 'CONNECT';
       calendarBtn.className = 'connector-btn';
       calendarBtn.onclick = () => showConnectSteps('calendar');
+    }
+  }
+
+  // Gmail (read) row
+  const gmailReadStatus = document.getElementById('gmailReadStatus');
+  const gmailReadBtn = document.getElementById('gmailReadBtn');
+  if (gmailReadStatus && gmailReadBtn) {
+    if (status.gmailRead) {
+      gmailReadStatus.textContent = 'Connected · Callisto can read your inbox';
+      gmailReadStatus.className = 'connector-status connected';
+      gmailReadBtn.textContent = 'DISCONNECT';
+      gmailReadBtn.className = 'connector-btn disconnect';
+      gmailReadBtn.onclick = async () => { await window.jarvis.connectorDisconnect('gmailImap'); renderConnectors(); };
+    } else {
+      gmailReadStatus.textContent = 'Not connected · Let Callisto read your inbox';
+      gmailReadStatus.className = 'connector-status';
+      gmailReadBtn.textContent = 'CONNECT';
+      gmailReadBtn.className = 'connector-btn';
+      gmailReadBtn.onclick = () => showGmailReadSetup();
     }
   }
 

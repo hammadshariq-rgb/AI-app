@@ -3705,7 +3705,8 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   const searchMessage = message.replace(new RegExp(`^${assistantNameRaw}[,\\s]+`, 'i'), '').trim();
 
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
-    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 3000) : Promise.resolve(null),
+    // Gmail over IMAP needs a moment to connect; Outlook alone is quicker.
+    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 8000) : Promise.resolve(null),
     (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 1500) : Promise.resolve(null),
     // A card is worth waiting for when the ANSWER depends on it - a share
     // price or a score, which the model cannot know. For a plain "what is X"
@@ -7283,6 +7284,7 @@ ipcMain.on('update:install', () => {
   }
 });
 
+ipcMain.handle('gmail:connectRead', async (_e, { email, appPassword }) => connectors.connectGmailImap(email, appPassword));
 ipcMain.handle('email:send', async (_e, { to, subject, body }) => {
   return connectors.sendEmail({ to, subject, body });
 });

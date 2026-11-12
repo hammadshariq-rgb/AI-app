@@ -47,17 +47,113 @@ const SERVER = process.env.LICENSE_SERVER_URL || 'http://localhost:4000';
 // ── Email (Gmail + Outlook) - removed pending ADA-CASA verification ───────────
 // These functions will be restored when Gmail/Outlook connectors are re-enabled.
 
+// ── Reading Gmail with an app password (IMAP) ────────────────────────────────
+// The OAuth scopes that read Gmail are restricted and need a paid yearly
+// assessment. An app password is the other door Google keeps open for mail
+// apps: the person makes one in their own Google account and gives it to
+// Callisto, exactly as they would to Outlook or Apple Mail. It is stored only
+// on this computer, encrypted, and never sent to Callisto's server. Callisto
+// only ever reads: nothing is moved, deleted or marked.
+function saveGmailImap(email, appPassword) {
+  store.set('connector.gmailImap', { email: String(email).trim().toLowerCase(), pass: encryptSecret(String(appPassword).replace(/\s+/g, '')), _enc: true });
+}
+function loadGmailImap() {
+  const raw = store.get('connector.gmailImap');
+  if (!raw || !raw.email || !raw.pass) return null;
+  return { email: raw.email, pass: raw._enc ? decryptSecret(raw.pass) : raw.pass };
+}
+
+async function _imap(creds, fn) {
+  const { ImapFlow } = require('imapflow');
+  const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: creds.email, pass: creds.pass }, logger: false, socketTimeout: 20000 });
+  await client.connect();
+  try {
+    const lock = await client.getMailboxLock('INBOX', { readOnly: true });
+    try { return await fn(client); } finally { lock.release(); }
+  } finally { try { await client.logout(); } catch (_) {} }
+}
+
+// Checks the details before they are saved, so a typo is caught at once.
+async function connectGmailImap(email, appPassword) {
+  const creds = { email: String(email || '').trim(), pass: String(appPassword || '').replace(/\s+/g, '') };
+  if (!/@/.test(creds.email)) return { ok: false, error: 'That does not look like an email address.' };
+  if (creds.pass.length !== 16) return { ok: false, error: 'An app password is 16 letters long. Copy it again from Google.' };
+  try {
+    await _imap(creds, async () => true);
+    saveGmailImap(creds.email, creds.pass);
+    return { ok: true };
+  } catch (err) {
+    const m = String(err && (err.responseText || err.message) || '');
+    if (/AUTHENTICATIONFAILED|Invalid credentials|auth/i.test(m)) return { ok: false, error: 'Google did not accept that email and app password. Check both, or make a new app password.' };
+    if (/IMAP access is disabled|IMAP/i.test(m)) return { ok: false, error: 'IMAP is switched off for this Gmail account. Turn it on in Gmail settings, under Forwarding and POP/IMAP.' };
+    return { ok: false, error: 'Could not reach Gmail: ' + m.slice(0, 120) };
+  }
+}
+
+// The newest messages, with a short preview of the unread ones.
+async function getGmailInbox(limit = 25) {
+  const creds = loadGmailImap();
+  if (!creds) return null;
+  const { simpleParser } = require('mailparser');
+  return _imap(creds, async (client) => {
+    const total = client.mailbox.exists || 0;
+    if (!total) return [];
+    const from = Math.max(1, total - limit + 1);
+    const out = [];
+    for await (const m of client.fetch(`${from}:*`, { uid: true, envelope: true, flags: true, internalDate: true })) {
+      const e = m.envelope || {};
+      const who = (e.from && e.from[0]) || {};
+      out.push({ uid: m.uid, from: who.name ? `${who.name} <${who.address}>` : (who.address || 'Unknown'), subject: e.subject || '(no subject)', date: m.internalDate, unread: !(m.flags && m.flags.has('\\Seen')) });
+    }
+    out.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // A preview for the newest few unread, read without marking them read.
+    for (const msg of out.filter((x) => x.unread).slice(0, 8)) {
+      try {
+        const one = await client.fetchOne(String(msg.uid), { source: { start: 0, maxLength: 40000 } }, { uid: true });
+        const parsed = await simpleParser(one.source);
+        msg.preview = String(parsed.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+      } catch (_) {}
+    }
+    return out;
+  });
+}
+
+// Gmail's own search language ("from:bank newer_than:7d"), through IMAP.
+async function searchGmail(query, limit = 15) {
+  const creds = loadGmailImap();
+  if (!creds || !query) return [];
+  return _imap(creds, async (client) => {
+    const uids = await client.search({ gmraw: String(query).slice(0, 200) }, { uid: true });
+    const pick = (uids || []).slice(-limit);
+    if (!pick.length) return [];
+    const out = [];
+    for await (const m of client.fetch(pick.join(','), { uid: true, envelope: true, flags: true, internalDate: true }, { uid: true })) {
+      const e = m.envelope || {};
+      const who = (e.from && e.from[0]) || {};
+      out.push({ from: who.name ? `${who.name} <${who.address}>` : (who.address || 'Unknown'), subject: e.subject || '(no subject)', date: m.internalDate, unread: !(m.flags && m.flags.has('\\Seen')) });
+    }
+    return out.sort((a, b) => new Date(b.date) - new Date(a.date));
+  });
+}
+
 async function getEmailUpdate() {
-  const outlook = await getOutlookInbox(20).catch(() => null);
-  return { gmail: null, outlook };
+  const [gmail, outlook] = await Promise.all([
+    getGmailInbox(25).catch((e) => { console.warn('[gmail-imap]', e.message); return null; }),
+    getOutlookInbox(20).catch(() => null),
+  ]);
+  return { gmail, outlook };
 }
 function formatEmailUpdateForAI(update) {
-  const mail = update && update.outlook;
-  if (!Array.isArray(mail) || !mail.length) return null;
-  const unread = mail.filter((m) => m.unread);
-  const lines = (unread.length ? unread : mail).slice(0, 8).map((m) =>
-    `• ${m.from}: "${m.subject}"${m.preview ? ` - ${m.preview.slice(0, 120)}` : ''}`);
-  return 'OUTLOOK INBOX (' + unread.length + ' unread of ' + mail.length + ' recent):' + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
+  const NL = String.fromCharCode(10);
+  const fmtBox = (label, mail) => {
+    if (!Array.isArray(mail) || !mail.length) return null;
+    const unread = mail.filter((m) => m.unread);
+    const show = (unread.length ? unread.slice(0, 10) : []).concat(mail.filter((m) => !m.unread).slice(0, 10));
+    const lines = show.map((m) => `• ${m.unread ? '[UNREAD] ' : ''}${m.date ? new Date(m.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' : ''}${m.from}: "${m.subject}"${m.preview ? ` - ${m.preview.slice(0, 160)}` : ''}`);
+    return label + ' (' + unread.length + ' unread of ' + mail.length + ' recent):' + NL + lines.join(NL);
+  };
+  const parts = [fmtBox('GMAIL INBOX', update && update.gmail), fmtBox('OUTLOOK INBOX', update && update.outlook)].filter(Boolean);
+  return parts.length ? parts.join(NL + NL) : null;
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
@@ -65,6 +161,7 @@ function formatEmailUpdateForAI(update) {
 function getConnectorStatus() {
   return {
     gmail: !!store.get('connector.gmail.access_token'),
+    gmailRead: !!store.get('connector.gmailImap.email'),
     outlook: !!store.get('connector.outlook.access_token'),
     spotify: !!store.get('connector.spotify.access_token'),
     calendar: !!store.get('connector.calendar.access_token'),
@@ -1984,6 +2081,7 @@ module.exports = {
   // Drive stub (removed pending ADA-CASA)
   saveDriveTokens, getDriveToken, searchDriveFiles, openDriveFile,
   sendGmail, uploadToDrive, importDriveFile,
+  connectGmailImap, getGmailInbox, searchGmail,
   // Active connectors
   getConnectorStatus, saveGoogleAccountEmail, getGoogleAccountEmail, disconnectGoogleAccount,
   saveSpotifyTokens, saveCalendarTokens,
