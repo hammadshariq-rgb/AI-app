@@ -549,7 +549,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'market_chart',
-      description: 'Draw a REAL candlestick chart for a stock, crypto coin, index, commodity or bond from live market data, with a shaded range for where the price could plausibly be over the next days (worked out from its real volatility, labelled as an estimate). Use whenever they ask about the price, trend or outlook of something traded: "how is Nvidia doing", "where is bitcoin heading", "show me the Nasdaq", "should I buy Tesla", "what will gold do", "how will this affect the markets" (chart the thing most affected). Put your reading of the news, geopolitics and the trend in your reply text; the chart carries the numbers. Never invent prices - this tool fetches them.',
+      description: 'ONLY for the trading PRICE of something traded - never for revenue, sales, profit, followers or market size (those are show_chart). Draw a REAL candlestick chart for a stock, crypto coin, index, commodity or bond from live market data, with a shaded range for where the price could plausibly be over the next days (worked out from its real volatility, labelled as an estimate). Use whenever they ask about the price, trend or outlook of something traded: "how is Nvidia doing", "where is bitcoin heading", "show me the Nasdaq", "should I buy Tesla", "what will gold do", "how will this affect the markets" (chart the thing most affected). Put your reading of the news, geopolitics and the trend in your reply text; the chart carries the numbers. Never invent prices - this tool fetches them.',
       parameters: {
         type: 'object',
         properties: {
@@ -2308,10 +2308,10 @@ async function generateImage(prompt, size = '1024x1024') {
 // under them a moment later.
 const CHART_INTENT = /\b(graph|chart|plot|candles?|candlestick|visuali[sz]e)\b|\b(stocks?|shares?|share price|crypto|bitcoin|ethereum|solana|nasdaq|s&p|dow jones|ftse|nifty|sensex|gold|oil|bonds?|yields?|treasur(?:y|ies)|exchange rate|forex|currenc(?:y|ies)|dollar to|euro to|pound to|to pkr|to inr)\b[^.?!]{0,60}\b(price|doing|heading|trend|today|now|going|forecast|outlook|affect|effect|impact|worth|rate|predict|future)\b|\bprice of\b|\b(how|what) (?:will|would|does|did)\b[^.?!]{0,60}\b(markets?|stocks?)\b/i;
 const CHART_SYSTEM = [
-  'Make exactly one chart tool call for this request, nothing else.',
-  '- Anything traded (a stock, share, index, crypto, bond or yield, commodity, currency pair): market_chart with its ticker or plain name. When the question is how something affects other companies or markets, chart the single most affected one.',
-  '- Anything else (market sizes, comparisons, how one thing moves others, projections): show_chart with real, defensible figures. basis "measured" ONLY for the user\'s own data; everything worked out or estimated is "estimate". Put the assumption in note.',
-  '- A comparison of several companies or assets: one show_chart bar chart with one bar each.',
+  'Make exactly one chart tool call for this request, nothing else. Pick the tool by WHAT is being measured:',
+  '- market_chart (candlesticks) is ONLY for the trading PRICE of something traded: a stock or share price, an index level, a crypto price, a bond yield, a commodity price, a currency exchange rate. For "how will this affect the markets / other stocks", chart the price of the single most affected one.',
+  '- show_chart (a line or bar graph) is for EVERYTHING ELSE, including anything about a company that is not its share price: revenue, sales, profit, earnings, margins, users, followers, views, market size, market share, costs, growth, forecasts, comparisons. "Nvidia revenue", "Apple vs Samsung sales" and "my Stripe revenue" are show_chart, never candles. Use kind "line" for anything over time and "bar" for comparing things side by side.',
+  '- For show_chart use real, defensible figures. basis "measured" ONLY for the user\'s own data; everything worked out or estimated is "estimate". Put the source or assumption in note.',
 ].join('\n');
 
 async function chartToolCall({ message, history = [] }) {

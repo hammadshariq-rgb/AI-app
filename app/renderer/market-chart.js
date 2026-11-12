@@ -88,6 +88,14 @@
       '.mc-hint{margin-top:8px;font-size:10.5px;color:rgba(160,185,225,.5)}',
       ".mc-tag{font:600 10.5px 'Plus Jakarta Sans','Segoe UI',sans-serif;fill:#fff}",
       '.mc-tagbg{fill:rgba(8,13,28,.85);stroke:rgba(255,255,255,.18)}',
+      '.mc-read{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(140,170,255,.12)}',
+      '.mc-read h4{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(170,190,230,.65)}',
+      '.mc-read ul{margin:0;padding-left:16px;font-size:12.5px;line-height:1.55;color:#dbe6ff}',
+      '.mc-read li{margin:3px 0}',
+      '.mc-read li::marker{color:#7fa8ff}',
+      '.mc-anatomy{width:118px;height:auto;display:block}',
+      ".mc-anatomy text{font:600 9.5px 'Plus Jakarta Sans','Segoe UI',sans-serif;fill:rgba(205,220,250,.8)}",
+      '@media (max-width:520px){.mc-read{grid-template-columns:1fr}}',
       '.mc-note{margin-top:10px;font-size:11px;line-height:1.6;color:rgba(160,185,225,.72)}',
       '@media (prefers-reduced-motion:reduce){.mc-draw,.mc-fade,.mc-grow,.mc-pulse{animation:none!important;stroke-dashoffset:0;opacity:1;transform:none}}'
     ].join('');
@@ -313,6 +321,40 @@
       '<div class="mc-tip"></div></div>';
   }
 
+  // What the candles are saying, in plain words: the latest run of days, where
+  // the price sits against its own recent average, and the biggest single
+  // move. Read from the real candles, never guessed.
+  function candleReading(cs, fmt, unitDay) {
+    var out = [], n = cs.length, last = cs[n - 1];
+    var dir = last.c >= last.o, run = 0;
+    for (var i = n - 1; i >= 0 && (cs[i].c >= cs[i].o) === dir; i--) run++;
+    if (run >= 2) out.push('<b>' + run + ' ' + unitDay + 's in a row closed ' + (dir ? 'higher' : 'lower') + '</b> (' + (dir ? 'green' : 'red') + ' candles): ' + (dir ? 'buyers have been in control lately.' : 'sellers have been in control lately.'));
+    else out.push('The latest ' + unitDay + ' closed <b>' + (dir ? 'higher' : 'lower') + '</b> than it opened, after a ' + (dir ? 'lower' : 'higher') + ' ' + unitDay + ', so the direction is mixed.');
+    var k = Math.min(20, n), avg = 0;
+    for (var j = n - k; j < n; j++) avg += cs[j].c;
+    avg /= k;
+    var gap = ((last.c - avg) / avg) * 100;
+    out.push('The price is <b>' + Math.abs(gap).toFixed(1) + '% ' + (gap >= 0 ? 'above' : 'below') + '</b> its ' + k + '-' + unitDay + ' average of ' + fmt(avg) + (Math.abs(gap) < 1 ? ', so it is sitting close to normal.' : gap > 0 ? ', which usually means an upward trend.' : ', which usually means a downward trend.'));
+    var big = 0;
+    for (var b = 1; b < n; b++) if (Math.abs(cs[b].c - cs[b - 1].c) / cs[b - 1].c > Math.abs(cs[big].c - (cs[big - 1] || cs[big]).c) / (cs[big - 1] || cs[big]).c) big = b;
+    if (big > 0) {
+      var mv = ((cs[big].c - cs[big - 1].c) / cs[big - 1].c) * 100;
+      var d = new Date(cs[big].t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+      out.push('Biggest move: <b>' + (mv >= 0 ? '+' : '') + mv.toFixed(1) + '% on ' + d + '</b>. A long candle like that usually follows news.');
+    }
+    var wick = last.h - last.l, body = Math.abs(last.c - last.o);
+    if (wick > 0 && body / wick < 0.25) out.push('The latest candle has a <b>small body and long wicks</b>: the price swung both ways and ended near where it started, a sign of indecision.');
+    return out;
+  }
+  // A labelled drawing of one candle, so the chart can be read by anyone.
+  var ANATOMY = '<svg class="mc-anatomy" viewBox="0 0 118 112" role="img" aria-label="How to read a candle">'
+    + '<line x1="22" y1="8" x2="22" y2="104" stroke="#3DDC97" stroke-width="1.6"/><rect x="13" y="30" width="18" height="48" rx="2" fill="#3DDC97"/>'
+    + '<line x1="34" y1="8" x2="44" y2="8" stroke="rgba(205,220,250,.4)"/><text x="47" y="11">High</text>'
+    + '<line x1="34" y1="30" x2="44" y2="30" stroke="rgba(205,220,250,.4)"/><text x="47" y="33">Close</text>'
+    + '<line x1="34" y1="78" x2="44" y2="78" stroke="rgba(205,220,250,.4)"/><text x="47" y="81">Open</text>'
+    + '<line x1="34" y1="104" x2="44" y2="104" stroke="rgba(205,220,250,.4)"/><text x="47" y="107">Low</text>'
+    + '<text x="47" y="56" style="fill:#3DDC97">Green: up</text><text x="47" y="68" style="fill:#FF5C6C">Red: down</text></svg>';
+
   // ── Candles, then a shaded range for the days ahead ──────────────────────
   // The range is drawn as a fan, never as candles: invented candles would look
   // like data.
@@ -395,7 +437,10 @@
     var html = '<div class="mc-card">' +
       head(spec, GLYPH_CANDLE, fmt(lc.c), chg, '<span class="mc-badge meas">LIVE PRICES</span>' + (pr.length ? '<span class="mc-badge est">RANGE IS AN ESTIMATE</span>' : '')) +
       '<div class="mc-take">' + ctake + '</div>' +
-      plot(uid, '', parts, spec.title) + ckey + HINT +
+      plot(uid, '', parts, spec.title) + ckey +
+      '<div class="mc-read"><div>' + ANATOMY + '</div><div><h4>What the candles show</h4><ul>' +
+        candleReading(cs, fmt, spec.interval === '1h' ? 'hour' : spec.interval === '1wk' ? 'week' : 'day').map(function (x) { return '<li>' + x + '</li>'; }).join('') +
+        '</ul></div></div>' + HINT +
       (spec.note ? '<div class="mc-note">' + esc(spec.note) + '</div>' : '') + '</div>';
     return { html: html, model: model };
   }
