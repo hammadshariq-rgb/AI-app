@@ -5856,6 +5856,30 @@ window.jarvis.onChartPending?.((d) => {
   _showChartPending('Fetching live prices');
 });
 
+// ── "Open a file from my Drive" ──────────────────────────────────────────────
+// Google's picker opens; whatever they choose arrives here as attachments, the
+// same as a file dropped into the chat, ready for "summarise it".
+const DRIVE_PICK_RE = /\b(?:open|import|get|pull|load|bring|attach|pick|choose|read|show)\b[^.?!]{0,30}\b(?:from|in|on)\s+(?:my\s+)?(?:google\s+)?drive\b|\bwhat(?:'s| is)\s+(?:in|on)\s+my\s+(?:google\s+)?drive\b|\b(?:my\s+)?(?:google\s+)?drive\s+files?\b/i;
+async function pickFromDrive() {
+  const r = await window.jarvis.drivePick?.().catch(() => null);
+  if (!r || !r.ok) {
+    const why = r && r.error === 'not_connected'
+      ? 'Google Drive is not connected yet. Open Connectors and connect Google Drive, then ask again.'
+      : r && r.error === 'not_configured' ? 'Opening files from Drive is not switched on yet.'
+      : r && r.error === 'already_open' ? 'The Drive window is already open.'
+      : 'I could not open your Google Drive just now.';
+    addMessage('assistant', why);
+    return true;
+  }
+  if (!r.files.length) { addMessage('assistant', 'No files chosen. Ask again whenever you want one.'); return true; }
+  r.files.forEach((f) => pendingAttachments.push(f));
+  if (typeof renderAttachPreview === 'function') renderAttachPreview();
+  const names = r.files.map((f) => f.name).join(', ');
+  addMessage('assistant', `Got **${names}** from your Drive. What would you like me to do with ${r.files.length > 1 ? 'them' : 'it'}? I can summarise, explain, rewrite, translate, chart the numbers or answer questions about ${r.files.length > 1 ? 'them' : 'it'}.`);
+  return true;
+}
+window._pickFromDrive = pickFromDrive;
+
 // ── Permission prompt ────────────────────────────────────────────────────────
 // Before Callisto looks at files, makes files or runs a command, it asks here,
 // in the chat. Numbered choices, arrow keys or 1/2/3 to pick, Enter to confirm.
@@ -6668,6 +6692,11 @@ async function sendToJarvis(rawText) {
   if (!_multi && typeof window._checkQuickLaunch === 'function') {
     const handled = await window._checkQuickLaunch(text);
     if (handled) return _hudAfterHandled(_asstBefore);
+  }
+  // "Open a file from my Drive" / "what's in my Drive": Google's picker.
+  if (!_multi && typeof DRIVE_PICK_RE !== 'undefined' && DRIVE_PICK_RE.test(text)) {
+    await pickFromDrive();
+    return;
   }
   // Check creative (painting / 3D model) - may short-circuit the AI call
   if (!_multi && typeof window._checkCreative === 'function') {

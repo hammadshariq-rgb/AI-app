@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Choose files · Callisto</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #070b18; color: #dbe6ff;
+    font: 14px/1.5 'Segoe UI', system-ui, sans-serif; }
+  .box { text-align: center; max-width: 420px; padding: 24px; }
+  .box b { display: block; font-size: 16px; color: #fff; margin-bottom: 6px; }
+  .spin { width: 28px; height: 28px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid rgba(77,141,255,.25); border-top-color: #4D8DFF; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+<div class="box" id="msg"><div class="spin" aria-hidden="true"></div><b>Opening your Google Drive</b>Choose the files you want Callisto to open. It only sees the ones you pick.</div>
+<script>
+// Callisto opens this page in its own window and passes, in the part of the
+// address after #, a Drive access token for this one session plus the picker
+// key. The part after # never leaves this computer: browsers do not send it to
+// any server, this one included.
+(function () {
+  var h = new URLSearchParams(location.hash.slice(1));
+  var token = h.get('token'), key = h.get('key'), appId = h.get('app');
+  history.replaceState(null, '', location.pathname);
+  var msg = document.getElementById('msg');
+  var send = function (files) {
+    if (window.callistoPicker) window.callistoPicker.done(files);
+    else msg.innerHTML = '<b>Open this from Callisto</b>This page only works inside the Callisto app.';
+  };
+  if (!token || !key) { msg.innerHTML = '<b>Something is missing</b>Close this window and try again from Callisto.'; return; }
+  window.onPickerApiLoad = function () {
+    gapi.load('picker', function () {
+      var view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        .setIncludeFolders(true).setSelectFolderEnabled(false).setMode(google.picker.DocsViewMode.LIST);
+      var picker = new google.picker.PickerBuilder()
+        .setTitle('Choose files for Callisto')
+        .addView(view)
+        .addView(new google.picker.DocsView(google.picker.ViewId.RECENTLY_PICKED))
+        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+        .setOAuthToken(token)
+        .setDeveloperKey(key)
+        .setAppId(appId || '')
+        .setSize(Math.min(1051, innerWidth - 20), Math.min(650, innerHeight - 20))
+        .setCallback(function (d) {
+          if (d.action === google.picker.Action.PICKED) {
+            send((d.docs || []).slice(0, 5).map(function (x) { return { id: x.id, name: x.name, mimeType: x.mimeType }; }));
+          } else if (d.action === google.picker.Action.CANCEL) {
+            send([]);
+          }
+        })
+        .build();
+      picker.setVisible(true);
+    });
+  };
+  var s = document.createElement('script');
+  s.src = 'https://apis.google.com/js/api.js?onload=onPickerApiLoad';
+  s.onerror = function () { msg.innerHTML = '<b>Google Drive did not load</b>Check your internet connection and try again.'; };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>

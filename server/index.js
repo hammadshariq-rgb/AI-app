@@ -1625,6 +1625,13 @@ app.get('/connect/calendar/poll', connectLimiter, (req, res) => {
   res.json({ ok: false });
 });
 
+// The Google Picker needs a browser API key and the project number. Both are
+// public by nature (Google ties the key to callistoai.net), but they are kept
+// in Railway so they can be changed without an app release.
+app.get('/config/google-picker', authMiddleware, (req, res) => {
+  res.json({ apiKey: process.env.GOOGLE_PICKER_API_KEY || '', appId: process.env.GOOGLE_PROJECT_NUMBER || '' });
+});
+
 // Gmail (send only) and Drive (drive.file) refresh the same way Calendar does.
 async function googleRefresh(req, res) {
   const { refresh_token } = req.body || {};

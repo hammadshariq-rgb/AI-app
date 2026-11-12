@@ -2866,6 +2866,44 @@ ipcMain.handle('jarvis:addCalendarEvent', async (_e, { title, startISO, endISO, 
   return { ok: true };
 });
 
+
+// ── Opening files from Google Drive ──────────────────────────────────────────
+// Google's own file picker, on callistoai.net, in a window of Callisto's. The
+// person sees their whole Drive there and chooses; Callisto is only given the
+// files chosen (that is what drive.file means) and reads them into the chat.
+let _pickerWin = null;
+ipcMain.handle('drive:pick', async () => {
+  const token = await connectors.getDriveToken();
+  if (!token) return { ok: false, error: 'not_connected' };
+  let cfg = null;
+  try {
+    const r = await fetch(`${_serverBase()}/config/google-picker`, { headers: _authHeader() });
+    cfg = r.ok ? await r.json() : null;
+  } catch (_) {}
+  if (!cfg || !cfg.apiKey) return { ok: false, error: 'not_configured' };
+  if (_pickerWin && !_pickerWin.isDestroyed()) { _pickerWin.focus(); return { ok: false, error: 'already_open' }; }
+  const picked = await new Promise((resolve) => {
+    let done = false;
+    const finish = (files) => { if (done) return; done = true; ipcMain.removeListener('drive:picked', onPicked); try { if (_pickerWin && !_pickerWin.isDestroyed()) _pickerWin.close(); } catch (_) {} resolve(files || []); };
+    const onPicked = (e, files) => { if (_pickerWin && e.sender === _pickerWin.webContents) finish(files); };
+    ipcMain.on('drive:picked', onPicked);
+    _pickerWin = new BrowserWindow({
+      width: 1080, height: 700, title: 'Choose files · Callisto', backgroundColor: '#070b18', autoHideMenuBar: true,
+      parent: (overlayWindow && !overlayWindow.isDestroyed()) ? overlayWindow : undefined,
+      webPreferences: { preload: path.join(__dirname, 'picker-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    _pickerWin.on('closed', () => { _pickerWin = null; finish([]); });
+    // Google's picker opens its own sign-in or account pages in pop-ups; those
+    // stay inside this window's session. Anything else goes to the browser.
+    _pickerWin.webContents.setWindowOpenHandler(({ url }) => (/^https:\/\/([a-z0-9-]+\.)*(google|googleusercontent)\.com\//.test(url) ? { action: 'allow' } : (shell.openExternal(url), { action: 'deny' })));
+    const hash = new URLSearchParams({ token, key: cfg.apiKey, app: cfg.appId || '' }).toString();
+    _pickerWin.loadURL('https://callistoai.net/drive-picker.html#' + hash);
+  });
+  if (!picked.length) return { ok: true, files: [] };
+  const files = (await Promise.all(picked.map((f) => connectors.importDriveFile(f)))).filter(Boolean);
+  return { ok: true, files };
+});
+
 ipcMain.handle('jarvis:openGoogleDoc', async (_e, { title, content, sections }) => {
   // With Drive connected: a real Google Doc in their Drive, opened in the
   // browser. Without it: the old copy-and-paste way.

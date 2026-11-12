@@ -394,6 +394,62 @@ async function searchDriveFiles(query) {
     return (d && d.files) || [];
   } catch (_) { return []; }
 }
+
+// A file the person picked in Google's picker, read into something the chat
+// can use. drive.file lets Callisto open exactly the picked files and nothing
+// else. Google Docs, Sheets and Slides are exported as text; PDFs are read by
+// letting Drive convert a temporary copy to a Google Doc (removed straight
+// after); Word files are read directly; pictures come back as images.
+async function importDriveFile(file) {
+  const token = await getDriveToken();
+  if (!token || !file || !file.id) return null;
+  const H = { Authorization: `Bearer ${token}` };
+  const API = 'https://www.googleapis.com/drive/v3/files/';
+  const id = encodeURIComponent(file.id);
+  const MAX = 60000;
+  const name = file.name || 'Drive file';
+  const asText = (t) => ({ name, kind: 'text', content: String(t || '').slice(0, MAX) + (String(t || '').length > MAX ? '\n[...the rest of this file was cut to fit]' : '') });
+  const exp = async (fid, mime) => { const r = await fetch(`${API}${fid}/export?mimeType=${encodeURIComponent(mime)}`, { headers: H }); return r.ok ? r.text() : null; };
+  try {
+    const meta = await (await fetch(`${API}${id}?fields=name,mimeType,size`, { headers: H })).json();
+    const mime = (meta && meta.mimeType) || file.mimeType || '';
+    if (mime === 'application/vnd.google-apps.document') return asText(await exp(id, 'text/plain'));
+    if (mime === 'application/vnd.google-apps.spreadsheet') return asText(await exp(id, 'text/csv'));
+    if (mime === 'application/vnd.google-apps.presentation') return asText(await exp(id, 'text/plain'));
+    if (/^image\//.test(mime)) {
+      if (Number(meta.size || 0) > 12 * 1024 * 1024) return asText(`[${name} is too large to look at - under 12MB please.]`);
+      const r = await fetch(`${API}${id}?alt=media`, { headers: H });
+      const b = Buffer.from(await r.arrayBuffer()).toString('base64');
+      return { name, kind: 'image', mimeType: mime, base64: b, dataUrl: `data:${mime};base64,${b}` };
+    }
+    if (mime === 'application/pdf') {
+      const copy = await (await fetch(`${API}${id}/copy?fields=id`, {
+        method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '(Callisto reading) ' + name, mimeType: 'application/vnd.google-apps.document' }),
+      })).json();
+      if (!copy || !copy.id) return asText(`[I could not read the PDF ${name}.]`);
+      const text = await exp(encodeURIComponent(copy.id), 'text/plain');
+      fetch(`${API}${encodeURIComponent(copy.id)}`, { method: 'DELETE', headers: H }).catch(() => {});
+      return asText(text || `[I could not read the PDF ${name}.]`);
+    }
+    if (/officedocument\.wordprocessingml/.test(mime) || /\.docx$/i.test(name)) {
+      const r = await fetch(`${API}${id}?alt=media`, { headers: H });
+      const tmp = require('path').join(require('os').tmpdir(), 'callisto-drive-' + Date.now() + '.docx');
+      require('fs').writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
+      const t = require('./documents').readText(tmp);
+      try { require('fs').unlinkSync(tmp); } catch (_) {}
+      return asText(t || `[I could not read ${name}.]`);
+    }
+    if (/^text\/|json|csv|xml|markdown/.test(mime) || /\.(txt|md|csv|json|log)$/i.test(name)) {
+      const r = await fetch(`${API}${id}?alt=media`, { headers: H });
+      return asText(await r.text());
+    }
+    return asText(`[${name} is a kind of file Callisto cannot read yet (${mime || 'unknown type'}).]`);
+  } catch (err) {
+    return asText(`[I could not open ${name}: ${err.message}]`);
+  }
+}
+
 async function openDriveFile(file) {
   if (!file || !file.webViewLink) return false;
   try { await require('electron').shell.openExternal(file.webViewLink); return true; } catch (_) { return false; }
@@ -1927,7 +1983,7 @@ module.exports = {
   saveGmailTokens, saveOutlookTokens,
   // Drive stub (removed pending ADA-CASA)
   saveDriveTokens, getDriveToken, searchDriveFiles, openDriveFile,
-  sendGmail, uploadToDrive,
+  sendGmail, uploadToDrive, importDriveFile,
   // Active connectors
   getConnectorStatus, saveGoogleAccountEmail, getGoogleAccountEmail, disconnectGoogleAccount,
   saveSpotifyTokens, saveCalendarTokens,
