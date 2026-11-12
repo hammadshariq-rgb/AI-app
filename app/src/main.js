@@ -2787,6 +2787,11 @@ ipcMain.handle('jarvis:openGoogleSlides', async (_e, d) => {
   const payload = d || {};
   try {
     const file = await documents.writeSlides(payload.title || 'Presentation', payload.slides || [], app.getPath('documents'));
+    // With Drive connected the deck goes into Drive as Google Slides.
+    if (await connectors.getDriveToken()) {
+      const up = await connectors.uploadToDrive(file, payload.title || 'Presentation');
+      if (up.ok && up.url) { await shell.openExternal(up.url); return { ok: true, url: up.url }; }
+    }
     await shell.openPath(file);
     return { ok: true, path: file };
   } catch (err) {
@@ -3784,7 +3789,10 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const roundUp = wantsRoundUp ? await _cap(_statsRoundUp().catch(() => null), 3000) : null;
     const bits = [];
     if (roundUp) bits.push(roundUp);
-    if (wantsMail) bits.push('EMAIL: email connectors are not available in this version; say so briefly if they asked about email.');
+    if (wantsMail) {
+      const st = connectors.getConnectorStatus();
+      if (!st.gmailRead && !st.outlook) bits.push('EMAIL: no mailbox is connected for reading yet. Say so in one line and tell them to open Connectors and connect Gmail (read) or Outlook.');
+    }
     if (wantsRoundUp && !roundUp) {
       bits.push('UPDATE: nothing is connected yet, so there are no numbers to give. Say so in one line and name what they could connect - Instagram, TikTok, YouTube, Stripe - rather than apologising.');
     }
@@ -4755,11 +4763,17 @@ ON THE USER'S SCREEN RIGHT NOW: ${lastScreenContext.what}${lastScreenContext.app
   if (finalAction?.type === 'search_drive') {
     const driveToken = await connectors.getDriveToken();
     if (!driveToken) {
-      // Drive is withdrawn until the restricted-scope assessment is paid for,
-      // so there is no Connect button to send anyone to any more.
-      const spokenText = 'Google Drive is not available in this version. I can look on this computer instead, if you like.';
+      const spokenText = 'Google Drive is not connected yet. Open Connectors, press Connect next to Google Drive, then ask again.';
       _sendTTS(_e.sender, spokenText);
       return { text: spokenText, audio: null, card: null, hasAction: false };
+    }
+    // Drive can only be browsed through Google's own picker (drive.file), so
+    // that is what opens: their whole Drive, and they choose.
+    if (_e.sender && !_e.sender.isDestroyed()) _e.sender.send('drive:openPicker');
+    {
+      const spokenText = 'Opening your Google Drive. Choose the files you want.';
+      _sendTTS(_e.sender, spokenText);
+      return { text: spokenText, audio: null, card: null, hasAction: true };
     }
     const query = finalAction.arg || '';
     const shouldOpen = finalAction.open !== false;

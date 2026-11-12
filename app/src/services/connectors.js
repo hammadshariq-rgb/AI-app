@@ -2090,7 +2090,7 @@ async function sendEmail(opts) {
   return { ok: false, error: 'No mailbox is connected. Open Connectors and connect Gmail or Outlook.' };
 }
 async function markAllEmailsRead() {
-  return { ok: false, error: 'Email not available in this version.' };
+  return { ok: false, error: 'Callisto only reads your email. It never marks, moves or deletes anything.' };
 }
 
 module.exports = {
