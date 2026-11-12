@@ -12,6 +12,9 @@
   'use strict';
 
   var NOTES = {
+    '1.9.65': [
+      { icon: '📬', title: 'Reads your Gmail', text: 'With Gmail (read) connected, ask "check my Gmail" or "any new emails?" and Callisto tells you what came in.' }
+    ],
     '1.9.64': [
       { icon: '🏷️', title: 'Real prices for products', text: 'Ask the price of a phone, a console or anything you can buy and Callisto looks it up and tells you, with where it came from. No more stock charts for a product.' },
       { icon: '🔊', title: 'One steady voice', text: 'Long answers now keep the same voice from start to finish.' },

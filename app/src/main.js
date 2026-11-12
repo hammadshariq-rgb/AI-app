@@ -3695,7 +3695,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
   }
 
   // Detect query types
-  const EMAIL_REGEX = /\b(email|emails|inbox|messages|unread|update|updates|notifications|mail|whats new|what's new|any new|check my|briefing)\b/i;
+  const EMAIL_REGEX = /\b(email|emails|gmail|g-mail|outlook|inbox|messages|unread|update|updates|notifications|mail|whats new|what's new|any new|check my|briefing)\b/i;
   const UPDATE_REGEX = /\b(update|updates|briefing|whats new|what's new|any new|check my)\b/i;
   const REALTIME_REGEX = /\b(weather|temperature|stock|crypto|price|who is|president|prime minister|pm |ceo|score|match|news|today|current|latest|right now|live|breaking|election|government|minister|leader|war|conflict|attack|died|dead|killed|arrested|resigned|fired|appointed|announced|launched|released|happened|going on|situation|update|updates|crisis|protest|strike|shooting|bombing|earthquake|flood|hurricane|tornado|disaster|accident|crash|explosion|riot|coup|invasion|ceasefire|treaty|summit|vote|voted|referendum|trial|verdict|sentenced|acquitted|charged|indicted|scandal|leaked|confirmed|reported|sources say|according to|breaking|developing|just in|prime minister of|president of|who leads|who runs|head of state|who won|who lost|result|results|outcome|record|records|new high|new low|all time)\b/i;
   // Card queries - all topic types that produce a sidebar card
@@ -3742,7 +3742,7 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
 
   const [emailData, realtimeContext, cardData, newsContext] = await Promise.all([
     // Gmail over IMAP needs a moment to connect; Outlook alone is quicker.
-    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 8000) : Promise.resolve(null),
+    isEmailQuery ? _cap(connectors.getEmailUpdate().catch(() => null), 12000) : Promise.resolve(null),
     (!isPureAction && needsRealtime) ? _cap(realtime.fetchRealtimeContext(searchMessage).catch(() => null), 1500) : Promise.resolve(null),
     // A card is worth waiting for when the ANSWER depends on it - a share
     // price or a score, which the model cannot know. For a plain "what is X"
@@ -3785,13 +3785,21 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     && !/\b(messages?|dms?|inbox|chat|mail)\b/i.test(message);
 
   if (isEmailQuery || wantsRoundUp) {
-    const wantsMail = /\b(email|emails|e-?mail|inbox|unread|mail|notifications)\b/i.test(message);
+    const wantsMail = /\b(email|emails|e-?mails?|inbox|unread|mail|mails|g-?mail|outlook|notifications)\b/i.test(message);
     const roundUp = wantsRoundUp ? await _cap(_statsRoundUp().catch(() => null), 3000) : null;
     const bits = [];
     if (roundUp) bits.push(roundUp);
     if (wantsMail) {
       const st = connectors.getConnectorStatus();
       if (!st.gmailRead && !st.outlook) bits.push('EMAIL: no mailbox is connected for reading yet. Say so in one line and tell them to open Connectors and connect Gmail (read) or Outlook.');
+      else {
+        // The inbox was fetched above but never reached the model, so a
+        // connected Gmail still answered as if nothing was there.
+        const mailText = emailData ? connectors.formatEmailUpdateForAI(emailData) : null;
+        if (mailText) bits.push(mailText);
+        else if (emailData && ((Array.isArray(emailData.gmail) && !emailData.gmail.length) || (Array.isArray(emailData.outlook) && !emailData.outlook.length))) bits.push('EMAIL: the inbox is connected and has no recent messages.');
+        else bits.push('EMAIL: the mailbox is connected but could not be reached just now. Say so in one line and suggest trying again in a minute.');
+      }
     }
     if (wantsRoundUp && !roundUp) {
       bits.push('UPDATE: nothing is connected yet, so there are no numbers to give. Say so in one line and name what they could connect - Instagram, TikTok, YouTube, Stripe - rather than apologising.');

@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "callisto",
-  "version": "1.9.64",
-  "description": "Callisto — your own personal AI assistant",
+  "version": "1.9.65",
+  "description": "Callisto â€” your own personal AI assistant",
   "keywords": [
     "AI",
     "assistant",
@@ -28,7 +28,7 @@
   "build": {
     "appId": "com.hammadshariq.yourpersonalai",
     "productName": "Callisto AI",
-    "copyright": "Copyright © 2025 Hammad Shariq",
+    "copyright": "Copyright Â© 2025 Hammad Shariq",
     "publish": [
       {
         "provider": "github",

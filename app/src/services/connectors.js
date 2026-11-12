@@ -107,7 +107,7 @@ async function getGmailInbox(limit = 25) {
     }
     out.sort((a, b) => new Date(b.date) - new Date(a.date));
     // A preview for the newest few unread, read without marking them read.
-    for (const msg of out.filter((x) => x.unread).slice(0, 8)) {
+    for (const msg of out.filter((x) => x.unread).slice(0, 5)) {
       try {
         const one = await client.fetchOne(String(msg.uid), { source: { start: 0, maxLength: 40000 } }, { uid: true });
         const parsed = await simpleParser(one.source);
