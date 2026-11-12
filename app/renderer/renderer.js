@@ -5829,7 +5829,7 @@ window.jarvis.onActionFired(() => triggerActionFlash());
 // A chart arrives after the words, so the bubble shows a small placeholder
 // where it will land: from the moment the question is sent when it plainly
 // asks for one, and as soon as the main process says it is fetching prices.
-const _CHART_ASK = /\b(graph|chart|plot|candles?|candlestick|trend line|bar chart|line chart)\b|\b(stock|share|crypto|bitcoin|ethereum|nasdaq|s&p|dow|gold|oil|bond|yield|currency|exchange rate)\b[^.?!]{0,40}\b(price|doing|heading|trend|today|now|going|forecast|outlook)\b|\bprice of\b/i;
+const _CHART_ASK = /\b(graph|chart|plot|candles?|candlestick|trend line|bar chart|line chart)\b|\b(stock|share|crypto|bitcoin|ethereum|nasdaq|s&p|dow|gold|oil|bond|yield|currency|exchange rate)\b[^.?!]{0,40}\b(price|doing|heading|trend|today|now|going|forecast|outlook)\b/i;
 function _chartPendingEl(label) {
   const el = document.createElement('div');
   el.className = 'chart-pending';

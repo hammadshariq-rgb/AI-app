@@ -12,6 +12,12 @@
   'use strict';
 
   var NOTES = {
+    '1.9.64': [
+      { icon: '🏷️', title: 'Real prices for products', text: 'Ask the price of a phone, a console or anything you can buy and Callisto looks it up and tells you, with where it came from. No more stock charts for a product.' },
+      { icon: '🔊', title: 'One steady voice', text: 'Long answers now keep the same voice from start to finish.' },
+      { icon: '🌐', title: 'Opens in Chrome', text: 'Google Docs, Slides and Drive files now open in Chrome.' },
+      { icon: '✉️', title: 'New quick commands', text: 'Try "Send a reminder for tomorrow to …" after connecting Gmail, or "Make me a document about …" with Google Drive.' }
+    ],
     '1.9.62': [
       { icon: '✉️', title: 'Sending email, fixed', text: 'Say an address any way, like "sarah at gmail dot com", and it is used exactly. "Send this document to …" now attaches it.' },
       { icon: '⭐', title: 'Important senders are back', text: 'Add the people you email most in Connectors, then just say their first name.' },
