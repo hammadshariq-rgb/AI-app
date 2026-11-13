@@ -6335,12 +6335,19 @@ function processFiles(files) {
       }
       window._lastVideo = { filePath: p, title: file.name.replace(/\.[^.]+$/, '').slice(0, 60) };
       window.jarvis.setLatestMedia?.('video', window._lastVideo);
+      window._lastUpload = { kind: 'video', filePath: p, title: file.name, at: Date.now() };
       pendingAttachments.push({ name: file.name, kind: 'video', filePath: p });
       renderAttachPreview();
       return;
     }
     const reader = new FileReader();
     const isImage = file.type.startsWith('image/');
+    // A photo they attached is what "post this" means - remember where it is,
+    // or the publish card falls back to whatever was generated last.
+    if (isImage) {
+      const ip = window.jarvis.filePath ? window.jarvis.filePath(file) : file.path;
+      if (ip) window._lastUpload = { kind: 'image', filePath: ip, title: file.name, at: Date.now() };
+    }
     const isText  = file.type.startsWith('text/') || /\.(txt|csv|md|json|js|py|html|css|xml|yaml|yml|log|sh|ts|jsx|tsx|cpp|c|h|java|rb|go|rs|swift|kt)$/i.test(file.name);
     const isPdf   = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDoc   = /\.(doc|docx)$/i.test(file.name);
@@ -12371,6 +12378,14 @@ const PUB_META = {
 };
 
 function _publishSource(card) {
+  // What they attached in the last half hour beats anything generated:
+  // "post this" after attaching a file means that file.
+  const up = window._lastUpload;
+  const videoOnly = card.platform === 'youtube' || card.platform === 'tiktok';
+  if (card.mediaSource !== 'choose_file' && card.mediaSource !== 'last_video' && card.mediaSource !== 'last_image'
+      && up && up.filePath && Date.now() - up.at < 30 * 60 * 1000 && !(videoOnly && up.kind !== 'video')) {
+    return { kind: up.kind, filePath: up.filePath, url: null, label: up.title || 'the file you attached' };
+  }
   const wantsImage = card.mediaSource === 'last_image' || (card.platform === 'instagram' && card.mediaSource !== 'last_video' && !window._lastVideo);
   if (card.mediaSource === 'choose_file') return { kind: wantsImage ? 'image' : 'video', pick: true };
   if (wantsImage && window._lastImage) return { kind: 'image', url: window._lastImage.url, label: window._lastImage.title || 'your last image' };
@@ -12461,10 +12476,12 @@ function wirePublishCard(card) {
   const say = (kind, text) => { statusEl.className = 'pub-status' + (kind ? ' pub-' + kind : ''); statusEl.textContent = text || ''; };
 
   fileBtn.onclick = async () => {
-    const p = await window.jarvis.publishPickFile(src.kind);
+    // Instagram and Facebook take photos and videos, so offer both.
+    const videoOnly = card.platform === 'youtube' || card.platform === 'tiktok';
+    const p = await window.jarvis.publishPickFile(videoOnly ? 'video' : 'any');
     if (!p) return;
     state.filePath = p; state.url = null;
-    whatEl.textContent = p.split(/[\/]/).pop();
+    whatEl.textContent = p.split(/[\\/]/).pop();
     goBtn.disabled = false;
     say('', '');
   };

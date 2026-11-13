@@ -9,7 +9,7 @@ const store = createStore();
 // gpt-4o-mini-tts model honours. Base voices chosen to give the steering the least
 // work: fable already sounds British, onyx and nova already sound American.
 const VOICE_MATRIX = {
-  'british-male':    { voice: 'onyx',    accent: 'a natural British English (Received Pronunciation) accent' },
+  'british-male':    { voice: 'fable',  accent: 'a natural British English (Received Pronunciation) accent' },
   'british-female':  { voice: 'shimmer', accent: 'a natural British English (Received Pronunciation) accent' },
   'american-male':   { voice: 'onyx',    accent: 'a natural General American accent' },
   'american-female': { voice: 'nova',    accent: 'a natural General American accent' },
@@ -24,7 +24,7 @@ function getVoiceConfig() {
   const entry = VOICE_MATRIX[key] || VOICE_MATRIX[`british-${gender}`] || VOICE_MATRIX['british-male'];
   return {
     voice: entry.voice,
-    instructions: `Speak with ${entry.accent}. Sound like a calm, articulate personal assistant - warm and natural, never robotic or exaggerated. Keep exactly the same voice, gender, pitch and accent from the first word to the last, in every sentence.`,
+    instructions: `Speak with ${entry.accent}. Sound like a calm, articulate personal assistant - warm and natural, never robotic or exaggerated. Keep the accent consistent throughout.`,
   };
 }
 

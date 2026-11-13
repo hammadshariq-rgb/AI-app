@@ -5822,7 +5822,9 @@ ipcMain.handle('publish:targets', async () => {
 ipcMain.handle('publish:pickFile', async (_e, kind) => {
   const filters = kind === 'image'
     ? [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
-    : [{ name: 'Videos', extensions: ['mp4', 'mov'] }];
+    : kind === 'any'
+      ? [{ name: 'Photos and videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov'] }]
+      : [{ name: 'Videos', extensions: ['mp4', 'mov'] }];
   const res = await dialog.showOpenDialog(dialogParent(), { properties: ['openFile'], filters });
   if (res.canceled || !res.filePaths?.length) return null;
   return res.filePaths[0];
