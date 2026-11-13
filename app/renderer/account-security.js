@@ -22,7 +22,7 @@
     const s = document.createElement('style');
     s.id = 'acStyles';
     s.textContent = `
-      #acWrap{position:fixed;inset:0;z-index:9800;display:flex;align-items:center;justify-content:center;
+      #acWrap{position:fixed;inset:0;z-index:10040;display:flex;align-items:center;justify-content:center;
         background:rgba(4,6,14,.76);backdrop-filter:blur(10px);padding:16px}
       #acWrap.hidden{display:none}
       .ac-panel{width:min(600px,100%);max-height:88vh;overflow:auto;border-radius:20px;padding:20px;
