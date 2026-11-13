@@ -12,6 +12,11 @@
   'use strict';
 
   var NOTES = {
+    '1.9.66': [
+      { icon: '✅', title: 'Smoother sign-up', text: 'The "check your inbox" code box now shows up right after you create an account or log in.' },
+      { icon: '📤', title: 'Posts what you picked', text: 'Attach a photo or video and say "post this" - that file is what goes to Instagram, Facebook, YouTube or TikTok. You can now choose photos for Instagram too.' },
+      { icon: '🔊', title: 'The voice you know', text: 'The British male voice is back to how it sounded before.' }
+    ],
     '1.9.65': [
       { icon: '📬', title: 'Reads your Gmail', text: 'With Gmail (read) connected, ask "check my Gmail" or "any new emails?" and Callisto tells you what came in.' }
     ],
