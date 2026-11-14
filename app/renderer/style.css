@@ -10195,16 +10195,19 @@ body.ds-open #gesturePanel { pointer-events: none; left: auto; right: 24px; }
   background: linear-gradient(160deg, rgba(139,92,246,0.16), rgba(61,92,255,0.09));
   box-shadow: 0 0 0 1px rgba(139,92,246,0.3), 0 8px 26px rgba(80,70,220,0.22);
 }
-.plan-name {
+/* Scoped to the paywall. Unscoped, these overrode the sign-up plan cards,
+   which use the same class names: their US$25 turned black (the colour
+   variable only exists inside the paywall) and shrank to 21px. */
+#paywallModal .plan-name {
   font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
   color: rgba(170,195,240,0.6);
 }
-.plan-price {
+#paywallModal .plan-price {
   font-size: 21px; font-weight: 700; letter-spacing: -0.5px;
   color: var(--pw-ink);
   white-space: nowrap;   /* "CA$200/yr" must not break or clip its suffix */
 }
-.plan-price .per {
+#paywallModal .plan-price .per {
   font-size: 12px; font-weight: 500;
   margin-left: 1px;
   color: rgba(170,195,240,0.62);
