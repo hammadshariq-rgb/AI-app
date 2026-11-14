@@ -94,14 +94,14 @@ check('an unknown permission is not invented', mac._m('telepathy', 'X'), null);
 // ── Its own name, out of a song search ───────────────────────────────────────
 // "Hey Callisto, play xyz on Spotify" searched for "hey callisto xyz" and
 // played the wrong thing.
-const c = main.indexOf('function _stripAssistantName(q) {');
+const c = main.indexOf('function stripSpokenName(q) {');
 const END = "return out || String(q || '').trim();";
 const d = main.indexOf(END, c);
 if (c < 0 || d < 0) throw new Error('could not find the name strip in main.js');
 const stripSrc = main.slice(c, d + END.length) + '\n}';
 const stripCtx = { console, getAssistantName: () => 'Callisto' };
 vm.createContext(stripCtx);
-vm.runInContext(stripSrc + '\nthis._s = _stripAssistantName;', stripCtx);
+vm.runInContext(stripSrc + '\nthis._s = stripSpokenName;', stripCtx);
 const strip = stripCtx._s;
 
 check('hey callisto comes off', strip('hey callisto xyz'), 'xyz');
