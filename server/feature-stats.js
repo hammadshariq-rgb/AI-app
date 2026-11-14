@@ -43,9 +43,26 @@ function mountFeatureStats(app, { authMiddleware }) {
     if (req.method !== 'POST') return next();
     const feature = featureOf(req.path);
     if (!feature) return next();
+    // Keep the error the route answered with, so a failure can be told apart
+    // from a request we turned away on purpose, and so it can be read.
+    let body = null;
+    const json = res.json.bind(res);
+    res.json = (b) => { body = b; return json(b); };
     res.on('finish', () => {
       const s = res.statusCode;
-      record(feature, s === 429 ? 'limited' : s < 400 ? 'ok' : 'failed');
+      if (s < 400) return record(feature, 'ok');
+      const err = String((body && (body.error || body.message)) || '');
+      // Turned away by a rule, not broken: blocked content, daily limits,
+      // unconfirmed email, out of credits, sign in again.
+      const refused = s === 429 || s === 401
+        || (body && (body.blockedContent || body.limitReached || body.needsVerification || body.upgrade))
+        || /daily|limit|allowance|confirm your email|sign in|log in|can't make sexual|premium|upgrade/i.test(err);
+      if (refused) return record(feature, 'limited');
+      record(feature, 'failed');
+      // The message only: never who asked or what they asked for.
+      getDb().then((db) => db.collection('featureErrors').insertOne({
+        at: new Date(), feature, status: s, error: err.slice(0, 300) || '(no message)',
+      })).catch(() => {});
     });
     next();
   });
@@ -74,4 +91,10 @@ async function summary(days = 7) {
   });
 }
 
-module.exports = { mountFeatureStats, summary };
+// For the dashboard: the newest real failures, with the error each gave.
+async function recentErrors(limit = 15) {
+  const db = await getDb();
+  return db.collection('featureErrors').find({}).sort({ at: -1 }).limit(limit).toArray();
+}
+
+module.exports = { mountFeatureStats, summary, recentErrors };

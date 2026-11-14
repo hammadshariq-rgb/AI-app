@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('jarvis', {
 
   // Moving between the windows that are open, and closing one.
   switchApp: (dir)  => ipcRenderer.invoke('apps:switch', dir),
+  warmApps:  ()     => ipcRenderer.invoke('apps:warm'),
 
   fileRoots:  ()      => ipcRenderer.invoke('files:roots'),
   fileBrowse: (dir)   => ipcRenderer.invoke('files:browse', dir || null),

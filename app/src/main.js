@@ -9233,7 +9233,13 @@ ipcMain.handle('camera:look', async (_e, { imageBase64, question }) => {
 
 // ── The windows that are open ────────────────────────────────────────────────
 ipcMain.handle('apps:switch', (_e, dir) =>
-  commands.switchApp(dir === 'prev' ? 'prev' : 'next').catch((err) => ({ ok: false, error: err.message })));
+  commands.switchApp(dir === 'prev' ? 'prev' : 'next',
+    // PowerShell reports window positions in the same scaled units Electron
+    // uses (measured: 1536 wide on a 1920 screen at 125%), so no conversion.
+    overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow.getBounds() : null)
+    .catch((err) => ({ ok: false, error: err.message })));
+// Reading window positions takes a few seconds, so it is done ahead of time.
+ipcMain.handle('apps:warm', () => { commands.warmWindowRects(); return true; });
 ipcMain.handle('apps:close', (_e, name) =>
   commands.closeApp(name).catch((err) => ({ ok: false, error: err.message })));
 

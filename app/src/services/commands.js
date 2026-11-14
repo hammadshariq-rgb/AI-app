@@ -1198,9 +1198,72 @@ function focusApp(app) {
 let _switchIdx = 0;
 let _switchAt = 0;
 
-async function switchApp(direction) {
+// Where each window is on screen (Windows only), so a swipe can go to the
+// window that is actually to the left or right rather than the next in a list.
+// The script goes in encoded, so no shell quoting can break it.
+// Reading them takes about three seconds (PowerShell compiles a small helper
+// each time), far too slow to do while the hand is mid-swipe. So the answer is
+// kept for a short while and refreshed ahead of time.
+let _rectsCache = null, _rectsAt = 0, _rectsPending = null;
+function warmWindowRects() {
+  if (_rectsPending) return _rectsPending;
+  _rectsPending = _readWindowRects().then((r) => { _rectsCache = r; _rectsAt = Date.now(); return r; })
+    .finally(() => { _rectsPending = null; });
+  return _rectsPending;
+}
+async function windowRects() {
+  if (_rectsCache && Date.now() - _rectsAt < 20000) {
+    if (Date.now() - _rectsAt > 4000) warmWindowRects();   // refresh quietly for next time
+    return _rectsCache;
+  }
+  return warmWindowRects();
+}
+function _readWindowRects() {
+  return new Promise((resolve) => {
+    if (!IS_WIN) return resolve([]);
+    const script = [
+      'Add-Type @"',
+      'using System; using System.Runtime.InteropServices;',
+      'public class CWin { [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);',
+      '[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);',
+      'public struct RECT { public int L; public int T; public int R; public int B; } }',
+      '"@',
+      "Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | ForEach-Object {",
+      '  $r = New-Object CWin+RECT; [void][CWin]::GetWindowRect($_.MainWindowHandle, [ref]$r)',
+      '  [pscustomobject]@{ Id = $_.Id; L = $r.L; T = $r.T; R = $r.R; B = $r.B; Min = [CWin]::IsIconic($_.MainWindowHandle) }',
+      '} | ConvertTo-Json -Compress',
+    ].join('\n');
+    const enc = Buffer.from(script, 'utf16le').toString('base64');
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', enc], { timeout: 8000, windowsHide: true }, (err, out) => {
+      if (err) return resolve([]);
+      try { const rows = JSON.parse(out || '[]'); resolve(Array.isArray(rows) ? rows : [rows]); } catch (_) { resolve([]); }
+    });
+  });
+}
+
+async function switchApp(direction, from) {
+  const rectsP = from && IS_WIN ? windowRects() : null;   // alongside, not after
   const apps = await listOpenApps();
   if (!apps.length) return { ok: false, error: 'Nothing else is open.' };
+  // Swiping toward a side means the nearest window on that side of Callisto.
+  if (from && IS_WIN) {
+    const rects = await rectsP;
+    const byId = new Map(rects.map((r) => [r.Id, r]));
+    const fromCx = from.x + from.width / 2;
+    const side = apps.map((a) => {
+      const r = byId.get(a.id);
+      if (!r || r.Min || r.R - r.L < 120) return null;
+      const cx = (r.L + r.R) / 2;
+      return { a, d: cx - fromCx };
+    }).filter((x) => x && (direction === 'prev' ? x.d < -60 : x.d > 60));
+    if (side.length) {
+      side.sort((p, q) => Math.abs(p.d) - Math.abs(q.d));
+      const ok = await focusApp(side[0].a);
+      if (ok) return { ok: true, app: side[0].a.title || side[0].a.name };
+    }
+    // Nothing off to that side (everything is full screen): fall back to the
+    // list order below, so a swipe still goes somewhere.
+  }
   // A run of swipes walks the list; starting again after a pause starts at
   // the front, which is what somebody expects after they have been working.
   if (Date.now() - _switchAt > 4000) _switchIdx = 0;
@@ -1259,4 +1322,4 @@ function closeApp(name) {
   });
 }
 
-module.exports = { run, findFolder, findFile, parseFileQuery, readFileContent, makeCall, openChat, openInChrome, openDocumentFile, listOpenApps, switchApp, closeApp };
+module.exports = { run, findFolder, findFile, parseFileQuery, readFileContent, makeCall, openChat, openInChrome, openDocumentFile, listOpenApps, switchApp, closeApp, warmWindowRects };

@@ -4242,6 +4242,74 @@
         if (typeModeToggle && getComputedStyle(typeModeToggle).display !== 'none') typeModeToggle.click();
         else if (typeVoiceBtn) typeVoiceBtn.click();
       }
+      // ── Scrolling by pointing ──────────────────────────────────────────────
+      const FS = { active: false, scrolling: false, y0: 0, ySm: 0, lastY: 0, startAt: 0, target: null, lostAt: 0 };
+      const FS_START = 0.045;   // how far (share of the frame) the finger moves before it counts as scrolling
+      const FS_GAIN  = 2.4;     // screen heights scrolled per frame height of finger travel
+      window._resetFingerScroll = () => { FS.active = false; FS.scrolling = false; FS.target = null; };
+
+      function isScrollable(el) {
+        if (!el || el === document.body || el === document.documentElement) return false;
+        if (el.scrollHeight <= el.clientHeight + 4) return false;
+        const oy = getComputedStyle(el).overflowY;
+        return oy === 'auto' || oy === 'scroll' || oy === 'overlay';
+      }
+      // What to scroll: whatever is under the hand cursor if it is showing;
+      // otherwise the panel that is open on top (Connectors, Quick commands,
+      // the dashboard), and the chat when nothing else is.
+      function findScrollTarget() {
+        if (smoothX > -9000 && smoothY > -9000) {
+          let el = document.elementFromPoint(smoothX, smoothY);
+          while (el && !isScrollable(el)) el = el.parentElement;
+          if (el) return el;
+        }
+        const found = [];
+        for (const el of document.querySelectorAll('body *')) {
+          if (el.scrollHeight <= el.clientHeight + 4 || el.clientHeight < 80) continue;
+          if (!isScrollable(el)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 120 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+          const hit = document.elementFromPoint(Math.min(innerWidth - 2, Math.max(1, r.left + r.width / 2)), Math.min(innerHeight - 2, Math.max(1, r.top + r.height / 2)));
+          if (!hit || !el.contains(hit)) continue;   // covered by something else
+          found.push({ el, area: r.width * r.height, chat: el.id === 'chat' || !!el.closest('#chat') });
+        }
+        const panels = found.filter((f) => !f.chat);
+        const pick = (panels.length ? panels : found).sort((a, b) => b.area - a.area)[0];
+        return pick ? pick.el : document.getElementById('chat');
+      }
+      function fingerStill() { return !FS.active || Math.abs(FS.ySm - FS.y0) < FS_START * 0.6; }
+      // Fed every frame with the pointing hand (or null). True while scrolling.
+      function fingerScrollTick(lm) {
+        const now = performance.now();
+        if (!lm) {
+          // A lost frame or two is not the finger going away.
+          if (FS.active && !FS.lostAt) FS.lostAt = now;
+          if (FS.active && now - FS.lostAt > 260) window._resetFingerScroll();
+          return FS.scrolling;
+        }
+        FS.lostAt = 0;
+        // Gone a while (the hand left the frame): start fresh, or the old
+        // starting point would read as a big jump and scroll on its own.
+        if (FS.active && now - (FS.seenAt || 0) > 400) window._resetFingerScroll();
+        FS.seenAt = now;
+        const y = lm[8].y;
+        if (!FS.active) { Object.assign(FS, { active: true, scrolling: false, y0: y, ySm: y, lastY: y, startAt: now, target: null }); return false; }
+        FS.ySm += (y - FS.ySm) * 0.5;   // light smoothing against tracker shake
+        if (!FS.scrolling) {
+          if (Math.abs(FS.ySm - FS.y0) < FS_START) return false;
+          FS.scrolling = true; FS.lastY = FS.ySm;
+          FS.target = findScrollTarget();
+          showGesture('☝️', 'Scrolling');
+          return true;
+        }
+        const d = FS.ySm - FS.lastY;
+        FS.lastY = FS.ySm;
+        if (Math.abs(d) < 0.002 || !FS.target) return true;
+        // Finger up scrolls up, finger down scrolls down.
+        FS.target.scrollTop += d * innerHeight * FS_GAIN;
+        return true;
+      }
+
       // A clap no longer closes the app or clears the chat. The tracker reads still
       // hands as a clap often enough that neither was safe to hang on it, even
       // when it took two.
@@ -4276,7 +4344,10 @@
 
         // Evaluated before the early return below: a clap usually ENDS with the
         // hands untrackable, so this has to see the zero-hand frames too.
-        const clapLanded = checkClap(lms, performance.now());
+        // Clap is off. It did nothing but show a label, and a fast sideways
+        // swipe of one hand toward the other read as two hands closing - so the
+        // clap won, returned early, and the swipe never switched apps.
+        const clapLanded = false;
 
         const studioOpen = !!(window.CallistoModelViewer && window.CallistoModelViewer.isOpen());
         if (lms.length) _handSeenAt = performance.now();
@@ -4438,10 +4509,18 @@
           // would cut the user off mid-sentence. Everything else still works.
           const convo = !!window._convoMode;
 
-          // ── 2. ONE FINGER POINT - index only up, hold 300ms → start listening ─
-          if (!convo && isOneFingerPoint(lm)) {
+          // ── 2a. FINGER SCROLL - one finger up, moved up or down ─────────
+          // Held still, a pointed finger still means "listen". Moved up or
+          // down, it scrolls whatever is on screen: the chat, Connectors,
+          // Quick commands, the dashboard. Decided by movement, so the two
+          // never fight: once it starts scrolling it cannot start listening.
+          const pointing = isOneFingerPoint(lm);
+          const fingerScrolled = fingerScrollTick(pointing ? lm : null);
+
+          // ── 2. ONE FINGER POINT - index only up, hold still → start listening ─
+          if (!convo && pointing && !fingerScrolled) {
             if (!handState[i] || handState[i].g !== 'point') handState[i] = { g:'point', since: Date.now() };
-            if (Date.now() - handState[i].since > 300 && canFire('snap')) {
+            if (Date.now() - handState[i].since > 450 && fingerStill() && canFire('snap')) {
               showGesture('☝️', 'One finger - starting to listen');
               doStartListening();
             }
@@ -4521,9 +4600,81 @@
       let _handsPromise = null;
       let _handsWarming = false;
 
+      // ── The GPU hand model ─────────────────────────────────────────────────
+      // The old MediaPipe Hands model runs on the CPU, on the same thread as
+      // the whole interface: 7-18 frames a second, and every frame it ran the
+      // cursor, the orb and scrolling all stood still. That was the lag. The
+      // newer HandLandmarker runs on the GPU in a few milliseconds, so the
+      // cursor gets fresh positions about three times as often and the page
+      // is free between them. It is wrapped to look exactly like the old
+      // model, so everything that reads hands is unchanged; if the GPU route
+      // fails on a machine, the old model is still used.
+      const TASKS_VER = '0.10.14';
+      async function makeTasksModel() {
+        const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VER}/vision_bundle.mjs`);
+        const fileset = await vision.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VER}/wasm`);
+        const opts = (delegate) => ({
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate,
+          },
+          runningMode: 'VIDEO', numHands: 2,
+          minHandDetectionConfidence: 0.55, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+        });
+        let lmk;
+        try { lmk = await vision.HandLandmarker.createFromOptions(fileset, opts('GPU')); }
+        catch (_) { lmk = await vision.HandLandmarker.createFromOptions(fileset, opts('CPU')); }
+        // The old model ran in selfie mode: it mirrored the picture first, and
+        // every gesture is written for mirrored coordinates and labels. Mirror
+        // it the same way here.
+        const mirror = document.createElement('canvas');
+        const mctx = mirror.getContext('2d');
+        let cb = null, lastTs = 0;
+        return {
+          fast: true,
+          onResults(fn) { cb = fn; },
+          setOptions() {},
+          async send({ image }) {
+            if (mirror.width !== image.width || mirror.height !== image.height) { mirror.width = image.width; mirror.height = image.height; }
+            mctx.setTransform(-1, 0, 0, 1, mirror.width, 0);
+            mctx.drawImage(image, 0, 0, mirror.width, mirror.height);
+            let ts = performance.now(); if (ts <= lastTs) ts = lastTs + 1; lastTs = ts;
+            const r = lmk.detectForVideo(mirror, ts);
+            if (cb) cb({
+              multiHandLandmarks: r.landmarks || [],
+              multiHandedness: (r.handednesses || r.handedness || []).map((h) => ({ label: h[0] && h[0].categoryName, score: h[0] && h[0].score })),
+            });
+          },
+        };
+      }
+
       function getHandsModel() {
         if (_handsPromise) return _handsPromise;
         _handsPromise = (async () => {
+          // Off by default. Measured on an ordinary Windows laptop with a hand
+          // in view: old CPU model 117ms a frame, this GPU one 132ms - no
+          // better, and the two cannot share a page. Kept for testing on
+          // faster GPUs: localStorage.callistoGpuHands = '1'.
+          let useGpu = false;
+          try { useGpu = localStorage.getItem('callistoGpuHands') === '1'; } catch (_) {}
+          if (useGpu) try {
+            const t = await makeTasksModel();
+            t.onResults((r) => {
+              if (_handsWarming) return;
+              try { onHandResults(r); } catch (e) { console.error('[Gesture]', e); }
+            });
+            try {
+              _handsWarming = true;
+              const blank = document.createElement('canvas');
+              blank.width = 320; blank.height = 240;
+              blank.getContext('2d').fillRect(0, 0, 1, 1);
+              await t.send({ image: blank });
+            } catch (_) {} finally { _handsWarming = false; }
+            console.log('[Gesture] GPU hand model ready');
+            return t;
+          } catch (e) {
+            console.warn('[Gesture] GPU hand model unavailable, using the old one:', e && e.message);
+          }
           if (!await waitForMP()) { _handsPromise = null; return null; }
           const m = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
           m.setOptions({
@@ -4630,7 +4781,9 @@
           // cursor glides between landmarks now rather than waiting on them,
           // but more landmarks is still less to guess at - and the back-off
           // below means a slow machine is not asked for more than it can give.
-          const MIN_INTERVAL = 33;    // never exceed ~30fps
+          // The GPU model finishes in a few ms, so it can run near the camera's
+          // own 30fps; the old CPU one keeps its ceiling.
+          const MIN_INTERVAL = handsModel.fast ? 30 : 33;
           const MAX_INTERVAL = 140;   // never drop below ~7fps
           let _inferMs = 45;          // rolling estimate
           let sendInterval = 40;
@@ -4717,6 +4870,10 @@
         try { window.CallistoModelViewer?.setHandsActive?.(gestureEnabled); } catch (_) {}
         try { window.CallistoDraw?.setHandsActive?.(gestureEnabled); } catch (_) {}
         if (gestureEnabled) {
+          // Scrolling by pointing starts from rest each time hand control is
+          // turned on.
+          try { window._resetFingerScroll && window._resetFingerScroll(); } catch (_) {}
+          try { window.jarvis.warmApps && window.jarvis.warmApps(); } catch (_) {}
           toggleBtn.classList.add('active');
           panel.classList.remove('hidden');
           // Enable click-through so Callisto stays visible over other apps
