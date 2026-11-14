@@ -12,6 +12,14 @@
   'use strict';
 
   var NOTES = {
+    '1.9.67': [
+      { icon: '✏️', title: 'Give your AI a name', text: 'Say "Call yourself Nova" (or any name) and that is what it answers to. "Change your name back to Callisto" undoes it.' },
+      { icon: '☝️', title: 'Scroll with one finger', text: 'With hand control on, point one finger up and move it up or down to scroll the chat, Connectors or your dashboard. Hold it still to start listening, as before.' },
+      { icon: '👋', title: 'Swipe to the next window', text: 'A sideways swipe now goes to the nearest app on that side of the screen.' },
+      { icon: '🧊', title: '3D models that explain', text: 'Ask for a 3D model of how something works, like a jet engine, and you get a colour-coded cutaway with each part explained.' },
+      { icon: '📬', title: 'Faster email', text: 'Checking your Gmail is about three times quicker, and if your email still needs confirming, Callisto asks for the code instead of failing.' },
+      { icon: '🔒', title: 'Privacy policy in the app', text: 'Help, then Privacy policy, opens it right inside Callisto.' }
+    ],
     '1.9.66': [
       { icon: '✅', title: 'Smoother sign-up', text: 'The "check your inbox" code box now shows up right after you create an account or log in.' },
       { icon: '📤', title: 'Posts what you picked', text: 'Attach a photo or video and say "post this" - that file is what goes to Instagram, Facebook, YouTube or TikTok. You can now choose photos for Instagram too.' },

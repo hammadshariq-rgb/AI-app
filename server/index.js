@@ -826,8 +826,13 @@ app.post('/auth/login', authLimiter, async (req, res) => {
   // Check 7-day inactivity
   const inactive = Date.now() - (user.lastActiveAt || 0) > SEVEN_DAYS;
   user = await reconfirmIfAway(user);
-  await users.update(user.id, { lastActiveAt: Date.now() });
-  res.json({ token: await issueSession(user, req, 'password'), user: safeUser(user), wasInactive: inactive });
+  // Two independent writes, done together rather than one after the other:
+  // each is a round trip to the database, and the person is waiting on both.
+  const [, token] = await Promise.all([
+    users.update(user.id, { lastActiveAt: Date.now() }),
+    issueSession(user, req, 'password'),
+  ]);
+  res.json({ token, user: safeUser(user), wasInactive: inactive });
 });
 
 // A real bcrypt hash of a random string nobody knows, used only so a login for
