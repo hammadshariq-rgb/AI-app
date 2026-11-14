@@ -263,6 +263,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   // AI phone calling - the assistant dials a business and negotiates on the user's behalf
   // Quit app (used by gesture - clap = clear + quit)
   appVersion:    () => ipcRenderer.invoke('app:version'),
+  assistantName: () => ipcRenderer.invoke('app:assistantName'),
+  openPrivacy:   () => ipcRenderer.invoke('legal:openPrivacy'),
+  onRenamed:     (cb) => ipcRenderer.on('jarvis:renamed', (_e, d) => cb(d)),
   setAlwaysOnTop:   (flag) => ipcRenderer.invoke('app:setAlwaysOnTop', flag),
   setClickThrough:  (flag) => ipcRenderer.invoke('app:setClickThrough', flag),
   pressOutside:     (x, y) => ipcRenderer.invoke('cursor:pressOutside', { x, y }),

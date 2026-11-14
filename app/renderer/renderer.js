@@ -5612,8 +5612,16 @@ document.querySelectorAll('#lnavTabs .lnav-tab').forEach(tab => {
       setTimeout(() => { copyBtn.textContent = 'Copy address'; }, 1600);
     }).catch(() => {});
   });
+  document.getElementById('termsPrivacyLink')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.jarvis.openPrivacy?.();
+  });
   document.querySelectorAll('#lnavPaneHelp .help-link').forEach((b) => {
-    b.addEventListener('click', () => open(b.dataset.url));
+    b.addEventListener('click', () => {
+      // The privacy policy ships inside the app and opens in its own window.
+      if (b.dataset.local === 'privacy' && window.jarvis.openPrivacy) return window.jarvis.openPrivacy();
+      open(b.dataset.url);
+    });
   });
 })();
 
@@ -8727,9 +8735,19 @@ async function enterMain(skipWelcome = false, returningUser = false) {
     window.jarvis.setProfile(profile).catch(() => {});
   }
 
-  const aiName = 'CALLISTO';   // one name everywhere
+  // Callisto, or whatever they renamed it to ("call yourself Nova").
+  let aiName = 'CALLISTO';
+  try { aiName = String((await window.jarvis.assistantName?.()) || 'Callisto').toUpperCase(); } catch (_) {}
   document.getElementById('aiName').textContent = aiName;
   document.getElementById('enterAiName').textContent = aiName;
+  if (!window._renameWired && window.jarvis.onRenamed) {
+    window._renameWired = true;
+    window.jarvis.onRenamed(({ name }) => {
+      const up = String(name || 'Callisto').toUpperCase();
+      const a = document.getElementById('aiName'); if (a) a.textContent = up;
+      const b = document.getElementById('enterAiName'); if (b) b.textContent = up;
+    });
+  }
   setupView.classList.add('hidden');
 
   profile.wasSubscribed = true;

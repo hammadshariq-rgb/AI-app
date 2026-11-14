@@ -435,8 +435,31 @@ function loadAuthToken() {
   }
 }
 
+// The assistant's name. Callisto unless the user renamed it ("call yourself
+// Nova"). Read from its own key: profile.name was overwritten with Callisto by
+// older builds, so it can't be trusted to mean a choice.
+ipcMain.handle('app:assistantName', () => getAssistantName());
+
+// The privacy policy, shipped inside the app as a static page so it opens
+// offline. Links in it go to the browser, never inside this window.
+let _privacyWin = null;
+ipcMain.handle('legal:openPrivacy', () => {
+  if (_privacyWin && !_privacyWin.isDestroyed()) { _privacyWin.focus(); return true; }
+  _privacyWin = new BrowserWindow({
+    width: 860, height: 760, minWidth: 420, minHeight: 400, title: 'Privacy Policy - Callisto AI',
+    backgroundColor: '#080A10', autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  const ext = (url) => { if (/^https?:\/\//i.test(url)) shell.openExternal(url); };
+  _privacyWin.webContents.setWindowOpenHandler(({ url }) => { ext(url); return { action: 'deny' }; });
+  _privacyWin.webContents.on('will-navigate', (e, url) => { if (!/^file:/i.test(url)) { e.preventDefault(); ext(url); } });
+  _privacyWin.loadFile(path.join(__dirname, '..', 'renderer', 'privacy.html'));
+  _privacyWin.on('closed', () => { _privacyWin = null; });
+  return true;
+});
 function getAssistantName() {
-  return 'Callisto';   // one name everywhere, whatever was typed at sign-up
+  const n = String(store.get('assistantName') || '').trim();
+  return n || 'Callisto';
 }
 
 let overlayWindow = null;
@@ -3396,6 +3419,26 @@ async function _chatHandler(_e, { message, history, attachments = [], turn = nul
     const spokenText = 'Done. I will ask again before I look at your files, make files or run commands.';
     _sendTTS(_e.sender, spokenText);
     return { text: spokenText, audio: null, card: null, hasAction: false };
+  }
+  // Renaming the assistant. Handled here, before the AI, because the model can
+  // only say "sure" - it has no way to change what the app calls it.
+  const _rename = String(message || '').match(/^\s*(?:hey\s+\w+[,\s]+)?(?:please\s+)?(?:change|set)\s+your\s+name\s+(?:back\s+)?(?:to|as)\s+(.+?)\s*[.!]?\s*$/i)
+    || String(message || '').match(/^\s*(?:please\s+)?(?:call\s+yourself|rename\s+yourself(?:\s+to)?|your\s+(?:new\s+)?name\s+is(?:\s+now)?|i(?:'ll|\s+will)\s+call\s+you|i\s+want\s+to\s+call\s+you)\s+(.+?)\s*[.!]?\s*$/i);
+  if (_rename) {
+    const raw = _rename[1].replace(/^["'“]|["'”]$/g, '').trim();
+    const name = raw.split(/\s+/).slice(0, 3).join(' ').slice(0, 24);
+    if (!name || /[<>{}\\]/.test(name)) {
+      const t = 'Tell me the new name you would like, for example "call yourself Nova".';
+      _sendTTS(_e.sender, t);
+      return { text: t, audio: null, card: null, hasAction: false };
+    }
+    const pretty = name.replace(/\b\w/g, (c) => c.toUpperCase());
+    if (/^callisto$/i.test(pretty)) store.delete('assistantName'); else store.set('assistantName', pretty);
+    try { _e.sender.send('jarvis:renamed', { name: getAssistantName() }); } catch (_) {}
+    try { if (tray) tray.setToolTip(`${getAssistantName()} ${app.getVersion()} - Your Own Personal AI`); } catch (_) {}
+    const t = /^callisto$/i.test(pretty) ? "Back to Callisto. That's me." : `Done. From now on I'm ${pretty}.`;
+    _sendTTS(_e.sender, t);
+    return { text: t, audio: null, card: null, hasAction: false };
   }
   const token = loadAuthToken();
   console.log('[CHAT] token present:', !!token);

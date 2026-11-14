@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+  <!-- Google Analytics (GA4) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HQFT54DL2X"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-HQFT54DL2X');
+  </script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copyright &amp; DMCA Policy — Callisto AI</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="description" content="How to report copyright infringement on Callisto AI, and how to respond to a notice.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080A10; --surface: #0D1421; --blue: #4F8EF7;
+    --teal: #2DD4BF; --white: #F0F4FF; --muted: #8892A4;
+    --border: rgba(79,142,247,0.15);
+  }
+  body {
+    background: var(--bg); color: var(--white);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.7;
+  }
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(8,10,16,0.9); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo { font-size: 17px; font-weight: 700; color: var(--white); text-decoration: none; }
+  .nav-logo .dot { color: var(--teal); }
+  nav a.back { color: var(--muted); font-size: 13px; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+  nav a.back:hover { color: var(--white); }
+
+  .container {
+    max-width: 780px; margin: 0 auto;
+    padding: 120px 24px 80px;
+  }
+
+  .doc-header { margin-bottom: 56px; padding-bottom: 40px; border-bottom: 1px solid var(--border); }
+  .doc-label {
+    display: inline-block;
+    font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--teal); font-weight: 700; margin-bottom: 16px;
+  }
+  .doc-header h1 {
+    font-size: clamp(32px, 5vw, 48px); font-weight: 800;
+    letter-spacing: -1.5px; margin-bottom: 16px; line-height: 1.1;
+  }
+  .doc-meta { color: var(--muted); font-size: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .doc-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* TOC */
+  .toc {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 32px; margin-bottom: 56px;
+  }
+  .toc h2 { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .toc a { color: var(--blue); text-decoration: none; font-size: 14px; transition: opacity 0.2s; }
+  .toc a:hover { opacity: 0.75; }
+
+  /* SECTIONS */
+  .section { margin-bottom: 52px; }
+  .section h2 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 16px; color: var(--white);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section h2 .num {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: var(--blue);
+  }
+  .section code { font-size: 13px; padding: 1px 6px; border-radius: 5px; background: rgba(79,142,247,0.1); color: var(--white); }
+  .section p { color: var(--muted); font-size: 15px; margin-bottom: 14px; }
+  .section p:last-child { margin-bottom: 0; }
+  .section ul, .section ol {
+    padding-left: 20px; color: var(--muted);
+    font-size: 15px; display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .section li { line-height: 1.65; }
+  .section li strong { color: var(--white); font-weight: 600; }
+
+  /* DATA TABLE */
+  .data-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+  .data-table th {
+    text-align: left; padding: 10px 16px;
+    background: rgba(79,142,247,0.08); color: var(--blue);
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--muted); vertical-align: top; }
+  .data-table td:first-child { color: var(--white); font-weight: 500; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0; }
+
+  /* HIGHLIGHT BOX */
+  .highlight {
+    background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.2);
+    border-radius: 12px; padding: 20px 24px; margin: 20px 0;
+    color: rgba(45,212,191,0.9); font-size: 14px; line-height: 1.65;
+  }
+  .highlight strong { color: var(--teal); }
+
+  .divider { height: 1px; background: var(--border); margin: 52px 0; }
+
+  /* CONTACT */
+  .contact-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 32px;
+  }
+  .contact-box h2 { font-size: 19px; font-weight: 700; margin-bottom: 12px; }
+  .contact-box p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  .contact-box a { color: var(--blue); text-decoration: none; }
+  .contact-box a:hover { text-decoration: underline; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 32px 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-top: 60px;
+  }
+  footer p { color: var(--muted); font-size: 13px; }
+  footer a { color: var(--muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+  footer a:hover { color: var(--white); }
+
+  @media (max-width: 640px) {
+    nav { padding: 16px 20px; }
+    .container { padding: 100px 20px 60px; }
+    footer { padding: 28px 20px; flex-direction: column; text-align: center; }
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+    nav { background: rgba(244,247,255,0.92); }
+  }
+  :root[data-theme="light"] { --bg: #f4f7ff; --surface: #ffffff; --white: #0D1421; --muted: #5a6480; --border: rgba(79,142,247,0.18); }
+  :root[data-theme="dark"] { --bg: #080A10; --surface: #0D1421; --white: #F0F4FF; --muted: #8892A4; --border: rgba(79,142,247,0.15); }
+</style>
+
+  <link rel="canonical" href="https://callistoai.net/dmca" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Callisto AI" />
+  <meta property="og:url" content="https://callistoai.net/dmca" />
+  <meta property="og:title" content="Copyright &amp; DMCA Policy — Callisto AI" />
+  <meta property="og:description" content="How to report copyright infringement on Callisto AI, and how to respond to a notice." />
+  <meta property="og:image" content="https://callistoai.net/favicon-192.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">Callisto<span class="dot">.</span>AI</a>
+  <a href="/" class="back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Home
+  </a>
+</nav>
+
+<div class="container">
+
+  <div class="doc-header">
+    <span class="doc-label">Legal</span>
+    <h1>Copyright &amp; DMCA Policy</h1>
+    <div class="doc-meta">
+      <span>CALLISTO AI, Ontario, Canada</span>
+      <span>Effective: November 15, 2026</span>
+      <span>Last updated: November 15, 2026</span>
+    </div>
+  </div>
+
+    <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#d1">Our approach</a></li>
+      <li><a href="#d2">Reporting infringement</a></li>
+      <li><a href="#d3">What happens next</a></li>
+      <li><a href="#d4">Counter-notices</a></li>
+      <li><a href="#d5">Repeat infringers</a></li>
+      <li><a href="#d6">Canada: notice and notice</a></li>
+      <li><a href="#d7">AI-generated content</a></li>
+      <li><a href="#d8">False claims</a></li>
+      <li><a href="#d9">Designated agent</a></li>
+    </ol>
+  </div>
+
+  <div class="section" id="d1">
+    <h2><span class="num">1</span>Our approach</h2>
+    <p>Callisto AI lets people upload files, generate images, video, music and 3D models, and post to their own social accounts. We respect the rights of creators and expect everyone who uses Callisto to do the same. Our <a href="/terms.html" style="color:var(--blue)">Terms of Service</a> forbid using Callisto to infringe anyone's copyright.</p>
+    <p>We respond to clear notices of alleged infringement under the U.S. Digital Millennium Copyright Act (17 U.S.C. &sect; 512) and Canada's Copyright Act. This page explains how to send one, and how the person who posted the material can respond.</p>
+    <div class="highlight"><strong>Most of what people make with Callisto stays on their own device.</strong> We host uploads only for a short time while they are processed or posted, and posts go out to the user's own accounts on Instagram, TikTok, YouTube and Facebook. If the material you are concerned about is live on one of those platforms, reporting it there as well is usually the fastest way to have it removed.</div>
+  </div>
+
+  <div class="section" id="d2">
+    <h2><span class="num">2</span>Reporting infringement</h2>
+    <p>If you believe material available through Callisto infringes a copyright you own or are authorised to act for, email our designated agent (section 9) with all of the following:</p>
+    <ol>
+      <li>Your physical or electronic <strong>signature</strong>.</li>
+      <li>A description of the <strong>copyrighted work</strong> you say is infringed, or a list if there are several.</li>
+      <li>The <strong>material</strong> you say is infringing, with enough detail for us to find it: a link, the account or share link, a screenshot, and the date you saw it.</li>
+      <li>Your <strong>name, postal address, telephone number and email</strong>.</li>
+      <li>A statement that you have a <strong>good-faith belief</strong> the use is not authorised by the copyright owner, its agent or the law.</li>
+      <li>A statement that the information in your notice is <strong>accurate</strong>, and, under penalty of perjury, that you are the owner or authorised to act on the owner's behalf.</li>
+    </ol>
+    <p>Please put "Copyright notice" in the subject line. A notice missing any of these may not be acted on, and we may ask you for the missing details.</p>
+  </div>
+
+  <div class="section" id="d3">
+    <h2><span class="num">3</span>What happens next</h2>
+    <ul>
+      <li>We confirm we have received your notice, usually within two business days.</li>
+      <li>If the notice is complete, we remove or disable access to the material we host, and stop any further posting of it through Callisto.</li>
+      <li>We tell the user concerned, and pass on a copy of your notice, which may include your name and contact details so they can respond.</li>
+      <li>Content that has already been posted to a third-party platform is controlled by that platform. We will tell you where it was posted so you can report it there too.</li>
+    </ul>
+  </div>
+
+  <div class="section" id="d4">
+    <h2><span class="num">4</span>Counter-notices</h2>
+    <p>If your material was removed and you believe that was a mistake, or that you have the right to use it, you can send a counter-notice to our designated agent containing:</p>
+    <ol>
+      <li>Your physical or electronic <strong>signature</strong>.</li>
+      <li>The material that was removed and where it appeared before removal.</li>
+      <li>A statement, under penalty of perjury, that you have a <strong>good-faith belief</strong> the material was removed by mistake or misidentification.</li>
+      <li>Your <strong>name, address and telephone number</strong>, and a statement that you consent to the jurisdiction of the federal district court for your address (or, if you are outside the United States, any judicial district in which we may be found), and that you will accept service of process from the person who sent the original notice.</li>
+    </ol>
+    <p>We forward valid counter-notices to the person who sent the original notice. Unless they tell us within 10 business days that they have filed a court action, we may restore the material 10 to 14 business days after we received the counter-notice.</p>
+  </div>
+
+  <div class="section" id="d5">
+    <h2><span class="num">5</span>Repeat infringers</h2>
+    <p>We suspend or close the accounts of users who repeatedly infringe copyright, in appropriate circumstances. A user who receives several valid notices may lose access to Callisto without a refund.</p>
+  </div>
+
+  <div class="section" id="d6">
+    <h2><span class="num">6</span>Canada: notice and notice</h2>
+    <p>Callisto AI is based in Ontario, Canada. Where Canada's notice-and-notice regime applies (Copyright Act, sections 41.25 to 41.27), we forward a compliant notice to the user concerned and tell the sender that we have done so. Forwarding a notice does not mean we agree with it, and under that regime we do not share the user's personal information with the sender.</p>
+  </div>
+
+  <div class="section" id="d7">
+    <h2><span class="num">7</span>AI-generated content</h2>
+    <p>Images, video, music and 3D models are made by AI models from what the user asks for. Users are responsible for what they ask for and for what they publish. We do not knowingly allow requests that reproduce a specific copyrighted work, character or logo, and a notice about generated content is handled in exactly the same way as one about an upload.</p>
+  </div>
+
+  <div class="section" id="d8">
+    <h2><span class="num">8</span>False claims</h2>
+    <p>Anyone who knowingly makes a material misrepresentation in a notice or counter-notice may be liable for damages, including costs and legal fees (17 U.S.C. &sect; 512(f)). If you are unsure whether material infringes your rights, consider getting legal advice before sending a notice.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="contact-box" id="d9">
+    <h2>Designated agent</h2>
+    <p>Send copyright notices and counter-notices to:</p>
+    <p>
+      Copyright Agent, CALLISTO AI<br>
+      93 Tamworth Road, North York, Ontario M2N 2P1, Canada<br>
+      Email: <a href="mailto:support@callistoai.net?subject=Copyright%20notice">support@callistoai.net</a> (subject: "Copyright notice")
+    </p>
+    <p>This address is for copyright matters only. For anything else, contact <a href="mailto:support@callistoai.net">support@callistoai.net</a>.</p>
+  </div>
+
+</div>
+
+<footer>
+  <p>&copy; 2026 CALLISTO AI. All rights reserved.</p>
+  <p><a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy Policy</a> &middot; <a href="/">Back to Callisto AI</a></p>
+</footer>
+</body>
+</html>
