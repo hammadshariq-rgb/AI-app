@@ -348,17 +348,27 @@ app.use(require('compression')({
   filter: (req, res) => !/event-stream/.test(String(res.getHeader('Content-Type') || '')) && require('compression').filter(req, res),
 }));
 
-app.use(express.json({ limit: '50mb' }));
-// Tally of every AI feature used - tried, worked, failed - for /admin.
-require('./feature-stats').mountFeatureStats(app, { authMiddleware });
-
 // The floor, under everything below. Specific routes add their own tighter
 // limits on top; this is what catches a route nobody thought about, and a
 // route added later by somebody who forgot. It sits AFTER the Stripe webhook
 // above on purpose - Stripe retries failed deliveries in bursts and must
-// never be turned away - and after express.json so a 429 costs almost nothing
-// to send.
+// never be turned away.
+//
+// And BEFORE the body is read. It used to come after a 50 MB JSON parser, so
+// a flood of large bodies was read into memory in full before a single one was
+// turned away - enough to run the server out of memory. Refusing first means a
+// refused request costs nothing.
 app.use(globalLimiter);
+
+// Only the routes that carry pictures, audio or video get a big body. Sign-in,
+// connectors, reviews and the rest have no reason to accept more than a little,
+// and a small cap there means nobody can make them chew through megabytes.
+const BIG_BODY = /^\/(?:ai|web\/(?:chat|voice|speak)|video|models|media)\//;
+const jsonBig = express.json({ limit: '50mb' });
+const jsonSmall = express.json({ limit: '1mb' });
+app.use((req, res, next) => (BIG_BODY.test(req.path) ? jsonBig : jsonSmall)(req, res, next));
+// Tally of every AI feature used - tried, worked, failed - for /admin.
+require('./feature-stats').mountFeatureStats(app, { authMiddleware });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -707,6 +717,13 @@ app.post('/auth/signup', signupLimiter, async (req, res) => {
   }
   if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+  // Plain letters only. "hаmmad@gmail.com" with a Cyrillic а looks exactly
+  // like the real address in any list or support email - a lookalike account
+  // is how people get fooled into helping the wrong person. Real addresses
+  // with accented letters are vanishingly rare; lookalikes are not.
+  if (/[^\x21-\x7E]/.test(email)) {
+    return res.status(400).json({ error: 'Please use an email address with ordinary letters and numbers only.' });
   }
   if (await users.findByEmail(email)) return res.status(409).json({ error: 'Account already exists. Please log in.' });
   const passwordHash = await bcrypt.hash(password, 10);
@@ -4429,7 +4446,7 @@ app.get('/health/stats', adminLimiter, (req, res) => {
 // so this has to be registered after everything it is meant to catch.
 app.use(monitoring.errorHandler);
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Jarvis auth server on :${PORT}`);
   // Indexes are applied once here rather than by whichever request happened
   // to touch a collection first. Not awaited and never fatal: a server that
@@ -4443,3 +4460,13 @@ app.listen(PORT, () => {
   // Sessions end themselves when they expire.
   sessions.ensureIndex().catch(() => {});
 });
+
+// Slow-drip connections (Slowloris): a client that sends its headers or body
+// a byte at a time holds a connection open for as long as the server lets it.
+// Node's defaults allow minutes. These cap how long a request may take to
+// ARRIVE - not how long an answer may take to stream back, so long AI replies
+// are unaffected. The header limit stays above the keep-alive one, which is
+// the order Node needs so an idle reused connection is not cut mid-request.
+httpServer.keepAliveTimeout = 25 * 1000;
+httpServer.headersTimeout = 30 * 1000;
+httpServer.requestTimeout = 120 * 1000;
