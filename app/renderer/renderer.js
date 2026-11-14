@@ -6815,6 +6815,11 @@ async function sendToJarvis(rawText) {
   if (!res || res.error) {
     if (res?.error === 'login_required') {
       addMessage('assistant', 'Session expired - please log in again.');
+    } else if (res?.error === 'needs_verification') {
+      // The server will not answer until the emailed code is entered, so ask
+      // for it here rather than saying something vague went wrong.
+      addMessage('assistant', res.userMsg || 'Confirm your email first - enter the code we sent you.');
+      if (window.CallistoAccount) window.CallistoAccount.askEmailCode(profile && profile.email);
     } else if (res?.error === 'daily_limit_reached') {
       // Not an apology: there is nothing wrong, they have used today's fifteen.
       addMessage('assistant', res.userMsg || "You've used your 15 free messages for today.");

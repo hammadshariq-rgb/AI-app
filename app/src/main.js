@@ -3252,6 +3252,11 @@ function classifyAIError(err) {
       userMsg: `You've used your ${d.limit || 15} free messages for today.`,
     };
   }
+  // An account whose email was never confirmed: the server refuses the AI
+  // until the code is entered. Said plainly, and the renderer asks for it.
+  if (msg.includes('needsverification') || msg.includes('confirm your email')) {
+    return { error: 'needs_verification', userMsg: 'Confirm your email first - enter the 6-digit code we sent you. Check spam if it is not there.' };
+  }
   if (msg.includes('enotfound') || msg.includes('enetunreach') || msg.includes('econnrefused') || msg.includes('network') || msg.includes('dns')) {
     return { error: 'offline', userMsg: "I can't reach the internet right now. Check your connection and try again." };
   }

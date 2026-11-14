@@ -107,12 +107,22 @@ async function getGmailInbox(limit = 25) {
     }
     out.sort((a, b) => new Date(b.date) - new Date(a.date));
     // A preview for the newest few unread, read without marking them read.
-    for (const msg of out.filter((x) => x.unread).slice(0, 5)) {
+    // One round trip for all of them: fetching each separately is what made
+    // reading the inbox take fifteen seconds.
+    const want = out.filter((x) => x.unread).slice(0, 5);
+    if (want.length) {
+      const byUid = new Map(want.map((m) => [m.uid, m]));
+      const raw = [];
       try {
-        const one = await client.fetchOne(String(msg.uid), { source: { start: 0, maxLength: 40000 } }, { uid: true });
-        const parsed = await simpleParser(one.source);
-        msg.preview = String(parsed.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+        for await (const one of client.fetch(want.map((m) => m.uid).join(','), { uid: true, source: { start: 0, maxLength: 12000 } }, { uid: true })) raw.push(one);
       } catch (_) {}
+      await Promise.all(raw.map(async (one) => {
+        try {
+          const parsed = await simpleParser(one.source);
+          const msg = byUid.get(one.uid);
+          if (msg) msg.preview = String(parsed.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+        } catch (_) {}
+      }));
     }
     return out;
   });
