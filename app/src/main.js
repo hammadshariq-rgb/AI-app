@@ -2192,6 +2192,8 @@ ipcMain.handle('cursor:pressOutside', (e, p) => {
 // The cursor is asked of the operating system instead, which answers whether
 // the window is listening or not.
 let _cursorTimer = null;
+let _cursorLastKey = '';
+let _cursorLastAt = 0;
 
 function startCursorWatch() {
   if (_cursorTimer) return;
@@ -2201,6 +2203,15 @@ function startCursorWatch() {
       const pt = screen.getCursorScreenPoint();
       const b = overlayWindow.getBounds();
       const inside = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
+      // Only when something changed. Sending the same position 33 times a
+      // second while the mouse sat still kept the page waking up for nothing.
+      const key = inside ? (pt.x - b.x) + ',' + (pt.y - b.y) : 'out';
+      // A still mouse is still re-sent four times a second, because what is
+      // UNDER it can change - a panel opening beneath the pointer must stop
+      // clicks passing through, and that is decided from these positions.
+      const now = Date.now();
+      if (key === _cursorLastKey && now - _cursorLastAt < 250) return;
+      _cursorLastKey = key; _cursorLastAt = now;
       overlayWindow.webContents.send('app:cursor', inside ? { x: pt.x - b.x, y: pt.y - b.y } : null);
     } catch (_) { /* the window went away mid-tick */ }
     // Read often. At 60ms, moving onto a small button and clicking before the
